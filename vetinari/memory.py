@@ -49,6 +49,7 @@ class MemoryStore:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'draft',
                     plan_json TEXT,
+                    plan_explanation_json TEXT,
                     chosen_plan_id TEXT,
                     plan_justification TEXT,
                     risk_score REAL DEFAULT 0.0,
@@ -70,6 +71,7 @@ class MemoryStore:
                     duration_seconds REAL,
                     cost_estimate REAL,
                     rationale TEXT,
+                    subtask_explanation_json TEXT,
                     domain TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -134,9 +136,9 @@ class MemoryStore:
             cursor = self._conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO PlanHistory 
-                (plan_id, plan_version, goal, updated_at, status, plan_json, 
+                (plan_id, plan_version, goal, updated_at, status, plan_json, plan_explanation_json,
                  chosen_plan_id, plan_justification, risk_score, dry_run, auto_approved)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 plan_data.get("plan_id"),
                 plan_data.get("plan_version", 1),
@@ -144,6 +146,7 @@ class MemoryStore:
                 datetime.now().isoformat(),
                 plan_data.get("status", "draft"),
                 json.dumps(plan_data.get("plan_json", {})),
+                plan_data.get("plan_explanation_json", ""),
                 plan_data.get("chosen_plan_id"),
                 plan_data.get("plan_justification"),
                 plan_data.get("risk_score", 0.0),
@@ -178,8 +181,8 @@ class MemoryStore:
                 INSERT OR REPLACE INTO SubtaskMemory
                 (subtask_id, plan_id, parent_subtask_id, description, depth,
                  status, assigned_model_id, outcome, duration_seconds, 
-                 cost_estimate, rationale, domain, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 cost_estimate, rationale, subtask_explanation_json, domain, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 subtask_data.get("subtask_id"),
                 subtask_data.get("plan_id"),
@@ -192,6 +195,7 @@ class MemoryStore:
                 subtask_data.get("duration_seconds"),
                 subtask_data.get("cost_estimate"),
                 subtask_data.get("rationale"),
+                subtask_data.get("subtask_explanation_json", ""),
                 subtask_data.get("domain"),
                 datetime.now().isoformat()
             ))

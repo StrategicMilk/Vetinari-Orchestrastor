@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from functools import wraps
 from flask import Blueprint, request, jsonify
@@ -345,6 +346,94 @@ def get_plan_templates():
     except Exception as e:
         logger.error(f"Failed to get templates: {e}")
         return jsonify({"error": "Failed to get templates", "message": str(e)}), 500
+
+
+@plan_api.route('/api/plan/<plan_id>/explanations', methods=['GET'])
+@require_admin_token
+def get_plan_explanations(plan_id):
+    """Get plan explanation.
+    
+    Returns the explanation for a plan including blocks and summary.
+    Query params:
+    - sanitized: if true, return sanitized version for public exposure (default: false)
+    """
+    enabled, error = check_plan_mode_enabled()
+    if not enabled:
+        return jsonify({"error": "Plan mode disabled", "message": error}), 403
+    
+    sanitized = request.args.get('sanitized', 'false').lower() in ('1', 'true', 'yes')
+    
+    try:
+        from .explain_agent import get_explain_agent
+        from .plan_types import PlanExplanation
+        
+        engine = get_plan_engine()
+        plan = engine.get_plan(plan_id)
+        
+        if not plan:
+            return jsonify({"error": "Plan not found", "plan_id": plan_id}), 404
+        
+        explanation_data = {}
+        if plan.plan_explanation_json:
+            try:
+                explanation_data = json.loads(plan.plan_explanation_json)
+            except:
+                pass
+        
+        if sanitized and explanation_data:
+            explain_agent = get_explain_agent()
+            explanation = PlanExplanation.from_dict(explanation_data)
+            sanitized_exp = explain_agent.sanitize_explanation(explanation)
+            return jsonify({
+                "success": True,
+                "plan_id": plan_id,
+                "explanation": sanitized_exp.to_dict()
+            })
+        
+        return jsonify({
+            "success": True,
+            "plan_id": plan_id,
+            "explanation": explanation_data if explanation_data else None
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to get plan explanations: {e}")
+        return jsonify({"error": "Failed to get explanations", "message": str(e)}), 500
+
+
+@plan_api.route('/api/plan/<plan_id>/subtasks/<subtask_id>/explanation', methods=['GET'])
+@require_admin_token
+def get_subtask_explanation(plan_id, subtask_id):
+    """Get explanation for a specific subtask."""
+    enabled, error = check_plan_mode_enabled()
+    if not enabled:
+        return jsonify({"error": "Plan mode disabled", "message": error}), 403
+    
+    try:
+        engine = get_plan_engine()
+        subtasks = engine.get_subtasks(plan_id)
+        
+        subtask = next((s for s in subtasks if s.subtask_id == subtask_id), None)
+        if not subtask:
+            return jsonify({"error": "Subtask not found", "subtask_id": subtask_id}), 404
+        
+        explanation_data = {}
+        if subtask.subtask_explanation_json:
+            try:
+                explanation_data = json.loads(subtask.subtask_explanation_json)
+            except:
+                pass
+        
+        return jsonify({
+            "success": True,
+            "plan_id": plan_id,
+            "subtask_id": subtask_id,
+            "explanation": explanation_data if explanation_data else None
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to get subtask explanation: {e}")
+        return jsonify({"error": "Failed to get subtask explanation", "message": str(e)}), 500
 
 
 def register_plan_api(app):

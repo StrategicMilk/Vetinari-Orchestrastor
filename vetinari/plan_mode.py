@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 import uuid
 from typing import List, Dict, Optional, Any, Callable
 from datetime import datetime
@@ -10,6 +11,7 @@ from .plan_types import (
     TaskRationale, PlanGenerationRequest, PlanApprovalRequest
 )
 from .memory import get_memory_store, MemoryStore
+from .explain_agent import get_explain_agent, ExplainAgent, EXPLAINABILITY_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -451,6 +453,16 @@ class PlanModeEngine:
                 plan.approved_at = datetime.now().isoformat()
         else:
             plan.status = PlanStatus.DRAFT
+        
+        # Generate plan explanation if explainability is enabled
+        if EXPLAINABILITY_ENABLED:
+            try:
+                explain_agent = get_explain_agent()
+                explanation = explain_agent.explain_plan(plan)
+                plan.plan_explanation_json = json.dumps(explanation.to_dict())
+                logger.info(f"Generated explanation for plan {plan.plan_id}")
+            except Exception as e:
+                logger.warning(f"Failed to generate explanation: {e}")
         
         self._persist_plan(plan)
         

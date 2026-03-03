@@ -91,6 +91,7 @@ class Subtask:
     actual_cost: float = 0.0
     dependencies: List[str] = field(default_factory=list)
     child_subtask_ids: List[str] = field(default_factory=list)
+    subtask_explanation_json: str = ""  # JSON string of SubtaskExplanation
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     
@@ -182,6 +183,7 @@ class Plan:
     auto_approved: bool = False
     approved_by: Optional[str] = None
     approved_at: Optional[str] = None
+    plan_explanation_json: str = ""  # JSON string of PlanExplanation
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     completed_at: Optional[str] = None
