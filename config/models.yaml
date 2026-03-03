@@ -100,3 +100,168 @@ policy:
   preferred_providers:
     - lmstudio
     - ollama
+    - claude
+    - gemini
+    - huggingface
+    - replicate
+
+# Cloud Models (require API keys)
+cloud_models:
+  # Claude (Anthropic)
+  - model_id: "claude-sonnet-4"
+    provider: "claude"
+    display_name: "Claude 3.5 Sonnet"
+    capabilities:
+      - reasoning
+      - coding
+      - analysis
+    context_window: 200000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.015
+    status: "available"
+    endpoint: "https://api.anthropic.com/v1/messages"
+    requires_env:
+      - CLAUDE_API_KEY
+
+  - model_id: "claude-opus-4"
+    provider: "claude"
+    display_name: "Claude 3 Opus"
+    capabilities:
+      - reasoning
+      - coding
+      - analysis
+    context_window: 200000
+    latency_hint: "slow"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.075
+    status: "available"
+    endpoint: "https://api.anthropic.com/v1/messages"
+    requires_env:
+      - CLAUDE_API_KEY
+
+  - model_id: "claude-haiku-3"
+    provider: "claude"
+    display_name: "Claude 3 Haiku"
+    capabilities:
+      - fast
+      - coding
+    context_window: 200000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0008
+    status: "available"
+    endpoint: "https://api.anthropic.com/v1/messages"
+    requires_env:
+      - CLAUDE_API_KEY
+
+  # Gemini (Google)
+  - model_id: "gemini-2.0-flash"
+    provider: "gemini"
+    display_name: "Gemini 2.0 Flash"
+    capabilities:
+      - reasoning
+      - vision
+      - coding
+    context_window: 1000000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    requires_env:
+      - GEMINI_API_KEY
+
+  - model_id: "gemini-1.5-pro"
+    provider: "gemini"
+    display_name: "Gemini 1.5 Pro"
+    capabilities:
+      - reasoning
+      - vision
+      - coding
+    context_window: 2000000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.00125
+    status: "available"
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    requires_env:
+      - GEMINI_API_KEY
+
+  - model_id: "gemini-1.5-flash"
+    provider: "gemini"
+    display_name: "Gemini 1.5 Flash"
+    capabilities:
+      - fast
+      - vision
+      - coding
+    context_window: 1000000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.000075
+    status: "available"
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    requires_env:
+      - GEMINI_API_KEY
+
+  # HuggingFace Inference
+  - model_id: "hf-inference-meta-llama-3.1-70b"
+    provider: "huggingface"
+    display_name: "Llama 3.1 70B (HF)"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://api-inference.huggingface.co/meta-llama/Llama-3.1-70B-Instruct"
+    requires_env:
+      - HF_HUB_TOKEN
+
+  - model_id: "hf-inference-mistral-7b"
+    provider: "huggingface"
+    display_name: "Mistral 7B (HF)"
+    capabilities:
+      - coding
+      - fast
+    context_window: 32768
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://api-inference.huggingface.co/mistralai/Mistral-7B-Instruct-v0.2"
+    requires_env:
+      - HF_HUB_TOKEN
+
+  # Replicate
+  - model_id: "replicate-llama-3.1-70b"
+    provider: "replicate"
+    display_name: "Llama 3.1 70B (Replicate)"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.001
+    status: "available"
+    endpoint: "https://api.replicate.com/v1/models/meta/llama-3.1-70b-instruct"
+    requires_env:
+      - REPLICATE_API_TOKEN
+
+  - model_id: "replicate-llama-3.1-8b"
+    provider: "replicate"
+    display_name: "Llama 3.1 8B (Replicate)"
+    capabilities:
+      - coding
+      - fast
+    context_window: 32768
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0002
+    status: "available"
+    endpoint: "https://api.replicate.com/v1/models/meta/llama-3.1-8b-instruct"
+    requires_env:
+      - REPLICATE_API_TOKEN
