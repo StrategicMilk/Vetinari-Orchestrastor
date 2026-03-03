@@ -139,18 +139,48 @@ class Orchestrator:
         return result
 
     def check_and_upgrade_models(self):
+        """
+        Check for and install model upgrades.
+        Supports non-interactive mode via VETINARI_UPGRADE_AUTO_APPROVE environment variable.
+        """
+        # Check if running in non-interactive mode
+        auto_approve = os.environ.get("VETINARI_UPGRADE_AUTO_APPROVE", "false").lower() in ("1", "true", "yes")
+        is_interactive = not auto_approve and hasattr(__builtins__, '__dict__')
+        
         upgrades = self.upgrader.check_for_upgrades()
         if not upgrades:
             logging.info("No upgrades available.")
             return
         
         for u in upgrades:
-            if self.config.get("upgrade_policy", {}).get("require_approval", True):
-                user_input = input(f"Upgrade available: {u['name']} (version {u['version']}). Install? (y/n): ")
-                if user_input.strip().lower() != "y":
-                    logging.info("Upgrade skipped by user.")
+            upgrade_policy = self.config.get("upgrade_policy", {})
+            require_approval = upgrade_policy.get("require_approval", True)
+            
+            if require_approval and not auto_approve:
+                if is_interactive:
+                    # Interactive mode: prompt user
+                    try:
+                        user_input = input(f"Upgrade available: {u['name']} (version {u['version']}). Install? (y/n): ")
+                        if user_input.strip().lower() != "y":
+                            logging.info(f"Upgrade skipped by user: {u['name']}")
+                            continue
+                    except EOFError:
+                        # No TTY available, skip this upgrade
+                        logging.warning(f"No TTY available - skipping upgrade prompt for {u['name']}")
+                        continue
+                else:
+                    # Non-interactive mode: skip unless auto_approve is set
+                    logging.warning(f"Non-interactive mode: Skipping upgrade {u['name']} (set VETINARI_UPGRADE_AUTO_APPROVE=true to auto-approve)")
                     continue
-            self.upgrader.install_upgrade(u)
+            elif auto_approve:
+                logging.info(f"Auto-approving upgrade: {u['name']} (VETINARI_UPGRADE_AUTO_APPROVE=true)")
+            
+            try:
+                self.upgrader.install_upgrade(u)
+                logging.info(f"Upgrade installed: {u['name']} v{u['version']}")
+            except Exception as e:
+                logging.error(f"Failed to install upgrade {u['name']}: {str(e)}")
+        
         logging.info("Upgrade process complete.")
 
 

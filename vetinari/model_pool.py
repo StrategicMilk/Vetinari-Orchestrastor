@@ -2,6 +2,7 @@ import requests
 import yaml
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -60,6 +61,14 @@ class ModelPool:
         self.session = requests.Session()
         if api_token:
             self.session.headers.update({"Authorization": f"Bearer {api_token}"})
+        
+        # Retry policy configuration
+        self._discovery_failed = False
+        self._fallback_active = False
+        self._last_discovery_error = None
+        self._discovery_retry_count = 0
+        self._max_discovery_retries = int(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRIES", "5"))
+        self._discovery_retry_delay_base = float(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRY_DELAY", "1.0"))
 
     def set_api_token(self, api_token: Optional[str]):
         """Update the API token for authentication."""
@@ -70,60 +79,134 @@ class ModelPool:
             del self.session.headers["Authorization"]
 
     def discover_models(self):
-        # First, load static models from config
-        static_models = self.config.get("models", [])
+        """
+        Discover models from LM Studio with exponential backoff retry logic.
+        Falls back to static models if discovery fails after max retries.
+        """
+        # Reset state on each discovery attempt
+        self._discovery_failed = False
+        self._fallback_active = False
+        self._discovery_retry_count = 0
         self.models = []
         
-        # Try to get models from LM Studio /v1/models endpoint (with auth if set)
-        try:
-            # Use the same endpoint that /api/models uses
-            models_endpoint = f"{self.host}/v1/models"
-            resp = self.session.get(models_endpoint, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            
-            # Handle both dict and list response formats
-            if isinstance(data, dict):
-                if "data" in data:
-                    data = data["data"]
-                elif "models" in data:
-                    data = data["models"]
-            if not isinstance(data, list):
-                data = []
-            
-            for m in data:
-                # Get model ID and name
-                model_id = m.get("id", "")
-                if not model_id:
-                    continue
-                    
-                # Filter by memory_gb <= memory_budget_gb
-                mem = m.get("memory_gb", 0)
-                
-                # Skip models that exceed memory budget
-                if mem > self.memory_budget_gb:
-                    logging.info(f"Skipping model {model_id} - exceeds memory budget ({mem}GB > {self.memory_budget_gb}GB)")
-                    continue
-                
-                model = {
-                    "id": model_id,
-                    "name": model_id,  # Use ID as name
-                    "endpoint": f"{self.host}/api/v1/chat",
-                    "capabilities": ["code_gen", "docs", "chat"],  # Default capabilities
-                    "context_len": 2048,
-                    "memory_gb": mem if mem > 0 else 2,  # Default to 2GB if unknown
-                    "version": ""
-                }
-                self.models.append(model)
-                logging.info(f"Discovered model: {model_id} (within {self.memory_budget_gb}GB budget)")
-                
-        except Exception as e:
-            logging.warning(f"Model discovery failed: {e}")
+        # Load static models first (always available)
+        static_models = self.config.get("models", [])
         
-        # Always include static models from config
+        # Attempt discovery with retry logic
+        for attempt in range(self._max_discovery_retries):
+            self._discovery_retry_count = attempt + 1
+            try:
+                # Try to get models from LM Studio /v1/models endpoint (with auth if set)
+                models_endpoint = f"{self.host}/v1/models"
+                logging.debug(f"[Model Discovery] Attempt {self._discovery_retry_count}/{self._max_discovery_retries} at {models_endpoint}")
+                
+                resp = self.session.get(models_endpoint, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                
+                # Handle both dict and list response formats
+                if isinstance(data, dict):
+                    if "data" in data:
+                        data = data["data"]
+                    elif "models" in data:
+                        data = data["models"]
+                if not isinstance(data, list):
+                    data = []
+                
+                # Process discovered models
+                discovered_count = 0
+                for m in data:
+                    # Get model ID and name
+                    model_id = m.get("id", "")
+                    if not model_id:
+                        continue
+                        
+                    # Filter by memory_gb <= memory_budget_gb
+                    mem = m.get("memory_gb", 0)
+                    
+                    # Skip models that exceed memory budget
+                    if mem > self.memory_budget_gb:
+                        logging.info(f"[Model Discovery] Skipping {model_id} - exceeds memory budget ({mem}GB > {self.memory_budget_gb}GB)")
+                        continue
+                    
+                    model = {
+                        "id": model_id,
+                        "name": model_id,  # Use ID as name
+                        "endpoint": f"{self.host}/api/v1/chat",
+                        "capabilities": ["code_gen", "docs", "chat"],  # Default capabilities
+                        "context_len": 2048,
+                        "memory_gb": mem if mem > 0 else 2,  # Default to 2GB if unknown
+                        "version": ""
+                    }
+                    self.models.append(model)
+                    discovered_count += 1
+                
+                logging.info(f"[Model Discovery] SUCCESS: Discovered {discovered_count} models from {self.host}")
+                self._discovery_failed = False
+                self._fallback_active = False
+                break  # Success, exit retry loop
+                
+            except requests.exceptions.Timeout:
+                error_msg = f"Model discovery timeout on attempt {self._discovery_retry_count}/{self._max_discovery_retries}"
+                logging.warning(f"[Model Discovery] {error_msg}")
+                self._last_discovery_error = error_msg
+                self._discovery_failed = True
+                
+                # Calculate backoff delay
+                if attempt < self._max_discovery_retries - 1:
+                    delay = self._discovery_retry_delay_base * (2 ** attempt)  # Exponential backoff
+                    delay = min(delay, 30)  # Cap at 30 seconds
+                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                    
+            except requests.exceptions.ConnectionError as e:
+                error_msg = f"Connection error during model discovery (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
+                logging.warning(f"[Model Discovery] {error_msg}")
+                self._last_discovery_error = error_msg
+                self._discovery_failed = True
+                
+                # Calculate backoff delay
+                if attempt < self._max_discovery_retries - 1:
+                    delay = self._discovery_retry_delay_base * (2 ** attempt)
+                    delay = min(delay, 30)
+                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                    
+            except Exception as e:
+                error_msg = f"Model discovery failed (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
+                logging.warning(f"[Model Discovery] {error_msg}")
+                self._last_discovery_error = error_msg
+                self._discovery_failed = True
+                
+                # For other errors, don't retry
+                break
+        
+        # Fallback: Always include static models from config
+        if self._discovery_failed and len(self.models) == 0:
+            logging.warning(f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. Falling back to static models.")
+            self._fallback_active = True
+        
         for m in static_models:
             if not any(existing.get('name') == m.get('name') for existing in self.models):
                 self.models.append(m)
+        
+        # Log final state
+        if self._fallback_active:
+            logging.info(f"[Model Discovery] Using {len(self.models)} models from fallback (static config)")
+        else:
+            logging.info(f"[Model Discovery] Available models: {len(self.models)}")
+    
+    def get_discovery_health(self) -> Dict[str, any]:
+        """Get health information about model discovery."""
+        return {
+            "discovery_failed": self._discovery_failed,
+            "fallback_active": self._fallback_active,
+            "last_error": self._last_discovery_error,
+            "retry_count": self._discovery_retry_count,
+            "models_available": len(self.models),
+            "max_retries": self._max_discovery_retries,
+            "retry_delay_base": self._discovery_retry_delay_base
+        }
 
     def assign_tasks_to_models(self, config: dict):
         tasks = config.get("tasks", [])

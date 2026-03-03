@@ -55,17 +55,6 @@ class TaskExecutor:
             print(f"[Vetinari] Written: {filepath}")
         return written
 
-    def _load_prompt(self, task_id: str, stage: str) -> str:
-        prompts_dir = Path(self.config.get("prompts_dir", "prompts"))
-        fname = f"{task_id}_{stage}.txt" if stage != "run" else f"{task_id}_run.txt"
-        p = prompts_dir / fname
-        if p.exists():
-            return p.read_text(encoding="utf-8").strip()
-        # Fallback to embedded YAML prompts
-        tasks = self.config.get("tasks", [])
-        task = next((t for t in tasks if t["id"] == task_id), None)
-        return task.get("prompts", {}).get(stage, f"Prompt for {task_id}:{stage}")
-
     def execute_task(self, task_id: str) -> dict:
         # Locate task
         tasks = self.config.get("tasks", [])
