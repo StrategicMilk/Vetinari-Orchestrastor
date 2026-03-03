@@ -11,7 +11,7 @@ from .plan_types import (
     TaskRationale, PlanGenerationRequest, PlanApprovalRequest
 )
 from .memory import get_memory_store, MemoryStore
-from .explain_agent import get_explain_agent, ExplainAgent, EXPLAINABILITY_ENABLED
+from .explain_agent import get_explain_agent, ExplainAgent, is_explainability_enabled, EXPLAINABILITY_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +455,7 @@ class PlanModeEngine:
             plan.status = PlanStatus.DRAFT
         
         # Generate plan explanation if explainability is enabled
-        if EXPLAINABILITY_ENABLED:
+        if is_explainability_enabled():
             try:
                 explain_agent = get_explain_agent()
                 explanation = explain_agent.explain_plan(plan)
@@ -644,6 +644,101 @@ class PlanModeEngine:
     def is_low_risk(self, risk_score: float) -> bool:
         """Check if a risk score is below the threshold for auto-approval."""
         return risk_score <= self.dry_run_risk_threshold
+    
+    def requires_approval(self, subtask: Subtask, plan_mode: bool = True) -> bool:
+        """Check if a subtask requires human approval.
+        
+        In Plan mode: coding tasks require human approval
+        In Build mode: coding tasks proceed without approval (but still logged)
+        """
+        if not plan_mode:
+            return False
+        
+        if subtask.domain == TaskDomain.CODING:
+            return True
+        
+        return False
+    
+    def check_subtask_approval_required(self, plan: Plan, subtask_id: str, plan_mode: bool = True) -> Dict[str, Any]:
+        """Check if a subtask requires approval and get approval status."""
+        subtask = plan.get_subtask(subtask_id)
+        if not subtask:
+            return {"requires_approval": False, "error": "Subtask not found"}
+        
+        requires_approval = self.requires_approval(subtask, plan_mode)
+        
+        return {
+            "subtask_id": subtask_id,
+            "domain": subtask.domain.value,
+            "requires_approval": requires_approval,
+            "plan_mode": plan_mode,
+            "description": subtask.description,
+            "status": subtask.status.value
+        }
+    
+    def log_approval_decision(self, plan_id: str, subtask_id: str, 
+                             approved: bool, approver: str, reason: str = "",
+                             risk_score: float = 0.0) -> bool:
+        """Log an approval decision to memory."""
+        try:
+            from .memory import (
+                get_dual_memory_store, MemoryEntry, MemoryEntryType, 
+                ApprovalDetails, DUAL_MEMORY_AVAILABLE
+            )
+            
+            if DUAL_MEMORY_AVAILABLE:
+                store = get_dual_memory_store()
+                
+                approval_details = ApprovalDetails(
+                    task_id=subtask_id,
+                    task_type="coding",
+                    plan_id=plan_id,
+                    approval_status="approved" if approved else "rejected",
+                    approver=approver,
+                    reason=reason,
+                    risk_score=risk_score,
+                    timestamp=datetime.now().isoformat()
+                )
+                
+                entry = MemoryEntry(
+                    agent="plan-approval",
+                    entry_type=MemoryEntryType.APPROVAL,
+                    content=json.dumps(approval_details.to_dict()),
+                    summary=f"{'Approved' if approved else 'Rejected'} task {subtask_id} by {approver}",
+                    provenance="plan_approval_api"
+                )
+                
+                store.remember(entry)
+                logger.info(f"Logged approval decision for {subtask_id}: {'approved' if approved else 'rejected'}")
+                return True
+            else:
+                logger.warning("Dual memory not available, approval not logged")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to log approval decision: {e}")
+            return False
+    
+    def auto_approve_if_low_risk(self, plan: Plan, subtask: Subtask) -> bool:
+        """Auto-approve a subtask if it's low risk and in appropriate mode."""
+        if not plan.dry_run:
+            return False
+        
+        if subtask.domain != TaskDomain.CODING:
+            return True
+        
+        if plan.risk_score <= self.dry_run_risk_threshold:
+            self.log_approval_decision(
+                plan.plan_id,
+                subtask.subtask_id,
+                approved=True,
+                approver="system_auto",
+                reason=f"Auto-approved due to low risk (score: {plan.risk_score:.2f})",
+                risk_score=plan.risk_score
+            )
+            return True
+        
+        return False
 
 
 _plan_engine: Optional[PlanModeEngine] = None

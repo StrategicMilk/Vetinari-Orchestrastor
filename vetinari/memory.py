@@ -497,3 +497,26 @@ def init_memory_store(db_path: str = None, use_json_fallback: bool = False) -> M
     else:
         _memory_store = MemoryStore(use_json_fallback=use_json_fallback)
     return _memory_store
+
+
+try:
+    from .memory import (
+        DualMemoryStore,
+        get_dual_memory_store,
+        init_dual_memory_store,
+        MemoryEntry,
+        MemoryEntryType,
+        ApprovalDetails,
+        MEMORY_BACKEND_MODE
+    )
+    DUAL_MEMORY_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Dual memory backends not available: {e}")
+    DualMemoryStore = None
+    get_dual_memory_store = None
+    init_dual_memory_store = None
+    MemoryEntry = None
+    MemoryEntryType = None
+    ApprovalDetails = None
+    MEMORY_BACKEND_MODE = None
+    DUAL_MEMORY_AVAILABLE = False

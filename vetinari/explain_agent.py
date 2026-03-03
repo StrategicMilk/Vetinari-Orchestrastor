@@ -7,7 +7,12 @@ from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
 
-EXPLAINABILITY_ENABLED = os.environ.get("EXPLAINABILITY_ENABLED", "true").lower() in ("1", "true", "yes")
+def is_explainability_enabled() -> bool:
+    """Check if explainability is currently enabled."""
+    return os.environ.get("EXPLAINABILITY_ENABLED", "true").lower() in ("1", "true", "yes")
+
+# Keep for backwards compatibility
+EXPLAINABILITY_ENABLED = is_explainability_enabled()
 
 
 @dataclass
@@ -82,7 +87,8 @@ class ExplainAgent:
     """
     
     def __init__(self):
-        self.enabled = EXPLAINABILITY_ENABLED
+        # Read at instance creation time, not module load time
+        self.enabled = os.environ.get("EXPLAINABILITY_ENABLED", "true").lower() in ("1", "true", "yes")
         self._domain_templates = self._load_domain_templates()
     
     def _load_domain_templates(self) -> Dict[str, Dict[str, str]]:
@@ -335,17 +341,32 @@ class ExplainAgent:
         """Infer the domain from a goal string."""
         goal_lower = goal.lower()
         
-        if any(kw in goal_lower for kw in ["code", "implement", "build", "feature", "api", "function", "module"]):
-            return "coding"
-        elif any(kw in goal_lower for kw in ["etl", "data", "pipeline", "process", "transform", "ingest"]):
-            return "data_processing"
-        elif any(kw in goal_lower for kw in ["infra", "deploy", "monitor", "logging", "ci/cd", "kubernetes"]):
+        # Order matters - check more specific domains first
+        if any(kw in goal_lower for kw in ["ci/cd", "kubernetes", "helm", "docker", "terraform", "ansible"]):
             return "infra"
-        elif any(kw in goal_lower for kw in ["document", "docs", "write", "guide", "readme"]):
-            return "docs"
-        elif any(kw in goal_lower for kw in ["experiment", "model", "test", "benchmark", "evaluate", "compare"]):
+        elif any(kw in goal_lower for kw in ["etl", "data pipeline", "ingest", "data transformation", "spark", "process data"]):
+            return "data_processing"
+        elif any(kw in goal_lower for kw in ["benchmark", "model experiment", "compare models", "evaluate models"]):
             return "ai_experiments"
-        elif any(kw in goal_lower for kw in ["research", "analyze", "study", "investigate", "survey"]):
+        elif any(kw in goal_lower for kw in ["research", "literature", "study analysis", "investigation"]):
+            return "research"
+        elif any(kw in goal_lower for kw in ["api documentation", "user guide", "readme", "technical docs"]):
+            return "docs"
+        elif any(kw in goal_lower for kw in ["unit test", "integration test", "test suite", "pytest"]):
+            return "coding"
+        elif any(kw in goal_lower for kw in ["implement", "create feature", "build module", "develop", "build"]):
+            return "coding"
+        elif any(kw in goal_lower for kw in ["web app", "rest api", "python", "javascript", "java", "code", "function", "module", "class", "api endpoint"]):
+            return "coding"
+        elif any(kw in goal_lower for kw in ["etl", "data process", "transform data", "ingest data", "process data"]):
+            return "data_processing"
+        elif any(kw in goal_lower for kw in ["monitor", "logging", "deploy", "infrastructure"]):
+            return "infra"
+        elif any(kw in goal_lower for kw in ["document", "write docs", "create guide"]):
+            return "docs"
+        elif any(kw in goal_lower for kw in ["experiment", "benchmark", "evaluate", "compare"]):
+            return "ai_experiments"
+        elif any(kw in goal_lower for kw in ["research", "analyze study", "investigate"]):
             return "research"
         else:
             return "general"
