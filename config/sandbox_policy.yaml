@@ -1,0 +1,102 @@
+version: "1.0"
+
+sandbox:
+  in_process:
+    enabled: true
+    timeout_seconds: 30
+    max_memory_mb: 512
+    allowed_builtins:
+      - str
+      - int
+      - float
+      - bool
+      - list
+      - dict
+      - set
+      - tuple
+      - range
+      - enumerate
+      - zip
+      - map
+      - filter
+      - len
+      - sum
+      - min
+      - max
+      - sorted
+      - any
+      - all
+      - abs
+      - round
+      - print
+      - isinstance
+      - hasattr
+      - getattr
+      - setattr
+    blocked_builtins:
+      - open
+      - eval
+      - exec
+      - compile
+      - __import__
+      - input
+      - exit
+      - quit
+
+  external:
+    enabled: true
+    plugin_dir: "./plugins"
+    isolation: "process"
+    timeout_seconds: 300
+    max_memory_mb: 2048
+
+    allowed_hooks:
+      - read_file
+      - write_file
+      - search_code
+
+    blocked_hooks:
+      - shell_exec
+      - network_raw
+      - file_delete
+      - process_spawn
+
+    allowed_domains:
+      - "api.github.com"
+      - "api.openai.com"
+
+    # Plugin security
+    require_signature: false
+    allow_network: true
+    allow_file_write: true
+
+    # Audit
+    audit_enabled: true
+    audit_log_dir: "./logs/sandbox"
+    audit_retention_days: 30
+
+rules:
+  # Code execution
+  allow_code_execution: true
+  require_approval_for_external: true
+
+  # Network
+  allow_network: true
+  blocked_domains: []
+
+  # File system
+  allow_file_read: true
+  allow_file_write: true
+  blocked_paths:
+    - "/etc"
+    - "/root"
+    - "~/.ssh"
+    - "*.pem"
+    - "*.key"
+
+approval:
+  auto_approve_builtin: true
+  require_approval_for:
+    - shell_exec
+    - network_raw
+    - file_delete

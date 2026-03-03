@@ -1,0 +1,1 @@
+System: For the given plan, implement a working Python skeleton for a CLI (argparse or click) and a basic API scaffold (e.g., FastAPI-like). Ensure code is clean, well-documented, and Python 3.9+ compatible. Output the content of cli.py and api.py as code blocks, plus a README snippet describing how to run.

@@ -1,0 +1,4 @@
+external_model_discovery_enabled: false
+goal: test
+name: test-disabled
+tasks: []

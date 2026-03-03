@@ -1,0 +1,52 @@
+Here is an example of how to implement both unit tests and integration tests for some Python modules.
+
+Unit Tests
+-------------
+
+**Filename**: `test_core_module.py`
+
+```python
+import unittest
+from core_modules import Calculator
+
+
+class TestCalculator(unittest.TestCase):
+    def test_add(self):
+        calc = Calculator()
+        result = calc.add(2, 3)
+        self.assertEqual(result, 5)
+
+    def test_subtract(self):
+        calc = Calculator()
+        result = calc.subtract(5, 3)
+        self.assertEqual(result, 2)
+
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+Integration Tests
+-------------------
+
+**Filename**: `test_integration.py`
+
+```python
+import unittest
+from core_modules import Database, User
+
+class TestDatabaseIntegration(unittest.TestCase):
+    def setUp(self):
+        self.db = Database()
+
+    def test_user_creation_and_retrieval(self):
+        user = User("John", "Doe")
+        user_id = self.db.save(user)
+
+        retrieved_user = self.db.get_user_by_id(user_id)
+        self.assertEqual(retrieved_user.name, "John")
+
+if __name__ == '__main__':
+    unittest.main()
+```
+

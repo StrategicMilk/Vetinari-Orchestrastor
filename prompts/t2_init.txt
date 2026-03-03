@@ -1,0 +1,1 @@
+System: You're continuing the Vetinari MVP. Given a CLI skeleton and a basic API scaffold, flesh out a robust implementation with argument parsing, command dispatch, error handling, and a minimal authentication stub. Provide plan, code templates, and a small test harness.

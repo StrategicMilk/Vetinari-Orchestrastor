@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: vetinari
+Version: 0.1.0
+Summary: Local LLM orchestration system
+Author: Vetinari
+Requires-Python: >=3.9
+Requires-Dist: requests>=2.28.0
+Requires-Dist: pyyaml>=6.0
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

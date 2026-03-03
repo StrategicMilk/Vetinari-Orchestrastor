@@ -1,0 +1,1 @@
+System: Run lightweight checks on the integrated scaffold. Validate syntax and ensure dependencies install. Produce a build artifact (zip) containing the scaffold and a short README.

@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vetinari - Local LLM Orchestration</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-brain"></i>
+                <span>Vetinari</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="prompt">
+                    <i class="fas fa-robot"></i>
+                    <span>Prompt</span>
+                </a>
+                <a href="#" class="nav-item" data-view="workflow">
+                    <i class="fas fa-sitemap"></i>
+                    <span>Workflow</span>
+                </a>
+                <a href="#" class="nav-item" data-view="models">
+                    <i class="fas fa-microchip"></i>
+                    <span>Models</span>
+                </a>
+                <a href="#" class="nav-item" data-view="tasks">
+                    <i class="fas fa-tasks"></i>
+                    <span>Tasks</span>
+                </a>
+                <a href="#" class="nav-item" data-view="agents">
+                    <i class="fas fa-robot"></i>
+                    <span>Agents</span>
+                </a>
+                <a href="#" class="nav-item" data-view="output">
+                    <i class="fas fa-file-code"></i>
+                    <span>Output</span>
+                </a>
+                <a href="#" class="nav-item" data-view="archive">
+                    <i class="fas fa-archive"></i>
+                    <span>Archive</span>
+                </a>
+                <a href="#" class="nav-item" data-view="decomposition">
+                    <i class="fas fa-sitemap"></i>
+                    <span>Decomposition Lab</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+            <!-- Persistent Projects Panel -->
+            <div class="projects-panel">
+                <div class="projects-panel-header">
+                    <span><i class="fas fa-folder-tree"></i> Projects</span>
+                    <button class="btn btn-small btn-primary" onclick="switchView('prompt')" title="New Project">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="projects-list" id="sidebarProjectsList">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span>System Online</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Status Banner -->
+            <div class="status-banner" id="statusBanner" style="display: none;">
+                <div class="status-banner-content" id="statusBannerContent">
+                    <i class="fas fa-info-circle"></i>
+                    <span id="statusBannerText">Loading...</span>
+                </div>
+                <button class="status-banner-close" onclick="hideStatusBanner()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="btn btn-secondary" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-title">
+                        <h1>Dashboard</h1>
+                        <p class="subtitle">Local LLM Orchestration System</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="themeToggle" title="Toggle theme">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn btn-secondary" id="discoverBtn">
+                        <i class="fas fa-sync"></i> Discover Models
+                    </button>
+                    <button class="btn btn-primary" id="runAllBtn">
+                        <i class="fas fa-play"></i> Run All Tasks
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div class="view active" id="dashboardView">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon models">
+                            <i class="fas fa-microchip"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="modelCount">0</span>
+                            <span class="stat-label">Available Models</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon tasks">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="taskCount">0</span>
+                            <span class="stat-label">Total Tasks</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon completed">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="completedCount">0</span>
+                            <span class="stat-label">Completed</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon running">
+                            <i class="fas fa-spinner"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="runningCount">0</span>
+                            <span class="stat-label">Running</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <!-- Quick Prompt -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Quick Prompt</h3>
+                            <select class="select" id="quickModelSelect">
+                                <option value="">Loading models...</option>
+                            </select>
+                        </div>
+                        <div class="card-body">
+                            <div class="quick-prompt">
+                                <textarea class="prompt-input" id="quickPromptInput" placeholder="Enter a quick prompt... (e.g., 'Write a hello world in Python')"></textarea>
+                                <button class="btn btn-primary" id="quickPromptBtn">
+                                    <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent Health Panel -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-robot"></i> Agent Status</h3>
+                            <button class="btn btn-small btn-secondary" onclick="refreshAgentStatus()" title="Refresh">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="agent-status-grid" id="agentStatusGrid">
+                                <!-- Agent status will be loaded here -->
+                                <div class="loading"><div class="spinner"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Recent Activity</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="activity-list" id="activityList">
+                                <div class="activity-item">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>System initialized</span>
+                                    <span class="time">Just now</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Shared Memory Panel -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-brain"></i> Shared Memory</h3>
+                            <button class="btn btn-small btn-secondary" onclick="refreshSharedMemory()" title="Refresh">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="shared-memory-list" id="sharedMemoryList">
+                                <div class="empty-state">
+                                    <i class="fas fa-memory"></i>
+                                    <p>No memories yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt View -->
+            <div class="view" id="promptView">
+                <div class="chat-container">
+                    <!-- Projects Sidebar -->
+                    <div class="chat-sidebar">
+                        <div class="sidebar-header">
+                            <h3>Projects</h3>
+                            <button class="btn btn-primary btn-small" id="newProjectBtn">
+                                <i class="fas fa-plus"></i> New
+                            </button>
+                        </div>
+                        <div class="projects-list" id="projectsList">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Main Area -->
+                    <div class="chat-main">
+                        <!-- Chat Header -->
+                        <div class="chat-header">
+                            <div class="chat-header-info">
+                                <select class="select" id="chatModelSelect" title="Select model for this project">
+                                    <option value="">Select Model...</option>
+                                </select>
+                                <button class="btn btn-secondary btn-small" id="toggleSystemPromptBtn" title="Toggle system prompt">
+                                    <i class="fas fa-cog"></i> System Prompt
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- System Prompt Editor (collapsible) -->
+                        <div class="system-prompt-panel" id="systemPromptPanel" style="display: none;">
+                            <div class="system-prompt-header">
+                                <h4>System Prompts</h4>
+                                <div class="system-prompt-actions">
+                                    <button class="btn btn-secondary btn-small" id="newSystemPromptBtn" title="Save current as new preset">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                    <button class="btn btn-secondary btn-small" id="deleteSystemPromptBtn" title="Delete selected preset">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="system-prompt-content">
+                                <select class="select" id="systemPromptSelect" title="Select preset">
+                                    <option value="">Default System Prompt</option>
+                                </select>
+                                <textarea class="system-prompt-textarea" id="systemPromptInput" placeholder="You are a helpful coding assistant..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Messages Area -->
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="chat-empty">
+                                <i class="fas fa-comments"></i>
+                                <p>Select a project or start a new one</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Section -->
+                        <div class="progress-section" id="progressSection" style="display: none;">
+                            <div class="progress-header">
+                                <h4>Progress</h4>
+                                <span class="progress-percent" id="progressPercent">0%</span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="overallProgressBar" style="width: 0%;"></div>
+                            </div>
+                            <div class="working-on" id="workingOn">
+                                <i class="fas fa-cog fa-spin"></i>
+                                <span id="workingOnText">Waiting...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Tasks Section -->
+                        <div class="chat-tasks" id="chatTasks" style="display: none;">
+                            <div class="tasks-header">
+                                <h4>Tasks</h4>
+                                <div class="depth-controls">
+                                    <label>
+                                        <span>Depth:</span>
+                                        <input type="range" id="depthSlider" min="1" max="25" value="12" onchange="updateDepthView(this.value)">
+                                        <span id="depthValue">12</span>
+                                    </label>
+                                    <button class="btn btn-small btn-secondary" onclick="expandAllTasks()" title="Expand All">
+                                        <i class="fas fa-expand-alt"></i>
+                                    </button>
+                                    <button class="btn btn-small btn-secondary" onclick="collapseAllTasks()" title="Collapse All">
+                                        <i class="fas fa-compress-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="tasks-list" id="tasksList"></div>
+                        </div>
+                        
+                        <!-- Model Ranking Section -->
+                        <div class="model-ranking-panel" id="modelRankingPanel" style="display: none;">
+                            <div class="model-ranking-header">
+                                <h4><i class="fas fa-microchip"></i> Model Recommendations</h4>
+                                <button class="btn btn-small btn-secondary" onclick="refreshModelSearch()" title="Refresh">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
+                            <div class="model-ranking-content" id="modelRankingContent">
+                                <div class="model-ranking-list" id="modelRankingList"></div>
+                            </div>
+                            <div class="model-override-section" id="modelOverrideSection" style="display: none;">
+                                <h5>Manual Override</h5>
+                                <select class="select" id="overrideModelSelect">
+                                    <option value="">Select model...</option>
+                                </select>
+                                <button class="btn btn-small btn-primary" onclick="applyModelOverride()">
+                                    Apply Override
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Final Deliverable Section -->
+                        <div class="final-delivery-panel" id="finalDeliveryPanel" style="display: none;">
+                            <div class="final-delivery-header">
+                                <h4><i class="fas fa-check-circle"></i> Final Deliverable</h4>
+                                <label class="toggle-render">
+                                    <input type="checkbox" id="renderHtmlToggle">
+                                    <span>Render as HTML</span>
+                                </label>
+                            </div>
+                            <div class="final-delivery-content" id="finalDeliveryContent">
+                            </div>
+                        </div>
+                        
+                        <!-- Input Area -->
+                        <div class="chat-input-area">
+                            <textarea class="chat-input" id="chatInput" placeholder="What would you like to create? (e.g., 'Create a Python web server with Flask')" rows="3"></textarea>
+                            <button class="btn btn-primary" id="sendMessageBtn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workflow View -->
+            <div class="view" id="workflowView">
+                <div class="workflow-container">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Task Workflow Tree</h3>
+                            <button class="btn btn-secondary btn-small" id="refreshWorkflow">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="tree-view" id="workflowTree">
+                                <div class="loading"><div class="spinner"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Models View -->
+            <div class="view" id="modelsView">
+                <div class="card full-height">
+                    <div class="card-header">
+                        <h3>Available Models</h3>
+                        <button class="btn btn-small" id="refreshModels">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="models-grid" id="modelsGrid">
+                            <!-- Models will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks View -->
+            <div class="view" id="tasksView">
+                <div class="card full-height">
+                    <div class="card-header">
+                        <h3>Task Queue</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="tasks-list" id="queueTasksList">
+                            <!-- Tasks will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents View -->
+            <div class="view" id="agentsView">
+                <div class="settings-grid">
+                    <!-- Agent Orchestration -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-sitemap"></i> Multi-Agent Orchestrator</h3>
+                            <button class="btn btn-small btn-secondary" onclick="initializeAgents()" title="Initialize Agents">
+                                <i class="fas fa-play"></i> Initialize
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="agent-orchestration" id="agentOrchestration">
+                                <p style="color: var(--text-secondary); font-size: 0.85rem;">
+                                    Initialize agents to enable parallel task execution with specialized roles.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Active Agents -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-robot"></i> Active Agents</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="active-agents-list" id="activeAgentsList">
+                                <div class="empty-state">
+                                    <i class="fas fa-robot"></i>
+                                    <p>No active agents</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent Tasks -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tasks"></i> Agent Tasks</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="agent-tasks-list" id="agentTasksList">
+                                <div class="empty-state">
+                                    <i class="fas fa-tasks"></i>
+                                    <p>No agent tasks</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Decision Panel -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-balance-scale"></i> Decision Maker</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="decision-panel" id="decisionPanel">
+                                <p style="color: var(--text-secondary); font-size: 0.85rem;">
+                                    Decisions will appear here when agents need to choose between options.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output View -->
+            <div class="view" id="outputView">
+                <div class="card full-height">
+                    <div class="card-header">
+                        <h3>Task Output</h3>
+                        <select class="select" id="outputTaskSelect">
+                            <option value="">Select a task...</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <pre class="code-output" id="codeOutput"><!-- Output will be loaded here --></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Archive View -->
+            <div class="view" id="archiveView">
+                <div class="card full-height">
+                    <div class="card-header">
+                        <h3>Archived Projects</h3>
+                        <div class="archive-filters">
+                            <input type="text" class="input" id="archiveSearch" placeholder="Search projects...">
+                            <select class="select" id="archiveStatusFilter">
+                                <option value="">All Status</option>
+                                <option value="archived">Archived</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="archive-list" id="archiveList">
+                            <!-- Archived projects will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decomposition Lab View -->
+            <div class="view" id="decompositionView">
+                <div class="decomposition-container">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="templates">Templates</button>
+                        <button class="tab" data-tab="live">Live Decomposition</button>
+                        <button class="tab" data-tab="history">History</button>
+                    </div>
+                    
+                    <!-- Templates Tab -->
+                    <div class="tab-content active" id="tab-templates">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Micro-Task Templates</h3>
+                                <div class="template-filters">
+                                    <select class="select" id="templateAgentFilter">
+                                        <option value="">All Agents</option>
+                                        <option value="oracle">Oracle</option>
+                                        <option value="researcher">Researcher</option>
+                                        <option value="explorer">Explorer</option>
+                                        <option value="builder">Builder</option>
+                                        <option value="evaluator">Evaluator</option>
+                                        <option value="synthesizer">Synthesizer</option>
+                                        <option value="librarian">Librarian</option>
+                                    </select>
+                                    <select class="select" id="templateDodFilter">
+                                        <option value="">All DoD Levels</option>
+                                        <option value="Light">Light</option>
+                                        <option value="Standard">Standard</option>
+                                        <option value="Hard">Hard</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="template-grid" id="templateGrid">
+                                    <div class="loading"><div class="spinner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Live Decomposition Tab -->
+                    <div class="tab-content" id="tab-live">
+                        <div class="decomposition-controls">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Task Decomposition</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label>Task Prompt</label>
+                                        <textarea class="textarea" id="decomposePrompt" rows="3" placeholder="Enter the task to decompose..."></textarea>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Depth</label>
+                                            <input type="number" class="input" id="decomposeDepth" value="0" min="0" max="16">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Max Depth (12-16)</label>
+                                            <input type="number" class="input" id="decomposeMaxDepth" value="14" min="12" max="16">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Plan ID</label>
+                                            <input type="text" class="input" id="decomposePlanId" value="default">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-primary" id="decomposeBtn">
+                                        <i class="fas fa-sitemap"></i> Decompose
+                                    </button>
+                                    <button class="btn btn-secondary" id="decomposeAgentBtn" onclick="decomposeWithAgent()">
+                                        <i class="fas fa-robot"></i> Decompose with Agent
+                                    </button>
+                                    <button class="btn btn-info" id="runAssignmentBtn" onclick="runAssignmentPass()">
+                                        <i class="fas fa-users"></i> Run Assignment Pass
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Seed Configuration</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="seed-config" id="seedConfig">
+                                        <div class="loading"><div class="spinner"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Generated Subtasks</h3>
+                                <span class="badge" id="subtaskCount">0</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="subtask-tree" id="subtaskTree">
+                                    <p class="text-muted">Enter a task and click Decompose to generate subtasks</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>DoD/DoR Criteria</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="dod-dor-grid">
+                                    <div>
+                                        <h4>Definition of Done (DoD)</h4>
+                                        <select class="select" id="dodLevelSelect">
+                                            <option value="Light">Light</option>
+                                            <option value="Standard" selected>Standard</option>
+                                            <option value="Hard">Hard</option>
+                                        </select>
+                                        <ul class="criteria-list" id="dodCriteria"></ul>
+                                    </div>
+                                    <div>
+                                        <h4>Definition of Ready (DoR)</h4>
+                                        <select class="select" id="dorLevelSelect">
+                                            <option value="Light">Light</option>
+                                            <option value="Standard" selected>Standard</option>
+                                            <option value="Hard">Hard</option>
+                                        </select>
+                                        <ul class="criteria-list" id="dorCriteria"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- History Tab -->
+                    <div class="tab-content" id="tab-history">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Decomposition History</h3>
+                                <div class="history-filters">
+                                    <input type="text" class="input" id="historyPlanFilter" placeholder="Filter by Plan ID">
+                                    <button class="btn btn-secondary" id="refreshHistoryBtn">
+                                        <i class="fas fa-refresh"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="history-list" id="historyList">
+                                    <div class="loading"><div class="spinner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>ADR Records</h3>
+                                <button class="btn btn-primary" id="newAdrBtn">
+                                    <i class="fas fa-plus"></i> New ADR
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="adr-list" id="adrList">
+                                    <div class="loading"><div class="spinner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view" id="settingsView">
+                <div class="settings-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Connection Settings</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>LM Studio Host</label>
+                                <input type="text" class="input" id="hostInput" placeholder="http://100.78.30.7:1234">
+                            </div>
+                            <div class="form-group">
+                                <label>LM Studio API Token (Optional)</label>
+                                <input type="password" class="input" id="apiTokenInput" placeholder="Enter your LM Studio API token">
+                            </div>
+                            <div class="form-group">
+                                <label>Config File</label>
+                                <input type="text" class="input" id="configInput" placeholder="manifest/vetinari.yaml">
+                            </div>
+                            <button class="btn btn-primary" id="saveConfig">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Upgrade Policy</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="autoUpgrade" checked>
+                                    <span>Auto-upgrade models</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="requireApproval" checked>
+                                    <span>Require approval before upgrade</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Model Configuration</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Memory Budget (GB)</label>
+                                <input type="number" class="input" id="memoryBudgetInput" placeholder="32" min="1" max="64" value="32">
+                                <small style="color: var(--text-secondary);">Maximum memory to use for a single model</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Default Models (comma-separated IDs)</label>
+                                <input type="text" class="input" id="defaultModelsInput" placeholder="qwen3-coder-next, llama-3.2-1b-instruct">
+                            </div>
+                            <div class="form-group">
+                                <label>Fallback Models (comma-separated IDs)</label>
+                                <input type="text" class="input" id="fallbackModelsInput" placeholder="qwen2.5-0.5b-instruct, llama-3.2-1b-instruct">
+                            </div>
+                            <div class="form-group">
+                                <label>Uncensored Fallback Models (for policy-sensitive tasks)</label>
+                                <input type="text" class="input" id="uncensoredModelsInput" placeholder="heretic, uncensored, unfiltered">
+                                <small style="color: var(--text-secondary);">Models to use when standard models refuse due to policy</small>
+                            </div>
+                            <button class="btn btn-primary" id="saveModelConfig">
+                                <i class="fas fa-save"></i> Save Model Config
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Active Model</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Currently Loaded Model</label>
+                                <div id="activeModelDisplay" style="padding: 0.5rem; background: var(--dark-tertiary); border-radius: var(--radius);">
+                                    <span style="color: var(--text-secondary);">No model loaded</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Swap to Model</label>
+                                <select class="select" id="modelSwapSelect">
+                                    <option value="">Select a model...</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-secondary" id="swapModelBtn">
+                                <i class="fas fa-exchange-alt"></i> Swap Model
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Build Artifacts</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="artifacts-list" id="artifactsList">
+                                <!-- Artifacts will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-key"></i> Admin Credentials (Live Model Search)</h3>
+                        </div>
+                        <div class="card-body">
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">
+                                Configure API tokens for live model discovery. These enable searching HuggingFace, Reddit, GitHub, and Papers With Code.
+                            </p>
+                            <div class="credentials-list" id="credentialsList">
+                                <div class="loading"><div class="spinner"></div> Loading credentials...</div>
+                            </div>
+                            <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--dark-secondary);">
+                                <h4>Add/Update Credential</h4>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <select class="select" id="credentialSourceSelect" style="flex: 1;">
+                                        <option value="huggingface">HuggingFace</option>
+                                        <option value="reddit">Reddit</option>
+                                        <option value="github">GitHub</option>
+                                        <option value="paperswithcode">Papers With Code</option>
+                                    </select>
+                                    <input type="password" class="input" id="credentialTokenInput" placeholder="API Token" style="flex: 2;">
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <input type="number" class="input" id="credentialRotationInput" placeholder="30" value="30" min="1" max="365" style="width: 80px;">
+                                    <small style="color: var(--text-secondary); align-self: center;">days rotation</small>
+                                    <button class="btn btn-primary" id="saveCredentialBtn">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Onboarding Wizard Modal -->
+    <div class="modal" id="onboardingModal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-magic"></i> Welcome to Live Model Discovery</h2>
+                <span class="modal-close" onclick="closeOnboarding()">&times;</span>
+            </div>
+            <div class="modal-body" id="onboardingSteps">
+                <!-- Dynamic onboarding steps will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="onboardingPrev" onclick="onboardingPrev()" style="display: none;">Previous</button>
+                <button class="btn btn-primary" id="onboardingNext" onclick="onboardingNext()">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

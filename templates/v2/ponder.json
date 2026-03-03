@@ -1,0 +1,15 @@
+{
+  "agent_type": "ponder",
+  "version": "v2",
+  "description": "Ponder model selection agent v2 - placeholder for future enhancements",
+  "templates": [
+    {
+      "template_id": "ponder_v2_placeholder",
+      "name": "V2 Placeholder",
+      "description": "V2 templates - to be implemented",
+      "system_prompt": "You are Ponder v2.",
+      "user_template": "Placeholder for v2 templates.",
+      "output_format": "placeholder"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+# vetinari.yaml (MVP manifest)
+project_name: Vetinari
+description: Local-LM orchestration for task workflows using LM Studio
+created_at: 2026-03-01T12:00:00Z
+
+high_level_goal: "Create a Python CLI tool with a REST API that can be run locally"
+
+auto_discover: true
+discovery_source: "LM Studio model registry at http://100.78.30.7:1234"
+discover_interval_minutes: 1440
+
+models:
+  - id: qwen05
+    name: qwen2.5-0.5b-instruct
+    endpoint: "http://100.78.30.7:1234/api/v1/chat"
+    capabilities: ["code_gen", "docs", "chat"]
+    context_len: 2048
+    memory_gb: 1
+    version: "2.5"
+  - id: llama1b
+    name: llama-3.2-1b-instruct
+    endpoint: "http://100.78.30.7:1234/api/v1/chat"
+    capabilities: ["code_gen", "docs", "chat"]
+    context_len: 4096
+    memory_gb: 2
+    version: "3.2"
+  - id: qwen3coder
+    name: qwen3-coder-next
+    endpoint: "http://100.78.30.7:1234/api/v1/chat"
+    capabilities: ["code_gen"]
+    context_len: 6400
+    memory_gb: 16
+    version: "next"
+
+tasks:
+  - id: t1
+    description: "Plan project scaffold (CLI skeleton with basic API)"
+    inputs: ["high_level_goal"]
+    outputs: ["CLI_skeleton", "API_routes"]
+    dependencies: []
+    assigned_model_id: qwen05
+    prompts:
+      init: "System: You are Vetinari's Plan Engine. Task: Plan a minimal Python CLI scaffold with a basic REST API surface based on the provided high-level goal. Output a structured plan including task list with dependencies, a recommended directory layout, sample file templates for cli.py and api.py (Python 3.9+), and reference prompts for subsequent tasks. Return JSON with fields: tasks, files, and artifacts."
+      run: "System: For the given plan, implement a working Python skeleton for a CLI (argparse or click) and a basic API scaffold (e.g., FastAPI-like). Ensure code is clean, well-documented, and Python 3.9+ compatible. Output the content of cli.py and api.py as code blocks, plus a README snippet describing how to run."
+      post: "System: Validate the generated code skeleton. Check that it is importable, syntactically correct, and follows basic Python packaging conventions. If issues, describe blockers and propose targeted fixes."
+  - id: t2
+    description: "Implement core CLI and REST API scaffold"
+    inputs: ["CLI_skeleton", "API_routes"]
+    outputs: ["compiled_tool", "docs"]
+    dependencies: ["t1"]
+    assigned_model_id: qwen05
+    prompts:
+      init: "System: You're continuing the Vetinari MVP. Given a CLI skeleton and a basic API scaffold, flesh out a robust implementation with argument parsing, command dispatch, error handling, and a minimal authentication stub. Provide plan, code templates, and a small test harness."
+      run: "System: Implement core CLI command plumbing and API endpoints. Provide cli.py and api.py, plus requirements.txt. Ensure endpoints: /health, /predict. Include minimal unit tests in tests/ to demonstrate usage."
+      post: "System: Run lightweight checks on the integrated scaffold. Validate syntax and ensure dependencies install. Produce a build artifact (zip) containing the scaffold and a short README."
+
+artifacts_dir: "outputs"
+prompts_dir: "prompts"
+logging:
+  level: INFO
+  log_dir: "logs"
+upgrade_policy:
+  auto_upgrade: true
+  require_approval: true
+  benchmarks_source: ["local_latency", "online_benchmarks"]
+  post_upgrade_validation: true
+output_strategy:
+  multi_language_support: true
+discovery_filters:
+  allow_unverified_models: false
+  max_context_len: 32768
+  min_capabilities: ["code_gen"]
+  max_model_memory_gb: 96

@@ -1,0 +1,1 @@
+System: Implement core CLI command plumbing and API endpoints. Provide cli.py and api.py, plus requirements.txt. Ensure endpoints: /health, /predict. Include minimal unit tests in tests/ to demonstrate usage.

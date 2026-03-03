@@ -1,0 +1,73 @@
+# vetinari.yaml (MVP manifest)
+project_name: Vetinari
+description: Local-LM orchestration for task workflows using LM Studio
+created_at: 2026-03-01T12:00:00Z
+
+# 1) Auto-discovery configuration
+auto_discover: true
+discovery_source: "LM Studio model registry at http://10.0.0.96:1234"
+discover_interval_minutes: 1440  # daily scans by default
+
+# 2) Model registry (static baseline + dynamic auto-discovery)
+models:
+  - id: zglm47
+    name: zai-org_glm-4.7-flash@q8_0
+    endpoint: http://10.0.0.96:1234/models/zai-org_glm-4.7-flash@q8_0/infer
+    capabilities: ["code_gen", "docs", "debug"]
+    context_len: 8192
+    memory_gb: 8
+    version: "4.7"
+  - id: glm47
+    name: glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max
+    endpoint: http://10.0.0.96:1234/models/glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max/infer
+    capabilities: ["code_gen", "docs"]
+    context_len: 16384
+    memory_gb: 12
+    version: "4.7"
+  - id: qwen3coder
+    name: qwen3-coder-next
+    endpoint: http://10.0.0.96:1234/models/qwen3-coder-next/infer
+    capabilities: ["code_gen"]
+    context_len: 6400
+    memory_gb: 16
+    version: "next"
+
+# 3) Tasks (two-task example; extendable)
+tasks:
+  - id: t1
+    description: "Plan project scaffold (CLI skeleton with basic API)"
+    inputs: ["high_level_goal"]
+    outputs: ["CLI_skeleton", "API_routes"]
+    dependencies: []
+    assigned_model_id: glm47
+    prompts:
+      init: "System: You are Vetinari's Plan Engine. Task: Plan a minimal Python CLI scaffold with a basic REST API surface based on the provided high-level goal. Output a structured plan including task list with dependencies, a recommended directory layout, sample file templates for cli.py and api.py (Python 3.9+), and reference prompts for subsequent tasks. Return JSON with fields: tasks, files, and artifacts."
+      run: "System: For the given plan, implement a working Python skeleton for a CLI (argparse or click) and a basic API scaffold (e.g., FastAPI-like). Ensure code is clean, well-documented, and Python 3.9+ compatible. Output the content of cli.py and api.py as code blocks, plus a README snippet describing how to run."
+      post: "System: Validate the generated code skeleton. Check that it is importable, syntactically correct, and follows basic Python packaging conventions. If issues, describe blockers and propose targeted fixes."
+  - id: t2
+    description: "Implement core CLI and REST API scaffold"
+    inputs: ["CLI_skeleton", "API_routes"]
+    outputs: ["compiled_tool", "docs"]
+    dependencies: ["t1"]
+    assigned_model_id: zglm47
+    prompts:
+      init: "System: You're continuing the Vetinari MVP. Given a CLI skeleton and a basic API scaffold, flesh out a robust implementation with argument parsing, command dispatch, error handling, and a minimal authentication stub. Provide plan, code templates, and a small test harness."
+      run: "System: Implement core CLI command plumbing and API endpoints. Provide cli.py and api.py, plus requirements.txt. Ensure endpoints: /health, /predict. Include minimal unit tests in tests/ to demonstrate usage."
+      post: "System: Run lightweight checks on the integrated scaffold. Validate syntax and ensure dependencies install. Produce a build artifact (zip) containing the scaffold and a short README."
+artifacts_dir: "outputs"
+prompts_dir: "prompts"
+logging:
+  level: INFO
+  log_dir: "logs"
+upgrade_policy:
+  auto_upgrade: true
+  require_approval: true
+  benchmarks_source: ["local_latency", "online_benchmarks"]
+  post_upgrade_validation: true
+output_strategy:
+  multi_language_support: true
+discovery_filters:
+  allow_unverified_models: false
+  max_context_len: 32768
+  min_capabilities: ["code_gen"]
+  max_model_memory_gb: 96

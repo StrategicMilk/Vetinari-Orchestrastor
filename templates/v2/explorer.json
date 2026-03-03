@@ -1,0 +1,3 @@
+[
+  {"template_id": "explorer_t1_v2", "name": "Placeholder: Explorer v2", "description": "Placeholder starter for Explorer templates in v2.", "agent_type": "explorer", "keywords": ["placeholder","tbd"], "prompt_template": "Placeholder for Explorer v2: {input}.", "dod_level": "Standard", "dor_level": "Standard", "estimated_effort": 1.0, "max_depth": 12, "version": "v2"}
+]

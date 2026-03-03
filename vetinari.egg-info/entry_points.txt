@@ -1,0 +1,2 @@
+[console_scripts]
+vetinari = vetinari.cli:main

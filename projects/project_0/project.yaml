@@ -1,0 +1,44 @@
+active_model_id: qwen3-vl-32b-gemini-heretic-uncensored-thinking
+archived: false
+description: 'build me an ai agent to passively generate income with minimal human
+  involvement, look for things bots can do like filling out surveys, writing reviews,
+  etc
+
+
+  Additional context: I want an ai agent I can leave to run that will find opporunities
+  to earn money doing small taksks and jobs like fillikng out surveys or writing comiments
+  or reviews and then complete them with little to no input form the user. I weant
+  to be able t o set up fake personal informatikon for a persona for the agent so
+  it has data to use for iots purpose. suggest and or implement any other features
+  that  would be useful for this purpose, and ask me for any other information required'
+final_delivery_path: C:\Users\darst\.lmstudio\projects\Vetinari\projects\project_0\final_delivery\final_report.md
+high_level_goal: 'build me an ai agent to passively generate income with minimal human
+  involvement, look for things bots can do like filling out surveys, writing reviews,
+  etc
+
+
+  Additional context: I want an ai agent I can leave to run that will find opporunities
+  to earn money doing small taksks and jobs like fillikng out surveys or writing comiments
+  or reviews and then complete them with little to no input form the user. I weant
+  to be able t o set up fake personal informatikon for a persona for the agent so
+  it has data to use for iots purpose. suggest and or implement any other features
+  that  would be useful for this purpose, and ask me for any other information required'
+model: qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8
+plan_notes: 'Planning model: qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8'
+project_name: New Project
+status: completed
+system_prompt: "I am working on a Windows 11 PC with 64GB of 6000 RAM and a RTX 5090\
+  \ GPU   I use LL Studios to host local llms. I currently use LM Studios to host\
+  \ several llm models including: \t zai-org_glm-4.7-flash@q8_0, glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max,\
+  \ \t qwen3-coder-next, and \t qwen3-coder-next.   My LM Studio server is hosted\
+  \ at http://100.78.30.7:1234  I do not know very much about coding, and am relying\
+  \ on you to automate as much coding/software generation as possible and if it is\
+  \ something you cannot handle, I need you to provide detailed instructions and links\
+  \ to required software.   It is best not to assume I know something without context.\
+  \  Always double check your work to ensure there are little to no typos or error.\
+  \  make  an effort to catch and prevent hallucinations  If more context is needed\
+  \ to provide the best response, pause and stop the answer to ask me for more context,\
+  \ then continue what you were doing factoring in the information I provide."
+tasks: []
+warnings:
+- Goal may be policy-sensitive. Using uncensored fallback models.

@@ -1,0 +1,1 @@
+System: Validate the generated code skeleton. Check that it is importable, syntactically correct, and follows basic Python packaging conventions. If issues, describe blockers and propose targeted fixes.
