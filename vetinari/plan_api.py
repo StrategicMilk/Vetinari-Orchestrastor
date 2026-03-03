@@ -156,11 +156,15 @@ def get_plan(plan_id):
 def approve_plan(plan_id):
     """Approve or reject a plan.
     
-    Body:
+    Body (JSON Schema v1):
     {
-        "approved": true,
-        "approver": "admin",
-        "reason": "optional reason"
+        "approved": true,          # required - boolean
+        "approver": "admin",      # required - string
+        "reason": "optional reason",  # optional - string
+        "audit_id": "optional",    # optional - string, auto-generated if not provided
+        "risk_score": 0.15,       # optional - float
+        "timestamp": "ISO string", # optional - auto-generated if not provided
+        "approval_schema_version": 1  # optional - int, default 1
     }
     """
     enabled, error = check_plan_mode_enabled()
@@ -168,27 +172,67 @@ def approve_plan(plan_id):
         return jsonify({"error": "Plan mode disabled", "message": error}), 403
     
     data = request.get_json() or {}
+    
+    # Validate required fields
+    required_fields = ['approved', 'approver']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
     approved = data.get('approved', False)
     approver = data.get('approver', 'admin')
     reason = data.get('reason', '')
+    audit_id = data.get('audit_id')
+    risk_score = data.get('risk_score')
+    timestamp = data.get('timestamp')
+    approval_schema_version = data.get('approval_schema_version', 1)
     
     try:
         req = PlanApprovalRequest(
             plan_id=plan_id,
             approved=approved,
             approver=approver,
-            reason=reason
+            reason=reason,
+            audit_id=audit_id,
+            risk_score=risk_score,
+            timestamp=timestamp or "",
+            approval_schema_version=approval_schema_version
         )
         
         engine = get_plan_engine()
         plan = engine.approve_plan(req)
+        
+        # Log approval decision to dual memory if available
+        try:
+            from .memory import DUAL_MEMORY_AVAILABLE, get_dual_memory_store, MemoryEntry, MemoryEntryType
+            if DUAL_MEMORY_AVAILABLE:
+                store = get_dual_memory_store()
+                approval_entry = MemoryEntry(
+                    agent="plan-approval",
+                    entry_type=MemoryEntryType.APPROVAL,
+                    content=json.dumps({
+                        "audit_id": audit_id,
+                        "plan_id": plan_id,
+                        "approved": approved,
+                        "approver": approver,
+                        "reason": reason,
+                        "risk_score": risk_score,
+                        "approval_schema_version": approval_schema_version
+                    }),
+                    summary=f"Plan {plan_id} {'approved' if approved else 'rejected'} by {approver}",
+                    provenance="plan_api_approve"
+                )
+                store.remember(approval_entry)
+        except Exception as mem_err:
+            logger.warning(f"Failed to log approval to memory: {mem_err}")
         
         return jsonify({
             "success": True,
             "plan_id": plan.plan_id,
             "status": plan.status.value,
             "approved_by": plan.approved_by,
-            "approved_at": plan.approved_at
+            "approved_at": plan.approved_at,
+            "audit_id": audit_id
         })
     
     except ValueError as e:
@@ -196,6 +240,75 @@ def approve_plan(plan_id):
     except Exception as e:
         logger.error(f"Failed to approve plan: {e}")
         return jsonify({"error": "Failed to approve plan", "message": str(e)}), 500
+
+
+@plan_api.route('/api/plan/<plan_id>/subtasks/<subtask_id>/approve', methods=['POST'])
+@require_admin_token
+def approve_subtask(plan_id, subtask_id):
+    """Approve or reject a specific subtask.
+    
+    Body (JSON Schema v1):
+    {
+        "approved": true,          # required - boolean
+        "approver": "admin",       # required - string
+        "reason": "optional reason",  # optional - string
+        "audit_id": "optional",    # optional - string
+        "risk_score": 0.15         # optional - float
+    }
+    """
+    enabled, error = check_plan_mode_enabled()
+    if not enabled:
+        return jsonify({"error": "Plan mode disabled", "message": error}), 403
+    
+    data = request.get_json() or {}
+    
+    required_fields = ['approved', 'approver']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    approved = data.get('approved', False)
+    approver = data.get('approver', 'admin')
+    reason = data.get('reason', '')
+    audit_id = data.get('audit_id')
+    risk_score = data.get('risk_score')
+    
+    try:
+        engine = get_plan_engine()
+        plan = engine.get_plan(plan_id)
+        
+        if not plan:
+            return jsonify({"error": "Plan not found", "plan_id": plan_id}), 404
+        
+        # Check if subtask requires approval
+        approval_check = engine.check_subtask_approval_required(plan, subtask_id, plan_mode=True)
+        
+        if 'error' in approval_check:
+            return jsonify({"error": approval_check['error']}), 404
+        
+        # Log approval decision
+        engine.log_approval_decision(
+            plan_id=plan_id,
+            subtask_id=subtask_id,
+            approved=approved,
+            approver=approver,
+            reason=reason,
+            risk_score=risk_score or plan.risk_score
+        )
+        
+        return jsonify({
+            "success": True,
+            "plan_id": plan_id,
+            "subtask_id": subtask_id,
+            "approved": approved,
+            "approver": approver,
+            "requires_approval": approval_check.get('requires_approval', False),
+            "audit_id": audit_id
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to approve subtask: {e}")
+        return jsonify({"error": "Failed to approve subtask", "message": str(e)}), 500
 
 
 @plan_api.route('/api/plan/<plan_id>/history', methods=['GET'])

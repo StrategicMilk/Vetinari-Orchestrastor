@@ -96,6 +96,8 @@ class CodingBridge:
         
         This is a placeholder that logs the task. Actual implementation
         would call the external coding agent API.
+        
+        For SCAFFOLD tasks, this creates a minimal Python package scaffold.
         """
         if not self.enabled:
             logger.warning("CodingBridge is not enabled")
@@ -109,6 +111,10 @@ class CodingBridge:
         logger.debug(f"Task description: {task.description}")
         logger.debug(f"Output path: {task.output_path}")
         
+        # Handle scaffold generation
+        if task.task_type == CodingTaskType.SCAFFOLD:
+            return self._generate_scaffold(task)
+        
         return CodingResult(
             success=True,
             task_id=task.task_id,
@@ -120,6 +126,88 @@ class CodingBridge:
                 "endpoint": self.endpoint
             }
         )
+    
+    def _generate_scaffold(self, task: CodingTask) -> CodingResult:
+        """Generate a Python package scaffold.
+        
+        This creates a minimal package structure for demonstration.
+        """
+        import shutil
+        from pathlib import Path
+        
+        project_name = task.context.get("project_name", "demo_project")
+        output_base = task.output_path or f"./scaffolds/{project_name}"
+        
+        try:
+            # Create output directory
+            output_path = Path(output_base)
+            output_path.mkdir(parents=True, exist_ok=True)
+            
+            # Create package directory
+            pkg_dir = output_path / project_name
+            pkg_dir.mkdir(exist_ok=True)
+            
+            # Create __init__.py
+            (pkg_dir / "__init__.py").write_text(
+                f'"""{project_name} - Auto-generated scaffold."""\n'
+                f'__version__ = "0.1.0"\n'
+            )
+            
+            # Create __main__.py
+            (pkg_dir / "__main__.py").write_text(
+                f'def main():\n'
+                f'    print("Hello from {project_name}")\n'
+                f'\n'
+                f'if __name__ == "__main__":\n'
+                f'    main()\n'
+            )
+            
+            # Create setup.py
+            (output_path / "setup.py").write_text(
+                f'from setuptools import setup, find_packages\n'
+                f'\n'
+                f'setup(\n'
+                f'    name="{project_name}",\n'
+                f'    version="0.1.0",\n'
+                f'    packages=find_packages(),\n'
+                f'    python_requires=">=3.8",\n'
+                f')\n'
+            )
+            
+            # Create README.md
+            (output_path / "README.md").write_text(
+                f'# {project_name}\n\n'
+                f'Auto-generated scaffold by Vetinari CodingBridge.\n'
+            )
+            
+            output_files = [
+                str(output_path / "setup.py"),
+                str(output_path / "README.md"),
+                str(pkg_dir / "__init__.py"),
+                str(pkg_dir / "__main__.py"),
+            ]
+            
+            logger.info(f"Generated scaffold for {project_name} at {output_path}")
+            
+            return CodingResult(
+                success=True,
+                task_id=task.task_id,
+                output_files=output_files,
+                logs=f"Scaffold generated for {project_name}",
+                metadata={
+                    "task_type": "scaffold",
+                    "project_name": project_name,
+                    "output_path": str(output_path)
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to generate scaffold: {e}")
+            return CodingResult(
+                success=False,
+                task_id=task.task_id,
+                error=str(e)
+            )
     
     def get_task_status(self, task_id: str) -> Optional[CodingTask]:
         """Get the status of a coding task."""

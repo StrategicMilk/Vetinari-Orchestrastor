@@ -78,14 +78,29 @@ class MemoryStats:
 
 @dataclass
 class ApprovalDetails:
-    """Details about an approval decision."""
-    task_id: str = ""
-    task_type: str = ""
+    """Details about an approval decision.
+    
+    JSON Schema:
+    {
+        "audit_id": "string (required, auto-generated)",
+        "task_id": "string (optional)",
+        "plan_id": "string (required)",
+        "task_type": "string (optional)",
+        "approval_status": "string (required: approved/rejected/auto_approved)",
+        "approver": "string (required)",
+        "reason": "string (optional)",
+        "risk_score": "float (optional)",
+        "timestamp": "string (required, auto-generated)"
+    }
+    """
+    audit_id: str = ""
+    task_id: Optional[str] = None
     plan_id: str = ""
+    task_type: str = ""
     approval_status: str = ""  # "approved", "rejected", "auto_approved"
     approver: str = ""
     reason: str = ""
-    risk_score: float = 0.0
+    risk_score: Optional[float] = None
     timestamp: str = ""
     
     def to_dict(self) -> Dict[str, Any]:

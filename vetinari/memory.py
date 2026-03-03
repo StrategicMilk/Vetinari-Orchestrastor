@@ -478,14 +478,22 @@ class MemoryStore:
 
 
 _memory_store: Optional[MemoryStore] = None
+_dual_memory_store = None
 
 
 def get_memory_store() -> MemoryStore:
-    """Get or create the global memory store instance."""
+    """Get or create the global memory store instance.
+    
+    Default: Uses DualMemoryStore for MVP across all environments.
+    """
     global _memory_store
     if _memory_store is None:
-        use_json = os.environ.get("PLAN_USE_JSON_FALLBACK", "false").lower() in ("1", "true", "yes")
-        _memory_store = MemoryStore(use_json_fallback=use_json)
+        use_dual = os.environ.get("USE_DUAL_MEMORY", "true").lower() in ("1", "true", "yes")
+        if use_dual and DUAL_MEMORY_AVAILABLE:
+            _memory_store = get_dual_memory_store()
+        else:
+            use_json = os.environ.get("PLAN_USE_JSON_FALLBACK", "false").lower() in ("1", "true", "yes")
+            _memory_store = MemoryStore(use_json_fallback=use_json)
     return _memory_store
 
 

@@ -284,11 +284,28 @@ class PlanGenerationRequest:
 
 @dataclass
 class PlanApprovalRequest:
-    """Request to approve a plan."""
+    """Request to approve a plan.
+    
+    JSON Schema:
+    {
+        "plan_id": "string (required)",
+        "approved": "boolean (required)",
+        "approver": "string (required)",
+        "reason": "string (optional)",
+        "audit_id": "string (optional, auto-generated if not provided)",
+        "risk_score": "float (optional)",
+        "timestamp": "string (optional, auto-generated)",
+        "approval_schema_version": "int (default: 1)"
+    }
+    """
     plan_id: str
     approved: bool
     approver: str = "system"
     reason: str = ""
+    audit_id: Optional[str] = None
+    risk_score: Optional[float] = None
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    approval_schema_version: int = 1
 
 
 @dataclass
