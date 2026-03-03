@@ -739,6 +739,97 @@ class PlanModeEngine:
             return True
         
         return False
+    
+    def execute_coding_task(self, plan: Plan, subtask: Subtask) -> Dict[str, Any]:
+        """Execute a coding task using the coding agent.
+        
+        This integrates the in-process coding agent with plan execution.
+        Returns the generated artifact info.
+        """
+        try:
+            from ..coding_agent import (
+                CodeAgentEngine, CodeTask, CodingTaskType,
+                get_coding_agent
+            )
+            
+            agent = get_coding_agent()
+            
+            if not agent.is_available():
+                return {
+                    "success": False,
+                    "error": "Coding agent not available"
+                }
+            
+            # Map domain to task type
+            if subtask.domain == TaskDomain.CODING:
+                task_type = CodingTaskType.IMPLEMENT
+            else:
+                task_type = CodingTaskType.IMPLEMENT
+            
+            # Create coding task
+            code_task = CodeTask(
+                plan_id=plan.plan_id,
+                subtask_id=subtask.subtask_id,
+                type=task_type,
+                language="python",
+                description=subtask.description,
+                repo_path=".",
+                target_files=[f"{subtask.subtask_id}.py"],
+                constraints=subtask.definition_of_done.criteria if subtask.definition_of_done else []
+            )
+            
+            # Execute task
+            artifact = agent.run_task(code_task)
+            
+            # Log to memory
+            try:
+                from ..memory import (
+                    get_dual_memory_store, MemoryEntry, MemoryEntryType
+                )
+                store = get_dual_memory_store()
+                entry = MemoryEntry(
+                    agent="coding_agent",
+                    entry_type=MemoryEntryType.FEATURE,
+                    content=json.dumps(artifact.to_dict()),
+                    summary=f"Generated code artifact for {subtask.subtask_id}",
+                    provenance=f"plan:{plan.plan_id},task:{subtask.subtask_id}"
+                )
+                store.remember(entry)
+            except Exception as mem_err:
+                logger.warning(f"Failed to log coding artifact to memory: {mem_err}")
+            
+            return {
+                "success": True,
+                "artifact": artifact.to_dict(),
+                "task_id": code_task.task_id
+            }
+            
+        except ImportError as e:
+            logger.error(f"Coding agent not available: {e}")
+            return {
+                "success": False,
+                "error": f"Coding agent not available: {e}"
+            }
+        except Exception as e:
+            logger.error(f"Coding task execution failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def execute_multi_step_coding(self, plan: Plan, subtasks: List[Subtask]) -> List[Dict[str, Any]]:
+        """Execute multiple coding tasks in sequence (scaffold + module + tests)."""
+        
+        results = []
+        
+        for subtask in subtasks:
+            result = self.execute_coding_task(plan, subtask)
+            results.append(result)
+            
+            if not result.get("success", False):
+                logger.warning(f"Subtask {subtask.subtask_id} failed, continuing...")
+        
+        return results
 
 
 _plan_engine: Optional[PlanModeEngine] = None

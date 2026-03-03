@@ -549,6 +549,157 @@ def get_subtask_explanation(plan_id, subtask_id):
         return jsonify({"error": "Failed to get subtask explanation", "message": str(e)}), 500
 
 
+@plan_api.route('/api/coding/task', methods=['POST'])
+@require_admin_token
+def create_coding_task():
+    """Create and execute a coding task.
+    
+    Body:
+    {
+        "type": "scaffold|implement|test|review",
+        "language": "python",
+        "description": "Task description",
+        "repo_path": "./",
+        "target_files": ["file1.py", "file2.py"],
+        "constraints": "optional constraints"
+    }
+    """
+    try:
+        from .coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
+        
+        data = request.get_json() or {}
+        
+        task_type_str = data.get("type", "implement")
+        try:
+            task_type = CodingTaskType(task_type_str)
+        except ValueError:
+            return jsonify({"error": f"Invalid task type: {task_type_str}"}), 400
+        
+        agent = get_coding_agent()
+        
+        if not agent.is_available():
+            return jsonify({"error": "Coding agent not available"}), 503
+        
+        task = CodeTask(
+            type=task_type,
+            language=data.get("language", "python"),
+            framework=data.get("framework", ""),
+            repo_path=data.get("repo_path", "./"),
+            description=data.get("description", ""),
+            constraints=data.get("constraints", ""),
+            target_files=data.get("target_files", [])
+        )
+        
+        artifact = agent.run_task(task)
+        
+        return jsonify({
+            "success": True,
+            "task_id": task.task_id,
+            "artifact": artifact.to_dict()
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to create coding task: {e}")
+        return jsonify({"error": "Failed to create coding task", "message": str(e)}), 500
+
+
+@plan_api.route('/api/coding/task/<task_id>', methods=['GET'])
+@require_admin_token
+def get_coding_task(task_id):
+    """Get coding task status and result."""
+    try:
+        from .coding_agent import get_coding_agent
+        
+        agent = get_coding_agent()
+        
+        if not agent.is_available():
+            return jsonify({"error": "Coding agent not available"}), 503
+        
+        # For MVP, return basic status
+        return jsonify({
+            "success": True,
+            "task_id": task_id,
+            "status": "completed"
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to get coding task: {e}")
+        return jsonify({"error": "Failed to get coding task", "message": str(e)}), 500
+
+
+@plan_api.route('/api/coding/multi-step', methods=['POST'])
+@require_admin_token
+def create_multi_step_coding():
+    """Create and execute multiple coding tasks (scaffold + module + tests).
+    
+    Body:
+    {
+        "plan_id": "plan_xxx",
+        "subtasks": [
+            {"subtask_id": "s1", "type": "scaffold", "description": "..."},
+            {"subtask_id": "s2", "type": "implement", "description": "..."},
+            {"subtask_id": "s3", "type": "test", "description": "..."}
+        ]
+    }
+    """
+    try:
+        from .coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
+        from .plan_types import TaskDomain
+        
+        data = request.get_json() or {}
+        plan_id = data.get("plan_id", "")
+        subtasks_data = data.get("subtasks", [])
+        
+        agent = get_coding_agent()
+        
+        if not agent.is_available():
+            return jsonify({"error": "Coding agent not available"}), 503
+        
+        results = []
+        
+        for st_data in subtasks_data:
+            task_type_str = st_data.get("type", "implement")
+            try:
+                task_type = CodingTaskType(task_type_str)
+            except ValueError:
+                task_type = CodingTaskType.IMPLEMENT
+            
+            task = CodeTask(
+                plan_id=plan_id,
+                subtask_id=st_data.get("subtask_id", ""),
+                type=task_type,
+                language=st_data.get("language", "python"),
+                description=st_data.get("description", ""),
+                repo_path=st_data.get("repo_path", "./"),
+                target_files=st_data.get("target_files", []),
+                constraints=st_data.get("constraints", "")
+            )
+            
+            try:
+                artifact = agent.run_task(task)
+                results.append({
+                    "subtask_id": st_data.get("subtask_id"),
+                    "success": True,
+                    "artifact": artifact.to_dict()
+                })
+            except Exception as task_err:
+                results.append({
+                    "subtask_id": st_data.get("subtask_id"),
+                    "success": False,
+                    "error": str(task_err)
+                })
+        
+        return jsonify({
+            "success": True,
+            "plan_id": plan_id,
+            "results": results
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to create multi-step coding: {e}")
+        return jsonify({"error": "Failed to create multi-step coding", "message": str(e)}), 500
+
+
 def register_plan_api(app):
     """Register plan API routes with Flask app."""
     app.register_blueprint(plan_api)
