@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Set
+from typing import Set, Optional
 
 from vetinari.lmstudio_adapter import LMStudioAdapter
 from vetinari.model_pool import ModelPool
@@ -14,6 +14,10 @@ from vetinari.executor import TaskExecutor
 from vetinari.upgrader import Upgrader
 from vetinari.validator import Validator
 from vetinari.builder import Builder
+
+# Plan Mode integration
+PLAN_MODE_ENABLE = os.environ.get("PLAN_MODE_ENABLE", "true").lower() in ("1", "true", "yes")
+PLAN_MODE_DEFAULT = os.environ.get("PLAN_MODE_DEFAULT", "true").lower() in ("1", "true", "yes")
 
 
 class Orchestrator:
@@ -38,6 +42,18 @@ class Orchestrator:
         self.executor = TaskExecutor(self.adapter, self.validator, self.config)
         self.upgrader = Upgrader(self.config)
         self.builder = Builder(self.config)
+        
+        # Plan Mode initialization
+        self.plan_mode_enabled = PLAN_MODE_ENABLE and PLAN_MODE_DEFAULT
+        self.plan_engine = None
+        if self.plan_mode_enabled:
+            try:
+                from vetinari.plan_mode import get_plan_engine
+                self.plan_engine = get_plan_engine()
+                logging.info("Plan Mode initialized successfully")
+            except Exception as e:
+                logging.warning(f"Plan Mode initialization failed: {e}. Continuing without Plan Mode.")
+                self.plan_mode_enabled = False
 
         logging.info("Vetinari orchestrator initialized.")
 
@@ -60,6 +76,33 @@ class Orchestrator:
 
     def run_all(self):
         logging.info("Starting full workflow: plan -> allocate -> execute -> validate -> build.")
+        
+        # 0) Plan Mode: Generate plan before execution (if enabled)
+        if self.plan_mode_enabled and self.plan_engine:
+            try:
+                goal = self.config.get("goal", "Execute tasks from manifest")
+                constraints = self.config.get("constraints", "")
+                
+                from vetinari.plan_types import PlanGenerationRequest
+                req = PlanGenerationRequest(
+                    goal=goal,
+                    constraints=constraints,
+                    plan_depth_cap=int(os.environ.get("PLAN_DEPTH_CAP", 16)),
+                    max_candidates=int(os.environ.get("PLAN_MAX_CANDIDATES", 3)),
+                    dry_run=os.environ.get("DRY_RUN_ENABLED", "false").lower() in ("1", "true", "yes")
+                )
+                
+                plan = self.plan_engine.generate_plan(req)
+                self.config["_plan_id"] = plan.plan_id
+                self.config["_plan_risk_score"] = plan.risk_score
+                
+                if plan.auto_approved:
+                    logging.info(f"Plan {plan.plan_id} auto-approved (risk_score={plan.risk_score:.2f})")
+                else:
+                    logging.info(f"Plan {plan.plan_id} generated (risk_score={plan.risk_score:.2f}), awaiting approval")
+                    
+            except Exception as e:
+                logging.warning(f"Plan Mode failed: {e}. Continuing without plan generation.")
         
         # 1) Auto-discover models
         try:

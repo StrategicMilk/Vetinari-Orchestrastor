@@ -1,8 +1,19 @@
 import os
 import re
+import time
 from pathlib import Path
 from vetinari.lmstudio_adapter import LMStudioAdapter
 from vetinari.validator import Validator
+
+# Import structured logging
+try:
+    from vetinari.structured_logging import get_logger, log_task_start, log_task_complete, log_task_error
+    STRUCTURED_LOGGING = True
+except ImportError:
+    STRUCTURED_LOGGING = False
+    import logging
+    def get_logger(name):
+        return logging.getLogger(name)
 
 
 class TaskExecutor:
@@ -60,7 +71,16 @@ class TaskExecutor:
         tasks = self.config.get("tasks", [])
         task = next((t for t in tasks if t["id"] == task_id), None)
         if not task:
+            if STRUCTURED_LOGGING:
+                log_task_error(task_id, "Task not found")
             return {"status": "failed", "reason": "task not found"}
+        
+        # Log task start
+        task_type = task.get("type", "generic")
+        if STRUCTURED_LOGGING:
+            log_task_start(task_id, task_type=task_type)
+        
+        start_time = time.time()
 
         model_id = task.get("assigned_model_id")
         
@@ -105,6 +125,15 @@ class TaskExecutor:
             valid = False
 
         status = "completed" if result.get("status") == "ok" and valid else "failed"
+        
+        # Log task completion
+        execution_time_ms = (time.time() - start_time) * 1000
+        if STRUCTURED_LOGGING:
+            if status == "completed":
+                log_task_complete(task_id, execution_time_ms, model_id=model_id)
+            else:
+                log_task_error(task_id, result.get("error", "Unknown error"))
+        
         return {
             "status": status,
             "task_id": task_id,

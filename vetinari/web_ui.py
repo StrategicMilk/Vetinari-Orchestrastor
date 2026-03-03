@@ -3158,5 +3158,16 @@ def api_ponder_health():
         return jsonify({"error": str(e)}), 500
 
 
+# Register Plan Mode API endpoints
+try:
+    from vetinari.plan_api import register_plan_api
+    register_plan_api(app)
+    print("[Vetinari] Plan Mode API registered successfully")
+except ImportError as e:
+    print(f"[Vetinari] Warning: Plan Mode API not available: {e}")
+except Exception as e:
+    print(f"[Vetinari] Warning: Failed to register Plan Mode API: {e}")
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

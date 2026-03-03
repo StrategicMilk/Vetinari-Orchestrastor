@@ -10,6 +10,16 @@ from pathlib import Path
 from datetime import datetime
 from enum import Enum
 
+# Import structured logging
+try:
+    from vetinari.structured_logging import get_logger, log_sandbox_execution
+    STRUCTURED_LOGGING = True
+except ImportError:
+    STRUCTURED_LOGGING = False
+    import logging
+    def get_logger(name):
+        return logging.getLogger(name)
+
 
 class SandboxType(Enum):
     IN_PROCESS = "in_process"
@@ -173,28 +183,37 @@ class InProcessSandbox:
 
         if execution_thread.is_alive():
             # Timeout occurred
-            return SandboxResult(
+            result = SandboxResult(
                 success=False,
                 error=f"Execution timeout after {self.timeout}s",
                 execution_time_ms=self.timeout * 1000,
                 execution_id=execution_id
             )
+            if STRUCTURED_LOGGING:
+                log_sandbox_execution(execution_id, False, self.timeout * 1000, 0.0)
+            return result
 
         if error_holder[0]:
-            return SandboxResult(
+            result = SandboxResult(
                 success=False,
                 error=f"{type(error_holder[0]).__name__}: {str(error_holder[0])}",
                 execution_time_ms=int((time.time() - start_time) * 1000),
                 execution_id=execution_id
             )
+            if STRUCTURED_LOGGING:
+                log_sandbox_execution(execution_id, False, int((time.time() - start_time) * 1000), 0.0, error=str(error_holder[0]))
+            return result
 
-        return SandboxResult(
+        result = SandboxResult(
             success=True,
             result=result_holder[0],
             execution_time_ms=int((time.time() - start_time) * 1000),
             memory_used_mb=peak_memory[0],
             execution_id=execution_id
         )
+        if STRUCTURED_LOGGING:
+            log_sandbox_execution(execution_id, True, int((time.time() - start_time) * 1000), peak_memory[0])
+        return result
 
 
 class ExternalPluginSandbox:
