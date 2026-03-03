@@ -23,11 +23,86 @@ import logging
 import os
 import sys
 import traceback
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Callable
 from functools import wraps
 from enum import Enum
 import threading
+from contextvars import ContextVar
+
+# Context variables for distributed tracing
+_trace_id_var: ContextVar[str] = ContextVar('trace_id', default=None)
+_span_id_var: ContextVar[str] = ContextVar('span_id', default=None)
+_request_id_var: ContextVar[str] = ContextVar('request_id', default=None)
+
+
+class CorrelationContext:
+    """
+    Context manager for distributed tracing correlation.
+    
+    Automatically generates trace_id and propagates it through async/concurrent calls.
+    
+    Usage:
+        with CorrelationContext() as ctx:
+            logger.info("Starting task")  # trace_id automatically included
+            ctx.set_span_id("span_123")
+            logger.info("In span")  # trace_id and span_id included
+    """
+    
+    def __init__(self, trace_id: Optional[str] = None, span_id: Optional[str] = None, 
+                 request_id: Optional[str] = None):
+        self.trace_id = trace_id or str(uuid.uuid4())
+        self.span_id = span_id
+        self.request_id = request_id
+        self._tokens = []
+    
+    def __enter__(self):
+        """Enter context and set correlation IDs."""
+        token = _trace_id_var.set(self.trace_id)
+        self._tokens.append(token)
+        
+        if self.span_id:
+            token = _span_id_var.set(self.span_id)
+            self._tokens.append(token)
+        
+        if self.request_id:
+            token = _request_id_var.set(self.request_id)
+            self._tokens.append(token)
+        
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context and reset correlation IDs."""
+        for token in reversed(self._tokens):
+            _trace_id_var.set(None)
+            _span_id_var.set(None)
+            _request_id_var.set(None)
+    
+    def set_span_id(self, span_id: str):
+        """Set or update the span ID within this context."""
+        self.span_id = span_id
+        _span_id_var.set(span_id)
+    
+    def set_request_id(self, request_id: str):
+        """Set or update the request ID within this context."""
+        self.request_id = request_id
+        _request_id_var.set(request_id)
+
+
+def get_trace_id() -> Optional[str]:
+    """Get the current trace ID from context."""
+    return _trace_id_var.get()
+
+
+def get_span_id() -> Optional[str]:
+    """Get the current span ID from context."""
+    return _span_id_var.get()
+
+
+def get_request_id() -> Optional[str]:
+    """Get the current request ID from context."""
+    return _request_id_var.get()
 
 
 class LogLevel(Enum):
@@ -76,6 +151,18 @@ class StructuredFormatter(logging.Formatter):
         if threading.current_thread().name != "MainThread":
             log_entry["thread"] = threading.current_thread().name
         log_entry["process_id"] = record.process
+        
+        # Add distributed tracing context
+        trace_id = get_trace_id()
+        span_id = get_span_id()
+        request_id = get_request_id()
+        
+        if trace_id:
+            log_entry["trace_id"] = trace_id
+        if span_id:
+            log_entry["span_id"] = span_id
+        if request_id:
+            log_entry["request_id"] = request_id
         
         # Add context (global + record-specific)
         if self.include_context:
@@ -400,6 +487,65 @@ def timed_operation(operation_name: str):
         
         return wrapper
     return decorator
+
+
+def traced_operation(operation_name: str, generate_trace_id: bool = True):
+    """
+    Decorator to log operations with automatic trace ID assignment.
+    
+    Usage:
+        @traced_operation("plan_execution")
+        def execute_plan(plan_id):
+            logger.info("Step 1")  # trace_id automatically included
+            ...
+    
+    Args:
+        operation_name: Name of the operation
+        generate_trace_id: Whether to generate a new trace ID for this operation
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            trace_id = str(uuid.uuid4()) if generate_trace_id else get_trace_id()
+            
+            with CorrelationContext(trace_id=trace_id):
+                start_time = datetime.now(timezone.utc)
+                logger = get_logger(func.__module__)
+                
+                try:
+                    logger.info(
+                        f"Operation started: {operation_name}",
+                        event_type="operation_start",
+                        operation=operation_name
+                    )
+                    
+                    result = func(*args, **kwargs)
+                    
+                    duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    logger.info(
+                        f"Operation completed: {operation_name}",
+                        event_type="operation_complete",
+                        operation=operation_name,
+                        duration_ms=duration_ms,
+                        success=True
+                    )
+                    return result
+                except Exception as e:
+                    duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    
+                    logger.error(
+                        f"Operation failed: {operation_name}",
+                        event_type="operation_error",
+                        operation=operation_name,
+                        duration_ms=duration_ms,
+                        error=str(e),
+                        success=False
+                    )
+                    raise
+        
+        return wrapper
+    return decorator
+
 
 
 class MetricsCollector:

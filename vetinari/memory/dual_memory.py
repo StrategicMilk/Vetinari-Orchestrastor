@@ -3,6 +3,8 @@ DualMemoryStore - Coordinates between OcMemoryStore and MnemosyneMemoryStore.
 
 This store writes to both backends and merges reads according to the
 merge policy defined in docs/memory_merge_policy.md.
+
+Security: All entries are scanned for secrets before being written to backends.
 """
 
 import logging
@@ -15,6 +17,7 @@ from .interfaces import (
 )
 from .oc_memory import OcMemoryStore
 from .mnemosyne_memory import MnemosyneMemoryStore
+from ..security import get_secret_scanner
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,9 @@ class DualMemoryStore(IMemoryStore):
         logger.info(f"DualMemoryStore initialized with primary={self.primary_backend}")
     
     def remember(self, entry: MemoryEntry) -> str:
-        """Write to both backends."""
+        """Write to both backends with secret sanitization."""
+        # Filter secrets before persisting
+        entry = self._filter_secrets(entry)
         entry.source_backends = []
         
         oc_id = None
@@ -60,6 +65,26 @@ class DualMemoryStore(IMemoryStore):
         logger.debug(f"DualMemoryStore: wrote entry to {entry.source_backends}")
         
         return primary_id
+    
+    def _filter_secrets(self, entry: MemoryEntry) -> MemoryEntry:
+        """Sanitize entry content to remove secrets before storage."""
+        scanner = get_secret_scanner()
+        
+        # Sanitize the main content
+        if entry.content:
+            sanitized_content = scanner.sanitize(entry.content)
+            if sanitized_content != entry.content:
+                logger.debug("Entry content contained secrets - sanitized")
+                entry.content = sanitized_content
+        
+        # Sanitize metadata if it's a dictionary
+        if entry.metadata and isinstance(entry.metadata, dict):
+            sanitized_metadata = scanner.sanitize_dict(entry.metadata)
+            if sanitized_metadata != entry.metadata:
+                logger.debug("Entry metadata contained secrets - sanitized")
+                entry.metadata = sanitized_metadata
+        
+        return entry
     
     def search(self, query: str, agent: Optional[str] = None,
                entry_types: Optional[List[str]] = None,

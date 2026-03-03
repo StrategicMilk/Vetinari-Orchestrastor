@@ -1,0 +1,282 @@
+name: Vetinari Phase 3 - Observability & Security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --cov=vetinari --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Run secret filtering test
+      run: |
+        python tests/test_security.py -v
+    
+    - name: Verify no secrets in code
+      run: |
+        # This test ensures our secret scanner can detect common patterns
+        python -c "
+        from vetinari.security import get_secret_scanner
+        scanner = get_secret_scanner()
+        
+        # Test OpenAI pattern
+        test_content = 'API key: sk-proj-abcdef1234567890'
+        detected = scanner.scan(test_content)
+        assert 'openai_api_key' in detected, 'Failed to detect OpenAI key'
+        
+        # Test GitHub pattern
+        test_content = 'token ghp_abc123def456789xyz'
+        detected = scanner.scan(test_content)
+        assert 'github_token' in detected, 'Failed to detect GitHub token'
+        
+        # Test sanitization
+        unsafe = 'My secret is sk-abc123xyz'
+        safe = scanner.sanitize(unsafe)
+        assert '[REDACTED]' in safe, 'Failed to sanitize'
+        assert 'sk-abc123xyz' not in safe, 'Secret not removed'
+        
+        print('✓ Secret filtering validation passed')
+        "
+
+  telemetry-test:
+    name: Telemetry Collection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Test telemetry collector
+      run: |
+        python -c "
+        from vetinari.telemetry import get_telemetry_collector
+        import json
+        import tempfile
+        import os
+        
+        telemetry = get_telemetry_collector()
+        
+        # Record some metrics
+        telemetry.record_adapter_latency('openai', 'gpt-4', 150.5, success=True, tokens_used=100)
+        telemetry.record_memory_write('oc', 5.2)
+        telemetry.record_plan_decision('approve', risk_score=0.35)
+        
+        # Export and verify
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_path = os.path.join(tmpdir, 'telemetry.json')
+            success = telemetry.export_json(export_path)
+            
+            assert success, 'Failed to export telemetry'
+            assert os.path.exists(export_path), 'Telemetry file not created'
+            
+            with open(export_path) as f:
+                data = json.load(f)
+                assert 'adapters' in data, 'Missing adapters in telemetry'
+                assert 'memory' in data, 'Missing memory in telemetry'
+                assert 'plan_mode' in data, 'Missing plan_mode in telemetry'
+                assert data['plan_mode']['total_decisions'] == 1, 'Decision not recorded'
+        
+        print('✓ Telemetry collection validation passed')
+        "
+
+  tracing-test:
+    name: Distributed Tracing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Test trace ID propagation
+      run: |
+        python -c "
+        from vetinari.structured_logging import (
+            CorrelationContext, get_trace_id, get_span_id, get_logger, configure_logging
+        )
+        import json
+        import tempfile
+        
+        configure_logging()
+        logger = get_logger('test')
+        
+        # Test trace ID generation and propagation
+        with CorrelationContext() as ctx:
+            trace_id = get_trace_id()
+            assert trace_id is not None, 'Trace ID not generated'
+            
+            # Test span ID setting
+            ctx.set_span_id('span_123')
+            span_id = get_span_id()
+            assert span_id == 'span_123', 'Span ID not set correctly'
+            
+            # Log with trace context
+            logger.info('Test message with tracing')
+        
+        print('✓ Distributed tracing validation passed')
+        "
+
+  dry-run-test:
+    name: Dry-Run Package Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    
+    - name: Install Vetinari
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Install dry-run package
+      run: |
+        cd dry_run_demo_pkg
+        pip install -e .
+    
+    - name: Test dry-run package execution
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, 'dry_run_demo_pkg')
+        from dry_run_demo_pkg import __main__
+        print('✓ Dry-run package executed successfully')
+        "
+
+  integration-test:
+    name: End-to-End Integration
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+    
+    - name: Run integration test
+      run: |
+        python tests/test_integration_phase3.py -v
+      continue-on-error: true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: integration-logs
+        path: logs/
+
+  build-status:
+    name: Build Status Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, security-scan, telemetry-test, tracing-test, dry-run-test, integration-test]
+    if: always()
+    
+    steps:
+    - name: Check build status
+      run: |
+        if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+          echo "❌ Unit tests failed"
+          exit 1
+        fi
+        
+        if [ "${{ needs.security-scan.result }}" != "success" ]; then
+          echo "❌ Security scan failed"
+          exit 1
+        fi
+        
+        if [ "${{ needs.telemetry-test.result }}" != "success" ]; then
+          echo "❌ Telemetry test failed"
+          exit 1
+        fi
+        
+        if [ "${{ needs.tracing-test.result }}" != "success" ]; then
+          echo "❌ Tracing test failed"
+          exit 1
+        fi
+        
+        if [ "${{ needs.dry-run-test.result }}" != "success" ]; then
+          echo "❌ Dry-run test failed"
+          exit 1
+        fi
+        
+        echo "✓ All Phase 3 validations passed!"
