@@ -50,14 +50,23 @@ class Scheduler:
         task_map = {t["id"]: t for t in tasks}
         in_degree = {t["id"]: 0 for t in tasks}
         dependents = defaultdict(list)  # task_id -> list of tasks that depend on it
+        unresolvable = set()  # Track tasks with missing dependencies
         
         for task in tasks:
             task_id = task["id"]
             deps = task.get("dependencies", [])
-            in_degree[task_id] = len(deps)
-            for dep in deps:
-                if dep in dependents:  # Only add if dependency exists
-                    dependents[dep].append(task_id)
+            # Check if all dependencies exist
+            valid_deps = [d for d in deps if d in task_map]
+            # If any dependency is missing, mark this task as unresolvable
+            if len(valid_deps) != len(deps):
+                unresolvable.add(task_id)
+                logging.warning(f"Task {task_id} has unknown dependency and will not be scheduled")
+            in_degree[task_id] = len(valid_deps)
+            for dep in valid_deps:
+                # Always initialize dependent list and add task_id
+                if dep not in dependents:
+                    dependents[dep] = []
+                dependents[dep].append(task_id)
         
         # Kahn's algorithm to build layers
         layers = []
@@ -67,10 +76,10 @@ class Scheduler:
         
         while len(processed) < len(tasks) and iteration < max_iterations:
             iteration += 1
-            # Find all tasks with in-degree 0 (no pending dependencies)
+            # Find all tasks with in-degree 0 (no pending dependencies) and not unresolvable
             current_layer = []
             for task_id, degree in in_degree.items():
-                if task_id not in processed and degree == 0:
+                if task_id not in processed and task_id not in unresolvable and degree == 0:
                     task = task_map[task_id]
                     current_layer.append(task)
             

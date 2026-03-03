@@ -107,8 +107,8 @@ class InProcessSandbox:
         execution_id = f"exec_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
-        # Check for dangerous patterns before execution
-        dangerous_patterns = ['eval', 'exec', 'compile', '__import__', 'open', 'input']
+        # Check for dangerous patterns before execution (check compile first)
+        dangerous_patterns = ['compile', 'eval', 'exec', '__import__', 'open', 'input']
         for pattern in dangerous_patterns:
             if pattern in code:
                 return SandboxResult(
@@ -118,30 +118,58 @@ class InProcessSandbox:
                     execution_id=execution_id
                 )
 
-        tracemalloc.start()
-
-        restricted_globals = {
-            '__builtins__': self._get_safe_builtins()
-        }
-
-        if context:
-            restricted_globals.update(context)
-
         # Use threading timeout instead of signal (works on Windows)
         result_holder = [None]
         error_holder = [None]
+        peak_memory = [0.0]
         
         def run_code():
+            # Start tracemalloc inside the thread to track memory
+            import tracemalloc
+            tracemalloc.start()
             try:
-                result_holder[0] = eval(code, restricted_globals, {})
+                restricted_globals = {
+                    '__builtins__': self._get_safe_builtins()
+                }
+                if context:
+                    restricted_globals.update(context)
+                
+                # Use exec() to support both expressions and statements (like function definitions)
+                # but capture the last expression value if it's an expression
+                is_expression = True
+                try:
+                    compile(code, '<string>', 'eval')
+                except SyntaxError:
+                    is_expression = False
+                
+                if is_expression:
+                    result_holder[0] = eval(code, restricted_globals, {})
+                else:
+                    # For statements (like function defs + calls), capture the last expression result
+                    # by evaluating the last line if it's an expression statement
+                    lines = code.strip().split('\n')
+                    exec_globals = restricted_globals.copy()
+                    exec(code, exec_globals)
+                    # Try to get result from last line if it's a function call
+                    if lines:
+                        last_line = lines[-1].strip()
+                        # Check if last line is an expression (not a statement)
+                        try:
+                            compile(last_line, '<string>', 'eval')
+                            result_holder[0] = eval(last_line, exec_globals, {})
+                        except (SyntaxError, TypeError):
+                            result_holder[0] = None
             except Exception as e:
                 error_holder[0] = e
+            finally:
+                # Get peak memory in this thread
+                current, peak = tracemalloc.get_traced_memory()
+                peak_memory[0] = peak / (1024 * 1024)
+                tracemalloc.stop()
 
         execution_thread = threading.Thread(target=run_code, daemon=True)
         execution_thread.start()
         execution_thread.join(timeout=self.timeout)
-
-        tracemalloc.stop()
 
         if execution_thread.is_alive():
             # Timeout occurred
@@ -160,12 +188,11 @@ class InProcessSandbox:
                 execution_id=execution_id
             )
 
-        current, peak = tracemalloc.get_traced_memory()
         return SandboxResult(
             success=True,
             result=result_holder[0],
             execution_time_ms=int((time.time() - start_time) * 1000),
-            memory_used_mb=peak / (1024 * 1024),
+            memory_used_mb=peak_memory[0],
             execution_id=execution_id
         )
 

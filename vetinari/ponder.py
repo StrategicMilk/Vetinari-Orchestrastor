@@ -62,6 +62,9 @@ class PonderEngine:
             return data.get("templates", [])
 
     def _get_task_capability_requirements(self, task_description: str) -> Dict[str, Any]:
+        # Safely handle None task descriptions
+        if task_description is None:
+            task_description = ""
         task_lower = task_description.lower()
         
         requirements = {
@@ -97,23 +100,29 @@ class PonderEngine:
         
         tags = [t.lower() for t in model.get("tags", [])]
         
-        if requirements["reasoning"] > 0.7:
+        # Use .get() with defaults to avoid KeyError
+        reasoning = requirements.get("reasoning", 0)
+        code = requirements.get("code", 0)
+        creative = requirements.get("creative", 0)
+        analysis = requirements.get("analysis", 0)
+        
+        if reasoning > 0.7:
             if any(t in tags for t in ["reasoning", "reason", "think", "advanced"]):
                 base_score += 0.3
             elif "coder" in tags or "code" in tags:
                 base_score += 0.1
         
-        if requirements["code"] > 0.7:
+        if code > 0.7:
             if "coder" in tags or "code" in tags:
                 base_score += 0.4
             elif any(t in tags for t in ["programming", "dev"]):
                 base_score += 0.3
         
-        if requirements["creative"] > 0.7:
+        if creative > 0.7:
             if any(t in tags for t in ["creative", "writing", "story"]):
                 base_score += 0.3
         
-        if requirements["analysis"] > 0.7:
+        if analysis > 0.7:
             if any(t in tags for t in ["analysis", "analyze", "research"]):
                 base_score += 0.3
         
@@ -149,6 +158,9 @@ class PonderEngine:
 
     def _calculate_heuristic_score(self, model: Dict, task_description: str) -> float:
         base_score = 0.6
+        # Safely handle None task descriptions
+        if task_description is None:
+            task_description = ""
         task_lower = task_description.lower()
         model_name = model.get("id", "").lower()
         

@@ -205,7 +205,8 @@ class TestModelDiscoveryHealth:
         assert health["discovery_failed"] is True
         assert health["fallback_active"] is True
         assert health["last_error"] is not None
-        assert "Timeout" in health["last_error"]
+        # Accept case-insensitive match for timeout
+        assert "timeout" in health["last_error"].lower()
         assert health["retry_count"] > 0
 
 

@@ -8,6 +8,7 @@ import pytest
 import json
 import os
 import sys
+import requests
 from pathlib import Path
 
 # Add project root to path
@@ -15,8 +16,21 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
 # Test configuration
-BASE_URL = "http://localhost:5000"
+BASE_URL = os.environ.get("VETINARI_BASE_URL", "http://localhost:5000")
 TEST_PROJECT = "project_0"
+
+
+def _server_up(url: str = BASE_URL) -> bool:
+    """Check if the Vetinari server is running."""
+    try:
+        requests.get(url + "/api/status", timeout=0.5)
+        return True
+    except Exception:
+        return False
+
+
+# Skip all tests in this module if server is not running
+pytestmark = pytest.mark.skipif(not _server_up(), reason="Vet API server not running on localhost:5000")
 
 
 class TestAdminGating:
