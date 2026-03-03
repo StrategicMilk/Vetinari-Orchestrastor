@@ -15,13 +15,27 @@ from vetinari.upgrader import Upgrader
 from vetinari.validator import Validator
 from vetinari.builder import Builder
 
+# Phase 2: OpenCode Integration
+from vetinari.execution_context import (
+    get_context_manager,
+    ExecutionMode,
+    ToolPermission,
+)
+from vetinari.adapter_manager import get_adapter_manager
+from vetinari.tool_interface import get_tool_registry
+from vetinari.verification import get_verifier_pipeline, VerificationLevel
+
 # Plan Mode integration
 PLAN_MODE_ENABLE = os.environ.get("PLAN_MODE_ENABLE", "true").lower() in ("1", "true", "yes")
 PLAN_MODE_DEFAULT = os.environ.get("PLAN_MODE_DEFAULT", "true").lower() in ("1", "true", "yes")
 
+# Phase 2: Execution mode from environment
+EXECUTION_MODE = os.environ.get("EXECUTION_MODE", "execution").lower()
+VERIFICATION_LEVEL = os.environ.get("VERIFICATION_LEVEL", "standard").lower()
+
 
 class Orchestrator:
-    def __init__(self, manifest_path: str, host: str = "http://100.78.30.7:1234", api_token: str = None, max_concurrent: int = 4):
+    def __init__(self, manifest_path: str, host: str = "http://100.78.30.7:1234", api_token: str = None, max_concurrent: int = 4, execution_mode: str = None):
         # Make manifest_path absolute if it's relative
         manifest_path_obj = Path(manifest_path)
         if not manifest_path_obj.is_absolute():
@@ -43,6 +57,22 @@ class Orchestrator:
         self.upgrader = Upgrader(self.config)
         self.builder = Builder(self.config)
         
+        # Phase 2: Initialize OpenCode integration
+        self.context_manager = get_context_manager()
+        self.adapter_manager = get_adapter_manager()
+        self.tool_registry = get_tool_registry()
+        self.verifier_pipeline = get_verifier_pipeline()
+        
+        # Set execution mode
+        mode_str = execution_mode or EXECUTION_MODE
+        try:
+            self.execution_mode = ExecutionMode(mode_str)
+            self.context_manager.switch_mode(self.execution_mode)
+            logging.info(f"Execution mode set to: {self.execution_mode.value}")
+        except ValueError:
+            logging.warning(f"Invalid execution mode: {mode_str}, using default EXECUTION")
+            self.execution_mode = ExecutionMode.EXECUTION
+        
         # Plan Mode initialization
         self.plan_mode_enabled = PLAN_MODE_ENABLE and PLAN_MODE_DEFAULT
         self.plan_engine = None
@@ -55,7 +85,7 @@ class Orchestrator:
                 logging.warning(f"Plan Mode initialization failed: {e}. Continuing without Plan Mode.")
                 self.plan_mode_enabled = False
 
-        logging.info("Vetinari orchestrator initialized.")
+        logging.info("Vetinari orchestrator initialized with Phase 2 OpenCode integration.")
 
     def update_settings(self, host: str = None, api_token: str = None):
         """Update settings including host and API token."""
@@ -174,7 +204,50 @@ class Orchestrator:
 
     def run_task(self, task_id: str):
         logging.info(f"Running task {task_id}")
+        
+        # Check permission in current execution context
+        try:
+            self.context_manager.enforce_permission(
+                ToolPermission.MODEL_INFERENCE,
+                f"task {task_id}"
+            )
+        except PermissionError as e:
+            logging.error(f"Task {task_id} blocked by permission: {e}")
+            return {
+                "status": "failed",
+                "task_id": task_id,
+                "error": str(e),
+            }
+        
         result = self.executor.execute_task(task_id)
+        
+        # Verify task output
+        task_output = result.get("output", "")
+        if task_output:
+            try:
+                logging.info(f"Running verification pipeline for task {task_id}")
+                verification_results = self.verifier_pipeline.verify(task_output)
+                verification_summary = self.verifier_pipeline.get_summary(verification_results)
+                
+                # Log verification results
+                logging.info(f"Verification summary for {task_id}: {verification_summary['overall_status']}")
+                if verification_summary['total_issues'] > 0:
+                    logging.warning(f"Task {task_id} has {verification_summary['total_issues']} verification issues")
+                    if verification_summary['error_count'] > 0:
+                        logging.error(f"Task {task_id} has {verification_summary['error_count']} verification errors")
+                
+                # Attach verification results to task result
+                result["verification"] = verification_summary
+            except Exception as e:
+                logging.warning(f"Verification pipeline failed for task {task_id}: {e}")
+        
+        # Record operation in audit trail
+        self.context_manager.current_context.record_operation(
+            f"task_{task_id}",
+            {"task_id": task_id},
+            result,
+        )
+        
         if result.get("status") != "completed":
             logging.warning(f"Task {task_id} did not complete successfully. See logs for details.")
         else:
@@ -185,7 +258,18 @@ class Orchestrator:
         """
         Check for and install model upgrades.
         Supports non-interactive mode via VETINARI_UPGRADE_AUTO_APPROVE environment variable.
+        Phase 2: Check permissions before upgrading.
         """
+        # Check permission in current execution context
+        try:
+            self.context_manager.enforce_permission(
+                ToolPermission.MODEL_DISCOVERY,
+                "model upgrade check"
+            )
+        except PermissionError as e:
+            logging.error(f"Model upgrade blocked by permission: {e}")
+            return
+        
         # Check if running in non-interactive mode
         auto_approve = os.environ.get("VETINARI_UPGRADE_AUTO_APPROVE", "false").lower() in ("1", "true", "yes")
         is_interactive = not auto_approve and hasattr(__builtins__, '__dict__')
@@ -225,6 +309,17 @@ class Orchestrator:
                 logging.error(f"Failed to install upgrade {u['name']}: {str(e)}")
         
         logging.info("Upgrade process complete.")
+    
+    def get_execution_status(self) -> dict:
+        """Get current execution status (Phase 2 enhancement)."""
+        context_status = self.context_manager.get_status()
+        adapter_status = self.adapter_manager.get_status()
+        
+        return {
+            "execution_context": context_status,
+            "adapters": adapter_status,
+            "timestamp": time.time(),
+        }
 
 
 # Convenience when running as script
