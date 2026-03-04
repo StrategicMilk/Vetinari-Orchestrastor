@@ -344,4 +344,19 @@ class ModelRelay:
             self._save_config()
 
 
-model_relay = ModelRelay.get_instance()
+def get_model_relay() -> "ModelRelay":
+    """Lazily return the singleton ModelRelay. Use this instead of module-level model_relay."""
+    return ModelRelay.get_instance()
+
+
+# Backward-compatible lazy proxy — no config I/O on import.
+class _LazyModelRelay:
+    """Proxy that resolves the ModelRelay singleton on first attribute access."""
+    def __getattr__(self, name):
+        return getattr(ModelRelay.get_instance(), name)
+
+    def __repr__(self):
+        return repr(ModelRelay.get_instance())
+
+
+model_relay = _LazyModelRelay()

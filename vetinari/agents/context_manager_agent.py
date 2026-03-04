@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -413,10 +414,6 @@ Return ONLY valid JSON."""
             "next_session_context": f"Continue from: {task.description[:80] if task.description else 'previous session'}",
             "entries_processed": len(entries),
         }
-
-
-# Need os import at top
-import os
 
 
 # Singleton

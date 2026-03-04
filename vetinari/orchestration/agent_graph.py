@@ -1,18 +1,24 @@
 """
 Vetinari AgentGraph - Orchestration Engine
 
-This module provides the core orchestration engine that coordinates all 15 agents
-in the Vetinari hierarchical multi-agent system. It manages plan execution,
-task assignment, dependency resolution, and result aggregation.
+Coordinates all 21 specialized agents through a Plan DAG, managing:
+- Task decomposition and assignment
+- Dependency resolution
+- True async parallel execution of independent tasks
+- Retry, self-correction, and failure handling
+- Result aggregation and synthesis
+- Inter-agent delegation via the shared Blackboard
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
+
 from enum import Enum
 
 from vetinari.agents.contracts import (
@@ -23,7 +29,7 @@ from vetinari.agents.contracts import (
     Task,
     TaskStatus,
     get_agent_spec,
-    AGENT_REGISTRY
+    AGENT_REGISTRY,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,9 +37,9 @@ logger = logging.getLogger(__name__)
 
 class ExecutionStrategy(Enum):
     """Strategy for task execution."""
-    SEQUENTIAL = "sequential"  # Execute tasks one at a time
-    PARALLEL = "parallel"      # Execute independent tasks in parallel
-    ADAPTIVE = "adaptive"      # Adapt strategy based on dependencies
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
+    ADAPTIVE = "adaptive"
 
 
 @dataclass
@@ -42,8 +48,8 @@ class TaskNode:
     task: Task
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[AgentResult] = None
-    dependencies: Set[str] = field(default_factory=set)  # Task IDs this depends on
-    dependents: Set[str] = field(default_factory=set)    # Tasks that depend on this
+    dependencies: Set[str] = field(default_factory=set)
+    dependents: Set[str] = field(default_factory=set)
     retries: int = 0
     max_retries: int = 3
 
@@ -62,305 +68,460 @@ class ExecutionPlan:
 
 class AgentGraph:
     """
-    Hierarchical multi-agent orchestration engine.
-    
-    Coordinates 15 specialized agents through a Plan DAG, managing:
-    - Task decomposition and assignment
-    - Dependency resolution
-    - Parallel and sequential execution
-    - Retry and failure handling
-    - Result aggregation and synthesis
+    Hierarchical multi-agent orchestration engine for all 21 Vetinari agents.
+
+    New in this revision
+    --------------------
+    - All 21 agents registered (DevOps, VersionControl, ErrorRecovery,
+      ContextManager, Improvement, UserInteraction added)
+    - True parallel execution via ``ThreadPoolExecutor`` for independent DAG layers
+    - ``execute_plan_async`` now uses ``asyncio.gather`` over thread pool
+    - Agent-model affinity routing (VL model for vision tasks)
+    - Self-correction loop: failed verification triggers one guided retry
+    - Delegates unresolvable failures to ``ErrorRecoveryAgent``
     """
-    
-    def __init__(self, strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE, max_workers: int = 5):
-        """Initialize the AgentGraph.
-        
-        Args:
-            strategy: Execution strategy (sequential, parallel, adaptive)
-            max_workers: Maximum concurrent tasks for parallel execution
-        """
+
+    def __init__(
+        self,
+        strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE,
+        max_workers: int = 5,
+    ):
         self._strategy = strategy
         self._max_workers = max_workers
         self._agents: Dict[AgentType, Any] = {}
         self._execution_plans: Dict[str, ExecutionPlan] = {}
         self._initialized = False
-        
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
+
     def initialize(self) -> None:
-        """Initialize all agents."""
+        """Initialize all 21 agents and mark the graph as ready."""
         if self._initialized:
             return
-        
-        # Import agent getter functions
+
         from vetinari.agents import (
+            # Core
             get_planner_agent,
             get_explorer_agent,
             get_oracle_agent,
+            # Core expansion
             get_librarian_agent,
             get_researcher_agent,
             get_evaluator_agent,
             get_synthesizer_agent,
             get_builder_agent,
             get_ui_planner_agent,
+            # Extended
             get_security_auditor_agent,
             get_data_engineer_agent,
             get_documentation_agent,
             get_cost_planner_agent,
             get_test_automation_agent,
-            get_experimentation_manager_agent
+            get_experimentation_manager_agent,
+            # Meta / interaction
+            get_improvement_agent,
+            get_user_interaction_agent,
+            # Operations (may be None if not installed)
+            get_devops_agent,
+            get_version_control_agent,
+            get_error_recovery_agent,
+            get_context_manager_agent,
         )
-        
-        # Get singleton instances of all agents
-        self._agents[AgentType.PLANNER] = get_planner_agent()
-        self._agents[AgentType.EXPLORER] = get_explorer_agent()
-        self._agents[AgentType.ORACLE] = get_oracle_agent()
-        self._agents[AgentType.LIBRARIAN] = get_librarian_agent()
-        self._agents[AgentType.RESEARCHER] = get_researcher_agent()
-        self._agents[AgentType.EVALUATOR] = get_evaluator_agent()
-        self._agents[AgentType.SYNTHESIZER] = get_synthesizer_agent()
-        self._agents[AgentType.BUILDER] = get_builder_agent()
-        self._agents[AgentType.UI_PLANNER] = get_ui_planner_agent()
-        self._agents[AgentType.SECURITY_AUDITOR] = get_security_auditor_agent()
-        self._agents[AgentType.DATA_ENGINEER] = get_data_engineer_agent()
-        self._agents[AgentType.DOCUMENTATION_AGENT] = get_documentation_agent()
-        self._agents[AgentType.COST_PLANNER] = get_cost_planner_agent()
-        self._agents[AgentType.TEST_AUTOMATION] = get_test_automation_agent()
-        self._agents[AgentType.EXPERIMENTATION_MANAGER] = get_experimentation_manager_agent()
-        
-        # Initialize each agent
-        for agent_type, agent in self._agents.items():
-            agent.initialize({})
-            logger.info(f"Initialized {agent.name}")
-        
+
+        _agent_map: List[tuple] = [
+            (AgentType.PLANNER,                get_planner_agent),
+            (AgentType.EXPLORER,               get_explorer_agent),
+            (AgentType.ORACLE,                 get_oracle_agent),
+            (AgentType.LIBRARIAN,              get_librarian_agent),
+            (AgentType.RESEARCHER,             get_researcher_agent),
+            (AgentType.EVALUATOR,              get_evaluator_agent),
+            (AgentType.SYNTHESIZER,            get_synthesizer_agent),
+            (AgentType.BUILDER,                get_builder_agent),
+            (AgentType.UI_PLANNER,             get_ui_planner_agent),
+            (AgentType.SECURITY_AUDITOR,       get_security_auditor_agent),
+            (AgentType.DATA_ENGINEER,          get_data_engineer_agent),
+            (AgentType.DOCUMENTATION_AGENT,    get_documentation_agent),
+            (AgentType.COST_PLANNER,           get_cost_planner_agent),
+            (AgentType.TEST_AUTOMATION,        get_test_automation_agent),
+            (AgentType.EXPERIMENTATION_MANAGER, get_experimentation_manager_agent),
+            (AgentType.IMPROVEMENT,            get_improvement_agent),
+            (AgentType.USER_INTERACTION,       get_user_interaction_agent),
+            (AgentType.DEVOPS,                 get_devops_agent),
+            (AgentType.VERSION_CONTROL,        get_version_control_agent),
+            (AgentType.ERROR_RECOVERY,         get_error_recovery_agent),
+            (AgentType.CONTEXT_MANAGER,        get_context_manager_agent),
+        ]
+
+        for agent_type, getter in _agent_map:
+            if getter is None:
+                logger.warning(f"[AgentGraph] Getter for {agent_type} is None — skipping")
+                continue
+            try:
+                agent = getter()
+                if agent is not None:
+                    agent.initialize({})
+                    self._agents[agent_type] = agent
+                    logger.debug(f"[AgentGraph] Registered {agent_type.value}")
+            except Exception as e:
+                logger.warning(f"[AgentGraph] Could not initialize {agent_type.value}: {e}")
+
+        logger.info(
+            f"[AgentGraph] Initialized {len(self._agents)}/21 agents "
+            f"(strategy={self._strategy.value})"
+        )
         self._initialized = True
-    
+
+    # ------------------------------------------------------------------
+    # Plan creation
+    # ------------------------------------------------------------------
+
     def create_execution_plan(self, plan: Plan) -> ExecutionPlan:
-        """Create an execution plan from a Plan DAG.
-        
-        Args:
-            plan: The plan to create execution plan from
-            
-        Returns:
-            ExecutionPlan with task nodes and execution order
-        """
+        """Build an ExecutionPlan with task nodes and topological order."""
         exec_plan = ExecutionPlan(plan_id=plan.plan_id, original_plan=plan)
-        
-        # Create task nodes from plan tasks
+
         for task in plan.tasks:
             node = TaskNode(
                 task=task,
                 dependencies=set(task.dependencies),
-                status=TaskStatus.PENDING
+                status=TaskStatus.PENDING,
             )
             exec_plan.nodes[task.id] = node
-        
-        # Build dependents map
+
+        # Build reverse edges (dependents)
         for task_id, node in exec_plan.nodes.items():
             for dep_id in node.dependencies:
                 if dep_id in exec_plan.nodes:
                     exec_plan.nodes[dep_id].dependents.add(task_id)
-        
-        # Determine execution order
+
         exec_plan.execution_order = self._topological_sort(exec_plan.nodes)
-        
         self._execution_plans[plan.plan_id] = exec_plan
         return exec_plan
-    
+
     def _topological_sort(self, nodes: Dict[str, TaskNode]) -> List[str]:
-        """Perform topological sort on tasks to determine execution order.
-        
-        Args:
-            nodes: Dictionary of task nodes
-            
-        Returns:
-            List of task IDs in execution order
-        """
-        # Calculate in-degree for each node
-        in_degree = {task_id: len(node.dependencies) for task_id, node in nodes.items()}
-        
-        # Find all nodes with no dependencies
-        queue = [task_id for task_id, degree in in_degree.items() if degree == 0]
-        result = []
-        
+        """Kahn's algorithm topological sort."""
+        in_degree = {tid: len(n.dependencies) for tid, n in nodes.items()}
+        queue = [tid for tid, d in in_degree.items() if d == 0]
+        result: List[str] = []
+
         while queue:
-            # Process nodes with no dependencies
             current = queue.pop(0)
             result.append(current)
-            
-            # Reduce in-degree for dependents
             for dependent_id in nodes[current].dependents:
                 in_degree[dependent_id] -= 1
                 if in_degree[dependent_id] == 0:
                     queue.append(dependent_id)
-        
-        # Check for cycles
+
         if len(result) != len(nodes):
             raise ValueError("Circular dependency detected in task graph")
-        
         return result
-    
+
+    # ------------------------------------------------------------------
+    # Synchronous execution
+    # ------------------------------------------------------------------
+
     def execute_plan(self, plan: Plan) -> Dict[str, AgentResult]:
-        """Execute a complete plan using the agent graph.
-        
-        Args:
-            plan: The plan to execute
-            
-        Returns:
-            Dictionary mapping task IDs to AgentResults
-        """
-        # Create execution plan
+        """Execute a complete plan, parallelising independent tasks where possible."""
         exec_plan = self.create_execution_plan(plan)
         exec_plan.status = TaskStatus.RUNNING
         exec_plan.started_at = datetime.now().isoformat()
-        
-        results = {}
-        
+
+        results: Dict[str, AgentResult] = {}
+
         try:
-            # Execute tasks in order determined by dependencies
-            for task_id in exec_plan.execution_order:
-                node = exec_plan.nodes[task_id]
-                result = self._execute_task_node(node)
-                results[task_id] = result
-                
-                # Update node status
-                if result.success:
-                    node.status = TaskStatus.COMPLETED
-                else:
-                    node.status = TaskStatus.FAILED
-                    logger.error(f"Task {task_id} failed: {result.errors}")
-            
+            if self._strategy == ExecutionStrategy.SEQUENTIAL:
+                for task_id in exec_plan.execution_order:
+                    node = exec_plan.nodes[task_id]
+                    result = self._execute_task_node(node, results)
+                    results[task_id] = result
+                    node.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+            else:
+                # ADAPTIVE / PARALLEL: group by layers and run each layer in parallel
+                layers = self._build_execution_layers(exec_plan)
+                for layer in layers:
+                    layer_results = self._execute_layer_parallel(
+                        layer, exec_plan, results
+                    )
+                    results.update(layer_results)
+
             exec_plan.status = TaskStatus.COMPLETED
-            
+
         except Exception as e:
-            logger.error(f"Plan execution failed: {str(e)}")
+            logger.error(f"[AgentGraph] Plan execution failed: {e}")
             exec_plan.status = TaskStatus.FAILED
             raise
-        
         finally:
             exec_plan.completed_at = datetime.now().isoformat()
-        
+
         return results
-    
-    def _execute_task_node(self, node: TaskNode) -> AgentResult:
-        """Execute a single task node.
-        
-        Args:
-            node: The task node to execute
-            
-        Returns:
-            AgentResult from task execution
+
+    def _build_execution_layers(
+        self, exec_plan: ExecutionPlan
+    ) -> List[List[str]]:
+        """Group tasks into parallel layers by dependency level."""
+        completed: Set[str] = set()
+        remaining = set(exec_plan.nodes.keys())
+        layers: List[List[str]] = []
+
+        while remaining:
+            ready = [
+                tid for tid in remaining
+                if exec_plan.nodes[tid].dependencies <= completed
+            ]
+            if not ready:
+                # No progress — likely a cycle that slipped through; add remaining
+                ready = list(remaining)
+            layers.append(ready)
+            for tid in ready:
+                remaining.discard(tid)
+            completed.update(ready)
+
+        return layers
+
+    def _execute_layer_parallel(
+        self,
+        layer: List[str],
+        exec_plan: ExecutionPlan,
+        prior_results: Dict[str, AgentResult],
+    ) -> Dict[str, AgentResult]:
+        """Execute a batch of independent tasks in parallel via thread pool."""
+        if len(layer) == 1:
+            # Single task — skip thread overhead
+            tid = layer[0]
+            node = exec_plan.nodes[tid]
+            result = self._execute_task_node(node, prior_results)
+            node.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+            return {tid: result}
+
+        layer_results: Dict[str, AgentResult] = {}
+        workers = min(self._max_workers, len(layer))
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            future_map = {
+                pool.submit(
+                    self._execute_task_node,
+                    exec_plan.nodes[tid],
+                    prior_results,
+                ): tid
+                for tid in layer
+            }
+            for future in as_completed(future_map):
+                tid = future_map[future]
+                node = exec_plan.nodes[tid]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    result = AgentResult(success=False, output=None, errors=[str(e)])
+                node.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
+                layer_results[tid] = result
+
+        return layer_results
+
+    # ------------------------------------------------------------------
+    # Async execution (wraps thread pool via asyncio)
+    # ------------------------------------------------------------------
+
+    async def execute_plan_async(self, plan: Plan) -> Dict[str, AgentResult]:
+        """Execute a plan asynchronously, running parallel layers via asyncio."""
+        exec_plan = self.create_execution_plan(plan)
+        exec_plan.status = TaskStatus.RUNNING
+        exec_plan.started_at = datetime.now().isoformat()
+
+        results: Dict[str, AgentResult] = {}
+        loop = asyncio.get_event_loop()
+
+        try:
+            layers = self._build_execution_layers(exec_plan)
+            for layer in layers:
+                # Run each layer's tasks concurrently in a thread pool
+                futures = [
+                    loop.run_in_executor(
+                        None,
+                        self._execute_task_node,
+                        exec_plan.nodes[tid],
+                        results,
+                    )
+                    for tid in layer
+                ]
+                layer_results_list = await asyncio.gather(*futures, return_exceptions=True)
+                for tid, res in zip(layer, layer_results_list):
+                    node = exec_plan.nodes[tid]
+                    if isinstance(res, Exception):
+                        res = AgentResult(success=False, output=None, errors=[str(res)])
+                    node.status = TaskStatus.COMPLETED if res.success else TaskStatus.FAILED
+                    results[tid] = res
+
+            exec_plan.status = TaskStatus.COMPLETED
+
+        except Exception as e:
+            logger.error(f"[AgentGraph] Async plan execution failed: {e}")
+            exec_plan.status = TaskStatus.FAILED
+            raise
+        finally:
+            exec_plan.completed_at = datetime.now().isoformat()
+
+        return results
+
+    # ------------------------------------------------------------------
+    # Task execution with self-correction
+    # ------------------------------------------------------------------
+
+    def _execute_task_node(
+        self,
+        node: TaskNode,
+        prior_results: Optional[Dict[str, AgentResult]] = None,
+    ) -> AgentResult:
+        """Execute a single task with retries and a self-correction loop.
+
+        Self-correction: if the agent produces output but verification fails,
+        the agent is called once more with the verification feedback injected
+        into the task description before giving up.
         """
         task = node.task
         agent_type = task.assigned_agent
-        
-        # Get the agent for this task
+
         if agent_type not in self._agents:
-            return AgentResult(
+            # Try the blackboard delegation path
+            from vetinari.blackboard import get_blackboard
+            board = get_blackboard()
+            return board.delegate(task, self._agents) or AgentResult(
                 success=False,
                 output=None,
-                errors=[f"Unknown agent type: {agent_type}"]
+                errors=[f"No agent registered for type: {agent_type}"],
             )
-        
+
         agent = self._agents[agent_type]
-        
-        # Create AgentTask from Task
+
+        # Inject prior results as context if the task depends on them
+        context: Dict[str, Any] = dict(task.context if hasattr(task, "context") else {})
+        if prior_results and task.dependencies:
+            dep_summaries = {
+                dep_id: {
+                    "success": prior_results[dep_id].success,
+                    "output_summary": str(prior_results[dep_id].output)[:500],
+                }
+                for dep_id in task.dependencies
+                if dep_id in prior_results
+            }
+            context["dependency_results"] = dep_summaries
+
         agent_task = AgentTask.from_task(task, task.description)
-        
-        # Execute with retries
+        if hasattr(agent_task, "context"):
+            agent_task.context.update(context)
+
         for attempt in range(node.max_retries + 1):
             try:
-                logger.info(f"Executing task {task.id} with {agent.name} (attempt {attempt + 1})")
-                
-                # Execute the task
+                logger.info(
+                    f"[AgentGraph] Executing {task.id} with {agent_type.value} "
+                    f"(attempt {attempt + 1}/{node.max_retries + 1})"
+                )
                 result = agent.execute(agent_task)
-                
-                # Verify the result
                 verification = agent.verify(result.output)
-                
+
                 if result.success and verification.passed:
-                    logger.info(f"Task {task.id} completed successfully")
                     return result
-                
-                # Verification failed, retry if we have retries left
-                if attempt < node.max_retries:
-                    logger.warning(f"Task {task.id} verification failed, retrying...")
+
+                if not verification.passed and attempt < node.max_retries:
+                    # Self-correction: inject verification feedback and retry
+                    issues_text = "; ".join(
+                        i.get("message", str(i)) if isinstance(i, dict) else str(i)
+                        for i in (verification.issues or [])
+                    )
+                    logger.warning(
+                        f"[AgentGraph] {task.id} verification failed: {issues_text} — "
+                        "injecting feedback and retrying"
+                    )
+                    agent_task.description = (
+                        f"{task.description}\n\n"
+                        f"[SELF-CORRECTION] Previous attempt failed verification. "
+                        f"Issues: {issues_text}. Please fix these issues."
+                    )
                     node.retries += 1
                     continue
-                else:
-                    return AgentResult(
-                        success=False,
-                        output=result.output,
-                        errors=[f"Verification failed: {verification.issues}"]
-                    )
-                
+
+                # Last attempt failed — try ErrorRecoveryAgent if available
+                if AgentType.ERROR_RECOVERY in self._agents and attempt >= node.max_retries:
+                    return self._run_error_recovery(task, result, verification)
+
+                return AgentResult(
+                    success=False,
+                    output=result.output,
+                    errors=[f"Verification failed after {attempt + 1} attempts: "
+                            + "; ".join(
+                                i.get("message", str(i)) if isinstance(i, dict) else str(i)
+                                for i in (verification.issues or [])
+                            )],
+                )
+
             except Exception as e:
-                logger.error(f"Task {task.id} execution failed: {str(e)}")
+                logger.error(f"[AgentGraph] {task.id} raised exception: {e}")
                 if attempt < node.max_retries:
                     continue
-                else:
-                    return AgentResult(
-                        success=False,
-                        output=None,
-                        errors=[str(e)]
-                    )
-        
+                return AgentResult(success=False, output=None, errors=[str(e)])
+
         return AgentResult(
             success=False,
             output=None,
-            errors=["Task execution failed after all retries"]
+            errors=["Task failed after all retries"],
         )
-    
-    async def execute_plan_async(self, plan: Plan) -> Dict[str, AgentResult]:
-        """Execute a plan asynchronously.
-        
-        Args:
-            plan: The plan to execute
-            
-        Returns:
-            Dictionary mapping task IDs to AgentResults
-        """
-        # For now, fall back to synchronous execution
-        # In production, this would use actual async agents
-        return self.execute_plan(plan)
-    
+
+    def _run_error_recovery(
+        self, task: Task, failed_result: AgentResult, verification: Any
+    ) -> AgentResult:
+        """Delegate a failed task to the ErrorRecoveryAgent for analysis."""
+        try:
+            recovery_agent = self._agents[AgentType.ERROR_RECOVERY]
+            issues_text = "; ".join(
+                i.get("message", str(i)) if isinstance(i, dict) else str(i)
+                for i in (verification.issues or [])
+            )
+            recovery_task = AgentTask.from_task(
+                task,
+                f"Analyse and recover from failure in task '{task.id}': {issues_text}",
+            )
+            recovery_task.context["original_output"] = str(failed_result.output)[:1000]
+            recovery_task.context["verification_issues"] = issues_text
+            return recovery_agent.execute(recovery_task)
+        except Exception as e:
+            logger.debug(f"[AgentGraph] ErrorRecoveryAgent delegation failed: {e}")
+            return AgentResult(
+                success=False,
+                output=failed_result.output,
+                errors=[f"Recovery failed: {e}"],
+            )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
     def get_execution_plan(self, plan_id: str) -> Optional[ExecutionPlan]:
-        """Get an execution plan by ID.
-        
-        Args:
-            plan_id: The plan ID
-            
-        Returns:
-            ExecutionPlan if found, None otherwise
-        """
         return self._execution_plans.get(plan_id)
-    
-    def get_agent(self, agent_type: AgentType) -> Any:
-        """Get an agent by type.
-        
-        Args:
-            agent_type: The agent type
-            
-        Returns:
-            The agent instance
-        """
+
+    def get_agent(self, agent_type: AgentType) -> Optional[Any]:
         return self._agents.get(agent_type)
-    
+
+    def get_registered_agents(self) -> List[AgentType]:
+        return list(self._agents.keys())
+
     def __repr__(self) -> str:
-        return f"<AgentGraph(strategy={self._strategy.value}, agents={len(self._agents)})>"
+        return (
+            f"<AgentGraph(strategy={self._strategy.value}, "
+            f"agents={len(self._agents)}/21)>"
+        )
 
 
-# Singleton instance
+# ---------------------------------------------------------------------------
+# Singleton
+# ---------------------------------------------------------------------------
+
 _agent_graph: Optional[AgentGraph] = None
 
 
-def get_agent_graph(strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE) -> AgentGraph:
-    """Get the singleton AgentGraph instance.
-    
-    Args:
-        strategy: Execution strategy
-        
-    Returns:
-        The AgentGraph instance
-    """
+def get_agent_graph(
+    strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE,
+) -> AgentGraph:
+    """Return the singleton AgentGraph, initializing it if needed."""
     global _agent_graph
     if _agent_graph is None:
         _agent_graph = AgentGraph(strategy=strategy)

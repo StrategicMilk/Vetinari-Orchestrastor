@@ -1,7 +1,12 @@
-import requests
 import json
+import logging
+import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Iterator, List, Optional
+
+import requests
+
+logger = logging.getLogger(__name__)
 
 
 class LMStudioAdapter:
@@ -10,7 +15,7 @@ class LMStudioAdapter:
         self.session = requests.Session()
         self.max_retries = 2
         self.api_token = api_token
-        
+
         # Set default headers
         if self.api_token:
             self.session.headers.update({"Authorization": f"Bearer {self.api_token}"})
@@ -178,3 +183,101 @@ class LMStudioAdapter:
                 "status": "error",
                 "error": resp.get("error", "unknown")
             }
+
+    # ------------------------------------------------------------------
+    # Model management helpers
+    # ------------------------------------------------------------------
+
+    def list_loaded_models(self) -> List[Dict[str, Any]]:
+        """Return the list of currently-loaded models from LM Studio.
+
+        Delegates to the unified ModelRegistry when available, falling back
+        to a direct ``/v1/models`` call so callers always get fresh data.
+        """
+        try:
+            from vetinari.model_registry import get_model_registry
+            registry = get_model_registry()
+            registry.refresh()
+            return registry.get_loaded_as_dicts()
+        except Exception:
+            pass
+
+        # Direct fallback
+        data = self._get("/v1/models", timeout=5)
+        if not data:
+            return []
+        models = data.get("data", data) if isinstance(data, dict) else data
+        return models if isinstance(models, list) else []
+
+    def is_healthy(self) -> bool:
+        """Return True if LM Studio is reachable and responding."""
+        try:
+            resp = self.session.get(f"{self.host}/v1/models", timeout=3)
+            return resp.status_code == 200
+        except Exception:
+            return False
+
+    # ------------------------------------------------------------------
+    # Streaming support
+    # ------------------------------------------------------------------
+
+    def chat_stream(
+        self,
+        model_id: str,
+        system_prompt: str,
+        input_text: str,
+        timeout: int = 180,
+    ) -> Iterator[str]:
+        """Stream chat completion tokens from LM Studio.
+
+        Yields individual text chunks as they arrive.  Falls back gracefully
+        to a full (non-streamed) response if streaming fails.
+
+        Usage::
+
+            for chunk in adapter.chat_stream(model, sys_prompt, user_text):
+                print(chunk, end="", flush=True)
+        """
+        endpoint = f"{self.host}/v1/chat/completions"
+        payload = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_prompt or ""},
+                {"role": "user", "content": input_text},
+            ],
+            "temperature": 0.3,
+            "stream": True,
+        }
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
+
+        try:
+            with self.session.post(
+                endpoint, json=payload, headers=headers,
+                timeout=timeout, stream=True,
+            ) as resp:
+                resp.raise_for_status()
+                for raw_line in resp.iter_lines():
+                    if not raw_line:
+                        continue
+                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                    if line.startswith("data: "):
+                        line = line[6:]
+                    if line.strip() == "[DONE]":
+                        return
+                    try:
+                        chunk = json.loads(line)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        text = delta.get("content", "")
+                        if text:
+                            yield text
+                    except (json.JSONDecodeError, IndexError, KeyError):
+                        continue
+        except Exception as e:
+            logger.debug(f"[LMStudioAdapter] Stream failed, falling back: {e}")
+            # Fall back to non-streaming
+            result = self.chat(model_id, system_prompt, input_text, timeout=timeout)
+            output = result.get("output", "")
+            if output:
+                yield output

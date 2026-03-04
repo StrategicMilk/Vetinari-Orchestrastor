@@ -5,7 +5,6 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
 
@@ -563,6 +562,34 @@ class MemoryStore:
 _memory_store: Optional[MemoryStore] = None
 _dual_memory_store = None
 
+# ---------------------------------------------------------------------------
+# Dual memory backend imports — MUST be defined before get_memory_store()
+# so that DUAL_MEMORY_AVAILABLE is resolvable at call time.
+# ---------------------------------------------------------------------------
+try:
+    # Import from the vetinari.memory package (the memory/ subdirectory),
+    # NOT from this file itself — that would be a circular import.
+    from vetinari.memory import (
+        DualMemoryStore,
+        get_dual_memory_store,
+        init_dual_memory_store,
+        MemoryEntry,
+        MemoryEntryType,
+        ApprovalDetails,
+        MEMORY_BACKEND_MODE
+    )
+    DUAL_MEMORY_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Dual memory backends not available: {e}")
+    DualMemoryStore = None
+    get_dual_memory_store = None
+    init_dual_memory_store = None
+    MemoryEntry = None
+    MemoryEntryType = None
+    ApprovalDetails = None
+    MEMORY_BACKEND_MODE = None
+    DUAL_MEMORY_AVAILABLE = False
+
 
 def get_memory_store() -> MemoryStore:
     """Get or create the global memory store instance.
@@ -588,28 +615,3 @@ def init_memory_store(db_path: str = None, use_json_fallback: bool = False) -> M
     else:
         _memory_store = MemoryStore(use_json_fallback=use_json_fallback)
     return _memory_store
-
-
-try:
-    # Import from the vetinari.memory package (the memory/ subdirectory),
-    # NOT from this file itself — that would be a circular import.
-    from vetinari.memory import (
-        DualMemoryStore,
-        get_dual_memory_store,
-        init_dual_memory_store,
-        MemoryEntry,
-        MemoryEntryType,
-        ApprovalDetails,
-        MEMORY_BACKEND_MODE
-    )
-    DUAL_MEMORY_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Dual memory backends not available: {e}")
-    DualMemoryStore = None
-    get_dual_memory_store = None
-    init_dual_memory_store = None
-    MemoryEntry = None
-    MemoryEntryType = None
-    ApprovalDetails = None
-    MEMORY_BACKEND_MODE = None
-    DUAL_MEMORY_AVAILABLE = False

@@ -1,4 +1,57 @@
+# =============================================================================
+# Vetinari Model Configuration
+# Hardware: RTX 5090 (32 GB VRAM), 9950X3D CPU, 64 GB DDR5-6000 RAM
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Hardware profile — used by VRAMManager and model routing decisions
+# ---------------------------------------------------------------------------
+hardware:
+  gpu_vram_gb: 32
+  system_ram_gb: 64
+  cpu_offload_enabled: true
+  # RAM available for model CPU-offload after OS + apps
+  max_cpu_offload_gb: 30
+  # Estimated tokens/sec by model size tier (Q4 on 5090)
+  throughput_estimates:
+    tiny_1b_3b: 120     # tokens/sec
+    small_7b_8b: 70
+    medium_14b_15b: 45
+    large_30b_32b: 25
+    xlarge_70b_72b: 10  # requires partial CPU offload
+
+# ---------------------------------------------------------------------------
+# Local models (LM Studio — OpenAI-compatible API)
+# ---------------------------------------------------------------------------
 models:
+  # ── PRIMARY MODEL ──────────────────────────────────────────────────────────
+  # Your main model: discovered dynamically, VL + reasoning + uncensored thinking
+  - model_id: "qwen3-vl-32b-gemini-heretic-uncensored-thinking"
+    provider: "lmstudio"
+    display_name: "Qwen3 VL 32B Gemini Heretic (Uncensored)"
+    capabilities:
+      - coding
+      - reasoning
+      - vision
+      - analysis
+      - creative
+      - uncensored
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "local"
+    # Q4_K_M quantisation fits in 32 GB VRAM
+    memory_requirements_gb: 20
+    quantization: "q4_k_m"
+    status: "available"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - general
+      - planning
+      - reasoning
+      - vision
+      - creative
+
+  # ── FAST CODER ─────────────────────────────────────────────────────────────
   - model_id: "qwen2.5-coder-7b"
     provider: "lmstudio"
     display_name: "Qwen 2.5 Coder 7B"
@@ -8,36 +61,16 @@ models:
     context_window: 32768
     latency_hint: "fast"
     privacy_level: "local"
-    memory_requirements_gb: 8
+    memory_requirements_gb: 6
+    quantization: "q4_k_m"
     status: "available"
-    endpoint: "http://localhost:1234/v1/chat/completions"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - code_generation
+      - quick_review
+      - classification
 
-  - model_id: "qwen2.5-72b"
-    provider: "lmstudio"
-    display_name: "Qwen 2.5 72B"
-    capabilities:
-      - reasoning
-      - coding
-    context_window: 32768
-    latency_hint: "medium"
-    privacy_level: "local"
-    memory_requirements_gb: 48
-    status: "available"
-    endpoint: "http://localhost:1234/v1/chat/completions"
-
-  - model_id: "llama-3.3-70b"
-    provider: "lmstudio"
-    display_name: "Llama 3.3 70B"
-    capabilities:
-      - reasoning
-      - coding
-    context_window: 32768
-    latency_hint: "medium"
-    privacy_level: "local"
-    memory_requirements_gb: 48
-    status: "available"
-    endpoint: "http://localhost:1234/v1/chat/completions"
-
+  # ── MEDIUM REASONING ───────────────────────────────────────────────────────
   - model_id: "qwen3-30b-a3b"
     provider: "lmstudio"
     display_name: "Qwen 3 30B A3B"
@@ -47,10 +80,17 @@ models:
     context_window: 32768
     latency_hint: "medium"
     privacy_level: "local"
-    memory_requirements_gb: 24
+    # 30B Q4 fits comfortably within 32 GB VRAM
+    memory_requirements_gb: 18
+    quantization: "q4_k_m"
     status: "available"
-    endpoint: "http://localhost:1234/v1/chat/completions"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - planning
+      - architecture
+      - complex_reasoning
 
+  # ── VISION + CODING ────────────────────────────────────────────────────────
   - model_id: "qwen2.5-vl-32b"
     provider: "lmstudio"
     display_name: "Qwen 2.5 VL 32B"
@@ -60,45 +100,85 @@ models:
     context_window: 32768
     latency_hint: "medium"
     privacy_level: "local"
-    memory_requirements_gb: 24
+    memory_requirements_gb: 20
+    quantization: "q4_k_m"
     status: "available"
-    endpoint: "http://localhost:1234/v1/chat/completions"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - ui_design
+      - image_analysis
+      - visual_tasks
 
-  - model_id: "gpt-4o"
-    provider: "openai"
-    display_name: "GPT-4o"
+  # ── LARGE REASONING (CPU offload required) ─────────────────────────────────
+  - model_id: "qwen2.5-72b"
+    provider: "lmstudio"
+    display_name: "Qwen 2.5 72B"
     capabilities:
       - reasoning
-      - vision
       - coding
-    context_window: 128000
-    latency_hint: "medium"
-    privacy_level: "public"
-    cost_per_1k_tokens: 0.005
+    context_window: 32768
+    latency_hint: "slow"
+    privacy_level: "local"
+    # 72B Q4 ~ 42 GB total; ~32 GB on GPU + ~10 GB CPU offload
+    memory_requirements_gb: 42
+    quantization: "q4_k_m"
+    requires_cpu_offload: true
     status: "available"
-    endpoint: "https://api.openai.com/v1/chat/completions"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - complex_analysis
+      - deep_reasoning
 
-  - model_id: "gpt-4o-mini"
-    provider: "openai"
-    display_name: "GPT-4o Mini"
+  - model_id: "llama-3.3-70b"
+    provider: "lmstudio"
+    display_name: "Llama 3.3 70B"
     capabilities:
+      - reasoning
       - coding
-      - fast
-    context_window: 128000
-    latency_hint: "fast"
-    privacy_level: "public"
-    cost_per_1k_tokens: 0.0006
+    context_window: 131072
+    latency_hint: "slow"
+    privacy_level: "local"
+    memory_requirements_gb: 40
+    quantization: "q4_k_m"
+    requires_cpu_offload: true
     status: "available"
-    endpoint: "https://api.openai.com/v1/chat/completions"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - long_context
+      - complex_reasoning
 
+  # ── TINY / UTILITY ─────────────────────────────────────────────────────────
+  - model_id: "llama-3.2-1b"
+    provider: "lmstudio"
+    display_name: "Llama 3.2 1B"
+    capabilities:
+      - fast
+      - classification
+    context_window: 131072
+    latency_hint: "fast"
+    privacy_level: "local"
+    memory_requirements_gb: 2
+    quantization: "q4_k_m"
+    status: "available"
+    endpoint: "${LM_STUDIO_HOST}/v1/chat/completions"
+    preferred_for:
+      - classification
+      - extraction
+      - compression
+      - triage
+
+# ---------------------------------------------------------------------------
+# Routing policy — local-first, privacy-weighted
+# ---------------------------------------------------------------------------
 policy:
   local_first: true
+  # Weights for scoring: higher = more important
   privacy_weight: 1.0
   latency_weight: 0.5
   cost_weight: 0.3
-  # Set to null to allow all cloud models; set to a positive number (e.g. 0.05)
-  # to enforce a per-1k-token cost ceiling across the routing decision.
+  # Null = no cloud cost ceiling; set a positive value to cap (e.g. 0.01)
   max_cost_per_1k_tokens: null
+  # Provider preference order (first = highest priority)
   preferred_providers:
     - lmstudio
     - ollama
@@ -106,13 +186,18 @@ policy:
     - gemini
     - huggingface
     - replicate
+  # Fallback: if local LM Studio is unreachable, allow cloud escalation
+  allow_cloud_fallback: true
+  cloud_fallback_trigger: "lmstudio_unreachable"
 
-# Cloud Models (require API keys)
+# ---------------------------------------------------------------------------
+# Cloud models (require API keys via environment variables)
+# ---------------------------------------------------------------------------
 cloud_models:
-  # Claude (Anthropic)
+  # Claude (Anthropic) ───────────────────────────────────────────────────────
   - model_id: "claude-sonnet-4"
     provider: "claude"
-    display_name: "Claude 3.5 Sonnet"
+    display_name: "Claude Sonnet 4"
     capabilities:
       - reasoning
       - coding
@@ -126,25 +211,9 @@ cloud_models:
     requires_env:
       - CLAUDE_API_KEY
 
-  - model_id: "claude-opus-4"
-    provider: "claude"
-    display_name: "Claude 3 Opus"
-    capabilities:
-      - reasoning
-      - coding
-      - analysis
-    context_window: 200000
-    latency_hint: "slow"
-    privacy_level: "public"
-    cost_per_1k_tokens: 0.075
-    status: "available"
-    endpoint: "https://api.anthropic.com/v1/messages"
-    requires_env:
-      - CLAUDE_API_KEY
-
   - model_id: "claude-haiku-3"
     provider: "claude"
-    display_name: "Claude 3 Haiku"
+    display_name: "Claude Haiku 3"
     capabilities:
       - fast
       - coding
@@ -157,7 +226,7 @@ cloud_models:
     requires_env:
       - CLAUDE_API_KEY
 
-  # Gemini (Google)
+  # Gemini (Google) ──────────────────────────────────────────────────────────
   - model_id: "gemini-2.0-flash"
     provider: "gemini"
     display_name: "Gemini 2.0 Flash"
@@ -190,23 +259,39 @@ cloud_models:
     requires_env:
       - GEMINI_API_KEY
 
-  - model_id: "gemini-1.5-flash"
-    provider: "gemini"
-    display_name: "Gemini 1.5 Flash"
+  # OpenAI ───────────────────────────────────────────────────────────────────
+  - model_id: "gpt-4o"
+    provider: "openai"
+    display_name: "GPT-4o"
     capabilities:
-      - fast
+      - reasoning
       - vision
       - coding
-    context_window: 1000000
+    context_window: 128000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.005
+    status: "available"
+    endpoint: "https://api.openai.com/v1/chat/completions"
+    requires_env:
+      - OPENAI_API_KEY
+
+  - model_id: "gpt-4o-mini"
+    provider: "openai"
+    display_name: "GPT-4o Mini"
+    capabilities:
+      - coding
+      - fast
+    context_window: 128000
     latency_hint: "fast"
     privacy_level: "public"
-    cost_per_1k_tokens: 0.000075
+    cost_per_1k_tokens: 0.0006
     status: "available"
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    endpoint: "https://api.openai.com/v1/chat/completions"
     requires_env:
-      - GEMINI_API_KEY
+      - OPENAI_API_KEY
 
-  # HuggingFace Inference
+  # HuggingFace Inference ────────────────────────────────────────────────────
   - model_id: "hf-inference-meta-llama-3.1-70b"
     provider: "huggingface"
     display_name: "Llama 3.1 70B (HF)"
@@ -237,7 +322,7 @@ cloud_models:
     requires_env:
       - HF_HUB_TOKEN
 
-  # Replicate
+  # Replicate ────────────────────────────────────────────────────────────────
   - model_id: "replicate-llama-3.1-70b"
     provider: "replicate"
     display_name: "Llama 3.1 70B (Replicate)"
@@ -250,20 +335,5 @@ cloud_models:
     cost_per_1k_tokens: 0.001
     status: "available"
     endpoint: "https://api.replicate.com/v1/models/meta/llama-3.1-70b-instruct"
-    requires_env:
-      - REPLICATE_API_TOKEN
-
-  - model_id: "replicate-llama-3.1-8b"
-    provider: "replicate"
-    display_name: "Llama 3.1 8B (Replicate)"
-    capabilities:
-      - coding
-      - fast
-    context_window: 32768
-    latency_hint: "fast"
-    privacy_level: "public"
-    cost_per_1k_tokens: 0.0002
-    status: "available"
-    endpoint: "https://api.replicate.com/v1/models/meta/llama-3.1-8b-instruct"
     requires_env:
       - REPLICATE_API_TOKEN

@@ -13,17 +13,73 @@ duckduckgo-search>=4.0.0
 pytest>=7.0.0
 pytest-cov>=4.0.0
 
-# Optional: Cloud providers (install as needed)
+# ---------------------------------------------------------------------------
+# Wave 4: Training System (install for self-improvement features)
+# ---------------------------------------------------------------------------
+
+# Structured output validation
+pydantic>=2.0
+# Uncomment for structured LLM output with retry:
+# instructor>=1.0
+
+# Embeddings for episodic memory and few-shot selection (CPU, no VRAM)
+# sentence-transformers>=2.2
+
+# Vector similarity search (CPU-only)
+# faiss-cpu>=1.7
+
+# Statistical testing for A/B prompt comparisons
+# scipy>=1.10
+
+# Token counting (used by TokenOptimizer)
+# tiktoken>=0.5
+
+# ---------------------------------------------------------------------------
+# Wave 5: Advanced Capabilities (install as needed)
+# ---------------------------------------------------------------------------
+
+# Automated prompt optimization (requires LM Studio connection)
+# dspy>=2.0
+
+# Prompt compression (reduces tokens by up to 20x)
+# llmlingua>=0.2
+
+# Vector database for RAG knowledge base (CPU-only)
+# chromadb>=0.4
+
+# GPU VRAM monitoring (optional; enables real-time VRAM tracking)
+# pynvml>=11.5
+
+# ---------------------------------------------------------------------------
+# Wave 5: External Training Pipeline (heavy installs — only if fine-tuning)
+# ---------------------------------------------------------------------------
+
+# Fast QLoRA training (2x faster than standard, needs GPU)
+# unsloth
+
+# Training framework
+# transformers>=4.38
+# trl>=0.8
+# peft>=0.10
+# bitsandbytes>=0.42      # 4-bit quantization (Linux/Windows CUDA)
+
+# GGUF conversion for LM Studio deployment
+# llama-cpp-python        # pip install llama-cpp-python --prefer-binary
+
+# Cloud training orchestration
+# runpod>=1.5             # pip install runpod
+
+# ---------------------------------------------------------------------------
+# Optional: Cloud Provider APIs
+# ---------------------------------------------------------------------------
 # anthropic>=0.20.0
 # openai>=1.0.0
 # google-generativeai>=0.4.0
 # cohere>=5.0.0
 
-# Optional: Enhanced search
-# tavily-python>=0.3.0
-
-# Optional: Encryption
-# cryptography>=41.0.0
-
-# Optional: ML features
-# numpy>=1.24.0
+# ---------------------------------------------------------------------------
+# Optional: Enhanced features
+# ---------------------------------------------------------------------------
+# cryptography>=41.0.0    # For CredentialVault encryption
+# numpy>=1.24.0           # For numerical operations
+# tavily-python>=0.3.0    # For Tavily web search API

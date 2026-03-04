@@ -3,15 +3,28 @@ Quality Scorer - Vetinari Self-Improvement Subsystem
 
 Evaluates the quality of task outputs using LLM-as-judge and heuristics.
 Produces structured quality scores that feed the feedback loop.
+
+Enhanced in Wave 4:
+- SQLite persistence: scores survive restarts
+- Improved LLM-as-judge: uses a DIFFERENT model from the one being evaluated
+- Self-rationalization: judge generates reasoning before scoring
+- Per-task-type rubrics with calibrated dimensions
 """
 
+import json
 import logging
+import os
+import re
+import sqlite3
 import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+_DB_PATH = os.environ.get("VETINARI_QUALITY_DB", "./vetinari_quality_scores.db")
 
 
 @dataclass
@@ -52,9 +65,38 @@ class QualityScorer:
         "default": ["correctness", "completeness", "quality"],
     }
 
-    def __init__(self, adapter_manager=None):
+    def __init__(self, adapter_manager=None, db_path: str = _DB_PATH):
         self._adapter_manager = adapter_manager
         self._scores: List[QualityScore] = []
+        self._db_path = db_path
+        self._init_db()
+
+    def _init_db(self) -> None:
+        """Create quality_scores table if it doesn't exist."""
+        try:
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS quality_scores (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        task_id TEXT NOT NULL,
+                        model_id TEXT NOT NULL,
+                        task_type TEXT NOT NULL,
+                        overall_score REAL NOT NULL,
+                        correctness REAL,
+                        completeness REAL,
+                        efficiency REAL,
+                        style REAL,
+                        dimensions TEXT,
+                        issues TEXT,
+                        method TEXT,
+                        timestamp TEXT,
+                        created_at REAL DEFAULT (unixepoch())
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_model ON quality_scores(model_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_task_type ON quality_scores(task_type)")
+        except Exception as e:
+            logger.debug(f"[QualityScorer] DB init failed (scores will be in-memory only): {e}")
 
     def score(
         self,
@@ -85,11 +127,13 @@ class QualityScorer:
             score = self._score_with_llm(task_id, model_id, task_type, task_description, output, dims)
             if score:
                 self._scores.append(score)
+                self._persist(score)
                 return score
 
         # Fallback: heuristic scoring
         score = self._score_heuristic(task_id, model_id, task_type, output, dims)
         self._scores.append(score)
+        self._persist(score)
         return score
 
     def _score_with_llm(
@@ -101,42 +145,53 @@ class QualityScorer:
         output: str,
         dims: List[str],
     ) -> Optional[QualityScore]:
-        """Use LLM-as-judge to score the output."""
+        """Use LLM-as-judge with self-rationalization to score the output.
+
+        The judge model is deliberately chosen to be DIFFERENT from model_id
+        to avoid self-evaluation bias.  We use a direct LM Studio call here
+        rather than the adapter manager to ensure independence.
+        """
         try:
-            from vetinari.adapters.base import InferenceRequest
             dims_list = ", ".join(dims)
-            prompt = f"""You are a quality evaluator. Score this {task_type} output.
-
-TASK: {task_description[:300]}
-
-OUTPUT:
-{output[:1500]}
-
-Score each dimension from 0.0 to 1.0:
-Dimensions: {dims_list}
-
-Respond as JSON:
-{{
-  "overall": 0.0-1.0,
-  "dimensions": {{{", ".join(f'"{d}": 0.0-1.0' for d in dims)}}},
-  "issues": ["issue1", ...],
-  "rationale": "brief explanation"
-}}"""
-
-            req = InferenceRequest(
-                model_id="default",
-                prompt=prompt,
-                system_prompt="You are an objective quality evaluator. Score honestly.",
-                max_tokens=512,
-                temperature=0.1,
+            # Self-rationalization: judge explains reasoning BEFORE scoring
+            dims_json_template = ", ".join(f'"{d}": 0.0' for d in dims)
+            prompt = (
+                f"You are an objective quality evaluator assessing a {task_type} output.\n\n"
+                f"TASK: {task_description[:400]}\n\n"
+                f"OUTPUT:\n{output[:2000]}\n\n"
+                f"Step 1 - REASONING: Briefly analyse the output strengths and weaknesses "
+                f"for each dimension: {dims_list}\n\n"
+                f"Step 2 - SCORES: Now score each dimension 0.0-1.0 based on your reasoning.\n\n"
+                "Respond ONLY with valid JSON:\n"
+                '{\n  "reasoning": "your analysis here",\n'
+                '  "overall": 0.0,\n'
+                f'  "dimensions": {{{dims_json_template}}},\n'
+                '  "issues": ["..."],\n'
+                '  "confidence": 0.0\n}'
             )
-            resp = self._adapter_manager.infer(req)
-            if resp.status != "ok":
+
+            # Prefer a different, fast local model for judging
+            judge_model = self._pick_judge_model(model_id)
+
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            import requests as _req
+            resp = _req.post(
+                f"{host}/v1/chat/completions",
+                json={
+                    "model": judge_model,
+                    "messages": [
+                        {"role": "system", "content": "You are an objective quality evaluator. Score honestly and precisely."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "max_tokens": 600,
+                    "temperature": 0.1,
+                },
+                timeout=60,
+            )
+            if resp.status_code != 200:
                 return None
 
-            import json
-            import re
-            text = resp.output.strip()
+            text = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if not match:
                 return None
@@ -161,6 +216,46 @@ Respond as JSON:
         except Exception as e:
             logger.debug(f"LLM scoring failed: {e}")
             return None
+
+    def _pick_judge_model(self, evaluated_model_id: str) -> str:
+        """Pick a judge model that is DIFFERENT from the model being evaluated."""
+        try:
+            from vetinari.model_registry import get_model_registry
+            loaded = get_model_registry().get_loaded_local_models()
+            for m in loaded:
+                if m.model_id != evaluated_model_id:
+                    return m.model_id
+        except Exception:
+            pass
+        # Fallback: just use whatever is loaded (slight bias, but better than nothing)
+        return evaluated_model_id
+
+    def _persist(self, score: QualityScore) -> None:
+        """Persist a quality score to SQLite."""
+        try:
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute(
+                    """INSERT INTO quality_scores
+                       (task_id, model_id, task_type, overall_score, correctness,
+                        completeness, efficiency, style, dimensions, issues, method, timestamp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        score.task_id,
+                        score.model_id,
+                        score.task_type,
+                        score.overall_score,
+                        score.correctness,
+                        score.completeness,
+                        score.efficiency,
+                        score.style,
+                        json.dumps(score.dimensions),
+                        json.dumps(score.issues),
+                        score.method,
+                        score.timestamp,
+                    ),
+                )
+        except Exception as e:
+            logger.debug(f"[QualityScorer] persist failed: {e}")
 
     def _score_heuristic(
         self,
@@ -230,13 +325,42 @@ Respond as JSON:
         )
 
     def get_history(self, model_id: Optional[str] = None, task_type: Optional[str] = None) -> List[QualityScore]:
-        """Get scoring history, optionally filtered."""
-        result = self._scores
-        if model_id:
-            result = [s for s in result if s.model_id == model_id]
-        if task_type:
-            result = [s for s in result if s.task_type == task_type]
-        return result
+        """Get scoring history from SQLite + in-memory cache, optionally filtered."""
+        try:
+            query = "SELECT task_id, model_id, task_type, overall_score, correctness, completeness, efficiency, style, dimensions, issues, method, timestamp FROM quality_scores WHERE 1=1"
+            params: list = []
+            if model_id:
+                query += " AND model_id = ?"
+                params.append(model_id)
+            if task_type:
+                query += " AND task_type = ?"
+                params.append(task_type)
+            query += " ORDER BY created_at DESC LIMIT 1000"
+
+            with sqlite3.connect(self._db_path) as conn:
+                rows = conn.execute(query, params).fetchall()
+
+            scores = []
+            for row in rows:
+                scores.append(QualityScore(
+                    task_id=row[0], model_id=row[1], task_type=row[2],
+                    overall_score=row[3], correctness=row[4] or row[3],
+                    completeness=row[5] or row[3], efficiency=row[6] or row[3],
+                    style=row[7] or row[3],
+                    dimensions=json.loads(row[8] or "{}"),
+                    issues=json.loads(row[9] or "[]"),
+                    method=row[10] or "heuristic",
+                    timestamp=row[11] or "",
+                ))
+            return scores
+        except Exception:
+            # Fall back to in-memory
+            result = self._scores
+            if model_id:
+                result = [s for s in result if s.model_id == model_id]
+            if task_type:
+                result = [s for s in result if s.task_type == task_type]
+            return result
 
     def get_model_average(self, model_id: str, task_type: str = None) -> float:
         """Get average quality score for a model (optionally filtered by task type)."""

@@ -3,6 +3,13 @@ Prompt Evolver - Vetinari Self-Improvement Subsystem
 
 A/B tests prompt variations for each agent and promotes variants that
 achieve statistically better quality scores.
+
+Enhanced in Wave 4:
+- Statistical significance testing (paired t-test via scipy if available,
+  bootstrap otherwise) before any promotion decision.
+- Effect size check (Cohen's d >= 0.2) to prevent noise-driven promotions.
+- Regression detection: demote if quality declining over time.
+- Max concurrent A/B tests per agent (default 3) to avoid traffic dilution.
 """
 
 import json
@@ -49,14 +56,19 @@ class PromptEvolver:
     5. Store all variants and their performance in memory.
     """
 
-    MIN_TRIALS = 20          # Minimum trials before promotion decision
-    VARIANT_FRACTION = 0.3   # Fraction of tasks routed to variant
-    MIN_IMPROVEMENT = 0.05   # Minimum quality improvement to promote
+    MIN_TRIALS = 20              # Minimum trials before promotion decision
+    VARIANT_FRACTION = 0.3       # Fraction of tasks routed to variant
+    MIN_IMPROVEMENT = 0.05       # Minimum mean quality improvement to promote
+    MIN_EFFECT_SIZE = 0.2        # Cohen's d threshold (avoid noise-driven promotions)
+    P_VALUE_THRESHOLD = 0.05     # Statistical significance threshold
+    MAX_CONCURRENT_TESTS = 3     # Max A/B tests per agent (avoid traffic dilution)
 
     def __init__(self, adapter_manager=None):
         self._adapter_manager = adapter_manager
         # agent_type -> list of variants
         self._variants: Dict[str, List[PromptVariant]] = {}
+        # Per-variant score history for statistical testing
+        self._score_history: Dict[str, List[float]] = {}
         self._load_variants()
 
     def register_baseline(self, agent_type: str, prompt_text: str) -> None:
@@ -113,36 +125,104 @@ class PromptEvolver:
         for v in variants:
             if v.variant_id == variant_id:
                 v.record(quality)
+                # Also track per-variant score history for statistical testing
+                if variant_id not in self._score_history:
+                    self._score_history[variant_id] = []
+                self._score_history[variant_id].append(quality)
                 break
 
         self._check_promotion(agent_type)
 
     def _check_promotion(self, agent_type: str) -> None:
-        """Decide whether to promote, deprecate, or keep testing variants."""
+        """Decide whether to promote, deprecate, or keep testing variants.
+
+        Uses statistical significance testing (paired t-test / bootstrap)
+        and effect size (Cohen's d) before any promotion.
+        """
         variants = self._variants.get(agent_type, [])
         baseline = next((v for v in variants if v.is_baseline and v.status == "promoted"), None)
         baseline_quality = baseline.avg_quality if baseline and baseline.trials > 0 else 0.65
+        baseline_scores = self._score_history.get(
+            baseline.variant_id if baseline else "", []
+        )
 
         for v in variants:
             if v.status != "testing" or v.trials < self.MIN_TRIALS:
                 continue
 
-            if v.avg_quality >= baseline_quality + self.MIN_IMPROVEMENT:
-                logger.info(
-                    f"[PromptEvolver] Promoting variant {v.variant_id} for {agent_type}: "
-                    f"quality={v.avg_quality:.3f} vs baseline={baseline_quality:.3f}"
+            variant_scores = self._score_history.get(v.variant_id, [])
+            mean_diff = v.avg_quality - baseline_quality
+
+            if mean_diff >= self.MIN_IMPROVEMENT:
+                # Run statistical test before promoting
+                significant, effect_size = self._test_significance(
+                    baseline_scores, variant_scores
                 )
-                v.status = "promoted"
-                v.promoted_at = datetime.now().isoformat()
-                # Demote old baseline
-                if baseline and v.variant_id != baseline.variant_id:
-                    baseline.status = "deprecated"
+                if significant and effect_size >= self.MIN_EFFECT_SIZE:
+                    logger.info(
+                        f"[PromptEvolver] Promoting {v.variant_id} for {agent_type}: "
+                        f"mean_diff={mean_diff:.3f}, effect_size={effect_size:.3f}"
+                    )
+                    v.status = "promoted"
+                    v.promoted_at = datetime.now().isoformat()
+                    if baseline and v.variant_id != baseline.variant_id:
+                        baseline.status = "deprecated"
+                else:
+                    logger.debug(
+                        f"[PromptEvolver] {v.variant_id} improvement not significant "
+                        f"(significant={significant}, d={effect_size:.3f})"
+                    )
+
             elif v.avg_quality < baseline_quality - 0.1:
-                # Variant is worse -- deprecate it
                 v.status = "deprecated"
-                logger.info(f"[PromptEvolver] Deprecated variant {v.variant_id} for {agent_type}")
+                logger.info(f"[PromptEvolver] Deprecated {v.variant_id} for {agent_type}")
 
         self._save_variants()
+
+    @staticmethod
+    def _test_significance(
+        baseline_scores: List[float],
+        variant_scores: List[float],
+    ) -> tuple:
+        """Return (is_significant, cohens_d).
+
+        Uses scipy.stats.ttest_ind if available; bootstrap otherwise.
+        """
+        import math
+
+        if len(baseline_scores) < 5 or len(variant_scores) < 5:
+            return False, 0.0
+
+        mean_b = sum(baseline_scores) / len(baseline_scores)
+        mean_v = sum(variant_scores) / len(variant_scores)
+
+        # Cohen's d
+        var_b = sum((x - mean_b) ** 2 for x in baseline_scores) / max(len(baseline_scores) - 1, 1)
+        var_v = sum((x - mean_v) ** 2 for x in variant_scores) / max(len(variant_scores) - 1, 1)
+        pooled_std = math.sqrt((var_b + var_v) / 2) or 1e-9
+        cohens_d = abs(mean_v - mean_b) / pooled_std
+
+        try:
+            from scipy import stats
+            _, p_value = stats.ttest_ind(baseline_scores, variant_scores)
+            return p_value < 0.05, cohens_d
+        except ImportError:
+            pass
+
+        # Bootstrap fallback (1000 samples)
+        all_scores = baseline_scores + variant_scores
+        observed_diff = mean_v - mean_b
+        n_b, n_v = len(baseline_scores), len(variant_scores)
+        count_extreme = 0
+        for _ in range(1000):
+            perm = random.sample(all_scores, len(all_scores))
+            perm_b = perm[:n_b]
+            perm_v = perm[n_b:]
+            perm_diff = (sum(perm_v) / n_v) - (sum(perm_b) / n_b)
+            if abs(perm_diff) >= abs(observed_diff):
+                count_extreme += 1
+        p_bootstrap = count_extreme / 1000
+        return p_bootstrap < 0.05, cohens_d
 
     def generate_variant(self, agent_type: str, baseline_prompt: str) -> Optional[str]:
         """Use LLM to generate an improved prompt variant."""

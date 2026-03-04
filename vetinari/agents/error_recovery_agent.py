@@ -137,38 +137,41 @@ class ErrorRecoveryAgent(BaseAgent):
         try:
             result = self._analyse_and_recover(task)
             agent_result = AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=True,
                 output=result,
-                metadata={"error_count": len(result.get("errors_identified", []))},
+                metadata={
+                    "task_id": task.task_id,
+                    "agent_type": self._agent_type.value,
+                    "error_count": len(result.get("errors_identified", [])),
+                },
             )
             self.complete_task(task, agent_result)
             return agent_result
         except Exception as exc:
             logger.error(f"[ErrorRecoveryAgent] execute() failed: {exc}")
             return AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=False,
                 output={},
-                error=str(exc),
+                metadata={"task_id": task.task_id, "agent_type": self._agent_type.value},
+                errors=[str(exc)],
             )
 
     def verify(self, output: Any) -> VerificationResult:
-        issues = []
+        issues: list = []
         score = 1.0
         if not isinstance(output, dict):
-            return VerificationResult(passed=False, score=0.0,
-                                      issues=["Output must be a dict"])
+            return VerificationResult(
+                passed=False, score=0.0,
+                issues=[{"severity": "error", "message": "Output must be a dict"}],
+            )
         if not output.get("root_cause") and not output.get("errors_identified"):
-            issues.append("No root cause or errors identified")
+            issues.append({"severity": "warning", "message": "No root cause or errors identified"})
             score -= 0.3
         if not output.get("recovery_strategies"):
-            issues.append("No recovery strategies provided")
+            issues.append({"severity": "warning", "message": "No recovery strategies provided"})
             score -= 0.3
         if not output.get("immediate_actions"):
-            issues.append("No immediate actions specified")
+            issues.append({"severity": "info", "message": "No immediate actions specified"})
             score -= 0.2
         passed = score >= 0.5
         return VerificationResult(passed=passed, score=round(score, 2), issues=issues)

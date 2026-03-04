@@ -1,4 +1,3 @@
-import os
 import re
 import time
 from pathlib import Path
@@ -27,7 +26,7 @@ class TaskExecutor:
 
     def _load_prompt(self, task_id: str, stage: str) -> str:
         prompts_dir = Path(self.config.get("prompts_dir", "prompts"))
-        fname = f"{task_id}_{stage}.txt" if stage != "run" else f"{task_id}_run.txt"
+        fname = f"{task_id}_{stage}.txt"
         p = prompts_dir / fname
         if p.exists():
             return p.read_text(encoding="utf-8").strip()
@@ -170,8 +169,8 @@ class TaskExecutor:
                 latency_ms=int(result.get("latency_ms") or 0),
                 success=(result.get("status") == "ok"),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[TaskExecutor] Quality scoring skipped: {e}")
 
         status = "completed" if result.get("status") == "ok" and valid else "failed"
         

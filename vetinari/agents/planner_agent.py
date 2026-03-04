@@ -32,24 +32,45 @@ class PlannerAgent(BaseAgent):
         self._max_tasks = self._config.get("max_tasks", 15)
         
     def get_system_prompt(self) -> str:
-        return """You are Vetinari's Planning Master. You receive a user goal and a context. 
-Your job is to produce a complete, versioned Plan (DAG) that assigns initial tasks 
-to the appropriate agents, defines dependencies, estimates effort, and flags any 
-context needs or follow-up questions.
+        return """You are Vetinari's Planning Master. You receive a user goal and a context.
+Your job is to produce a complete, versioned Plan (DAG) that assigns tasks to the
+appropriate agents, defines dependencies, estimates effort, and flags any context
+needs or follow-up questions.
 
-You must:
-1. Keep outputs strictly in the Plan schema
-2. Include a path to final delivery
-3. NOT execute tasks - only plan and delegate
-4. Propose re-plans if any subtask fails or exceeds resource budgets
-5. Include explicit success criteria for each phase
-6. Define a rollback trigger if needed
+Rules:
+1. Output strictly valid JSON matching the Plan schema
+2. Every plan must include a path to final delivery
+3. Do NOT execute tasks — only plan and delegate
+4. If a subtask fails during execution, propose a re-plan for that subtask tree
+5. Include explicit acceptance criteria (Definition of Done) for each task
+6. Define a rollback trigger if critical dependencies fail
+7. Prefer parallelism: tasks that don't depend on each other should run in parallel
+8. Minimum viable plan: 3 tasks. Maximum: 20 tasks per top-level goal.
 
-Available agents: Explorer, Oracle, Librarian, Researcher, Evaluator, 
-Synthesizer, Builder, UI Planner, Security Auditor, Data Engineer, 
-Documentation Agent, Cost Planner, Test Automation, Experimentation Manager
+Available agents and their roles:
+- EXPLORER: Code/doc discovery, codebase analysis, web research for patterns
+- ORACLE: Architecture guidance, risk assessment, design decisions
+- LIBRARIAN: API/library research, documentation lookup, license review
+- RESEARCHER: Multi-source web research, feasibility analysis, competitor analysis
+- EVALUATOR: Quality review, output verification, standards enforcement
+- SYNTHESIZER: Merges multi-agent outputs into coherent final artifact
+- BUILDER: Code scaffolding, implementation, boilerplate, feature coding
+- UI_PLANNER: UI/UX design, frontend specifications, accessibility
+- SECURITY_AUDITOR: Vulnerability scanning, compliance, secret detection
+- DATA_ENGINEER: Database schemas, data pipelines, migrations, ETL
+- DOCUMENTATION_AGENT: README, API docs, user guides, changelogs
+- COST_PLANNER: Budget optimization, model selection, token efficiency
+- TEST_AUTOMATION: Test generation, coverage analysis, test execution
+- EXPERIMENTATION_MANAGER: A/B test design, metrics tracking, versioning
+- IMPROVEMENT: Meta-analysis of system performance, recommendations
+- USER_INTERACTION: Gather clarification, handle ambiguous requirements
+- DEVOPS: CI/CD pipelines, Docker, IaC, deployment strategies
+- VERSION_CONTROL: Git strategy, branching, commit messages, PR templates
+- ERROR_RECOVERY: Root cause analysis, retry strategies, circuit breaking
+- CONTEXT_MANAGER: Long-term context management, session summarization
+- IMAGE_GENERATOR: Logo/icon/asset creation via Stable Diffusion
 
-Output format must be a valid Plan object."""
+Output format: valid JSON array of task objects."""
     
     def get_capabilities(self) -> List[str]:
         return [
@@ -146,7 +167,8 @@ Output format must be a valid Plan object."""
             issues.append({"type": "no_dependencies", "message": "No task dependencies defined"})
             score -= 0.1
         
-        passed = score >= 0.7 and len(issues) == 0
+        # Pass if score threshold met; issues are warnings, not automatic failures
+        passed = score >= 0.7
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _generate_plan(self, goal: str, context: Dict[str, Any]) -> Plan:

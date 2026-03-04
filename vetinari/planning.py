@@ -498,4 +498,20 @@ class PlanManager:
         plan.updated_at = datetime.now().isoformat()
 
 
-plan_manager = PlanManager.get_instance()
+def get_plan_manager() -> "PlanManager":
+    """Lazily return the singleton PlanManager. Use this instead of module-level plan_manager."""
+    return PlanManager.get_instance()
+
+
+# Backward-compatible alias — resolved lazily so importing this module does NOT
+# trigger filesystem I/O at import time.
+class _LazyPlanManager:
+    """Proxy that resolves the PlanManager singleton on first attribute access."""
+    def __getattr__(self, name):
+        return getattr(PlanManager.get_instance(), name)
+
+    def __repr__(self):
+        return repr(PlanManager.get_instance())
+
+
+plan_manager = _LazyPlanManager()

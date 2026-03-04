@@ -25,7 +25,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 import threading
-import re
 
 logger = logging.getLogger(__name__)
 

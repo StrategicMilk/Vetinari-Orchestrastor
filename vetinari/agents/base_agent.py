@@ -482,6 +482,38 @@ class BaseAgent(ABC):
                         get_prompt_evolver().record_result(self._agent_type.value, v_id, score.overall_score)
                 except Exception:
                     pass
+
+                # Record execution to training data collector
+                try:
+                    from vetinari.learning.training_data import get_training_collector
+                    get_training_collector().record(
+                        task=task.description or "",
+                        prompt=self.get_system_prompt()[:500] + "\n\n" + (task.prompt or task.description or ""),
+                        response=output_str,
+                        score=score.overall_score,
+                        model_id=model_id,
+                        task_type=task_type,
+                        agent_type=self._agent_type.value,
+                        success=result.success,
+                    )
+                except Exception:
+                    pass
+
+                # Record to episodic memory
+                try:
+                    from vetinari.learning.episode_memory import get_episode_memory
+                    get_episode_memory().record(
+                        task_description=task.description or "",
+                        agent_type=self._agent_type.value,
+                        task_type=task_type,
+                        output_summary=output_str[:300],
+                        quality_score=score.overall_score,
+                        success=result.success,
+                        model_id=model_id,
+                    )
+                except Exception:
+                    pass
+
             except Exception:
                 pass  # Learning subsystem errors must never crash agents
 

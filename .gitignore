@@ -47,6 +47,14 @@ projects/
 *.swp
 *.swo
 
+# Security - encryption keys must never be committed
+vault/.key
+vault/*.key
+
+# Runtime storage directories
+subtasks/
+dry_run_demo_pkg/
+
 # OS
 .DS_Store
 Thumbs.db

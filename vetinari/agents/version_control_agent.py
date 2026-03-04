@@ -71,34 +71,37 @@ class VersionControlAgent(BaseAgent):
         try:
             result = self._perform_vc_operation(task)
             agent_result = AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=True,
                 output=result,
-                metadata={"operation": task.context.get("operation", "general")},
+                metadata={
+                    "task_id": task.task_id,
+                    "agent_type": self._agent_type.value,
+                    "operation": task.context.get("operation", "general"),
+                },
             )
             self.complete_task(task, agent_result)
             return agent_result
         except Exception as exc:
             logger.error(f"[VersionControlAgent] execute() failed: {exc}")
             return AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=False,
                 output={},
-                error=str(exc),
+                metadata={"task_id": task.task_id, "agent_type": self._agent_type.value},
+                errors=[str(exc)],
             )
 
     def verify(self, output: Any) -> VerificationResult:
-        issues = []
+        issues: list = []
         score = 1.0
         if not isinstance(output, dict):
-            return VerificationResult(passed=False, score=0.0,
-                                      issues=["Output must be a dict"])
+            return VerificationResult(
+                passed=False, score=0.0,
+                issues=[{"severity": "error", "message": "Output must be a dict"}],
+            )
         if not output.get("recommendations") and not output.get("branch_strategy") \
                 and not output.get("commit_messages") and not output.get("pr_description") \
                 and not output.get("changelog"):
-            issues.append("No actionable VC output produced")
+            issues.append({"severity": "warning", "message": "No actionable VC output produced"})
             score -= 0.5
         passed = score >= 0.5 and not issues
         return VerificationResult(passed=passed, score=score, issues=issues)

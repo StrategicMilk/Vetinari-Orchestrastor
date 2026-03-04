@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vetinari.utils import estimate_model_memory_gb
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -128,9 +130,21 @@ class ModelSearchEngine:
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
-                with open(cache_file) as f:
-                    data = json.load(f)
-                    return [ModelCandidate(**c) for c in data]
+                try:
+                    with open(cache_file) as f:
+                        data = json.load(f)
+                    result = []
+                    for c in data:
+                        # Deserialise provenance dicts back to ModelSource objects
+                        if "provenance" in c and isinstance(c["provenance"], list):
+                            c["provenance"] = [
+                                ModelSource(**p) if isinstance(p, dict) else p
+                                for p in c["provenance"]
+                            ]
+                        result.append(ModelCandidate(**c))
+                    return result
+                except Exception as e:
+                    logger.debug(f"Cache load failed for {cache_file}: {e}")
         
         candidates = []
         
@@ -184,9 +198,20 @@ class ModelSearchEngine:
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
-                with open(cache_file) as f:
-                    data = json.load(f)
-                    return [ModelCandidate(**c) for c in data]
+                try:
+                    with open(cache_file) as f:
+                        data = json.load(f)
+                    result = []
+                    for c in data:
+                        if "provenance" in c and isinstance(c["provenance"], list):
+                            c["provenance"] = [
+                                ModelSource(**p) if isinstance(p, dict) else p
+                                for p in c["provenance"]
+                            ]
+                        result.append(ModelCandidate(**c))
+                    return result
+                except Exception as e:
+                    logger.debug(f"Cache load failed for {cache_file}: {e}")
         
         candidates = []
         
@@ -451,24 +476,8 @@ class ModelSearchEngine:
         return keywords
     
     def _estimate_memory(self, model_id: str) -> int:
-        model_lower = model_id.lower()
-        
-        if "70b" in model_lower or "65b" in model_lower:
-            return 80
-        elif "34b" in model_lower or "30b" in model_lower:
-            return 32
-        elif "13b" in model_lower or "14b" in model_lower:
-            return 16
-        elif "8b" in model_lower:
-            return 8
-        elif "7b" in model_lower:
-            return 8
-        elif "3b" in model_lower:
-            return 4
-        elif "1b" in model_lower or "2b" in model_lower:
-            return 2
-        else:
-            return 4
+        """Delegate to shared utility in vetinari.utils."""
+        return estimate_model_memory_gb(model_id)
     
     def _calculate_score(self, candidate: ModelCandidate) -> float:
         recency_days = 30
@@ -476,7 +485,7 @@ class ModelSearchEngine:
             try:
                 updated = datetime.fromisoformat(candidate.last_updated)
                 recency_days = (datetime.now() - updated).days
-            except:
+            except (ValueError, TypeError):
                 pass
         
         recency_score = max(0.5, 1.0 - (recency_days / 365))

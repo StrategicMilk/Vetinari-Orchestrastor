@@ -7,6 +7,7 @@ All HTTP calls are mocked so these run offline without a live server.
 import json
 import os
 import sys
+import requests  # top-level import so @patch("requests.get") patches correctly
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -36,7 +37,6 @@ class TestAdminGating:
     @patch("requests.get")
     def test_admin_permissions_admin_role(self, mock_get):
         """Admin role should have admin privileges."""
-        import requests
         mock_get.return_value = _make_response(200, {"admin": True, "role": "admin"})
 
         response = requests.get(
@@ -50,7 +50,6 @@ class TestAdminGating:
     @patch("requests.get")
     def test_admin_permissions_user_role(self, mock_get):
         """Non-admin role should not have admin privileges."""
-        import requests
         mock_get.return_value = _make_response(200, {"admin": False, "role": "user"})
 
         response = requests.get(
@@ -64,8 +63,6 @@ class TestAdminGating:
     @patch("requests.get")
     def test_admin_credentials_admin_only(self, mock_get):
         """Only admins should access credentials endpoints."""
-        import requests
-
         # Admin succeeds
         mock_get.return_value = _make_response(200, {"credentials": []})
         r_admin = requests.get(
@@ -85,7 +82,6 @@ class TestAdminGating:
     @patch("requests.get")
     def test_admin_health_admin_only(self, mock_get):
         """Only admins should access health endpoint."""
-        import requests
         mock_get.return_value = _make_response(403, {"error": "Forbidden"})
 
         response = requests.get(
@@ -103,7 +99,6 @@ class TestPerProjectGating:
     @patch("requests.post")
     def test_model_search_enabled_by_default(self, mock_post):
         """Model search should work when not explicitly disabled."""
-        import requests
         mock_post.return_value = _make_response(200, {"candidates": []})
 
         response = requests.post(
@@ -116,7 +111,6 @@ class TestPerProjectGating:
     @patch("requests.post")
     def test_model_search_per_project_disabled(self, mock_post, tmp_path):
         """Model search should fail when disabled in project.yaml."""
-        import requests
         mock_post.return_value = _make_response(
             403, {"error": "Model search disabled for this project"}
         )
@@ -138,7 +132,6 @@ class TestModelSearch:
     @patch("requests.post")
     def test_model_search_returns_candidates(self, mock_post):
         """Model search should return candidates from adapters."""
-        import requests
         mock_post.return_value = _make_response(200, {
             "candidates": [
                 {
@@ -169,7 +162,6 @@ class TestModelSearch:
     @patch("requests.post")
     def test_candidates_have_rationale(self, mock_post):
         """Candidates should have short rationale."""
-        import requests
         mock_post.return_value = _make_response(200, {
             "candidates": [
                 {"id": "m1", "name": "M1", "source_type": "local",
@@ -198,7 +190,6 @@ class TestCredentials:
     @patch("requests.get")
     def test_credentials_health_structure(self, mock_get):
         """Credentials health should have expected structure."""
-        import requests
         mock_get.return_value = _make_response(200, {
             "health": {"huggingface": "ok", "replicate": "missing"}
         })
@@ -220,7 +211,6 @@ class TestStatusEndpoint:
     @patch("requests.get")
     def test_status_returns_info(self, mock_get):
         """Status endpoint should return config info."""
-        import requests
         mock_get.return_value = _make_response(200, {
             "host": "http://localhost:1234",
             "admin": False,
@@ -241,7 +231,6 @@ class TestTaskOverride:
     @patch("requests.post")
     def test_override_requires_admin(self, mock_post):
         """Override endpoint should require admin role."""
-        import requests
         # Non-admin gets 403
         mock_post.return_value = _make_response(403, {"error": "Forbidden"})
 

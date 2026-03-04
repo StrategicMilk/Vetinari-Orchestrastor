@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
 from vetinari.credentials import credential_manager
+from vetinari.utils import estimate_model_memory_gb
 
 logger = logging.getLogger(__name__)
 
@@ -130,36 +131,9 @@ class HuggingFaceAdapter:
             short_rationale=f"HF model with {model.get('likes', 0)} likes, {model.get('downloads', 0)} downloads. {rationale_parts[0] if rationale_parts else ''}"
         )
     
-    def _estimate_memory(self, model_id: str, params: str) -> int:
-        model_lower = model_id.lower()
-        
-        if "70b" in model_lower or "65b" in model_lower:
-            return 80
-        elif "34b" in model_lower or "30b" in model_lower:
-            return 32
-        elif "13b" in model_lower or "14b" in model_lower:
-            return 16
-        elif "8b" in model_lower:
-            return 8
-        elif "7b" in model_lower:
-            return 8
-        elif "3b" in model_lower:
-            return 4
-        elif "1b" in model_lower or "2b" in model_lower:
-            return 2
-        else:
-            try:
-                params_num = float(params.replace("B", "").replace("M", ""))
-                if params_num > 30:
-                    return 32
-                elif params_num > 10:
-                    return 16
-                elif params_num > 3:
-                    return 8
-                else:
-                    return 4
-            except:
-                return 4
+    def _estimate_memory(self, model_id: str, params: str = "") -> int:
+        """Delegate to shared utility in vetinari.utils."""
+        return estimate_model_memory_gb(model_id)
 
 
 class RedditAdapter:
@@ -498,7 +472,7 @@ class LiveModelSearchAdapter:
             try:
                 updated = datetime.fromisoformat(candidate.last_updated)
                 recency_days = (datetime.now() - updated).days
-            except:
+            except (ValueError, TypeError):
                 pass
         
         recency_score = max(0.5, 1.0 - (recency_days / 365))

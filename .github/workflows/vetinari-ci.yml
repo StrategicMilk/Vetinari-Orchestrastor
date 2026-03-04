@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -268,11 +268,9 @@ jobs:
 
     - name: Run Phase 2 integration
       run: pytest tests/test_integration_phase2.py -v --tb=short
-      continue-on-error: true
 
     - name: Run Phase 3 integration
       run: pytest tests/test_integration_phase3.py -v --tb=short
-      continue-on-error: true
 
     - name: Upload logs
       if: always()
@@ -346,11 +344,9 @@ jobs:
       run: |
         pip install pytest-cov
         pytest tests/ --cov=vetinari --cov-report=json -q --tb=no
-      continue-on-error: true
 
     - name: Run coverage gate
       run: python scripts/check_coverage_gate.py --fail-under 50
-      continue-on-error: true
 
     - name: Verify drift package imports
       run: |
@@ -377,6 +373,7 @@ jobs:
       - security-scan
       - telemetry-tracing
       - regression
+      - integration
       - drift-control
       - dry-run
     if: always()
@@ -399,6 +396,7 @@ jobs:
         check "${{ needs.security-scan.result }}"    "Security Scan"
         check "${{ needs.telemetry-tracing.result }}" "Telemetry & Tracing"
         check "${{ needs.regression.result }}"       "Regression Suite"
+        check "${{ needs.integration.result }}"      "Integration Tests"
         check "${{ needs.drift-control.result }}"    "Drift Control (Phase 7)"
         check "${{ needs.dry-run.result }}"          "Dry-Run Package"
         if [ $FAILED -ne 0 ]; then exit 1; fi

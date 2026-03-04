@@ -2,9 +2,16 @@
 Vetinari Builder Agent
 
 The Builder agent is responsible for code scaffolding, boilerplate generation,
-and test scaffolding.
+test scaffolding, and writing generated files to disk.
 """
 
+import ast
+import logging
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
@@ -12,8 +19,10 @@ from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
     AgentType,
-    VerificationResult
+    VerificationResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BuilderAgent(BaseAgent):
@@ -68,26 +77,37 @@ Output format must include scaffold_code, tests, artifacts (readme, config), and
         try:
             spec = task.context.get("spec", task.description)
             feature_name = task.context.get("feature_name", "feature")
-            
-            # Generate scaffold (simulated - in production would use actual code generation)
+            output_dir = task.context.get("output_dir", "")
+
+            # Generate scaffold using LLM
             scaffold = self._generate_scaffold(spec, feature_name)
-            
+
+            # Write files to disk if output_dir is specified or auto-detect project root
+            written_files: List[str] = []
+            if output_dir or task.context.get("write_files", False):
+                written_files = self._write_scaffold_to_disk(scaffold, output_dir or ".")
+
+            # Run syntax check on generated code
+            syntax_errors = self._check_syntax(scaffold.get("scaffold_code", ""))
+
             return AgentResult(
                 success=True,
                 output=scaffold,
                 metadata={
                     "feature_name": feature_name,
                     "files_generated": len(scaffold.get("artifacts", [])),
-                    "test_count": len(scaffold.get("tests", []))
-                }
+                    "test_count": len(scaffold.get("tests", [])),
+                    "written_files": written_files,
+                    "syntax_errors": syntax_errors,
+                },
             )
-            
+
         except Exception as e:
             self._log("error", f"Scaffolding generation failed: {str(e)}")
             return AgentResult(
                 success=False,
                 output=None,
-                errors=[str(e)]
+                errors=[str(e)],
             )
     
     def verify(self, output: Any) -> VerificationResult:
@@ -187,6 +207,126 @@ Requirements:
             "implementation_notes": ["Review and customize the generated scaffold", "Run tests with: pytest"],
             "summary": f"Scaffold generated for {feature_name}"
         }
+
+    # ------------------------------------------------------------------
+    # File I/O helpers
+    # ------------------------------------------------------------------
+
+    def _write_scaffold_to_disk(
+        self, scaffold: Dict[str, Any], output_dir: str
+    ) -> List[str]:
+        """Write all scaffold files to ``output_dir``. Returns list of written paths."""
+        written: List[str] = []
+        base = Path(output_dir)
+        base.mkdir(parents=True, exist_ok=True)
+
+        # Write main scaffold code
+        code = scaffold.get("scaffold_code", "")
+        if code:
+            feature_name = scaffold.get("summary", "feature").split()[-1]
+            safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in feature_name.lower())
+            code_path = base / f"{safe_name}.py"
+            code_path.write_text(code, encoding="utf-8")
+            written.append(str(code_path))
+            logger.info(f"[BuilderAgent] Wrote {code_path}")
+
+        # Write test files
+        for test in scaffold.get("tests", []):
+            fname = test.get("filename", "test_generated.py")
+            content = test.get("content", "")
+            if content:
+                test_path = base / fname
+                test_path.write_text(content, encoding="utf-8")
+                written.append(str(test_path))
+                logger.info(f"[BuilderAgent] Wrote {test_path}")
+
+        # Write artifact files (README, config, etc.)
+        for artifact in scaffold.get("artifacts", []):
+            fname = artifact.get("filename", "artifact.txt")
+            content = artifact.get("content", "")
+            if content:
+                artifact_path = base / fname
+                artifact_path.write_text(content, encoding="utf-8")
+                written.append(str(artifact_path))
+                logger.info(f"[BuilderAgent] Wrote {artifact_path}")
+
+        return written
+
+    @staticmethod
+    def _check_syntax(code: str) -> List[str]:
+        """Return list of syntax error messages for Python code, or empty list."""
+        if not code or not code.strip():
+            return []
+        try:
+            ast.parse(code)
+            return []
+        except SyntaxError as e:
+            return [f"SyntaxError at line {e.lineno}: {e.msg}"]
+        except Exception as e:
+            return [str(e)]
+
+    def write_and_execute(
+        self,
+        code: str,
+        timeout: int = 30,
+        working_dir: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Write code to a temp file and execute it safely.
+
+        Returns dict with: ``stdout``, ``stderr``, ``returncode``, ``success``.
+        """
+        syntax_errors = self._check_syntax(code)
+        if syntax_errors:
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": "\n".join(syntax_errors),
+                "returncode": -1,
+                "syntax_errors": syntax_errors,
+            }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(code)
+            tmp_path = f.name
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=working_dir or ".",
+            )
+            return {
+                "success": proc.returncode == 0,
+                "stdout": proc.stdout[:5000],
+                "stderr": proc.stderr[:2000],
+                "returncode": proc.returncode,
+                "syntax_errors": [],
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": f"Execution timed out after {timeout}s",
+                "returncode": -1,
+                "syntax_errors": [],
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": -1,
+                "syntax_errors": [],
+            }
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 # Singleton instance

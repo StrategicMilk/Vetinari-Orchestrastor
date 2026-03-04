@@ -103,16 +103,17 @@ class TestAgentGraph(unittest.TestCase):
         self.assertEqual(len(self.graph._agents), 0)
     
     def test_graph_initialize(self):
-        """Test initializing the graph with all agents."""
+        """Test initializing the graph with all 21 agents."""
         self.graph.initialize()
-        
+
         self.assertTrue(self.graph._initialized)
-        self.assertEqual(len(self.graph._agents), 15)
-    
+        # Graph now registers all 21 agent types
+        self.assertEqual(len(self.graph._agents), 21)
+
     def test_graph_all_agent_types(self):
-        """Test that graph has all 15 agent types."""
+        """Test that graph has all 21 agent types."""
         self.graph.initialize()
-        
+
         agent_types = [
             AgentType.PLANNER,
             AgentType.EXPLORER,
@@ -128,9 +129,16 @@ class TestAgentGraph(unittest.TestCase):
             AgentType.DOCUMENTATION_AGENT,
             AgentType.COST_PLANNER,
             AgentType.TEST_AUTOMATION,
-            AgentType.EXPERIMENTATION_MANAGER
+            AgentType.EXPERIMENTATION_MANAGER,
+            # New agents added in Wave 3
+            AgentType.IMPROVEMENT,
+            AgentType.USER_INTERACTION,
+            AgentType.DEVOPS,
+            AgentType.VERSION_CONTROL,
+            AgentType.ERROR_RECOVERY,
+            AgentType.CONTEXT_MANAGER,
         ]
-        
+
         for agent_type in agent_types:
             self.assertIn(agent_type, self.graph._agents)
     

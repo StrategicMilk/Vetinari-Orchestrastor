@@ -646,7 +646,7 @@ class DurableExecutionEngine:
         # Execute tasks in parallel (simplified - use ThreadPoolExecutor in production)
         import concurrent.futures
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(layer)) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(layer), self.max_concurrent)) as executor:
             future_to_task = {
                 executor.submit(self._execute_task, graph, task): task
                 for task in layer
@@ -718,7 +718,7 @@ class DurableExecutionEngine:
                         output if isinstance(output, str)
                         else str(output)[:800]
                     )
-                    model_id = task.assigned_model or "default"
+                    model_id = task.input_data.get("assigned_model") or task.assigned_model or "default"
                     task_type_str = task.task_type.lower() if hasattr(task, "task_type") and task.task_type else "general"
 
                     from vetinari.learning.quality_scorer import get_quality_scorer
@@ -792,18 +792,27 @@ class DurableExecutionEngine:
         return {"status": "failed", "error": last_error}
     
     def _handle_layer_failure(self, graph: ExecutionGraph, failed_tasks: List[TaskNode]):
-        """Handle failure in a layer - cancel dependent tasks."""
-        failed_ids = {t.id for t in failed_tasks}
-        
-        # Find tasks that depend on failed tasks
-        for node in graph.nodes.values():
-            if node.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
-                if any(dep in failed_ids for dep in node.depends_on):
-                    node.status = TaskStatus.CANCELLED
-                    self._emit_event("task_cancelled", node.id, {
-                        "reason": "dependency_failed",
-                        "failed_dependencies": list(failed_ids)
-                    })
+        """Handle failure in a layer - cancel dependent tasks transitively."""
+        cancelled_ids: Set[str] = {t.id for t in failed_tasks}
+
+        # Iteratively expand cancellation to all transitive dependents
+        changed = True
+        while changed:
+            changed = False
+            for node in graph.nodes.values():
+                if node.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                    continue
+                if any(dep in cancelled_ids for dep in node.depends_on):
+                    if node.id not in cancelled_ids:
+                        node.status = TaskStatus.CANCELLED
+                        cancelled_ids.add(node.id)
+                        self._emit_event("task_cancelled", node.id, {
+                            "reason": "dependency_failed",
+                            "failed_dependencies": [
+                                dep for dep in node.depends_on if dep in cancelled_ids
+                            ]
+                        })
+                        changed = True
     
     def _emit_event(self, event_type: str, task_id: str, data: Dict[str, Any]):
         """Emit an execution event."""

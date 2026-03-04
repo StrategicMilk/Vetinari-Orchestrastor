@@ -6,7 +6,12 @@ tests by analysing actual code artifacts — not assert True stubs.
 """
 
 import logging
+import os
 import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
@@ -344,6 +349,101 @@ def test_{safe_name}_invalid_input():
             },
             "summary": f"Generated test scaffolds for {len(test_files)} features. Implement pytest.skip() stubs with real assertions.",
         }
+
+    # ------------------------------------------------------------------
+    # Test execution helpers
+    # ------------------------------------------------------------------
+
+    def execute_tests(
+        self,
+        test_scripts: List[Dict[str, Any]],
+        working_dir: Optional[str] = None,
+        timeout: int = 120,
+    ) -> Dict[str, Any]:
+        """Write generated test scripts to temp files and run pytest.
+
+        Args:
+            test_scripts: List of dicts with ``name`` and ``content`` keys
+            working_dir:  Directory to run pytest in (defaults to temp dir)
+            timeout:      Max seconds per pytest run
+
+        Returns:
+            Dict with ``passed``, ``failed``, ``errors``, ``output``, ``returncode``
+        """
+        if not test_scripts:
+            return {"passed": 0, "failed": 0, "errors": [], "output": "", "returncode": 0}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            written: List[str] = []
+            for script in test_scripts:
+                fname = script.get("name", "test_generated.py")
+                content = script.get("content", "")
+                if content:
+                    fpath = Path(tmpdir) / fname
+                    fpath.write_text(content, encoding="utf-8")
+                    written.append(str(fpath))
+
+            if not written:
+                return {"passed": 0, "failed": 0, "errors": ["No test files written"], "output": "", "returncode": -1}
+
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pytest"] + written + ["-v", "--tb=short", "--no-header"],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=working_dir or tmpdir,
+                )
+                output = proc.stdout + proc.stderr
+                # Parse summary line: "X passed, Y failed" etc.
+                passed = len(re.findall(r"\bpassed\b", output))
+                failed = len(re.findall(r"\bfailed\b", output))
+                errors = re.findall(r"ERROR .*", output)[:10]
+                return {
+                    "passed": passed,
+                    "failed": failed,
+                    "errors": errors,
+                    "output": output[:5000],
+                    "returncode": proc.returncode,
+                    "success": proc.returncode == 0,
+                }
+            except subprocess.TimeoutExpired:
+                return {
+                    "passed": 0,
+                    "failed": 0,
+                    "errors": [f"Tests timed out after {timeout}s"],
+                    "output": "",
+                    "returncode": -1,
+                    "success": False,
+                }
+            except Exception as e:
+                return {
+                    "passed": 0,
+                    "failed": 0,
+                    "errors": [str(e)],
+                    "output": "",
+                    "returncode": -1,
+                    "success": False,
+                }
+
+    def write_tests_to_disk(
+        self,
+        test_scripts: List[Dict[str, Any]],
+        output_dir: str = "tests/generated",
+    ) -> List[str]:
+        """Write test scripts to ``output_dir``. Returns list of written paths."""
+        base = Path(output_dir)
+        base.mkdir(parents=True, exist_ok=True)
+        written: List[str] = []
+        for script in test_scripts:
+            fname = script.get("name", "test_generated.py")
+            content = script.get("content", "")
+            if content:
+                fpath = base / fname
+                fpath.write_text(content, encoding="utf-8")
+                written.append(str(fpath))
+                logger.info(f"[TestAutomationAgent] Wrote {fpath}")
+        return written
 
 
 _test_automation_agent: Optional[TestAutomationAgent] = None

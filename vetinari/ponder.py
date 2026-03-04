@@ -249,7 +249,8 @@ class PonderEngine:
 def get_available_models() -> List[Dict]:
     try:
         from .lmstudio_adapter import LMStudioAdapter
-        adapter = LMStudioAdapter()
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        adapter = LMStudioAdapter(host=host)
         models = adapter.list_loaded_models()
         
         if not models:
