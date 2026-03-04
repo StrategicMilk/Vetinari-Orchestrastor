@@ -1,0 +1,5 @@
+ERROR: usage: python.exe -m pytest [options] [file_or_dir] [file_or_dir] [...]
+python.exe -m pytest: error: unrecognized arguments: --cov=vetinari --cov-report=term-missing
+  inifile: None
+  rootdir: C:\Users\darst\.lmstudio\projects\Vetinari
+

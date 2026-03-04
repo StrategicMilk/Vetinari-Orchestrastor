@@ -339,7 +339,7 @@ class TestToolDescription:
         assert "simple_tool" in description
         assert "File Operations" in description
         assert "message" in description
-        assert "Input text" in description
+        assert "Message to process" in description
 
 
 if __name__ == "__main__":

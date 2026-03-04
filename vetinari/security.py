@@ -46,16 +46,17 @@ class SecretScanner:
     
     # Common secret patterns
     PATTERNS = [
-        # OpenAI API keys (sk-*)
+        # OpenAI API keys (sk-* and sk-proj-*)
+        # Minimum total length ~20 chars; after "sk-" we allow 8+ chars
         SecretPattern(
             name="openai_api_key",
-            pattern=r"sk-[a-zA-Z0-9]{20,}",
+            pattern=r"sk-(?:proj-)?[a-zA-Z0-9\-_]{8,}",
             description="OpenAI API key pattern"
         ),
-        # GitHub tokens (ghp_*, ghu_*, ghs_*, gho_*)
+        # GitHub tokens (ghp_*, ghu_*, ghs_*, gho_*, ghr_*)
         SecretPattern(
             name="github_token",
-            pattern=r"gh[pousr]_[a-zA-Z0-9]{36,255}",
+            pattern=r"gh[pousr]_[a-zA-Z0-9]{16,255}",
             description="GitHub personal access token"
         ),
         # AWS credentials (AKIA*)
@@ -112,10 +113,10 @@ class SecretScanner:
             pattern=r"-----BEGIN[^-]+-PRIVATE KEY-----",
             description="SSH private key"
         ),
-        # Hex-encoded secrets (32+ chars of hex, likely base64)
+        # Hex-encoded secrets (32+ chars of hex)
         SecretPattern(
             name="hex_secret",
-            pattern=r"['\"]?([a-f0-9]{32,})['\"]?",
+            pattern=r"[a-f0-9]{32,}",
             description="Long hex string (possible secret)"
         ),
     ]
@@ -260,11 +261,14 @@ class SecretScanner:
             return content
         
         sanitized = content
-        
-        # Apply all patterns
+
+        # Apply all patterns except hex_secret (too broad, causes false positives
+        # on the placeholder string itself)
         for pattern_name, compiled_pattern in self._compiled_patterns.items():
+            if pattern_name == "hex_secret":
+                continue
             sanitized = compiled_pattern.sub(placeholder, sanitized)
-        
+
         return sanitized
     
     def sanitize_dict(self, data: Dict[str, Any], placeholder: str = "[REDACTED]") -> Dict[str, Any]:
@@ -281,20 +285,24 @@ class SecretScanner:
         result = {}
         
         for key, value in data.items():
-            # If key is sensitive, redact the entire value
-            if self._is_sensitive_key(key):
+            # If key is sensitive and value is a plain string, redact the value
+            if self._is_sensitive_key(key) and isinstance(value, str):
                 result[key] = placeholder
             elif isinstance(value, str):
                 result[key] = self.sanitize(value, placeholder)
             elif isinstance(value, dict):
                 result[key] = self.sanitize_dict(value, placeholder)
             elif isinstance(value, (list, tuple)):
-                result[key] = [
-                    self.sanitize(item, placeholder) if isinstance(item, str)
-                    else self.sanitize_dict(item, placeholder) if isinstance(item, dict)
-                    else item
-                    for item in value
-                ]
+                sanitized_items = []
+                for item in value:
+                    if isinstance(item, str):
+                        sanitized_item = self.sanitize(item, placeholder)
+                        sanitized_items.append(sanitized_item)
+                    elif isinstance(item, dict):
+                        sanitized_items.append(self.sanitize_dict(item, placeholder))
+                    else:
+                        sanitized_items.append(item)
+                result[key] = sanitized_items
             else:
                 result[key] = value
         

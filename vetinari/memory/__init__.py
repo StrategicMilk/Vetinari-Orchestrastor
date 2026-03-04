@@ -43,6 +43,9 @@ from .oc_memory import OcMemoryStore
 from .mnemosyne_memory import MnemosyneMemoryStore
 from .dual_memory import DualMemoryStore, get_dual_memory_store, init_dual_memory_store
 
+# Availability flag — True since both backends are always importable
+DUAL_MEMORY_AVAILABLE = True
+
 # Backwards compatibility - import old MemoryStore
 class MemoryStore:
     """Legacy memory store for backwards compatibility.
@@ -521,6 +524,7 @@ __all__ = [
     "MEMORY_PRIMARY_READ",
     "MEMORY_DEDUP_ENABLED",
     "MEMORY_MERGE_LIMIT",
+    "DUAL_MEMORY_AVAILABLE",
     # Legacy exports
     "MemoryStore",
     "get_memory_store",

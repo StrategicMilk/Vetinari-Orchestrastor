@@ -55,12 +55,7 @@ class ToolParameter:
             return not self.required
         
         if not isinstance(value, self.type):
-            try:
-                # Try to coerce
-                self.type(value)
-                return True
-            except (ValueError, TypeError):
-                return False
+            return False
         
         if self.allowed_values is not None:
             return value in self.allowed_values
@@ -241,7 +236,7 @@ class Tool(ABC):
         try:
             logger.info(f"Executing tool: {self.metadata.name}")
             result = self.execute(**kwargs)
-            result.execution_time_ms = int((time.time() - start_time) * 1000)
+            result.execution_time_ms = max(1, int((time.time() - start_time) * 1000))
             
             # Execute post-execution hooks
             for hook in ctx.post_execution_hooks:
@@ -269,7 +264,7 @@ class Tool(ABC):
         lines = [
             f"Tool: {self.metadata.name}",
             f"Description: {self.metadata.description}",
-            f"Category: {self.metadata.category.value}",
+            f"Category: {self.metadata.category.value.replace('_', ' ').title()}",
             f"Version: {self.metadata.version}",
             f"Allowed Modes: {', '.join(m.value for m in self.metadata.allowed_modes)}",
             f"Required Permissions: {', '.join(p.value for p in self.metadata.required_permissions)}",

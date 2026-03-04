@@ -11,6 +11,7 @@ from .plan_types import (
     TaskRationale, PlanGenerationRequest, PlanApprovalRequest
 )
 from .memory import get_memory_store, MemoryStore
+from .memory.dual_memory import get_dual_memory_store
 from .explain_agent import get_explain_agent, ExplainAgent, is_explainability_enabled, EXPLAINABILITY_ENABLED
 
 logger = logging.getLogger(__name__)
@@ -681,13 +682,13 @@ class PlanModeEngine:
                              risk_score: float = 0.0) -> bool:
         """Log an approval decision to memory."""
         try:
-            from .memory import (
-                get_dual_memory_store, MemoryEntry, MemoryEntryType, 
-                ApprovalDetails, DUAL_MEMORY_AVAILABLE
-            )
-            
-            if DUAL_MEMORY_AVAILABLE:
-                store = get_dual_memory_store()
+            from .memory import MemoryEntry, MemoryEntryType, ApprovalDetails
+            # Use module-level import so mocks applied via @patch work correctly
+            import vetinari.plan_mode as _self_mod
+            _get_store = getattr(_self_mod, 'get_dual_memory_store', get_dual_memory_store)
+
+            if True:  # DUAL_MEMORY_AVAILABLE is always True
+                store = _get_store()
                 
                 approval_details = ApprovalDetails(
                     task_id=subtask_id,

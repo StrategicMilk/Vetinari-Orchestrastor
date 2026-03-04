@@ -33,6 +33,7 @@ class MemoryEntryType(str, Enum):
     BUGFIX = "bugfix"
     FEATURE = "feature"
     APPROVAL = "approval"
+    CONFIG = "config"
 
 
 @dataclass
@@ -46,6 +47,7 @@ class MemoryEntry:
     timestamp: int = field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     provenance: str = ""
     source_backends: List[str] = field(default_factory=list)
+    metadata: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""

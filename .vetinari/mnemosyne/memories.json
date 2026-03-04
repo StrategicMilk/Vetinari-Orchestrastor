@@ -1,7 +1,1020 @@
 {
-  "memories": [],
+  "memories": [
+    {
+      "id": "mem_e389276c",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598260137,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:24:20.141814"
+    },
+    {
+      "id": "mem_57bee990",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598260142,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:24:20.145583"
+    },
+    {
+      "id": "mem_c4a5e786",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598260145,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:24:20.148754"
+    },
+    {
+      "id": "mem_164ee6ec",
+      "agent": "plan-approval",
+      "entry_type": "approval",
+      "content": "{\"audit_id\": \"\", \"task_id\": \"test_001\", \"plan_id\": \"test_plan\", \"task_type\": \"coding\", \"approval_status\": \"approved\", \"approver\": \"test_user\", \"reason\": \"Looks good\", \"risk_score\": 0.2, \"timestamp\": \"2026-03-03T22:25:42.531795\"}",
+      "summary": "Approved task test_001 by test_user",
+      "timestamp": 1772598342531,
+      "provenance": "plan_approval_api",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "6370a5b03a73c2b615bd705bf833ec0fc39e4531ffb5dc16035908469b70282f",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.536279"
+    },
+    {
+      "id": "mem_e5dd7165",
+      "agent": "plan-approval",
+      "entry_type": "approval",
+      "content": "{\"audit_id\": \"\", \"task_id\": \"test_001\", \"plan_id\": \"test_plan\", \"task_type\": \"coding\", \"approval_status\": \"rejected\", \"approver\": \"test_user\", \"reason\": \"Needs more work\", \"risk_score\": 0.6, \"timestamp\": \"2026-03-03T22:25:42.563254\"}",
+      "summary": "Rejected task test_001 by test_user",
+      "timestamp": 1772598342563,
+      "provenance": "plan_approval_api",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "ff3d7fcb846eed364504ffb46620960a63e1e855e46afce8b7aadd5e50e39ba0",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.567248"
+    },
+    {
+      "id": "mem_44f100b0",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598342608,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.612882"
+    },
+    {
+      "id": "mem_94d60940",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598342614,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.617725"
+    },
+    {
+      "id": "mem_df2d0cca",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598342618,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.621723"
+    },
+    {
+      "id": "mem_2ab5c14f",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598342622,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:25:42.625046"
+    },
+    {
+      "id": "mem_373f1347",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598378534,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:18.537644"
+    },
+    {
+      "id": "mem_4f7c0072",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598378539,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:18.542813"
+    },
+    {
+      "id": "mem_91b33d89",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598378543,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:18.546932"
+    },
+    {
+      "id": "mem_b84c1fa3",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598378547,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:18.551204"
+    },
+    {
+      "id": "mem_e90cf86a",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598401919,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:41.923184"
+    },
+    {
+      "id": "mem_6ddfc51c",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598401924,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:41.928631"
+    },
+    {
+      "id": "mem_06a6f847",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598401929,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:41.933006"
+    },
+    {
+      "id": "mem_2455ce89",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598401933,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:41.937274"
+    },
+    {
+      "id": "mem_2ebbc58f",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598407244,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:47.249062"
+    },
+    {
+      "id": "mem_f9cb8429",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598407250,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:47.254119"
+    },
+    {
+      "id": "mem_888ba4e3",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598407254,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:47.258059"
+    },
+    {
+      "id": "mem_aa6c292f",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598407258,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:26:47.262158"
+    },
+    {
+      "id": "mem_b8d87e97",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598575903,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:29:35.907983"
+    },
+    {
+      "id": "mem_3d0192a0",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598575909,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:29:35.912450"
+    },
+    {
+      "id": "mem_20775ba9",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598575913,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:29:35.916497"
+    },
+    {
+      "id": "mem_bfa115fb",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598575917,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:29:35.920541"
+    },
+    {
+      "id": "mem_505a20ff",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598717768,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:57.773320"
+    },
+    {
+      "id": "mem_0914d29e",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598717775,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:57.779110"
+    },
+    {
+      "id": "mem_61652890",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598717779,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:57.782598"
+    },
+    {
+      "id": "mem_c76056d1",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598717783,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:57.786844"
+    },
+    {
+      "id": "mem_9af4ff30",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598719164,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:59.168648"
+    },
+    {
+      "id": "mem_d5a56937",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598719170,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:59.173888"
+    },
+    {
+      "id": "mem_22ea386f",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598719174,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:59.178064"
+    },
+    {
+      "id": "mem_82f70982",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598719178,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:31:59.181504"
+    },
+    {
+      "id": "mem_47ea601c",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772598853486,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:34:13.490396"
+    },
+    {
+      "id": "mem_8b396633",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772598853492,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:34:13.495685"
+    },
+    {
+      "id": "mem_65935edd",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772598853496,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:34:13.499887"
+    },
+    {
+      "id": "mem_00a2b9e1",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772598853500,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:34:13.504010"
+    },
+    {
+      "id": "mem_07e20be6",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772599177144,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:39:37.148483"
+    },
+    {
+      "id": "mem_ae7f8ac6",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772599177150,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:39:37.153792"
+    },
+    {
+      "id": "mem_71d933c3",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772599177154,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:39:37.158213"
+    },
+    {
+      "id": "mem_b4f44a61",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772599177159,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:39:37.162063"
+    },
+    {
+      "id": "mem_4273f7a1",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772599328074,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:42:08.079069"
+    },
+    {
+      "id": "mem_d030c57f",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772599328081,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:42:08.084976"
+    },
+    {
+      "id": "mem_9eb6cbe1",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772599328085,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:42:08.089081"
+    },
+    {
+      "id": "mem_acc15d3c",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772599328090,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:42:08.093688"
+    },
+    {
+      "id": "mem_c502e471",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772599481423,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:44:41.427862"
+    },
+    {
+      "id": "mem_fb9ba955",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772599481430,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:44:41.433754"
+    },
+    {
+      "id": "mem_0817d0ea",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772599481434,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:44:41.438119"
+    },
+    {
+      "id": "mem_fb031507",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772599481439,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T22:44:41.441717"
+    },
+    {
+      "id": "mem_0b86d277",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772600402607,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:00:02.611831"
+    },
+    {
+      "id": "mem_ff349cb6",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772600402614,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:00:02.617253"
+    },
+    {
+      "id": "mem_6229f6a5",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772600402618,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:00:02.622112"
+    },
+    {
+      "id": "mem_d26a577b",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772600402623,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:00:02.626753"
+    },
+    {
+      "id": "mem_ba9f9427",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772601037845,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:10:37.850918"
+    },
+    {
+      "id": "mem_bc814751",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772601037853,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:10:37.856993"
+    },
+    {
+      "id": "mem_48bfc381",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772601037858,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:10:37.861144"
+    },
+    {
+      "id": "mem_e50995a6",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772601037862,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-03T23:10:37.866030"
+    }
+  ],
   "metadata": {
-    "last_updated": "2026-03-03T19:01:21.186650",
-    "entry_count": 0
+    "last_updated": "2026-03-03T23:10:37.866052",
+    "entry_count": 57
   }
 }

@@ -216,8 +216,8 @@ class TestCustomPatterns(unittest.TestCase):
         
         scanner.add_pattern(custom_pattern)
         
-        # Test detection
-        content = "service_key: custom_abc123def456789xyz"
+        # Test detection — value must have >= 20 alphanumeric chars after "custom_"
+        content = "service_key: custom_abc123def456789xyzABCD"
         detected = scanner.scan(content)
         self.assertIn("custom_service_key", detected)
 

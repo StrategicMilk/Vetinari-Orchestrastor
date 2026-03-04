@@ -1,4 +1,4 @@
-name: Vetinari Phase 3 - Observability & Security
+name: Vetinari CI — All Phases
 
 on:
   push:
@@ -6,277 +6,400 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# ─── Shared setup composite ──────────────────────────────────────────────────
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
 jobs:
+
+  # ── 1. Full unit-test matrix ────────────────────────────────────────────────
   unit-tests:
-    name: Unit Tests
+    name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
-    
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    
+        cache: pip
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -e .
-    
-    - name: Run unit tests
+        pip install pytest pytest-cov
+
+    - name: Run unit tests with coverage
       run: |
-        pytest tests/ -v --cov=vetinari --cov-report=xml
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
+        pytest tests/ -v \
+          --cov=vetinari \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --tb=short \
+          -q
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
+        flags: python${{ matrix.python-version }}
+      continue-on-error: true
 
-  security-scan:
-    name: Security Scanning
+  # ── 2. Dashboard smoke tests ─────────────────────────────────────────────────
+  dashboard-tests:
+    name: Dashboard & Monitoring (Phase 4)
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
-    
+        python-version: "3.11"
+        cache: pip
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.txt flask pytest
         pip install -e .
-    
-    - name: Run secret filtering test
+
+    - name: Run Phase 4 test suite
       run: |
-        python tests/test_security.py -v
-    
-    - name: Verify no secrets in code
+        pytest tests/test_dashboard_api.py \
+               tests/test_dashboard_rest_api.py \
+               tests/test_dashboard_alerts.py \
+               tests/test_dashboard_log_aggregator.py \
+               tests/test_dashboard_performance.py \
+               -v --tb=short
+
+    - name: Verify dashboard UI route
       run: |
-        # This test ensures our secret scanner can detect common patterns
+        python -c "
+        from vetinari.dashboard.rest_api import create_app
+        app = create_app()
+        client = app.test_client()
+        r = client.get('/dashboard')
+        assert r.status_code == 200, f'Dashboard returned {r.status_code}'
+        assert b'chart.js' in r.data, 'chart.js not in response'
+        print('Dashboard UI route OK')
+        r2 = client.get('/api/v1/health')
+        assert r2.status_code == 200
+        import json
+        data = json.loads(r2.data)
+        assert data['status'] == 'healthy'
+        print('Health endpoint OK')
+        "
+
+  # ── 3. Analytics smoke tests ──────────────────────────────────────────────────
+  analytics-tests:
+    name: Analytics & Cost Optimization (Phase 5)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt pytest
+        pip install -e .
+
+    - name: Run Phase 5 test suite
+      run: |
+        pytest tests/test_analytics_anomaly.py \
+               tests/test_analytics_cost.py \
+               tests/test_analytics_sla.py \
+               tests/test_analytics_forecasting.py \
+               -v --tb=short
+
+    - name: Verify analytics package imports
+      run: |
+        python -c "
+        from vetinari.analytics import (
+            get_anomaly_detector, get_cost_tracker,
+            get_sla_tracker, get_forecaster,
+        )
+        print('All analytics singletons import OK')
+        d = get_anomaly_detector(); assert d is get_anomaly_detector()
+        c = get_cost_tracker();    assert c is get_cost_tracker()
+        s = get_sla_tracker();     assert s is get_sla_tracker()
+        f = get_forecaster();      assert f is get_forecaster()
+        print('Singleton contracts verified')
+        "
+
+  # ── 4. Security scan ──────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt pytest
+        pip install -e .
+
+    - name: Run security tests
+      run: pytest tests/test_security.py -v --tb=short
+
+    - name: Validate secret scanner
+      run: |
         python -c "
         from vetinari.security import get_secret_scanner
         scanner = get_secret_scanner()
-        
-        # Test OpenAI pattern
-        test_content = 'API key: sk-proj-abcdef1234567890'
-        detected = scanner.scan(test_content)
-        assert 'openai_api_key' in detected, 'Failed to detect OpenAI key'
-        
-        # Test GitHub pattern
-        test_content = 'token ghp_abc123def456789xyz'
-        detected = scanner.scan(test_content)
-        assert 'github_token' in detected, 'Failed to detect GitHub token'
-        
-        # Test sanitization
-        unsafe = 'My secret is sk-abc123xyz'
-        safe = scanner.sanitize(unsafe)
-        assert '[REDACTED]' in safe, 'Failed to sanitize'
-        assert 'sk-abc123xyz' not in safe, 'Secret not removed'
-        
-        print('✓ Secret filtering validation passed')
+        assert 'openai_api_key' in scanner.scan('sk-proj-abcdef1234567890')
+        assert 'github_token'   in scanner.scan('token ghp_abc123def456789xyz')
+        safe = scanner.sanitize('My key is sk-abc123xyz')
+        assert '[REDACTED]' in safe
+        print('Secret scanner validation passed')
         "
 
-  telemetry-test:
-    name: Telemetry Collection
+  # ── 5. Telemetry & tracing ────────────────────────────────────────────────────
+  telemetry-tracing:
+    name: Telemetry & Distributed Tracing
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
-    
+        python-version: "3.11"
+        cache: pip
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.txt pytest
         pip install -e .
-    
-    - name: Test telemetry collector
+
+    - name: Run telemetry tests
+      run: pytest tests/test_telemetry.py tests/test_structured_logging.py -v --tb=short
+
+    - name: Validate telemetry export
       run: |
         python -c "
+        import os, json, tempfile
         from vetinari.telemetry import get_telemetry_collector
-        import json
-        import tempfile
-        import os
-        
-        telemetry = get_telemetry_collector()
-        
-        # Record some metrics
-        telemetry.record_adapter_latency('openai', 'gpt-4', 150.5, success=True, tokens_used=100)
-        telemetry.record_memory_write('oc', 5.2)
-        telemetry.record_plan_decision('approve', risk_score=0.35)
-        
-        # Export and verify
-        with tempfile.TemporaryDirectory() as tmpdir:
-            export_path = os.path.join(tmpdir, 'telemetry.json')
-            success = telemetry.export_json(export_path)
-            
-            assert success, 'Failed to export telemetry'
-            assert os.path.exists(export_path), 'Telemetry file not created'
-            
-            with open(export_path) as f:
-                data = json.load(f)
-                assert 'adapters' in data, 'Missing adapters in telemetry'
-                assert 'memory' in data, 'Missing memory in telemetry'
-                assert 'plan_mode' in data, 'Missing plan_mode in telemetry'
-                assert data['plan_mode']['total_decisions'] == 1, 'Decision not recorded'
-        
-        print('✓ Telemetry collection validation passed')
+        t = get_telemetry_collector()
+        t.record_adapter_latency('openai', 'gpt-4', 150.5, success=True, tokens_used=100)
+        t.record_memory_write('oc', 5.2)
+        t.record_plan_decision('approve', risk_score=0.35)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'tel.json')
+            assert t.export_json(p)
+            data = json.load(open(p))
+            assert 'adapters' in data and 'memory' in data and 'plan_mode' in data
+        print('Telemetry export OK')
         "
 
-  tracing-test:
-    name: Distributed Tracing
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -e .
-    
-    - name: Test trace ID propagation
+    - name: Validate distributed tracing
       run: |
         python -c "
         from vetinari.structured_logging import (
-            CorrelationContext, get_trace_id, get_span_id, get_logger, configure_logging
+            CorrelationContext, get_trace_id, get_span_id, configure_logging
         )
-        import json
-        import tempfile
-        
         configure_logging()
-        logger = get_logger('test')
-        
-        # Test trace ID generation and propagation
         with CorrelationContext() as ctx:
-            trace_id = get_trace_id()
-            assert trace_id is not None, 'Trace ID not generated'
-            
-            # Test span ID setting
-            ctx.set_span_id('span_123')
-            span_id = get_span_id()
-            assert span_id == 'span_123', 'Span ID not set correctly'
-            
-            # Log with trace context
-            logger.info('Test message with tracing')
-        
-        print('✓ Distributed tracing validation passed')
+            assert get_trace_id() is not None
+            ctx.set_span_id('span_test')
+            assert get_span_id() == 'span_test'
+        print('Distributed tracing OK')
         "
 
-  dry-run-test:
-    name: Dry-Run Package Test
+  # ── 6. Regression suite ───────────────────────────────────────────────────────
+  regression:
+    name: Regression Tests
     runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-    
-    - name: Install Vetinari
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -e .
-    
-    - name: Install dry-run package
-      run: |
-        cd dry_run_demo_pkg
-        pip install -e .
-    
-    - name: Test dry-run package execution
-      run: |
-        python -c "
-        import sys
-        sys.path.insert(0, 'dry_run_demo_pkg')
-        from dry_run_demo_pkg import __main__
-        print('✓ Dry-run package executed successfully')
-        "
 
-  integration-test:
-    name: End-to-End Integration
-    runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
-    
+        python-version: "3.11"
+        cache: pip
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.txt flask pytest
         pip install -e .
-    
-    - name: Run integration test
+
+    - name: Run regression suite
       run: |
-        python tests/test_integration_phase3.py -v
+        pytest tests/regression/ -v --tb=short
+      continue-on-error: false
+
+  # ── 7. Integration tests ──────────────────────────────────────────────────────
+  integration:
+    name: End-to-End Integration
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt flask pytest
+        pip install -e .
+
+    - name: Run Phase 2 integration
+      run: pytest tests/test_integration_phase2.py -v --tb=short
       continue-on-error: true
-    
-    - name: Upload test results
+
+    - name: Run Phase 3 integration
+      run: pytest tests/test_integration_phase3.py -v --tb=short
+      continue-on-error: true
+
+    - name: Upload logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: integration-logs
         path: logs/
+        if-no-files-found: ignore
 
-  build-status:
-    name: Build Status Summary
+  # ── 8. Dry-run package ────────────────────────────────────────────────────────
+  dry-run:
+    name: Dry-Run Package
     runs-on: ubuntu-latest
-    needs: [unit-tests, security-scan, telemetry-test, tracing-test, dry-run-test, integration-test]
-    if: always()
-    
+
     steps:
-    - name: Check build status
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install
       run: |
-        if [ "${{ needs.unit-tests.result }}" != "success" ]; then
-          echo "❌ Unit tests failed"
-          exit 1
-        fi
-        
-        if [ "${{ needs.security-scan.result }}" != "success" ]; then
-          echo "❌ Security scan failed"
-          exit 1
-        fi
-        
-        if [ "${{ needs.telemetry-test.result }}" != "success" ]; then
-          echo "❌ Telemetry test failed"
-          exit 1
-        fi
-        
-        if [ "${{ needs.tracing-test.result }}" != "success" ]; then
-          echo "❌ Tracing test failed"
-          exit 1
-        fi
-        
-        if [ "${{ needs.dry-run-test.result }}" != "success" ]; then
-          echo "❌ Dry-run test failed"
-          exit 1
-        fi
-        
-        echo "✓ All Phase 3 validations passed!"
+        pip install -r requirements.txt
+        pip install -e .
+        cd dry_run_demo_pkg && pip install -e .
+
+    - name: Execute dry-run
+      run: |
+        python -c "
+        import sys; sys.path.insert(0, 'dry_run_demo_pkg')
+        from dry_run_demo_pkg import __main__
+        print('Dry-run package OK')
+        "
+
+  # ── 9. Drift control — Phase 7 ───────────────────────────────────────────────
+  drift-control:
+    name: Drift Control (Phase 7)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt flask pytest
+        pip install -e .
+
+    - name: Run drift control tests
+      run: pytest tests/test_drift_control.py -v --tb=short
+
+    - name: Run migration index checker
+      run: python scripts/check_migration_index.py
+      continue-on-error: false
+
+    - name: Run contract-documentation alignment checker
+      run: python scripts/check_doc_contract_alignment.py
+      continue-on-error: false
+
+    - name: Run agent capability audit
+      run: python scripts/check_agent_capabilities.py --verbose
+      continue-on-error: false
+
+    - name: Generate coverage report
+      run: |
+        pip install pytest-cov
+        pytest tests/ --cov=vetinari --cov-report=json -q --tb=no
+      continue-on-error: true
+
+    - name: Run coverage gate
+      run: python scripts/check_coverage_gate.py --fail-under 50
+      continue-on-error: true
+
+    - name: Verify drift package imports
+      run: |
+        python -c "
+        from vetinari.drift import (
+            get_contract_registry, get_capability_auditor,
+            get_schema_validator, get_drift_monitor,
+        )
+        monitor = get_drift_monitor()
+        monitor.bootstrap()
+        report = monitor.run_full_audit()
+        print('Drift audit summary:', report.summary())
+        print('Is clean:', report.is_clean)
+        "
+
+  # ── 10. Build status gate ──────────────────────────────────────────────────────
+  build-status:
+    name: Build Gate
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - dashboard-tests
+      - analytics-tests
+      - security-scan
+      - telemetry-tracing
+      - regression
+      - drift-control
+      - dry-run
+    if: always()
+
+    steps:
+    - name: Evaluate results
+      run: |
+        FAILED=0
+        check() {
+          if [ "$1" != "success" ]; then
+            echo "FAIL: $2"
+            FAILED=1
+          else
+            echo "PASS: $2"
+          fi
+        }
+        check "${{ needs.unit-tests.result }}"       "Unit Tests"
+        check "${{ needs.dashboard-tests.result }}"  "Dashboard Tests (Phase 4)"
+        check "${{ needs.analytics-tests.result }}"  "Analytics Tests (Phase 5)"
+        check "${{ needs.security-scan.result }}"    "Security Scan"
+        check "${{ needs.telemetry-tracing.result }}" "Telemetry & Tracing"
+        check "${{ needs.regression.result }}"       "Regression Suite"
+        check "${{ needs.drift-control.result }}"    "Drift Control (Phase 7)"
+        check "${{ needs.dry-run.result }}"          "Dry-Run Package"
+        if [ $FAILED -ne 0 ]; then exit 1; fi
+        echo "All gates passed - build is green"
