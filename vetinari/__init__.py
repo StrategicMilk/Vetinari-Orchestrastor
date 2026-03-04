@@ -1,8 +1,9 @@
-"""Vetinari package - Local LLM orchestration system."""
+"""Vetinari package - Comprehensive AI Orchestration System."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
+    # Core
     "cli",
     "orchestrator",
     "lmstudio_adapter",
@@ -13,4 +14,11 @@ __all__ = [
     "builder",
     "upgrader",
     "utils",
+    # New components
+    "dynamic_model_router",
+    "two_layer_orchestration",
+    "enhanced_memory",
+    "code_sandbox",
+    "integrated_agent",
+    "tool_interface",
 ]
