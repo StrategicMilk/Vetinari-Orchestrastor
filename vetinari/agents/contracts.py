@@ -39,6 +39,7 @@ class AgentType(Enum):
     VERSION_CONTROL = "VERSION_CONTROL"
     ERROR_RECOVERY = "ERROR_RECOVERY"
     CONTEXT_MANAGER = "CONTEXT_MANAGER"
+    IMAGE_GENERATOR = "IMAGE_GENERATOR"
 
 
 class TaskStatus(Enum):
@@ -424,6 +425,13 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         agent_type=AgentType.CONTEXT_MANAGER,
         name="Context Manager Agent",
         description="Long-term context management, memory consolidation, session summarisation",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.IMAGE_GENERATOR: AgentSpec(
+        agent_type=AgentType.IMAGE_GENERATOR,
+        name="Image Generator",
+        description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
     ),

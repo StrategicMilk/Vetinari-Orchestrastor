@@ -5,6 +5,7 @@ The Planner is the central orchestration agent that generates dynamic plans
 from goals and coordinates all other agents.
 """
 
+import json
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -220,24 +221,25 @@ Output format: valid JSON array of task objects."""
             "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER", "EVALUATOR",
             "SYNTHESIZER", "BUILDER", "UI_PLANNER", "SECURITY_AUDITOR",
             "DATA_ENGINEER", "DOCUMENTATION_AGENT", "COST_PLANNER",
-            "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER"
+            "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER", "DEVOPS",
+            "VERSION_CONTROL", "ERROR_RECOVERY", "IMAGE_GENERATOR",
         ]
         context_str = ""
         if context:
-            import json as _json
-            context_str = f"\nContext: {_json.dumps(context, default=str)[:500]}"
+            context_str = f"\nContext: {json.dumps(context, default=str)[:500]}"
 
         decomp_prompt = f"""Goal: {goal}{context_str}
 
 Available agents: {', '.join(available_agents)}
 
-Break this goal into {self._min_tasks}-{self._max_tasks} discrete, ordered tasks.
-For each task specify: id (t1,t2,...), description, inputs (list), outputs (list), 
-dependencies (list of task ids), assigned_agent (from available agents list).
+Break this goal into 3-{self._max_tasks} discrete, ordered tasks.
+For each task specify: id (t1,t2,...), description, inputs (list), outputs (list),
+dependencies (list of task ids), assigned_agent (from available agents list),
+acceptance_criteria (string describing done condition).
 
-Output valid JSON array of task objects:
+Output valid JSON array of task objects only — no prose, no markdown:
 [
-  {{"id": "t1", "description": "...", "inputs": ["goal"], "outputs": ["spec"], "dependencies": [], "assigned_agent": "EXPLORER"}},
+  {{"id": "t1", "description": "...", "inputs": ["goal"], "outputs": ["spec"], "dependencies": [], "assigned_agent": "EXPLORER", "acceptance_criteria": "..."}},
   ...
 ]"""
 
@@ -255,6 +257,7 @@ Output valid JSON array of task objects:
                     agent_type = AgentType[agent_str]
                 except KeyError:
                     agent_type = AgentType.BUILDER
+                # Calculate actual DAG depth rather than dependency count
                 t = Task(
                     id=item.get("id", f"t{len(tasks)+1}"),
                     description=item.get("description", "Task"),
@@ -262,13 +265,29 @@ Output valid JSON array of task objects:
                     outputs=item.get("outputs", []),
                     dependencies=item.get("dependencies", []),
                     assigned_agent=agent_type,
-                    depth=len(item.get("dependencies", [])),
+                    depth=0,  # Depth will be recalculated after all tasks are loaded
                 )
                 tasks.append(t)
             except Exception:
                 continue
 
-        return tasks if len(tasks) >= self._min_tasks else []
+        # Recalculate actual DAG depths
+        if tasks:
+            id_to_task = {t.id: t for t in tasks}
+            def get_depth(task_id: str, visited: set) -> int:
+                if task_id in visited:
+                    return 0  # Cycle guard
+                visited.add(task_id)
+                t = id_to_task.get(task_id)
+                if not t or not t.dependencies:
+                    return 0
+                return 1 + max(get_depth(dep, visited) for dep in t.dependencies)
+            for t in tasks:
+                t.depth = get_depth(t.id, set())
+
+        # Return whatever the LLM generated — don't discard valid small plans
+        # If truly empty, caller falls back to keyword decomposition
+        return tasks
 
     def _decompose_goal_keyword(self, goal: str, context: Dict[str, Any]) -> List[Task]:
         """Keyword-based fallback decomposition when LLM is unavailable."""

@@ -198,8 +198,9 @@ class LocalTrainer:
         batch_size, lr, max_seq_len, lora_r
     ) -> str:
         """Train using unsloth for 2x speed."""
-        # Generate a training script and run it in a subprocess
-        # to avoid CUDA context issues in the main process
+        import json as _json
+
+        # Use json.dumps() for all string parameters to prevent injection
         script = f"""
 from unsloth import FastLanguageModel
 from datasets import load_dataset
@@ -207,36 +208,36 @@ from trl import SFTTrainer, TrainingArguments
 import torch
 
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="{base_model}",
-    max_seq_length={max_seq_len},
+    model_name={_json.dumps(str(base_model))},
+    max_seq_length={int(max_seq_len)},
     dtype=None,
     load_in_4bit=True,
 )
 
 model = FastLanguageModel.get_peft_model(
     model,
-    r={lora_r},
+    r={int(lora_r)},
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                     "gate_proj", "up_proj", "down_proj"],
-    lora_alpha={lora_r * 2},
+    lora_alpha={int(lora_r) * 2},
     lora_dropout=0.05,
     bias="none",
     use_gradient_checkpointing="unsloth",
     random_state=42,
 )
 
-dataset = load_dataset("json", data_files="{dataset_path}", split="train")
+dataset = load_dataset("json", data_files={_json.dumps(str(dataset_path))}, split="train")
 
 trainer = SFTTrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=dataset,
-    max_seq_length={max_seq_len},
+    max_seq_length={int(max_seq_len)},
     args=TrainingArguments(
-        output_dir="{output_dir}",
-        num_train_epochs={epochs},
-        per_device_train_batch_size={batch_size},
-        learning_rate={lr},
+        output_dir={_json.dumps(str(output_dir))},
+        num_train_epochs={int(epochs)},
+        per_device_train_batch_size={int(batch_size)},
+        learning_rate={float(lr)},
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
         logging_steps=10,
@@ -245,8 +246,8 @@ trainer = SFTTrainer(
     ),
 )
 trainer.train()
-model.save_pretrained("{output_dir}/lora_adapter")
-print("Training complete: {output_dir}/lora_adapter")
+model.save_pretrained({_json.dumps(str(output_dir) + "/lora_adapter")})
+print("Training complete:", {_json.dumps(str(output_dir) + "/lora_adapter")})
 """
         script_path = Path(output_dir) / "train_script.py"
         script_path.parent.mkdir(parents=True, exist_ok=True)
@@ -267,6 +268,9 @@ print("Training complete: {output_dir}/lora_adapter")
         batch_size, lr, max_seq_len, lora_r
     ) -> str:
         """Train using standard trl (slower than unsloth)."""
+        import json as _json
+
+        # Use json.dumps() for all string parameters to prevent injection
         script = f"""
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model
@@ -281,40 +285,40 @@ bnb_config = BitsAndBytesConfig(
 )
 
 model = AutoModelForCausalLM.from_pretrained(
-    "{base_model}",
+    {_json.dumps(str(base_model))},
     quantization_config=bnb_config,
     device_map="auto",
 )
-tokenizer = AutoTokenizer.from_pretrained("{base_model}")
+tokenizer = AutoTokenizer.from_pretrained({_json.dumps(str(base_model))})
 tokenizer.pad_token = tokenizer.eos_token
 
 lora_config = LoraConfig(
-    r={lora_r},
-    lora_alpha={lora_r * 2},
+    r={int(lora_r)},
+    lora_alpha={int(lora_r) * 2},
     lora_dropout=0.05,
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
     task_type="CAUSAL_LM",
 )
 model = get_peft_model(model, lora_config)
 
-dataset = load_dataset("json", data_files="{dataset_path}", split="train")
+dataset = load_dataset("json", data_files={_json.dumps(str(dataset_path))}, split="train")
 
 trainer = SFTTrainer(
     model=model,
     tokenizer=tokenizer,
     train_dataset=dataset,
     args=SFTConfig(
-        output_dir="{output_dir}",
-        num_train_epochs={epochs},
-        per_device_train_batch_size={batch_size},
-        learning_rate={lr},
-        max_seq_length={max_seq_len},
+        output_dir={_json.dumps(str(output_dir))},
+        num_train_epochs={int(epochs)},
+        per_device_train_batch_size={int(batch_size)},
+        learning_rate={float(lr)},
+        max_seq_length={int(max_seq_len)},
         logging_steps=10,
         save_strategy="epoch",
     ),
 )
 trainer.train()
-model.save_pretrained("{output_dir}/lora_adapter")
+model.save_pretrained({_json.dumps(str(output_dir) + "/lora_adapter")})
 print("Training complete")
 """
         script_path = Path(output_dir) / "train_trl_script.py"

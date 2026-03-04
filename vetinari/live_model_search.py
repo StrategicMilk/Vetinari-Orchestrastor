@@ -187,38 +187,40 @@ class RedditAdapter:
         if not model_mentions:
             return None
         
-        for model_name in model_mentions:
-            sentiment = min(0.5 + (score / 500), 1.0)
-            
-            rationale = f"Mentioned in r/{subreddit}: {score} upvotes, {num_comments} comments"
-            
-            return ModelCandidate(
-                id=model_name.lower().replace(" ", "-"),
-                name=model_name,
-                source_type="reddit",
-                metrics={
-                    "subreddit": subreddit,
-                    "upvotes": score,
-                    "comments": num_comments,
-                    "title": title[:100]
-                },
-                memory_gb=self._estimate_memory(model_name),
-                context_len=4096,
-                version="latest",
-                last_updated=datetime.now().isoformat(),
-                hard_data_score=0.3,
-                benchmark_score=0.4,
-                sentiment_score=sentiment,
-                provenance=[{
-                    "source_type": "reddit",
-                    "url": f"https://reddit.com{post.get('permalink', '')}",
-                    "last_checked": datetime.now().isoformat(),
-                    "confidence": 0.6
-                }],
-                short_rationale=rationale
-            )
-        
-        return None
+        # Return the best-mentioned model (highest upvote sentiment)
+        best_model = model_mentions[0] if model_mentions else None
+        if not best_model:
+            return None
+
+        sentiment = min(0.5 + (score / 500), 1.0)
+        rationale = f"Mentioned in r/{subreddit}: {score} upvotes, {num_comments} comments"
+
+        return ModelCandidate(
+            id=best_model.lower().replace(" ", "-"),
+            name=best_model,
+            source_type="reddit",
+            metrics={
+                "subreddit": subreddit,
+                "upvotes": score,
+                "comments": num_comments,
+                "title": title[:100],
+                "all_mentions": model_mentions,
+            },
+            memory_gb=self._estimate_memory(best_model),
+            context_len=4096,
+            version="latest",
+            last_updated=datetime.now().isoformat(),
+            hard_data_score=0.3,
+            benchmark_score=0.4,
+            sentiment_score=sentiment,
+            provenance=[{
+                "source_type": "reddit",
+                "url": f"https://reddit.com{post.get('permalink', '')}",
+                "last_checked": datetime.now().isoformat(),
+                "confidence": 0.6,
+            }],
+            short_rationale=rationale,
+        )
     
     def _extract_model_mentions(self, text: str) -> List[str]:
         known_models = [

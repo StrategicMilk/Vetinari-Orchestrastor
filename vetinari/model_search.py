@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import requests
@@ -125,7 +126,8 @@ class ModelSearchEngine:
         return candidates
     
     def _search_huggingface(self, query: str) -> List[ModelCandidate]:
-        cache_file = self.cache_dir / f"hf_{hash(query)}.json"
+        cache_key = hashlib.md5(query.encode("utf-8")).hexdigest()
+        cache_file = self.cache_dir / f"hf_{cache_key}.json"
         
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
@@ -193,7 +195,8 @@ class ModelSearchEngine:
         return candidates
     
     def _search_reddit(self, query: str) -> List[ModelCandidate]:
-        cache_file = self.cache_dir / f"reddit_{hash(query)}.json"
+        cache_key = hashlib.md5(query.encode("utf-8")).hexdigest()
+        cache_file = self.cache_dir / f"reddit_{cache_key}.json"
         
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
@@ -246,14 +249,26 @@ class ModelSearchEngine:
         return candidates
     
     def _search_github(self, query: str) -> List[ModelCandidate]:
-        cache_file = self.cache_dir / f"github_{hash(query)}.json"
-        
+        cache_key = hashlib.md5(query.encode("utf-8")).hexdigest()
+        cache_file = self.cache_dir / f"github_{cache_key}.json"
+
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
-                with open(cache_file) as f:
-                    data = json.load(f)
-                    return [ModelCandidate(**c) for c in data]
+                try:
+                    with open(cache_file) as f:
+                        data = json.load(f)
+                    result = []
+                    for c in data:
+                        if "provenance" in c and isinstance(c["provenance"], list):
+                            c["provenance"] = [
+                                ModelSource(**p) if isinstance(p, dict) else p
+                                for p in c["provenance"]
+                            ]
+                        result.append(ModelCandidate(**c))
+                    return result
+                except Exception as e:
+                    logger.debug(f"Cache load failed for {cache_file}: {e}")
         
         candidates = []
         

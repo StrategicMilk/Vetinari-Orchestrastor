@@ -578,7 +578,15 @@ def api_new_project():
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
     auto_run = data.get('auto_run', True)
-    
+    project_name = data.get('project_name', '')
+    project_rules = data.get('project_rules', '')
+    required_features = data.get('required_features', [])
+    things_to_avoid = data.get('things_to_avoid', [])
+    expected_outputs = data.get('expected_outputs', [])
+    tech_stack = data.get('tech_stack', '')
+    platforms = data.get('platforms', [])
+    priority = data.get('priority', 'quality')
+
     if not goal:
         return jsonify({"error": "goal is required"}), 400
     
@@ -621,18 +629,36 @@ def api_new_project():
         # Create project config
         planning_model = plan.notes.split(": ")[-1] if plan.notes else (model or available_models[0].get('name', ''))
         project_config = {
-            "project_name": "New Project",
+            "project_name": project_name or goal[:50],
             "description": goal,
             "high_level_goal": goal,
+            "goal": goal,
             "tasks": tasks,
             "model": planning_model,
             "active_model_id": model or planning_model,
             "plan_notes": plan.notes,
             "warnings": plan.warnings,
             "system_prompt": system_prompt,
+            "project_rules": project_rules,
+            "required_features": required_features,
+            "things_to_avoid": things_to_avoid,
+            "expected_outputs": expected_outputs,
+            "tech_stack": tech_stack,
+            "platforms": platforms,
+            "priority": priority,
             "status": "planned" if not auto_run else "running",
             "archived": False
         }
+
+        # Save project rules to RulesManager for injection into agent prompts
+        if project_rules:
+            try:
+                from vetinari.rules_manager import get_rules_manager
+                rm = get_rules_manager()
+                rules_list = [r.strip() for r in project_rules.splitlines() if r.strip()]
+                rm.set_project_rules(project_dir.name, rules_list)
+            except Exception as _re:
+                logging.warning(f"Could not save project rules: {_re}")
         
         config_path = project_dir / 'project.yaml'
         with open(config_path, 'w', encoding='utf-8') as f:
@@ -2728,21 +2754,22 @@ def api_sandbox_audit():
 
 # ============ SEARCH ENDPOINTS ============
 
-@app.route('/api/search', methods=['GET'])
-def api_search():
+@app.route('/api/code-search', methods=['GET'])
+def api_code_search():
+    """Search within project code using CocoIndex/ripgrep backends."""
     try:
         from vetinari.code_search import code_search_registry
         query = request.args.get('q', '')
         limit = int(request.args.get('limit', 10))
         language = request.args.get('language')
         backend = request.args.get('backend', 'cocoindex')
-        
+
         if not query:
             return jsonify({"error": "Query required"}), 400
-        
+
         adapter = code_search_registry.get_adapter(backend)
         results = adapter.search(query, limit=limit)
-        
+
         return jsonify({
             "query": query,
             "backend": backend,
@@ -2785,7 +2812,7 @@ def api_search_status():
         for name in code_search_registry.list_backends():
             try:
                 backends[name] = code_search_registry.get_backend_info(name)
-            except:
+            except Exception:
                 backends[name] = {"name": name, "status": "error"}
         
         return jsonify({
@@ -3476,6 +3503,266 @@ def api_ponder_health():
         return jsonify({"error": str(e)}), 500
 
 
+# ============ RULES CONFIGURATION ENDPOINTS ============
+
+@app.route('/api/rules', methods=['GET'])
+def api_rules_get():
+    """Get all rules configuration."""
+    try:
+        from vetinari.rules_manager import get_rules_manager
+        rm = get_rules_manager()
+        return jsonify(rm.to_dict())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/rules/global', methods=['GET', 'POST'])
+def api_rules_global():
+    """Get or set global rules."""
+    try:
+        from vetinari.rules_manager import get_rules_manager
+        rm = get_rules_manager()
+        if request.method == 'POST':
+            data = request.json or {}
+            rules = data.get('rules', [])
+            if isinstance(rules, str):
+                rules = [r.strip() for r in rules.splitlines() if r.strip()]
+            rm.set_global_rules(rules)
+            return jsonify({"status": "saved", "rules": rm.get_global_rules()})
+        return jsonify({"rules": rm.get_global_rules()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/rules/global-prompt', methods=['GET', 'POST'])
+def api_rules_global_prompt():
+    """Get or set the global system prompt override."""
+    try:
+        from vetinari.rules_manager import get_rules_manager
+        rm = get_rules_manager()
+        if request.method == 'POST':
+            data = request.json or {}
+            rm.set_global_system_prompt(data.get('prompt', ''))
+            return jsonify({"status": "saved"})
+        return jsonify({"prompt": rm.get_global_system_prompt()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/rules/project/<project_id>', methods=['GET', 'POST'])
+def api_rules_project(project_id):
+    """Get or set rules for a specific project."""
+    try:
+        from vetinari.rules_manager import get_rules_manager
+        rm = get_rules_manager()
+        if request.method == 'POST':
+            data = request.json or {}
+            rules = data.get('rules', [])
+            if isinstance(rules, str):
+                rules = [r.strip() for r in rules.splitlines() if r.strip()]
+            rm.set_project_rules(project_id, rules)
+            return jsonify({"status": "saved", "project_id": project_id, "rules": rm.get_project_rules(project_id)})
+        return jsonify({"project_id": project_id, "rules": rm.get_project_rules(project_id)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/rules/model/<path:model_id>', methods=['GET', 'POST'])
+def api_rules_model(model_id):
+    """Get or set rules for a specific model."""
+    try:
+        from vetinari.rules_manager import get_rules_manager
+        rm = get_rules_manager()
+        if request.method == 'POST':
+            data = request.json or {}
+            rules = data.get('rules', [])
+            if isinstance(rules, str):
+                rules = [r.strip() for r in rules.splitlines() if r.strip()]
+            rm.set_model_rules(model_id, rules)
+            return jsonify({"status": "saved", "model_id": model_id, "rules": rm.get_model_rules(model_id)})
+        return jsonify({"model_id": model_id, "rules": rm.get_model_rules(model_id)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============ GOAL VERIFICATION ENDPOINTS ============
+
+@app.route('/api/project/<project_id>/verify-goal', methods=['POST'])
+def api_verify_goal(project_id):
+    """Verify the final deliverable against the original project goal."""
+    try:
+        from vetinari.goal_verifier import get_goal_verifier
+        data = request.json or {}
+
+        goal = data.get('goal', '')
+        final_output = data.get('final_output', '')
+        required_features = data.get('required_features', [])
+        things_to_avoid = data.get('things_to_avoid', [])
+        task_outputs = data.get('task_outputs', [])
+        expected_outputs = data.get('expected_outputs', [])
+
+        if not goal:
+            # Try to load from project file
+            proj_dir = PROJECT_ROOT / 'projects' / project_id
+            config_path = proj_dir / 'project.yaml'
+            if config_path.exists():
+                import yaml as _yaml
+                with open(config_path) as f:
+                    proj_config = _yaml.safe_load(f) or {}
+                goal = proj_config.get('goal', proj_config.get('description', ''))
+                required_features = required_features or proj_config.get('required_features', [])
+                things_to_avoid = things_to_avoid or proj_config.get('things_to_avoid', [])
+
+        if not goal:
+            return jsonify({"error": "goal is required"}), 400
+
+        verifier = get_goal_verifier()
+        report = verifier.verify(
+            project_id=project_id,
+            goal=goal,
+            final_output=final_output,
+            required_features=required_features,
+            things_to_avoid=things_to_avoid,
+            task_outputs=task_outputs,
+            expected_outputs=expected_outputs,
+        )
+
+        return jsonify({
+            "report": report.to_dict(),
+            "corrective_tasks": report.get_corrective_tasks(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============ IMAGE GENERATION ENDPOINTS ============
+
+@app.route('/api/generate-image', methods=['POST'])
+def api_generate_image():
+    """Generate an image asset via the ImageGeneratorAgent."""
+    try:
+        from vetinari.agents.image_generator_agent import get_image_generator_agent
+        from vetinari.agents.contracts import AgentTask
+        data = request.json or {}
+
+        description = data.get('description', '')
+        if not description:
+            return jsonify({"error": "description required"}), 400
+
+        agent = get_image_generator_agent({
+            "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),
+            "sd_enabled": data.get("sd_enabled", True),
+            "width": data.get("width", 512),
+            "height": data.get("height", 512),
+            "steps": data.get("steps", 20),
+        })
+
+        task = AgentTask(
+            task_id=f"img_{uuid.uuid4().hex[:8]}",
+            description=description,
+            prompt=description,
+            context=data.get("context", {}),
+        )
+
+        result = agent.execute(task)
+        return jsonify({
+            "success": result.success,
+            "output": result.output,
+            "errors": result.errors or [],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sd-status', methods=['GET'])
+def api_sd_status():
+    """Check Stable Diffusion WebUI connection status."""
+    try:
+        import requests as _req
+        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))
+        resp = _req.get(f"{host}/sdapi/v1/options", timeout=5)
+        if resp.status_code == 200:
+            return jsonify({"status": "connected", "host": host})
+        return jsonify({"status": "error", "code": resp.status_code}), 200
+    except Exception as e:
+        return jsonify({"status": "disconnected", "error": str(e)}), 200
+
+
+# ============ TRAINING ENDPOINTS ============
+
+@app.route('/api/training/stats', methods=['GET'])
+def api_training_stats():
+    """Get training data statistics."""
+    try:
+        from vetinari.learning.training_data import get_training_collector
+        collector = get_training_collector()
+        stats = collector.get_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e), "total_records": 0}), 200
+
+
+@app.route('/api/training/export', methods=['POST'])
+def api_training_export():
+    """Export training data for a given format."""
+    try:
+        from vetinari.learning.training_data import get_training_collector
+        data = request.json or {}
+        export_format = data.get('format', 'sft')  # sft | dpo | prompts
+        collector = get_training_collector()
+
+        if export_format == 'dpo':
+            dataset = collector.export_dpo_dataset()
+        elif export_format == 'prompts':
+            dataset = collector.export_prompt_variants()
+        else:
+            dataset = collector.export_sft_dataset()
+
+        return jsonify({
+            "format": export_format,
+            "count": len(dataset),
+            "data": dataset[:100]  # Return first 100 for preview
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/training/start', methods=['POST'])
+def api_training_start():
+    """Start a training run (async)."""
+    try:
+        from vetinari.training.pipeline import TrainingPipeline
+        data = request.json or {}
+
+        tier = data.get('tier', 'general')        # general|coding|research|review|individual
+        model_id = data.get('model_id', '')
+        min_quality = float(data.get('min_quality', 0.7))
+
+        def _run():
+            try:
+                pipeline = TrainingPipeline()
+                pipeline.run(
+                    base_model=model_id or 'qwen2.5-coder-7b',
+                    training_type=tier,
+                    min_quality_score=min_quality,
+                )
+                logger.info(f"Training run completed: tier={tier}, model={model_id}")
+            except Exception as te:
+                logger.error(f"Training run failed: {te}")
+
+        import threading as _t
+        _t.Thread(target=_run, daemon=True).start()
+
+        return jsonify({
+            "status": "started",
+            "tier": tier,
+            "model_id": model_id,
+            "message": "Training run started in background"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Register Plan Mode API endpoints
 try:
     from vetinari.plan_api import register_plan_api
@@ -3488,4 +3775,7 @@ except Exception as e:
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    _debug = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
+    _port = int(os.environ.get("VETINARI_WEB_PORT", 5000))
+    _host = os.environ.get("VETINARI_WEB_HOST", "0.0.0.0")
+    app.run(host=_host, port=_port, debug=_debug)

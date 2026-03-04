@@ -1,4 +1,5 @@
 import json
+import os
 import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -176,7 +177,7 @@ class ModelRelay:
                 latency_hint="fast",
                 privacy_level="local",
                 memory_requirements_gb=8,
-                endpoint="http://localhost:1234/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
             ),
             ModelEntry(
                 model_id="qwen2.5-72b",
@@ -187,7 +188,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint="http://localhost:1234/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
             ),
             ModelEntry(
                 model_id="llama-3.3-70b",
@@ -198,7 +199,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint="http://localhost:1234/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
             ),
             ModelEntry(
                 model_id="gpt-4o",

@@ -296,7 +296,7 @@
                 </div>
             </div>
 
-            <!-- Prompt View -->
+            <!-- Prompt View (New Project) -->
             <div class="view" id="promptView">
                 <div class="content">
                     <div class="chat-container">
@@ -304,7 +304,7 @@
                     <div class="chat-sidebar">
                         <div class="sidebar-header">
                             <h3>Projects</h3>
-                            <button class="btn btn-primary btn-small" id="newProjectBtn">
+                            <button class="btn btn-primary btn-small" id="newProjectBtn" title="Start a new project">
                                 <i class="fas fa-plus"></i> New
                             </button>
                         </div>
@@ -312,128 +312,312 @@
                             <div class="loading"><div class="spinner"></div></div>
                         </div>
                     </div>
-                    
-                    <!-- Chat Main Area -->
+
+                    <!-- Chat / Intake Main Area -->
                     <div class="chat-main">
                         <!-- Chat Header -->
                         <div class="chat-header">
                             <div class="chat-header-info">
-                                <select class="select" id="chatModelSelect" title="Select model for this project">
-                                    <option value="">Select Model...</option>
-                                </select>
-                                <button class="btn btn-secondary btn-small" id="toggleSystemPromptBtn" title="Toggle system prompt">
-                                    <i class="fas fa-cog"></i> System Prompt
-                                </button>
+                                <h2 id="chatProjectTitle" style="font-size:1rem;font-weight:600;color:var(--text-primary);">New Project</h2>
+                                <div class="chat-header-actions">
+                                    <select class="select" id="chatModelSelect" title="Override model for this project" style="max-width:200px;">
+                                        <option value="">Auto-select model</option>
+                                    </select>
+                                    <button class="btn btn-secondary btn-small" id="toggleSystemPromptBtn" title="Edit system prompt">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                    <button class="btn btn-secondary btn-small" id="toggleRulesBtn" title="Edit project rules">
+                                        <i class="fas fa-gavel"></i> Rules
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
+
                         <!-- System Prompt Editor (collapsible) -->
                         <div class="system-prompt-panel" id="systemPromptPanel" style="display: none;">
                             <div class="system-prompt-header">
-                                <h4>System Prompts</h4>
+                                <h4><i class="fas fa-robot"></i> System Prompt</h4>
                                 <div class="system-prompt-actions">
-                                    <button class="btn btn-secondary btn-small" id="newSystemPromptBtn" title="Save current as new preset">
-                                        <i class="fas fa-save"></i> Save
+                                    <select class="select" id="systemPromptSelect" title="Select preset" style="max-width:180px;">
+                                        <option value="">Default</option>
+                                    </select>
+                                    <button class="btn btn-secondary btn-small" id="newSystemPromptBtn" title="Save as new preset">
+                                        <i class="fas fa-save"></i>
                                     </button>
-                                    <button class="btn btn-secondary btn-small" id="deleteSystemPromptBtn" title="Delete selected preset">
+                                    <button class="btn btn-secondary btn-small" id="deleteSystemPromptBtn" title="Delete preset">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
                             </div>
                             <div class="system-prompt-content">
-                                <select class="select" id="systemPromptSelect" title="Select preset">
-                                    <option value="">Default System Prompt</option>
-                                </select>
-                                <textarea class="system-prompt-textarea" id="systemPromptInput" placeholder="You are a helpful coding assistant..."></textarea>
+                                <textarea class="system-prompt-textarea" id="systemPromptInput" rows="5"
+                                    placeholder="Customize how the AI assistant behaves for this project..."></textarea>
                             </div>
                         </div>
-                        
+
+                        <!-- Rules Panel (collapsible) -->
+                        <div class="rules-panel" id="rulesPanel" style="display:none;">
+                            <div class="rules-panel-header">
+                                <h4><i class="fas fa-gavel"></i> Project Rules</h4>
+                                <span class="rules-scope-badge" title="These rules apply to this project only">Project Scope</span>
+                            </div>
+                            <div class="rules-panel-body">
+                                <p class="rules-help">Rules are injected into every agent's system prompt for this project.</p>
+                                <textarea class="system-prompt-textarea" id="projectRulesInput" rows="4"
+                                    placeholder="One rule per line. E.g.:&#10;Always use TypeScript&#10;Follow existing code patterns&#10;No external dependencies without approval"></textarea>
+                                <div class="rules-actions">
+                                    <button class="btn btn-small btn-secondary" onclick="loadGlobalRules()">
+                                        <i class="fas fa-globe"></i> Load Global Rules
+                                    </button>
+                                    <button class="btn btn-small btn-primary" onclick="saveProjectRules()">
+                                        <i class="fas fa-save"></i> Save Rules
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Messages Area -->
-                        <div class="chat-messages" id="chatMessages">
-                            <div class="chat-empty">
+                        <div class="chat-messages" id="chatMessages" aria-live="polite" aria-label="Conversation">
+                            <div class="chat-empty" id="chatEmpty">
                                 <i class="fas fa-comments"></i>
-                                <p>Select a project or start a new one</p>
+                                <p>Select a project from the sidebar or create a new one below</p>
                             </div>
                         </div>
-                        
+
                         <!-- Progress Section -->
-                        <div class="progress-section" id="progressSection" style="display: none;">
+                        <div class="progress-section" id="progressSection" style="display: none;" aria-live="polite">
                             <div class="progress-header">
-                                <h4>Progress</h4>
+                                <span id="workingOnText"><i class="fas fa-cog fa-spin"></i> Working...</span>
                                 <span class="progress-percent" id="progressPercent">0%</span>
                             </div>
-                            <div class="progress-bar-container">
+                            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                                 <div class="progress-bar" id="overallProgressBar" style="width: 0%;"></div>
                             </div>
-                            <div class="working-on" id="workingOn">
-                                <i class="fas fa-cog fa-spin"></i>
-                                <span id="workingOnText">Waiting...</span>
-                            </div>
                         </div>
-                        
-                        <!-- Tasks Section -->
+
+                        <!-- Task Todo List (OpenCode-inspired) -->
                         <div class="chat-tasks" id="chatTasks" style="display: none;">
                             <div class="tasks-header">
-                                <h4>Tasks</h4>
-                                <div class="depth-controls">
-                                    <label>
-                                        <span>Depth:</span>
-                                        <input type="range" id="depthSlider" min="1" max="25" value="12" onchange="updateDepthView(this.value)">
-                                        <span id="depthValue">12</span>
-                                    </label>
-                                    <button class="btn btn-small btn-secondary" onclick="expandAllTasks()" title="Expand All">
+                                <h4><i class="fas fa-list-check"></i> Tasks <span class="badge" id="tasksCountBadge">0</span></h4>
+                                <div class="tasks-header-actions">
+                                    <button class="btn btn-small btn-ghost" onclick="expandAllTasks()" title="Expand All">
                                         <i class="fas fa-expand-alt"></i>
                                     </button>
-                                    <button class="btn btn-small btn-secondary" onclick="collapseAllTasks()" title="Collapse All">
+                                    <button class="btn btn-small btn-ghost" onclick="collapseAllTasks()" title="Collapse All">
                                         <i class="fas fa-compress-alt"></i>
                                     </button>
                                 </div>
                             </div>
-                            <div class="tasks-list" id="tasksList"></div>
+                            <div class="tasks-list" id="tasksList" role="list"></div>
                         </div>
-                        
+
                         <!-- Model Ranking Section -->
                         <div class="model-ranking-panel" id="modelRankingPanel" style="display: none;">
                             <div class="model-ranking-header">
-                                <h4><i class="fas fa-microchip"></i> Model Recommendations</h4>
-                                <button class="btn btn-small btn-secondary" onclick="refreshModelSearch()" title="Refresh">
+                                <h4><i class="fas fa-trophy"></i> Model Recommendations</h4>
+                                <button class="btn btn-small btn-ghost" onclick="refreshModelSearch()" title="Refresh">
                                     <i class="fas fa-sync"></i>
                                 </button>
                             </div>
-                            <div class="model-ranking-content" id="modelRankingContent">
-                                <div class="model-ranking-list" id="modelRankingList"></div>
-                            </div>
+                            <div class="model-ranking-list" id="modelRankingList"></div>
                             <div class="model-override-section" id="modelOverrideSection" style="display: none;">
-                                <h5>Manual Override</h5>
                                 <select class="select" id="overrideModelSelect">
-                                    <option value="">Select model...</option>
+                                    <option value="">Select model override...</option>
                                 </select>
                                 <button class="btn btn-small btn-primary" onclick="applyModelOverride()">
                                     Apply Override
                                 </button>
                             </div>
                         </div>
-                        
+
                         <!-- Final Deliverable Section -->
                         <div class="final-delivery-panel" id="finalDeliveryPanel" style="display: none;">
                             <div class="final-delivery-header">
-                                <h4><i class="fas fa-check-circle"></i> Final Deliverable</h4>
-                                <label class="toggle-render">
-                                    <input type="checkbox" id="renderHtmlToggle">
-                                    <span>Render as HTML</span>
-                                </label>
+                                <h4><i class="fas fa-flag-checkered"></i> Final Deliverable</h4>
+                                <div class="final-delivery-actions">
+                                    <button class="btn btn-small btn-ghost" onclick="copyDeliverable()" title="Copy to clipboard">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button class="btn btn-small btn-success" onclick="approveDeliverable()" title="Approve and save">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                </div>
                             </div>
-                            <div class="final-delivery-content" id="finalDeliveryContent">
+                            <div class="final-delivery-content markdown-body" id="finalDeliveryContent"></div>
+
+                            <!-- Goal Verification -->
+                            <div class="goal-verification" id="goalVerification" style="display:none;">
+                                <h5><i class="fas fa-shield-check"></i> Goal Verification</h5>
+                                <div class="verification-matrix" id="verificationMatrix"></div>
+                                <div class="verification-actions">
+                                    <button class="btn btn-small btn-warning" onclick="requestChanges()">
+                                        <i class="fas fa-edit"></i> Request Changes
+                                    </button>
+                                    <button class="btn btn-small btn-success" onclick="approveDeliverable()">
+                                        <i class="fas fa-check-double"></i> Approve All
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
-                        <!-- Input Area -->
-                        <div class="chat-input-area">
-                            <textarea class="chat-input" id="chatInput" placeholder="What would you like to create? (e.g., 'Create a Python web server with Flask')" rows="3"></textarea>
-                            <button class="btn btn-primary" id="sendMessageBtn">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
+
+                        <!-- New Project Intake Form (shown when no project selected) -->
+                        <div class="project-intake-form" id="projectIntakeForm">
+                            <div class="intake-form-header">
+                                <h3><i class="fas fa-plus-circle"></i> New Project</h3>
+                                <p>Fill in as much or as little as you like — Vetinari will ask for anything unclear.</p>
+                            </div>
+
+                            <div class="intake-grid">
+                                <!-- Column 1: Core Goal -->
+                                <div class="intake-col-primary">
+                                    <div class="form-group">
+                                        <label class="intake-label required" for="intakeProjectName">
+                                            <i class="fas fa-tag"></i> Project Name
+                                        </label>
+                                        <input type="text" class="input" id="intakeProjectName"
+                                            placeholder="e.g., My Web App, Data Pipeline, Trading Bot">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label required" for="intakeGoal">
+                                            <i class="fas fa-bullseye"></i> General Goal
+                                        </label>
+                                        <textarea class="textarea intake-textarea" id="intakeGoal" rows="3"
+                                            placeholder="Describe what you want to build or accomplish. Be as brief or detailed as you like.&#10;&#10;e.g., A REST API for managing user accounts with JWT authentication, rate limiting, and PostgreSQL storage."></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakeDetails">
+                                            <i class="fas fa-align-left"></i> Detailed Description
+                                        </label>
+                                        <textarea class="textarea intake-textarea" id="intakeDetails" rows="4"
+                                            placeholder="Additional context, constraints, or specifics. What does success look like?&#10;&#10;e.g., Must handle 1000 concurrent users, integrate with Stripe for payments, and deploy to AWS Lambda."></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- Column 2: Requirements -->
+                                <div class="intake-col-secondary">
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakeFeatures">
+                                            <i class="fas fa-check-square"></i> Required Features
+                                            <span class="intake-hint">one per line</span>
+                                        </label>
+                                        <textarea class="textarea" id="intakeFeatures" rows="4"
+                                            placeholder="List specific features that must be included:&#10;- User authentication&#10;- REST API&#10;- Unit tests&#10;- Docker support"></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakeAvoid">
+                                            <i class="fas fa-ban"></i> Things to Avoid
+                                            <span class="intake-hint">one per line</span>
+                                        </label>
+                                        <textarea class="textarea" id="intakeAvoid" rows="3"
+                                            placeholder="What should NOT be included or used:&#10;- No third-party auth libraries&#10;- Avoid ORM (use raw SQL)&#10;- No TypeScript"></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakePlatform">
+                                            <i class="fas fa-desktop"></i> Target Platform
+                                        </label>
+                                        <div class="checkbox-group" id="intakePlatform">
+                                            <label class="checkbox-inline"><input type="checkbox" value="web"> Web App</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="api"> REST API</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="cli"> CLI Tool</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="desktop"> Desktop</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="mobile"> Mobile</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="library"> Library</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="data"> Data Pipeline</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="ml"> ML/AI</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Column 3: Tech & Preferences -->
+                                <div class="intake-col-meta">
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakeTech">
+                                            <i class="fas fa-code"></i> Languages / Frameworks
+                                            <span class="intake-hint">comma separated</span>
+                                        </label>
+                                        <input type="text" class="input" id="intakeTech"
+                                            placeholder="e.g., Python, FastAPI, React, PostgreSQL">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakePriority">
+                                            <i class="fas fa-balance-scale"></i> Priority
+                                        </label>
+                                        <select class="select" id="intakePriority">
+                                            <option value="quality">Quality (thorough, well-tested)</option>
+                                            <option value="speed">Speed (fast delivery, less polish)</option>
+                                            <option value="cost">Cost (minimal tokens, efficient)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="intake-label" for="intakeExpected">
+                                            <i class="fas fa-box-open"></i> Expected Outputs
+                                        </label>
+                                        <div class="checkbox-group" id="intakeExpected">
+                                            <label class="checkbox-inline"><input type="checkbox" value="code" checked> Working Code</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="tests" checked> Tests</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="docs"> Documentation</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="ci"> CI/CD Config</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="docker"> Docker</label>
+                                            <label class="checkbox-inline"><input type="checkbox" value="assets"> Image Assets</label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Hardware Auto-detected -->
+                                    <div class="form-group hardware-info-group">
+                                        <label class="intake-label">
+                                            <i class="fas fa-microchip"></i> Hardware Profile
+                                        </label>
+                                        <div class="hardware-display" id="hardwareDisplay">
+                                            <div class="hw-item"><span class="hw-label">GPU</span><span class="hw-value" id="hwGpu">Detecting...</span></div>
+                                            <div class="hw-item"><span class="hw-label">VRAM</span><span class="hw-value" id="hwVram">--</span></div>
+                                            <div class="hw-item"><span class="hw-label">RAM</span><span class="hw-value" id="hwRam">--</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Submit Bar -->
+                            <div class="intake-submit-bar">
+                                <div class="intake-model-select">
+                                    <label><i class="fas fa-robot"></i> Model:</label>
+                                    <select class="select" id="intakeModelSelect">
+                                        <option value="">Auto-select best model</option>
+                                    </select>
+                                </div>
+                                <div class="intake-submit-actions">
+                                    <button class="btn btn-secondary" id="intakeClearBtn" onclick="clearIntakeForm()" title="Clear form">
+                                        <i class="fas fa-eraser"></i> Clear
+                                    </button>
+                                    <button class="btn btn-primary intake-submit-btn" id="intakeSubmitBtn">
+                                        <i class="fas fa-rocket"></i> Launch Project
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Follow-up Chat Input (shown after project is created) -->
+                        <div class="chat-input-area" id="chatInputArea" style="display:none;">
+                            <div class="chat-input-wrapper">
+                                <textarea class="chat-input" id="chatInput"
+                                    placeholder="Ask a follow-up, request changes, or add features..."
+                                    rows="2" aria-label="Follow-up message"></textarea>
+                                <div class="chat-input-actions">
+                                    <button class="btn btn-ghost btn-small" id="cancelProjectBtn" onclick="cancelCurrentProject()" title="Cancel execution">
+                                        <i class="fas fa-stop"></i>
+                                    </button>
+                                    <button class="btn btn-primary" id="sendMessageBtn" title="Send (Ctrl+Enter)">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
             </div>
@@ -765,7 +949,7 @@
                     <div class="page-header">
                         <div>
                             <h1>Settings</h1>
-                            <p>Manage system configuration and preferences</p>
+                            <p>Manage system configuration, preferences, and rules</p>
                         </div>
                     </div>
 
@@ -911,24 +1095,163 @@
                             <div class="credentials-list" id="credentialsList">
                                 <div class="loading"><div class="spinner"></div> Loading credentials...</div>
                             </div>
-                            <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--dark-secondary);">
+                            <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-default);">
                                 <h4>Add/Update Credential</h4>
-                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                    <select class="select" id="credentialSourceSelect" style="flex: 1;">
+                                <div class="form-row">
+                                    <select class="select" id="credentialSourceSelect">
                                         <option value="huggingface">HuggingFace</option>
                                         <option value="reddit">Reddit</option>
                                         <option value="github">GitHub</option>
                                         <option value="paperswithcode">Papers With Code</option>
                                     </select>
-                                    <input type="password" class="input" id="credentialTokenInput" placeholder="API Token" style="flex: 2;">
+                                    <div class="input-password-wrap">
+                                        <input type="password" class="input" id="credentialTokenInput" placeholder="API Token">
+                                        <button type="button" class="btn-eye" onclick="togglePasswordVis('credentialTokenInput',this)" title="Show/hide token">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                                    <input type="number" class="input" id="credentialRotationInput" placeholder="30" value="30" min="1" max="365" style="width: 80px;">
-                                    <small style="color: var(--text-secondary); align-self: center;">days rotation</small>
+                                <div class="form-row" style="margin-top:0.5rem;">
+                                    <input type="number" class="input" id="credentialRotationInput" placeholder="30" value="30" min="1" max="365" style="width:80px;">
+                                    <small style="color:var(--text-secondary);align-self:center;">days rotation</small>
                                     <button class="btn btn-primary" id="saveCredentialBtn">
                                         <i class="fas fa-save"></i> Save
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Global Rules -->
+                    <div class="card" style="grid-column:1/-1;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-gavel"></i> Global Rules &amp; System Prompts</h3>
+                            <span class="badge badge-info">Injected into ALL agents across ALL projects</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="rules-hierarchy">
+                                <div class="rules-tier">
+                                    <div class="rules-tier-label">
+                                        <i class="fas fa-globe"></i>
+                                        <strong>Global Rules</strong>
+                                        <span class="rules-tier-desc">Applied to all projects and all models</span>
+                                    </div>
+                                    <textarea class="textarea" id="globalRulesInput" rows="5"
+                                        placeholder="One rule per line. These are injected into every agent system prompt.&#10;&#10;Example:&#10;Always use type hints in Python&#10;Follow PEP 8&#10;Include error handling in every function&#10;Write tests for all new code&#10;Document public APIs"></textarea>
+                                    <button class="btn btn-primary" onclick="saveGlobalRules()" style="margin-top:0.5rem;">
+                                        <i class="fas fa-save"></i> Save Global Rules
+                                    </button>
+                                </div>
+
+                                <div class="rules-tier">
+                                    <div class="rules-tier-label">
+                                        <i class="fas fa-microchip"></i>
+                                        <strong>Model-Specific Rules</strong>
+                                        <span class="rules-tier-desc">Applied when using a specific model</span>
+                                    </div>
+                                    <div class="form-row">
+                                        <select class="select" id="modelRulesModelSelect">
+                                            <option value="">Select model...</option>
+                                        </select>
+                                        <button class="btn btn-secondary btn-small" onclick="loadModelRules()">
+                                            <i class="fas fa-download"></i> Load
+                                        </button>
+                                    </div>
+                                    <textarea class="textarea" id="modelRulesInput" rows="3"
+                                        placeholder="Rules specific to the selected model...&#10;&#10;Example (for small models):&#10;Keep responses under 2000 tokens&#10;Be concise, avoid preamble" style="margin-top:0.5rem;"></textarea>
+                                    <button class="btn btn-primary" onclick="saveModelRules()" style="margin-top:0.5rem;">
+                                        <i class="fas fa-save"></i> Save Model Rules
+                                    </button>
+                                </div>
+
+                                <div class="rules-tier">
+                                    <div class="rules-tier-label">
+                                        <i class="fas fa-brain"></i>
+                                        <strong>Global System Prompt Override</strong>
+                                        <span class="rules-tier-desc">Prepended to every agent's system prompt</span>
+                                    </div>
+                                    <textarea class="textarea" id="globalSystemPromptInput" rows="4"
+                                        placeholder="Hardware context, personal preferences, or style guidelines...&#10;&#10;This is prepended verbatim to every single agent system prompt."></textarea>
+                                    <button class="btn btn-primary" onclick="saveGlobalSystemPrompt()" style="margin-top:0.5rem;">
+                                        <i class="fas fa-save"></i> Save
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Image Generation Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-image"></i> Image Generation (Stable Diffusion)</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>WebUI Host (Automatic1111 / ComfyUI)</label>
+                                <input type="text" class="input" id="sdHostInput" placeholder="http://localhost:7860">
+                                <small style="color:var(--text-secondary);">Start Automatic1111 with <code>--api</code> flag</small>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Default Width</label>
+                                    <input type="number" class="input" id="sdWidthInput" value="512" min="256" max="2048" step="64">
+                                </div>
+                                <div class="form-group">
+                                    <label>Default Height</label>
+                                    <input type="number" class="input" id="sdHeightInput" value="512" min="256" max="2048" step="64">
+                                </div>
+                                <div class="form-group">
+                                    <label>Steps</label>
+                                    <input type="number" class="input" id="sdStepsInput" value="20" min="10" max="150">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <button class="btn btn-secondary" onclick="testSdConnection()">
+                                    <i class="fas fa-plug"></i> Test Connection
+                                </button>
+                                <button class="btn btn-primary" onclick="saveSdSettings()">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                            <div class="sd-status" id="sdStatus"></div>
+                        </div>
+                    </div>
+
+                    <!-- Training Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-graduation-cap"></i> Model Training</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Training Data Collected</label>
+                                <div class="training-stats" id="trainingStats">
+                                    <span class="loading"><div class="spinner"></div></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Training Tier</label>
+                                <select class="select" id="trainingTierSelect">
+                                    <option value="general">General (all models)</option>
+                                    <option value="coding">Coding Models</option>
+                                    <option value="research">Research Models</option>
+                                    <option value="review">Review/Eval Models</option>
+                                    <option value="individual">Individual Model</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="trainingModelSelectGroup" style="display:none;">
+                                <label>Select Model to Train</label>
+                                <select class="select" id="trainingModelSelect">
+                                    <option value="">Select model...</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <button class="btn btn-secondary" onclick="exportTrainingData()">
+                                    <i class="fas fa-download"></i> Export Data
+                                </button>
+                                <button class="btn btn-primary" onclick="startTraining()">
+                                    <i class="fas fa-play"></i> Start Training Run
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -954,6 +1277,56 @@
         </div>
     </div>
 
+    <!-- Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Mermaid diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+
+    <script>
+        // Configure marked with highlight.js
+        if (typeof marked !== 'undefined' && typeof hljs !== 'undefined') {
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try { return hljs.highlight(code, { language: lang }).value; } catch(e) {}
+                    }
+                    return hljs.highlightAuto(code).value;
+                },
+                breaks: true,
+                gfm: true
+            });
+        }
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+        }
+
+        // Global markdown renderer with copy buttons
+        function renderMarkdown(text) {
+            if (typeof marked === 'undefined') return escapeHtml(text).replace(/\n/g, '<br>');
+            let html = marked.parse(text || '');
+            // Add copy buttons to code blocks
+            html = html.replace(/<pre><code([^>]*)>/g, (match, attrs) => {
+                return `<div class="code-block-wrapper"><button class="code-copy-btn" onclick="copyCode(this)" title="Copy code"><i class="fas fa-copy"></i></button><pre><code${attrs}>`;
+            });
+            html = html.replace(/<\/code><\/pre>/g, '</code></pre></div>');
+            return html;
+        }
+
+        function copyCode(btn) {
+            const code = btn.parentElement.querySelector('code');
+            if (code) {
+                navigator.clipboard.writeText(code.innerText).then(() => {
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+                });
+            }
+        }
+    </script>
+
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/vetinari_extensions.js"></script>
 </body>
 </html>

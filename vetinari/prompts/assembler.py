@@ -64,6 +64,7 @@ _ROLE_DEFS: Dict[str, str] = {
     "VERSION_CONTROL": "You are Vetinari's Version Control Agent. Provide git strategy, commit messages, and PR templates.",
     "ERROR_RECOVERY": "You are Vetinari's Error Recovery Agent. Diagnose failures and generate recovery strategies.",
     "CONTEXT_MANAGER": "You are Vetinari's Context Manager. Consolidate and optimise long-term memory.",
+    "IMAGE_GENERATOR": "You are Vetinari's Image Generator. Create high-quality visual assets from descriptions.",
 }
 
 # Task-type-specific instructions (injected after role def)
@@ -96,6 +97,26 @@ _TASK_INSTRUCTIONS: Dict[str, str] = {
     "general": (
         "Be precise and complete. If you are unsure about anything, say so explicitly "
         "rather than guessing."
+    ),
+    "security": (
+        "Identify all vulnerabilities with CWE IDs, severity levels (critical/high/medium/low), "
+        "and provide concrete remediation code. Never approve code with critical issues."
+    ),
+    "devops": (
+        "Produce complete, runnable configuration files. Include comments explaining non-obvious "
+        "choices. Follow security best practices for all infrastructure code."
+    ),
+    "data": (
+        "Use appropriate data types and constraints. Include both up and down migration scripts. "
+        "Consider indexing, partitioning, and performance implications."
+    ),
+    "documentation": (
+        "Write clear, accurate documentation with examples. Target the appropriate audience. "
+        "Keep it DRY — don't repeat code from the codebase verbatim."
+    ),
+    "image": (
+        "Produce optimized Stable Diffusion prompts. Be specific about style, composition, "
+        "and technical quality. Provide SVG fallbacks for simple geometric designs."
     ),
 }
 
@@ -137,6 +158,8 @@ class PromptAssembler:
         context_budget: int = 28000,
         include_examples: bool = True,
         include_rules: bool = True,
+        project_id: Optional[str] = None,
+        model_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Build a complete prompt dict for the given agent and task.
 
@@ -147,11 +170,24 @@ class PromptAssembler:
             context_budget:   Total character budget for the entire prompt
             include_examples: Whether to inject few-shot examples
             include_rules:    Whether to inject learned failure-pattern rules
+            project_id:       Optional project ID for project-scoped rules
+            model_id:         Optional model ID for model-scoped rules
 
         Returns:
             Dict with "system", "user", and "total_chars" keys.
         """
         budget = max(context_budget, 4000)
+
+        # 0. Inject global system prompt prefix + hierarchical user rules
+        rules_prefix = ""
+        try:
+            from vetinari.rules_manager import get_rules_manager
+            rm = get_rules_manager()
+            rules_prefix = rm.build_system_prompt_prefix(
+                project_id=project_id, model_id=model_id
+            )
+        except Exception:
+            pass
 
         # 1. Role definition
         role = self._get_role(agent_type)
@@ -186,8 +222,8 @@ class PromptAssembler:
                 )
             examples_text = self._truncate(examples_text, int(budget * self.BUDGET_EXAMPLES))
 
-        # Assemble system prompt
-        system_parts = [p for p in [role, instructions, rules_text, examples_text, fmt] if p]
+        # Assemble system prompt (rules_prefix first so it's always visible)
+        system_parts = [p for p in [rules_prefix, role, instructions, rules_text, examples_text, fmt] if p]
         system_prompt = "\n\n".join(system_parts)
 
         # 6. User message (task description)

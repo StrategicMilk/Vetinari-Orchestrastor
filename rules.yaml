@@ -1,0 +1,6 @@
+global:
+- Use type hints
+- Write tests
+global_system_prompt: ''
+models: {}
+projects: {}

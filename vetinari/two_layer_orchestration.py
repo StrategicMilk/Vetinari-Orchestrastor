@@ -1018,6 +1018,7 @@ class TwoLayerOrchestrator:
         "VERSION_CONTROL":          ("vetinari.agents.version_control_agent",       "get_version_control_agent"),
         "ERROR_RECOVERY":           ("vetinari.agents.error_recovery_agent",        "get_error_recovery_agent"),
         "CONTEXT_MANAGER":          ("vetinari.agents.context_manager_agent",       "get_context_manager_agent"),
+        "IMAGE_GENERATOR":          ("vetinari.agents.image_generator_agent",       "get_image_generator_agent"),
     }
 
     def _get_agent(self, agent_type_str: str):
@@ -1073,7 +1074,10 @@ class TwoLayerOrchestrator:
     def generate_and_execute(self,
                              goal: str,
                              constraints: Dict[str, Any] = None,
-                             task_handler: Callable = None) -> Dict[str, Any]:
+                             task_handler: Callable = None,
+                             context: Dict[str, Any] = None,
+                             project_id: Optional[str] = None,
+                             model_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Full assembly-line pipeline: analyze → plan → decompose →
         assign models → execute → review → assemble.
@@ -1083,6 +1087,10 @@ class TwoLayerOrchestrator:
             constraints: Optional constraints (budget, time, etc.)
             task_handler: Optional custom task handler; defaults to
                           the registered agent-based handler
+            context: Additional context from the project intake form
+                     (required_features, things_to_avoid, tech_stack, etc.)
+            project_id: Optional project ID for rules injection
+            model_id: Optional model ID for rules injection
 
         Returns:
             Dict with keys: plan_id, completed, failed, outputs,
@@ -1090,19 +1098,45 @@ class TwoLayerOrchestrator:
         """
         stages: Dict[str, Any] = {}
         start_time = time.time()
+        context = context or {}
+
+        # Enrich goal with intake form context
+        enriched_goal = goal
+        if context.get("required_features"):
+            enriched_goal += "\n\nRequired features:\n" + "\n".join(
+                f"- {f}" for f in context["required_features"]
+            )
+        if context.get("things_to_avoid"):
+            enriched_goal += "\n\nDo NOT include:\n" + "\n".join(
+                f"- {a}" for a in context["things_to_avoid"]
+            )
+        if context.get("tech_stack"):
+            enriched_goal += f"\n\nTech stack: {context['tech_stack']}"
+        if context.get("priority"):
+            enriched_goal += f"\n\nPriority: {context['priority']}"
+
+        # Inject rules into context for agent prompts
+        try:
+            from vetinari.rules_manager import get_rules_manager
+            rm = get_rules_manager()
+            context["_rules_prefix"] = rm.build_system_prompt_prefix(
+                project_id=project_id, model_id=model_id
+            )
+        except Exception:
+            pass
 
         # ----------------------------------------------------------------
         # STAGE 1: Input Analysis
         # ----------------------------------------------------------------
         logger.info(f"[Pipeline] Stage 1: Input Analysis for goal: {goal[:80]}")
-        analysis = self._analyze_input(goal, constraints or {})
+        analysis = self._analyze_input(enriched_goal, constraints or {})
         stages["input_analysis"] = analysis
 
         # ----------------------------------------------------------------
         # STAGE 2 & 3: Plan Generation + Task Decomposition
         # ----------------------------------------------------------------
         logger.info("[Pipeline] Stage 2-3: Plan Generation & Decomposition")
-        graph = self.plan_generator.generate_plan(goal, constraints)
+        graph = self.plan_generator.generate_plan(enriched_goal, constraints)
         stages["plan"] = {"plan_id": graph.plan_id, "tasks": len(graph.nodes)}
 
         # ----------------------------------------------------------------

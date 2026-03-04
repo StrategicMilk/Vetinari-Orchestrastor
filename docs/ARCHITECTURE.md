@@ -1,252 +1,321 @@
-# Vetinari Architecture Guide
+# Vetinari Architecture
+
+Version: 0.3.0 (post-comprehensive-improvement-pass)
 
 ## Overview
 
-Vetinari is an AI orchestration agent that automatically plans, assigns, and executes tasks using local and cloud LLM models. The system implements a **Plan-First** architecture where every task goes through explicit planning before execution.
+Vetinari is a **multi-agent AI orchestration system** that accepts structured project
+goals and delivers working outputs using local LLMs via LM Studio with cloud fallback.
+It is designed for minimal human intervention while keeping the user informed and in
+control.
 
-## System Architecture
+---
+
+## System Layers
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         User Interface Layer                          │
-├─────────────────────────────────────────────────────────────────────┤
-│  CLI (cli.py)          │  Web UI (web_ui.py)      │  API Endpoints  │
-└────────────────────────┬──────────────────────────┬──────────────────┘
-                         │
-┌────────────────────────▼──────────────────────────▼──────────────────┐
-│                    Orchestration Layer (orchestrator.py)             │
-├─────────────────────────────────────────────────────────────────────┤
-│  Main Workflow Engine                                               │
-│  ├─ Plan Mode Integration (plan_mode.py)                           │
-│  ├─ run_all(): Full pipeline                                       │
-│  └─ Parallel execution (ThreadPoolExecutor)                        │
-└─────────┬────────────┬──────────────┬─────────┬──────────────┬─────┘
-          │            │              │         │              │
-    ┌─────▼──┐   ┌────▼───┐   ┌─────▼──┐  ┌───▼───┐  ┌──────▼──┐
-    │Planning │   │Ponder  │   │Executor│  │Builder│  │Upgrader │
-    │Engine   │   │Engine  │   │        │  │       │  │        │
-    └─────┬──┘   └────┬───┘   └─────┬──┘  └───┬───┘  └──────┬──┘
-          │           │             │         │            │
-┌─────────▼───────────▼─────────────▼─────────▼─────────────▼──────┐
-│                      Plan Mode Layer                                 │
-├───────────────────────────────────────────────────────────────────┤
-│  PlanModeEngine (plan_mode.py)                                    │
-│  ├─ generate_plan(): Create plan from goal                        │
-│  ├─ dry_run_plan(): Generate without execution                   │
-│  └─ approve_plan(): Approve/reject plan                          │
-│                                                                   │
-│  MemoryStore (memory.py)                                          │
-│  ├─ SQLite primary storage                                       │
-│  ├─ JSON fallback (development)                                  │
-│  └─ Plan history & subtask tracking                              │
-│                                                                   │
-│  Plan API (plan_api.py)                                           │
-│  ├─ Admin-gated endpoints                                        │
-│  └─ Plan management REST API                                     │
-└──────────────┬──────────────────────────────┬──────────────────┘
-               │                              │
-┌──────────────▼──────────────────────────────▼──────────────────┐
-│                      Task Management Layer                        │
-├───────────────────────────────────────────────────────────────────┤
-│  Scheduler (scheduler.py)   │  Executor (executor.py)            │
-│  ├─ build_schedule_layers() │  ├─ execute_task()               │
-│  └─ Topological sort (DAG)  │  └─ Prompt loading & execution   │
-│                             │                                   │
-│  SubtaskTree (subtask_tree.py)  │ Validator (validator.py)     │
-│  ├─ Task hierarchy mgmt         │ ├─ Syntax validation         │
-│  ├─ Dependency tracking         │ ├─ Format checking           │
-│  └─ Audit fields               │ └─ Content validation       │
-└──────────────┬──────────────────────────────┬──────────────────┘
-               │                              │
-┌──────────────▼──────────────────────────────▼──────────────────────┐
-│                      Model Layer                                │
-├───────────────────────────────────────────────────────────────┤
-│  ModelPool (model_pool.py)                                   │
-│  ├─ discover_models(): LM Studio auto-discovery               │
-│  ├─ get_cloud_models(): Cloud provider enumeration            │
-│  ├─ assign_tasks_to_models(): Task-model mapping              │
-│  └─ Scoring (multi-factor)                                   │
-│                                                              │
-│  Ponder (ponder.py)                                         │
-│  ├─ Phase 1: Local model scoring                            │
-│  ├─ Phase 2: Cloud augmentation                            │
-│  └─ score_models_with_cloud(): Augmented ranking            │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER INTERFACE                           │
+│  Web UI (Flask)  │  CLI (vetinari.cli)  │  REST API             │
+│  Project Intake Form  │  Chat  │  Task Todo List                │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                    ORCHESTRATION LAYER                           │
+│                                                                  │
+│  TwoLayerOrchestrator (two_layer_orchestration.py)               │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Stage 1: Input Analysis (goal classification)          │    │
+│  │  Stage 2-3: Plan Generation + Task Decomposition (DAG)  │    │
+│  │  Stage 4: Model Assignment (DynamicModelRouter)         │    │
+│  │  Stage 5: Parallel Execution (DurableExecutionEngine)   │    │
+│  │  Stage 6: Output Review (EvaluatorAgent)                │    │
+│  │  Stage 7: Final Assembly (SynthesizerAgent)             │    │
+│  │  Stage 8: Goal Verification (GoalVerifier)              │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  Legacy: Orchestrator (orchestrator.py) — manifest-based tasks  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                       AGENT LAYER (22 agents)                    │
+│                                                                  │
+│  Planning:    PlannerAgent, UserInteractionAgent                 │
+│  Research:    ExplorerAgent, OracleAgent, LibrarianAgent,        │
+│               ResearcherAgent                                    │
+│  Building:    BuilderAgent, UIPlannnerAgent, DataEngineerAgent   │
+│               DevOpsAgent, VersionControlAgent                   │
+│               ImageGeneratorAgent (NEW - Stable Diffusion/SVG)  │
+│  Quality:     EvaluatorAgent, SecurityAuditorAgent               │
+│               TestAutomationAgent                                │
+│  Learning:    ImprovementAgent, ExperimentationManagerAgent      │
+│  Meta:        SynthesizerAgent, DocumentationAgent               │
+│               CostPlannerAgent, ContextManagerAgent              │
+│               ErrorRecoveryAgent                                 │
+│                                                                  │
+│  All inherit from BaseAgent, which provides:                     │
+│  - _infer() / _infer_json() via AdapterManager                   │
+│  - Learning hooks (QualityScorer, FeedbackLoop, Thompson)        │
+│  - Training data collection                                      │
+│  - Rules injection via RulesManager                              │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                       MODEL LAYER                                │
+│                                                                  │
+│  Adapters: LMStudio (primary), OpenAI, Anthropic, Gemini, Cohere│
+│  DynamicModelRouter: capability-weighted + Thompson Sampling     │
+│  ModelSearchEngine: unified live+cached search (HF, Reddit, GH) │
+│  VRAMManager: GPU memory tracking + eviction recommendations     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                    LEARNING & SELF-IMPROVEMENT                   │
+│                                                                  │
+│  QualityScorer → FeedbackLoop → ThompsonSampling                 │
+│  PromptEvolver (A/B testing) → WorkflowLearner                   │
+│  CostOptimizer → AutoTuner → ImprovementAgent                    │
+│  TrainingDataCollector → TrainingPipeline (QLoRA)                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Core Components
+---
 
-### 1. Orchestrator (orchestrator.py)
+## Key Modules
 
-Central workflow coordinator that:
-- Initializes all subsystems
-- Executes workflow pipeline (discover → plan → assign → schedule → execute → validate → build)
-- Handles Plan Mode integration
-- Manages parallel task execution
+### Core Orchestration
 
-### 2. Plan Mode Engine (plan_mode.py)
+| Module | Purpose |
+|--------|---------|
+| `two_layer_orchestration.py` | **Primary** 8-stage assembly-line pipeline |
+| `orchestrator.py` | Legacy manifest-based orchestrator |
+| `planning_engine.py` | Legacy keyword-based planning (deprecated path) |
+| `agents/planner_agent.py` | LLM-powered goal decomposition (22 agent types) |
 
-Intelligent plan generation and management:
-- **generate_plan()**: Creates Plan from goal with multiple candidates
-- **dry_run_plan()**: Generates plan without execution (for evaluation)
-- **approve_plan()**: Approves or rejects plans
-- **Risk scoring**: Calculates risk based on depth, cost, dependencies
-- **Auto-approval**: Low-risk plans auto-approved in dry-run mode
+### New Modules (v0.3.0)
 
-### 3. Memory Store (memory.py)
+| Module | Purpose |
+|--------|---------|
+| `types.py` | **Canonical** enums: TaskStatus, PlanStatus, AgentType, ModelProvider |
+| `constants.py` | All default values and tuning parameters |
+| `rules_manager.py` | Hierarchical rules: global → project → model → combo |
+| `goal_verifier.py` | Post-delivery compliance check against original spec |
+| `decomposition.py` | Decomposition Lab engine (wraps PlannerAgent) |
+| `decomposition_agent.py` | Decomposition agent interface |
+| `assignment_pass.py` | Model/agent assignment for subtask tree |
+| `multi_agent_orchestrator.py` | Agent status tracking for web UI |
+| `agents/image_generator_agent.py` | Stable Diffusion + SVG fallback image generation |
 
-Long-term persistence for plans and outcomes:
-- **SQLite** (primary): ACID-compliant, indexed storage
-- **JSON fallback** (development): Quick prototyping
-- **PlanHistory**: Stores all plans with status, risk scores
-- **SubtaskMemory**: Stores subtask outcomes and metrics
-- **ModelPerformance**: Tracks model success rates and latency
+### Configuration
 
-### 4. Plan API (plan_api.py)
+| File | Purpose |
+|------|---------|
+| `vetinari.yaml` | Primary project manifest |
+| `config/models.yaml` | Hardware-aware model catalog |
+| `config/sandbox_policy.yaml` | Code execution security |
+| `.env` | Environment variables (API keys, hosts) |
+| `rules.yaml` | Auto-generated rules configuration (NEW) |
 
-REST endpoints for plan management:
-- `POST /api/plan/generate`: Generate a plan
-- `GET /api/plan/{plan_id}`: Get plan details
-- `POST /api/plan/{plan_id}/approve`: Approve/reject plan
-- `GET /api/plan/{plan_id}/history`: Get plan history
-- All endpoints require admin token (PLAN_ADMIN_TOKEN)
+---
 
-### 5. Ponder Engine (ponder.py)
+## Planning Pipeline (Detailed)
 
-Two-pass model selection:
-- **Phase 1**: Local model scoring (capability, context, memory, heuristic)
-- **Phase 2**: Cloud augmentation (Claude, Gemini, HF, Replicate)
-- Returns ranked models with scores
+### Project Intake
+```
+User fills Project Intake Form:
+  - Project Name
+  - General Goal (required)
+  - Detailed Description
+  - Required Features (list)
+  - Things to Avoid (list)
+  - Target Platform (checkboxes: web, api, cli, desktop, mobile, library, data, ml)
+  - Tech Stack (comma-separated)
+  - Priority (quality/speed/cost)
+  - Expected Outputs (checkboxes: code, tests, docs, ci, docker, assets)
+  - Hardware Profile (auto-detected from /api/status)
+```
+
+### Plan Generation Flow
+```
+1. UserInteractionAgent.detect_ambiguity() — ask clarifying questions if needed
+2. PlannerAgent._generate_plan() — LLM decomposes goal into Task DAG
+   - Uses all 22 agent types in system prompt
+   - Calculates real DAG depth (not dependency count)
+   - Returns tasks with acceptance_criteria per task
+   - Falls back to keyword decomposition if LLM fails or < 3 tasks
+3. RulesManager.build_system_prompt_prefix() — inject rules into every agent
+4. TwoLayerOrchestrator.generate_and_execute() — run enriched goal through pipeline
+```
+
+### Goal Verification Flow
+```
+After Stage 7 (Final Assembly):
+8. GoalVerifier.verify():
+   - Feature compliance check (heuristic keyword matching + LLM evaluation)
+   - Security audit (SecurityAuditorAgent)
+   - Test presence detection
+   - Returns GoalVerificationReport with compliance_score (0.0-1.0)
+   
+If not fully_compliant:
+   - Generate corrective tasks (GetCorrectiveTasks())
+   - Re-enter execution pipeline
+   - Present gaps to user with verification matrix UI
+   - Accept user feedback and create follow-up tasks
+```
+
+---
+
+## Rules System
+
+Rules are injected into every agent's system prompt in hierarchical order:
+
+```
+GLOBAL RULES (all projects, all models)
+  → PROJECT RULES (this project, all models)
+    → MODEL RULES (all projects, this model)
+      → PROJECT+MODEL RULES (this project, this model)
+```
+
+**Storage:** `rules.yaml` in project root  
+**API:**
+- `GET/POST /api/rules/global` — global rules list
+- `GET/POST /api/rules/global-prompt` — global system prompt override  
+- `GET/POST /api/rules/project/<id>` — project-specific rules  
+- `GET/POST /api/rules/model/<id>` — model-specific rules  
+**UI:** Settings → "Global Rules & System Prompts" section
+
+---
+
+## Image Generation
+
+The `ImageGeneratorAgent` supports two backends:
+
+1. **Stable Diffusion WebUI API** (primary)
+   - Requires Automatic1111 running with `--api` flag
+   - Configure: `SD_WEBUI_HOST=http://localhost:7860`
+   - Enable: `SD_WEBUI_ENABLED=true`
+   - API: `POST /api/generate-image`
+   
+2. **LLM-generated SVG** (fallback, always available)
+   - Works without any extra server
+   - Suitable for logos, icons, diagrams
+   - Generates valid SVG code via the current LLM
+
+**Trigger keywords:** "logo", "icon", "artwork", "visual", "diagram", "mockup"  
+**Planner:** Automatically assigns IMAGE_GENERATOR tasks when these are detected
+
+---
+
+## Training Pipeline (Hierarchical)
+
+Training data is collected from every agent execution and organized into tiers:
+
+```
+TIER 1 - GENERAL: All models, basic instruction following
+TIER 2 - CATEGORY: Models by role (coding, research, review, planning)  
+TIER 3 - INDIVIDUAL: Per-model fine-tuning
+```
+
+**Pipeline:** TrainingDataCollector → DataCurator → LocalTrainer (QLoRA/unsloth) →  
+GGUFConverter → ModelDeployer → LM Studio  
+**API:** `GET /api/training/stats`, `POST /api/training/export`, `POST /api/training/start`  
+**UI:** Settings → "Model Training" section
+
+---
 
 ## Data Flow
 
-### Plan-First Workflow
-
 ```
-User Input / Task
-    ↓
-Orchestrator.run_all()
-    ↓
-[If PLAN_MODE_ENABLED]
-    PlanModeEngine.generate_plan()
-        ├─ Infer domain from goal
-        ├─ Generate plan candidates
-        ├─ Calculate risk scores
-        ├─ Auto-approve if low-risk (dry-run)
-        └─ Store in Memory
-    ↓
-ModelPool.discover_models()
-    ↓
-Ponder.score_models_with_cloud()
-    ↓
-Scheduler.build_schedule_layers()
-    ↓
-Executor.execute_task() [parallel]
-    ↓
-Validator.validate()
-    ↓
-Builder.build_artifact()
-    ↓
-Results + Memory Update
-```
-
-### Plan Mode Flow
-
-```
-Goal + Constraints
-    ↓
-PlanModeEngine.generate_plan()
-   
-    ├─ Template selection (coding ├─ Domain inference, data processing, etc.)
-    ├─ Candidate generation (1-3 variants)
-    ├─ Risk scoring
-    └─ Subtask creation
-    ↓
-Plan + Candidates
-    ↓
-[If DRY_RUN_ENABLED]
-    ├─ Risk <= Threshold → Auto-approve
-    └─ Risk > Threshold → Require approval
-    ↓
-Execution or Wait for Approval
+Project Intake Form
+      │
+      ▼
+/api/new-project (POST)
+      │ goal + required_features + things_to_avoid + tech_stack + ...
+      ▼
+TwoLayerOrchestrator.generate_and_execute()
+      │ enriched_goal (with features, avoid list, tech stack)
+      │ context._rules_prefix (from RulesManager)
+      ▼
+PlannerAgent → TaskDAG (ExecutionGraph)
+      │
+      ▼
+DurableExecutionEngine (per-task parallel execution, max_concurrent respected)
+      │ each task → BaseAgent → _infer() via AdapterManager
+      │ post-task: QualityScorer → FeedbackLoop → ThompsonSampling
+      ▼
+EvaluatorAgent (Stage 6 review)
+      │
+      ▼
+SynthesizerAgent (Stage 7 final assembly)
+      │
+      ▼
+GoalVerifier (Stage 8 compliance check)
+      │
+      ├─ Compliant → final_delivery_panel (markdown rendered)
+      └─ Gaps found → corrective_tasks → back to execution
 ```
 
-## Configuration
+---
 
-### Plan Mode Settings (Environment Variables)
+## Bugs Fixed in v0.3.0
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| PLAN_MODE_ENABLE | true | Enable plan-first orchestration |
-| PLAN_MODE_DEFAULT | true | Default mode for all tasks |
-| DRY_RUN_ENABLED | false | Generate plans without execution |
-| DRY_RUN_RISK_THRESHOLD | 0.25 | Auto-approval risk threshold |
-| PLAN_DEPTH_CAP | 16 | Maximum subtask depth |
-| PLAN_MAX_CANDIDATES | 3 | Max plan variants to generate |
-| PLAN_ADMIN_TOKEN | - | Token for admin endpoints |
-| PLAN_MEMORY_DB_PATH | ./vetinari_memory.db | SQLite database path |
-| PLAN_RETENTION_DAYS | 90 | Plan retention period |
+| Bug | Location | Fix |
+|-----|---------|-----|
+| Phantom imports (4 missing modules) | web_ui.py | Created stub implementations |
+| Duplicate `/api/search` route | web_ui.py | Renamed code search to `/api/code-search` |
+| `max_concurrent` never enforced | two_layer_orchestration.py:649 | Use `min(len(layer), max_concurrent)` |
+| `assigned_model` read from wrong field | two_layer_orchestration.py:721 | Read from `task.input_data` |
+| Transitive task cancellation | two_layer_orchestration.py:794 | Iterative expansion to all dependents |
+| PlannerAgent verify always fails on warnings | planner_agent.py:149 | Separate score from issues |
+| `min_tasks` gate discards valid simple plans | planner_agent.py:249 | Return all tasks (min=3) |
+| Cache hash non-deterministic | model_search.py | Use `hashlib.md5()` instead of `hash()` |
+| Cache deserialization crash | model_search.py | Deserialize provenance on load |
+| Reddit `_parse_post` returns only first mention | live_model_search.py | Process best model name |
+| Training script code injection | training/pipeline.py | Use `json.dumps()` for all params |
+| `debug=True` in production | web_ui.py | Env var controlled |
+| Hardcoded Tailscale IP in relay | model_relay.py | Use env var |
+| Bare `except:` clauses (9) | Various | Changed to `except Exception:` |
 
-### Memory Store
+---
 
-- **Primary**: SQLite at `./vetinari_memory.db`
-- **Fallback**: JSON at `./vetinari_memory.json` (if SQLite unavailable)
-- **Pruning**: Automatic deletion of plans older than 90 days
+## Environment Variables
 
-## Security
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LM_STUDIO_HOST` | `http://localhost:1234` | LM Studio server |
+| `LM_STUDIO_API_TOKEN` | empty | API authentication |
+| `VETINARI_WEB_PORT` | `5000` | Web UI port |
+| `VETINARI_WEB_HOST` | `0.0.0.0` | Web UI bind address |
+| `FLASK_DEBUG` | `false` | Flask debug mode |
+| `PLAN_MODE_ENABLE` | `true` | Enable plan-first execution |
+| `PLAN_DEPTH_CAP` | `16` | Max task decomposition depth |
+| `SD_WEBUI_HOST` | `http://localhost:7860` | Stable Diffusion WebUI |
+| `SD_WEBUI_ENABLED` | `false` | Enable image generation |
+| `CODING_BRIDGE_HOST` | `http://localhost:4096` | External coding agent |
+| `CODING_BRIDGE_ENABLED` | `false` | Enable coding bridge |
+| `ENABLE_EXTERNAL_DISCOVERY` | `true` | Enable external model search |
+| `VETINARI_SEARCH_BACKEND` | `duckduckgo` | Web search backend |
+| `CLAUDE_API_KEY` | empty | Anthropic Claude API key |
+| `GEMINI_API_KEY` | empty | Google Gemini API key |
+| `OPENAI_API_KEY` | empty | OpenAI API key |
 
-### Admin Token
+---
 
-Plan management endpoints require admin authentication:
-```bash
-# Set admin token
-export PLAN_ADMIN_TOKEN="your-secret-token"
+## Testing
 
-# API call with token
-curl -H "Authorization: Bearer your-secret-token" \
-     -X POST http://localhost:5000/api/plan/generate \
-     -H "Content-Type: application/json" \
-     -d '{"goal": "Build a web app"}'
 ```
+Total tests: 1,376 passing (non-integration)
+Coverage: ~65%
 
-### Data Privacy
-
-- Plans stored locally (SQLite/JSON)
-- Prompts can be sanitized before storage
-- Admin-only access to plan history
-
-## Extension Points
-
-### Adding Domain Templates
-
-Edit `plan_mode.py` → `_load_domain_templates()`:
-
-```python
-TaskDomain.NEW_DOMAIN: [
-    {
-        "description": "Step 1",
-        "domain": TaskDomain.NEW_DOMAIN,
-        "definition_of_done": DefinitionOfDone(criteria=["..."]),
-        "definition_of_ready": DefinitionOfReady(prerequisites=["..."])
-    },
-    # ... more steps
-]
+Key test files:
+  tests/test_vetinari.py           - Core system tests
+  tests/test_base_agent.py         - BaseAgent tests  
+  tests/test_agent_contracts.py    - Contract tests
+  tests/test_new_modules.py        - All new v0.3.0 modules (75 tests)
+  tests/test_builder_skill.py      - Builder agent
+  tests/test_evaluator_skill.py    - Evaluator agent
+  tests/test_dashboard_*.py        - Dashboard API (5 files)
+  tests/test_analytics_*.py        - Analytics modules (4 files)
+  tests/test_ponder.py             - Model ranking
+  tests/test_security.py           - Security scanning
 ```
-
-### Adding Plan Endpoints
-
-Add to `plan_api.py`:
-
-```python
-@plan_api.route('/api/plan/<plan_id>/custom', methods=['POST'])
-@require_admin_token
-def custom_endpoint(plan_id):
-    # Your custom logic
-    return jsonify({"success": True})
-```
-
-## See Also
-
-- [CONFIG.md](CONFIG.md) - Configuration reference
-- [cloud-ponder.md](cloud-ponder.md) - Ponder model selection
-- [api-contracts.md](api-contracts.md) - REST API documentation
