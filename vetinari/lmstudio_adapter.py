@@ -68,12 +68,16 @@ class LMStudioAdapter:
             return None
 
     def chat(self, model_id: str, system_prompt: str, input_text: str, timeout: int = 120) -> Dict[str, Any]:
-        """Call LM Studio chat API with the correct endpoint and payload format."""
-        endpoint = f"{self.host}/api/v1/chat"
+        """Call LM Studio chat API using OpenAI-compatible format."""
+        endpoint = f"{self.host}/v1/chat/completions"
         payload = {
             "model": model_id,
-            "system_prompt": system_prompt,
-            "input": input_text
+            "messages": [
+                {"role": "system", "content": system_prompt or ""},
+                {"role": "user", "content": input_text}
+            ],
+            "temperature": 0.3,
+            "stream": False
         }
         
         start = time.time()
@@ -108,20 +112,33 @@ class LMStudioAdapter:
                 "error": error_msg
             }
         
-        if "output" in resp:
+        # OpenAI-compatible response: choices[0].message.content
+        if "choices" in resp and resp["choices"]:
+            choice = resp["choices"][0]
             output_text = ""
-            if isinstance(resp["output"], list) and len(resp["output"]) > 0:
-                # Response is a list of message objects
-                output_obj = resp["output"][0]
-                if isinstance(output_obj, dict) and "content" in output_obj:
-                    output_text = output_obj["content"]
-                else:
-                    output_text = str(output_obj)
-            elif isinstance(resp["output"], str):
-                output_text = resp["output"]
-            else:
-                output_text = str(resp["output"])
-                
+            if "message" in choice:
+                output_text = choice["message"].get("content", "")
+            elif "text" in choice:
+                output_text = choice["text"]
+            tokens_used = 0
+            if "usage" in resp:
+                tokens_used = resp["usage"].get("total_tokens", 0)
+            return {
+                "output": output_text,
+                "latency_ms": latency_ms,
+                "tokens_used": tokens_used,
+                "status": "ok",
+                "error": None
+            }
+
+        # Legacy "output" key (older LM Studio versions)
+        if "output" in resp:
+            output_text = resp["output"]
+            if isinstance(output_text, list) and output_text:
+                first = output_text[0]
+                output_text = first.get("content", str(first)) if isinstance(first, dict) else str(first)
+            elif not isinstance(output_text, str):
+                output_text = str(output_text)
             return {
                 "output": output_text,
                 "latency_ms": latency_ms,
@@ -129,14 +146,14 @@ class LMStudioAdapter:
                 "status": "ok",
                 "error": None
             }
-        else:
-            return {
-                "output": "",
-                "latency_ms": latency_ms,
-                "tokens_used": 0,
-                "status": "error",
-                "error": "Unknown response format"
-            }
+
+        return {
+            "output": "",
+            "latency_ms": latency_ms,
+            "tokens_used": 0,
+            "status": "error",
+            "error": "Unknown response format"
+        }
 
     def infer(self, model_endpoint: str, prompt: str, timeout: int = 120) -> Dict[str, Any]:
         # Fallback for direct endpoint calls if needed

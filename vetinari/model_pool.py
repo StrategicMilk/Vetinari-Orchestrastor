@@ -58,17 +58,18 @@ class ModelPool:
         self.memory_budget_gb = memory_budget_gb
         self.models = []
         self.discovered = []
+        self._last_known_good: list = []   # Preserved across failed discoveries
         self.session = requests.Session()
         if api_token:
             self.session.headers.update({"Authorization": f"Bearer {api_token}"})
         
-        # Retry policy configuration
+        # Retry policy — kept short so the UI never blocks for long
         self._discovery_failed = False
         self._fallback_active = False
         self._last_discovery_error = None
         self._discovery_retry_count = 0
-        self._max_discovery_retries = int(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRIES", "5"))
-        self._discovery_retry_delay_base = float(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRY_DELAY", "1.0"))
+        self._max_discovery_retries = int(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRIES", "2"))
+        self._discovery_retry_delay_base = float(os.environ.get("VETINARI_MODEL_DISCOVERY_RETRY_DELAY", "0.5"))
 
     def set_api_token(self, api_token: Optional[str]):
         """Update the API token for authentication."""
@@ -81,8 +82,11 @@ class ModelPool:
     def discover_models(self):
         """
         Discover models from LM Studio with exponential backoff retry logic.
-        Falls back to static models if discovery fails after max retries.
+        Falls back to last-known-good results (then static config) if discovery fails.
         """
+        # Preserve last known good before resetting
+        _previous_models = list(self.models) if self.models else list(self._last_known_good)
+
         # Reset state on each discovery attempt
         self._discovery_failed = False
         self._fallback_active = False
@@ -100,7 +104,7 @@ class ModelPool:
                 models_endpoint = f"{self.host}/v1/models"
                 logging.debug(f"[Model Discovery] Attempt {self._discovery_retry_count}/{self._max_discovery_retries} at {models_endpoint}")
                 
-                resp = self.session.get(models_endpoint, timeout=10)
+                resp = self.session.get(models_endpoint, timeout=5)
                 resp.raise_for_status()
                 data = resp.json()
                 
@@ -132,7 +136,7 @@ class ModelPool:
                     model = {
                         "id": model_id,
                         "name": model_id,  # Use ID as name
-                        "endpoint": f"{self.host}/api/v1/chat",
+                        "endpoint": f"{self.host}/v1/chat/completions",
                         "capabilities": ["code_gen", "docs", "chat"],  # Default capabilities
                         "context_len": 2048,
                         "memory_gb": mem if mem > 0 else 2,  # Default to 2GB if unknown
@@ -144,6 +148,7 @@ class ModelPool:
                 logging.info(f"[Model Discovery] SUCCESS: Discovered {discovered_count} models from {self.host}")
                 self._discovery_failed = False
                 self._fallback_active = False
+                self._last_known_good = list(self.models)  # Save for next failure
                 break  # Success, exit retry loop
                 
             except requests.exceptions.Timeout:
@@ -181,18 +186,30 @@ class ModelPool:
                 # For other errors, don't retry
                 break
         
-        # Fallback: Always include static models from config
+        # Fallback order: last-known-good → static config models
         if self._discovery_failed and len(self.models) == 0:
-            logging.warning(f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. Falling back to static models.")
-            self._fallback_active = True
-        
+            if _previous_models:
+                logging.warning(
+                    f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
+                    f"Using last-known-good ({len(_previous_models)} models)."
+                )
+                self.models = list(_previous_models)
+                self._fallback_active = True
+            else:
+                logging.warning(
+                    f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
+                    f"Falling back to static config models."
+                )
+                self._fallback_active = True
+
+        # Always merge in static config models (deduped by name)
         for m in static_models:
             if not any(existing.get('name') == m.get('name') for existing in self.models):
                 self.models.append(m)
-        
+
         # Log final state
         if self._fallback_active:
-            logging.info(f"[Model Discovery] Using {len(self.models)} models from fallback (static config)")
+            logging.info(f"[Model Discovery] Using {len(self.models)} models (fallback active)")
         else:
             logging.info(f"[Model Discovery] Available models: {len(self.models)}")
     

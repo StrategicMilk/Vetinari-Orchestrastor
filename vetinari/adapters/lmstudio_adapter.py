@@ -53,7 +53,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
                     id=model_id,
                     name=m.get("name", model_id),
                     provider="lm_studio",
-                    endpoint=f"{self.endpoint}/api/v1/chat",
+                    endpoint=f"{self.endpoint}/v1/chat/completions",
                     capabilities=m.get("capabilities", ["code_gen", "chat"]),
                     context_len=m.get("context_len", 2048),
                     memory_gb=m.get("memory_gb", 4),
@@ -109,7 +109,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
             }
 
             response = self.session.post(
-                f"{self.endpoint}/api/v1/chat/completions",
+                f"{self.endpoint}/v1/chat/completions",
                 json=payload,
                 timeout=self.timeout_seconds
             )

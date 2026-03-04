@@ -318,13 +318,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initNavigation();
     initSidebar();
-    loadDashboard();
+    initAdvancedNav();
+    // Load dashboard first — it fetches models and updates _lastModelCount
+    // checkLMStudioConnection then reads _lastModelCount without extra fetch
+    loadDashboard().then(() => checkLMStudioConnection());
     loadSettings();
     loadSidebarProjects();
-    
-    // Set up auto-refresh
-    setInterval(loadDashboard, 30000);
-    setInterval(loadSidebarProjects, 10000);  // Update projects every 10 seconds
+
+    // Auto-refresh — dashboard every 60s (includes model check), projects every 15s
+    setInterval(loadDashboard, 60000);
+    setInterval(loadSidebarProjects, 15000);
+    setInterval(checkLMStudioConnection, 90000);
     
     // Output dropdown change handler
     document.getElementById('outputTaskSelect')?.addEventListener('change', loadOutputForTask);
@@ -358,26 +362,34 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Header buttons
     document.getElementById('discoverBtn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('discoverBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
         addActivity('Discovering models...');
         try {
-            const res = await fetch('/api/discover');
+            // Force-refresh bypasses the TTL cache
+            const res = await fetch('/api/models/refresh', { method: 'POST' });
             const data = await safeJsonParse(res);
             if (data.error) {
-                addActivity('Error discovering models: ' + data.error, 'error');
+                addActivity('Discovery error: ' + data.error, 'error');
             } else {
-                addActivity(`Found ${data.discovered} models`);
+                addActivity(`Found ${data.count || data.discovered || 0} models`);
+                _lastModelCount = data.count || 0;
+                updateLMStatusBar(true, _lastModelCount, '');
             }
             loadModels();
+            loadDashboard();
         } catch (error) {
             addActivity('Error discovering models', 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-compass"></i>'; }
         }
     });
     
     document.getElementById('runAllBtn')?.addEventListener('click', async () => {
-        const prompt = prompt('Enter your goal for the project:');
-        if (!prompt) return;
+        const userGoal = window.prompt('Enter your goal for the project:');
+        if (!userGoal) return;
         
-        addActivity(`Creating project with goal: ${prompt.substring(0, 50)}...`);
+        addActivity(`Creating project with goal: ${userGoal.substring(0, 50)}...`);
         showStatusBanner('Creating project and planning tasks...', 'info');
         
         const btn = document.getElementById('runAllBtn');
@@ -390,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/new-project', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goal: prompt, auto_run: true })
+                body: JSON.stringify({ goal: userGoal, auto_run: true })
             });
             const data = await safeJsonParse(res);
             
@@ -588,9 +600,65 @@ function initNavigation() {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const view = item.dataset.view;
-            switchView(view);
+            if (view) switchView(view);
         });
     });
+}
+
+// Advanced nav section toggle
+function initAdvancedNav() {
+    const toggle = document.getElementById('advancedNavToggle');
+    const items = document.getElementById('advancedNavItems');
+    const chevron = document.getElementById('advancedNavChevron');
+    if (!toggle || !items) return;
+
+    toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', !expanded);
+        items.style.display = expanded ? 'none' : 'flex';
+        items.style.flexDirection = 'column';
+        items.style.gap = '4px';
+        if (chevron) {
+            chevron.style.transform = expanded ? '' : 'rotate(90deg)';
+        }
+    });
+
+    // Auto-expand if an advanced view is active
+    const activeAdvanced = items.querySelector('.nav-item.active');
+    if (activeAdvanced) {
+        toggle.setAttribute('aria-expanded', 'true');
+        items.style.display = 'flex';
+    }
+}
+
+// LM Studio connection status — uses /api/status only (no extra discovery call)
+async function checkLMStudioConnection() {
+    try {
+        const res = await fetch('/api/status');
+        const status = await safeJsonParse(res);
+        // Re-use the model count from the dashboard data if available; otherwise
+        // rely on whatever was last fetched. Avoids a duplicate /api/models call.
+        const modelCount = _lastModelCount !== undefined ? _lastModelCount : 0;
+        updateLMStatusBar(status.status === 'running', modelCount, status.host || '');
+    } catch (e) {
+        updateLMStatusBar(false, 0, '');
+    }
+}
+
+// Tracks the last known model count so checkLMStudioConnection doesn't need to re-fetch
+let _lastModelCount = undefined;
+
+function updateLMStatusBar(connected, modelCount, host) {
+    // Update the status bar on the dashboard if it exists
+    let bar = document.getElementById('lmStatusBar');
+    if (!bar) return;
+    if (connected) {
+        bar.className = 'lm-status-bar connected';
+        bar.innerHTML = `<i class="fas fa-circle"></i> <strong>LM Studio connected</strong> — ${modelCount} model${modelCount !== 1 ? 's' : ''} loaded at ${host}`;
+    } else {
+        bar.className = 'lm-status-bar disconnected';
+        bar.innerHTML = `<i class="fas fa-exclamation-circle"></i> <strong>LM Studio not reachable</strong> — Check that LM Studio is running at ${host || 'the configured host'}. <a href="#" onclick="switchView('settings'); return false;">Configure →</a>`;
+    }
 }
 
 function switchView(view) {
@@ -601,6 +669,21 @@ function switchView(view) {
             item.classList.add('active');
         }
     });
+
+    // Auto-expand Advanced nav if switching to an advanced view
+    const advancedViews = ['agents', 'output', 'archive', 'tasks', 'decomposition'];
+    if (advancedViews.includes(view)) {
+        const toggle = document.getElementById('advancedNavToggle');
+        const items = document.getElementById('advancedNavItems');
+        if (toggle && items && toggle.getAttribute('aria-expanded') === 'false') {
+            toggle.setAttribute('aria-expanded', 'true');
+            items.style.display = 'flex';
+            items.style.flexDirection = 'column';
+            items.style.gap = '4px';
+            const chevron = document.getElementById('advancedNavChevron');
+            if (chevron) chevron.style.transform = 'rotate(90deg)';
+        }
+    }
     
     // Update view
     document.querySelectorAll('.view').forEach(v => {
@@ -709,10 +792,10 @@ async function loadPrompt() {
         models = modelsData.models || [];
         systemPrompts = promptsData.prompts || [];
         
-        // Populate model select
-        const modelOptions = models.map(m => 
-            `<option value="${m.name}">${m.name}</option>`
-        ).join('');
+        // Populate model select — use id as value (what LM Studio expects), name as display
+        const modelOptions = models.length > 0
+            ? models.map(m => `<option value="${m.id || m.name}">${m.name || m.id}</option>`).join('')
+            : '<option value="">No models found — click Discover</option>';
         if (modelSelect) modelSelect.innerHTML = modelOptions;
         
         // Populate system prompts select
@@ -1705,11 +1788,14 @@ async function loadDashboard() {
         const modelsData = await safeJsonParse(modelsRes);
         const projectsData = await safeJsonParse(projectsRes);
         
+        const models = modelsData.models || [];
+        const projects = projectsData.projects || [];
+        _lastModelCount = models.length;   // Cache for checkLMStudioConnection
+
         // Update stats
-        document.getElementById('modelCount').textContent = modelsData.models?.length || 0;
+        document.getElementById('modelCount').textContent = models.length;
         
         // Calculate tasks from projects
-        const projects = projectsData.projects || [];
         let totalTasks = 0;
         let completedTasks = 0;
         let runningTasks = 0;
@@ -1726,10 +1812,35 @@ async function loadDashboard() {
         document.getElementById('taskCount').textContent = totalTasks;
         document.getElementById('completedCount').textContent = completedTasks;
         document.getElementById('runningCount').textContent = runningTasks;
+
+        // Update LM Studio status bar
+        updateLMStatusBar(models.length > 0, models.length, status.host || '');
+
+        // Populate model dropdown in quick prompt (if present)
+        const qpModelSel = document.getElementById('quickPromptModel');
+        if (qpModelSel && models.length > 0) {
+            const current = qpModelSel.value;
+            qpModelSel.innerHTML = models.map(m =>
+                `<option value="${m.id}" ${m.id === current ? 'selected' : ''}>${m.name || m.id}</option>`
+            ).join('');
+        }
+
+        // Show onboarding card if no projects yet
+        const onboardingContainer = document.getElementById('onboardingContainer');
+        if (onboardingContainer) {
+            if (projects.length === 0) {
+                onboardingContainer.style.display = 'block';
+            } else {
+                onboardingContainer.style.display = 'none';
+            }
+        }
+
+        addActivity(`Dashboard refreshed — ${models.length} models, ${projects.length} projects`);
         
     } catch (error) {
         console.error('Error loading dashboard:', error);
         addActivity('Error loading dashboard', 'error');
+        updateLMStatusBar(false, 0, '');
     }
 }
 
@@ -1784,7 +1895,14 @@ async function loadWorkflow() {
         const projects = data.projects || [];
         
         if (projects.length === 0) {
-            treeContainer.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>No projects yet. Click "Run All Tasks" to create one.</p></div>';
+            treeContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <p>No projects yet.</p>
+                    <button class="btn btn-small btn-primary" onclick="switchView('prompt')">
+                        <i class="fas fa-plus"></i> Create your first project
+                    </button>
+                </div>`;
             return;
         }
         
@@ -2366,35 +2484,64 @@ function setupDecompositionEventListeners() {
 // Models
 async function loadModels() {
     const grid = document.getElementById('modelsGrid');
-    grid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    
+    if (!grid) return;
+    grid.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:8px;color:var(--text-muted);font-size:0.8rem;">Loading models...</p></div>';
+
+    // Wire the Refresh button to force-bypass the cache
+    const refreshBtn = document.getElementById('refreshModels');
+    if (refreshBtn && !refreshBtn._wired) {
+        refreshBtn._wired = true;
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            await fetch('/api/models/refresh', { method: 'POST' });
+            await loadModels();
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '<i class="fas fa-sync"></i> Refresh';
+        });
+    }
+
     try {
         const res = await fetch('/api/models');
         const data = await safeJsonParse(res);
-        
+
         if (data.error) {
-            grid.innerHTML = '<p>Error loading models: ' + data.error + '</p>';
+            grid.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error: ${data.error}</p><button class="btn btn-small btn-primary" onclick="loadModels()">Retry</button></div>`;
             return;
         }
-        
-        models = data.models || [];
-        
-        grid.innerHTML = models.map(model => `
+
+        const modelList = data.models || [];
+        _lastModelCount = modelList.length;
+
+        if (modelList.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-microchip"></i>
+                    <p>No models found. Make sure LM Studio is running and a model is loaded.</p>
+                    <button class="btn btn-small btn-primary" onclick="document.getElementById('discoverBtn').click()">
+                        <i class="fas fa-compass"></i> Discover Models
+                    </button>
+                </div>`;
+            return;
+        }
+
+        grid.innerHTML = modelList.map(model => `
             <div class="model-card">
                 <div class="model-card-header">
-                    <span class="model-name">${model.name}</span>
-                    <span class="model-badge">${model.version || 'N/A'}</span>
+                    <span class="model-name" title="${model.id || model.name}">${model.name || model.id}</span>
+                    ${model.version ? `<span class="model-badge">${model.version}</span>` : ''}
                 </div>
                 <div class="model-info">
-                    <span><i class="fas fa-microchip"></i> ${model.memory_gb || '?'} GB</span>
-                    <span><i class="fas fa-braille"></i> ${model.context_len || '?'} ctx</span>
-                    <span><i class="fas fa-cogs"></i> ${(model.capabilities || []).join(', ') || 'N/A'}</span>
+                    ${model.memory_gb ? `<span><i class="fas fa-memory"></i> ${model.memory_gb} GB</span>` : ''}
+                    ${model.context_len ? `<span><i class="fas fa-align-left"></i> ${model.context_len.toLocaleString()} ctx</span>` : ''}
+                    ${(model.capabilities || []).length ? `<span><i class="fas fa-cogs"></i> ${model.capabilities.join(', ')}</span>` : ''}
                 </div>
             </div>
         `).join('');
-        
+
     } catch (error) {
-        grid.innerHTML = '<p>Error loading models</p>';
+        console.error('loadModels error:', error);
+        grid.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading models: ${error.message}</p></div>`;
     }
 }
 
@@ -2420,7 +2567,14 @@ async function loadTasks() {
         const projects = data.projects || [];
         
         if (projects.length === 0) {
-            list.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>No projects yet. Use "Run All Tasks" to create one.</p></div>';
+            list.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-tasks"></i>
+                    <p>No tasks yet. Create a project first.</p>
+                    <button class="btn btn-small btn-primary" onclick="switchView('prompt')">
+                        <i class="fas fa-plus"></i> New Project
+                    </button>
+                </div>`;
             return;
         }
         
@@ -2582,7 +2736,14 @@ async function loadOutput() {
         }
         
         const tasks = data.tasks || [];
-        
+
+        if (tasks.length === 0) {
+            select.innerHTML = '<option value="">No tasks yet — create a project first</option>';
+            const outputEl = document.getElementById('codeOutput');
+            if (outputEl) outputEl.textContent = 'No task output yet. Create a project in "New Project" and run some tasks.';
+            return;
+        }
+
         // Populate select dropdown
         let currentSelection = select.value;
         select.innerHTML = '<option value="">Select a task...</option>';
@@ -3203,23 +3364,29 @@ async function loadModelConfig() {
         if (fallbackModelsInput) fallbackModelsInput.value = (data.fallback_models || []).join(', ');
         if (uncensoredModelsInput) uncensoredModelsInput.value = (data.uncensored_fallback_models || []).join(', ');
         
-        // Also load active model from status
-        const statusRes = await fetch('/api/status');
-        const statusData = await safeJsonParse(statusRes);
+        // Load status and models in parallel (models uses TTL cache, so fast)
+        const [statusRes, modelsRes] = await Promise.all([
+            fetch('/api/status'),
+            fetch('/api/models')
+        ]);
+        const [statusData, modelsData] = await Promise.all([
+            safeJsonParse(statusRes),
+            safeJsonParse(modelsRes)
+        ]);
+
         const activeModelDisplay = document.getElementById('activeModelDisplay');
         if (activeModelDisplay) {
-            activeModelDisplay.innerHTML = statusData.active_model_id 
-                ? `<strong>${statusData.active_model_id}</strong>` 
-                : '<span style="color: var(--text-secondary);">No model loaded</span>';
+            activeModelDisplay.innerHTML = statusData.active_model_id
+                ? `<strong>${statusData.active_model_id}</strong>`
+                : '<span style="color: var(--text-secondary);">No model active</span>';
         }
-        
-        // Populate model swap select
-        const modelsRes = await fetch('/api/models');
-        const modelsData = await safeJsonParse(modelsRes);
+
         const modelSwapSelect = document.getElementById('modelSwapSelect');
-        if (modelSwapSelect && modelsData.models) {
+        if (modelSwapSelect && modelsData.models && modelsData.models.length > 0) {
             modelSwapSelect.innerHTML = '<option value="">Select a model...</option>' +
-                modelsData.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+                modelsData.models.map(m => `<option value="${m.id}">${m.name || m.id}</option>`).join('');
+        } else if (modelSwapSelect) {
+            modelSwapSelect.innerHTML = '<option value="">No models — click Discover</option>';
         }
         
     } catch (error) {

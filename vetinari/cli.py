@@ -218,7 +218,7 @@ def cmd_status(args) -> int:
     try:
         from vetinari.lmstudio_adapter import LMStudioAdapter
         adapter = LMStudioAdapter(host=host)
-        models = adapter._get(f"{host}/api/v0/models")
+        models = adapter._get(f"{host}/v1/models")
         model_list = models.get("data", []) if isinstance(models, dict) else []
         print(f"  Models loaded:  {len(model_list)}")
         for m in model_list[:5]:
@@ -268,7 +268,7 @@ def _health_check_quiet(host: str) -> None:
     try:
         from vetinari.lmstudio_adapter import LMStudioAdapter
         adapter = LMStudioAdapter(host=host)
-        result = adapter._get(f"{host}/api/v0/models")
+        result = adapter._get(f"{host}/v1/models")
         models = result.get("data", []) if isinstance(result, dict) else []
         print(f"  LM Studio:   OK ({len(models)} models)")
     except Exception as e:

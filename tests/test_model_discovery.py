@@ -53,25 +53,27 @@ class TestModelDiscoveryRetry:
         assert pool._discovery_retry_count == 1
     
     def test_discovery_retry_on_timeout(self):
-        """Verify retry happens on timeout."""
+        """Verify retry happens on timeout and succeeds on last attempt."""
+        # Use 3 retries explicitly so the test is independent of the default
         pool = ModelPool(self.config, host=self.host)
-        
+        pool._max_discovery_retries = 3
+
         # First 2 calls timeout, 3rd succeeds
         mock_response = Mock()
         mock_response.json.return_value = {"data": [{"id": "recovered-model", "memory_gb": 6}]}
         mock_response.raise_for_status.return_value = None
-        
+
         call_count = [0]
         def side_effect(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] < 3:
                 raise requests.exceptions.Timeout("Connection timed out")
             return mock_response
-        
+
         with patch.object(pool.session, 'get', side_effect=side_effect):
             pool.discover_models()
-        
-        # Should retry and eventually succeed
+
+        # Should retry and eventually succeed on 3rd attempt
         assert call_count[0] == 3
         assert len(pool.models) >= 1
         assert not pool._discovery_failed

@@ -11,16 +11,67 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+# Load .env file if present (before reading env vars)
+_env_file = PROJECT_ROOT / ".env"
+if _env_file.exists():
+    try:
+        for _line in _env_file.read_text(encoding="utf-8").splitlines():
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _k, _v = _k.strip(), _v.strip()
+                if _k and _v and _k not in os.environ:
+                    os.environ[_k] = _v
+    except Exception:
+        pass
+
 app = Flask(__name__,
     template_folder=str(PROJECT_ROOT / 'ui' / 'templates'),
     static_folder=str(PROJECT_ROOT / 'ui' / 'static'))
 
 # Global state
 orchestrator = None
+
+# ---------------------------------------------------------------------------
+# Model discovery cache  (avoids blocking the UI on every request)
+# ---------------------------------------------------------------------------
+_models_cache: list = []          # Last successful list of model dicts
+_models_cache_ts: float = 0.0     # Unix timestamp of last successful discovery
+_MODELS_CACHE_TTL: float = 60.0   # Seconds before cache is considered stale
+
+def _get_models_cached(force: bool = False) -> list:
+    """Return models from cache if fresh, otherwise run discovery and cache result."""
+    global _models_cache, _models_cache_ts
+    now = time.time()
+    if not force and _models_cache and (now - _models_cache_ts) < _MODELS_CACHE_TTL:
+        return _models_cache
+    try:
+        orb = get_orchestrator()
+        orb.model_pool.discover_models()
+        fresh = [
+            {
+                "id": m.get("id", ""),
+                "name": m.get("name", m.get("id", "")),
+                "capabilities": m.get("capabilities", []),
+                "context_len": m.get("context_len", 0),
+                "memory_gb": m.get("memory_gb", 0),
+                "version": m.get("version", ""),
+            }
+            for m in orb.model_pool.models
+        ]
+        if fresh:                          # Only update cache on non-empty result
+            _models_cache = fresh
+            _models_cache_ts = now
+        return fresh if fresh else _models_cache   # Return stale if discovery empty
+    except Exception as e:
+        import logging as _log
+        _log.warning(f"[web_ui] Model discovery failed: {e}")
+        return _models_cache               # Return stale cache on error
+
 current_config = {
-    "host": "http://100.78.30.7:1234",
+    "host": os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234"),
     "config_path": "manifest/vetinari.yaml",
-    "api_token": os.environ.get("VETINARI_API_TOKEN", ""),
+    "api_token": os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
     "default_models": ["qwen3-coder-next", "qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8"],
     "fallback_models": ["llama-3.2-1b-instruct", "qwen2.5-0.5b-instruct", "devstral-small-2505-deepseek-v3.2-speciale-distill"],
     "uncensored_fallback_models": ["qwen3-vl-32b-gemini-heretic-uncensored-thinking", "glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max"],
@@ -60,9 +111,10 @@ def trigger_light_search(project_id: str, task_description: str):
         lm_models = []
         try:
             from vetinari.model_pool import ModelPool
-            model_pool = ModelPool(current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://100.78.30.7:1234"))
+            model_pool.discover_models()
             lm_models = model_pool.list_models()
-        except:
+        except Exception:
             pass
         
         candidates = search_engine.search_for_task(task_description, lm_models)
@@ -115,25 +167,23 @@ def api_status():
         "active_model_id": current_config.get("active_model_id")
     })
 
-# API: Get available models
+# API: Get available models (uses TTL cache — does NOT block on every request)
 @app.route('/api/models')
 def api_models():
     try:
-        orb = get_orchestrator()
-        orb.model_pool.discover_models()
-        models = []
-        for m in orb.model_pool.models:
-            models.append({
-                "id": m.get("id", ""),
-                "name": m.get("name", ""),
-                "capabilities": m.get("capabilities", []),
-                "context_len": m.get("context_len", 0),
-                "memory_gb": m.get("memory_gb", 0),
-                "version": m.get("version", "")
-            })
-        return jsonify({"models": models})
+        models = _get_models_cached()
+        return jsonify({"models": models, "cached": True, "count": len(models)})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "models": []}), 500
+
+# API: Force-refresh model discovery, bypassing the cache
+@app.route('/api/models/refresh', methods=['POST', 'GET'])
+def api_models_refresh():
+    try:
+        models = _get_models_cached(force=True)
+        return jsonify({"models": models, "cached": False, "count": len(models)})
+    except Exception as e:
+        return jsonify({"error": str(e), "models": []}), 500
 
 # API: Score models for a task
 @app.route('/api/score-models', methods=['POST'])
@@ -1272,15 +1322,15 @@ def api_task_output(project_id, task_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# API: Get discovered models from LM Studio
+# API: Trigger model discovery and refresh the cache
 @app.route('/api/discover')
 def api_discover():
     try:
-        orb = get_orchestrator()
-        orb.model_pool.discover_models()
+        models = _get_models_cached(force=True)
         return jsonify({
-            "discovered": len(orb.model_pool.discovered),
-            "models": orb.model_pool.models
+            "discovered": len(models),
+            "models": models,
+            "status": "ok"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1303,9 +1353,11 @@ def api_config():
         api_token = data['api_token']
         current_config["api_token"] = api_token
     
-    # Reset orchestrator with new config
+    # Reset orchestrator and invalidate model cache
     orchestrator = None
-    
+    global _models_cache_ts
+    _models_cache_ts = 0.0   # Force fresh discovery on next request
+
     return jsonify({"status": "updated", "config": current_config})
 
 # API: Check for upgrades
@@ -1777,6 +1829,40 @@ def api_list_files(project_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def _is_admin_user() -> bool:
+    """
+    Check if the current request comes from an admin user.
+    For local deployments, localhost requests are always admin.
+    For network deployments, check VETINARI_ADMIN_TOKEN env var.
+    """
+    admin_token = os.environ.get("VETINARI_ADMIN_TOKEN", "")
+    if admin_token:
+        # Token-based auth
+        auth_header = request.headers.get("Authorization", "")
+        req_token = request.headers.get("X-Admin-Token", "")
+        provided = req_token or auth_header.replace("Bearer ", "")
+        return provided == admin_token
+    # No token configured -- allow local requests
+    remote = request.remote_addr or ""
+    return remote in ("127.0.0.1", "::1", "localhost")
+
+
+def _project_external_model_enabled(project_dir) -> bool:
+    """
+    Check if external model discovery is enabled for a specific project.
+    Reads from the project's config file, defaults to global setting.
+    """
+    try:
+        config_file = Path(project_dir) / "project.yaml"
+        if config_file.exists():
+            with open(config_file) as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg.get("enable_external_model_discovery", ENABLE_EXTERNAL_DISCOVERY)
+    except Exception:
+        pass
+    return ENABLE_EXTERNAL_DISCOVERY
+
+
 @app.route('/api/project/<project_id>/model-search', methods=['POST'])
 def api_model_search(project_id):
     try:
@@ -1801,7 +1887,8 @@ def api_model_search(project_id):
         lm_models = []
         try:
             from vetinari.model_pool import ModelPool
-            model_pool = ModelPool(current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://100.78.30.7:1234"))
+            model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception as e:
             print(f"Could not get LM Studio models: {e}")
@@ -1980,16 +2067,8 @@ def api_agents_status():
         if orch is None:
             return jsonify({"agents": []})
         
-        agents = []
-        for agent in orch.agents.values():
-            agents.append({
-                "name": agent.name,
-                "type": agent.agent_type,
-                "state": agent.state,
-                "tasks_completed": agent.tasks_completed
-            })
-        
-        return jsonify({"agents": agents})
+        # Use existing to_dict() which handles enum serialization correctly
+        return jsonify({"agents": orch.get_agent_status()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2027,21 +2106,27 @@ def api_agents_active():
             "explorer": "fa-compass",
             "librarian": "fa-book",
             "oracle": "fa-globe",
-            "ui-planner": "fa-palette",
+            "ui_planner": "fa-palette",   # underscore, not hyphen
             "builder": "fa-hammer",
             "researcher": "fa-search",
             "evaluator": "fa-check-circle",
-            "synthesizer": "fa-brain"
+            "synthesizer": "fa-brain",
+            "planner": "fa-sitemap",
+            "security_auditor": "fa-shield-alt",
+            "data_engineer": "fa-database",
         }
         
         for i, agent in enumerate(orch.agents.values()):
+            # Safely get the string value of the enum
+            agent_type_val = agent.agent_type.value if hasattr(agent.agent_type, "value") else str(agent.agent_type)
             agents.append({
                 "name": agent.name,
-                "role": agent.agent_type,
+                "role": agent_type_val,
                 "color": colors[i % len(colors)],
-                "icon": icons.get(agent.agent_type, "fa-robot"),
+                "icon": icons.get(agent_type_val, "fa-robot"),
                 "tasks_completed": agent.tasks_completed,
-                "current_task": agent.current_task
+                "current_task": agent.current_task.to_dict() if agent.current_task and hasattr(agent.current_task, "to_dict") else None,
+                "state": agent.state.value if hasattr(agent.state, "value") else str(agent.state),
             })
         
         return jsonify({"agents": agents})
@@ -2291,8 +2376,9 @@ def api_plan_status(plan_id):
 
 # ============ MODEL RELAY ENDPOINTS ============
 
-@app.route('/api/models', methods=['GET'])
+@app.route('/api/model-catalog', methods=['GET'])
 def api_models_list():
+    """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery."""
     try:
         from vetinari.model_relay import model_relay
         models = model_relay.get_all_models()

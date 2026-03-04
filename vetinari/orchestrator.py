@@ -117,9 +117,10 @@ class Orchestrator:
             from vetinari.adapters.base import ProviderConfig, ProviderType
             config = ProviderConfig(
                 provider_type=ProviderType.LM_STUDIO,
+                name="lmstudio",
                 endpoint=host,
                 api_key=api_token or "",
-                timeout=120,
+                timeout_seconds=120,
             )
             self.adapter_manager.register_provider(config, "lmstudio")
             logging.info(f"LM Studio registered in AdapterManager at {host}")

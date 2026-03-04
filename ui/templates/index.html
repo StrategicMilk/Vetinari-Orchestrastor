@@ -19,46 +19,57 @@
                 <span>Vetinari</span>
             </div>
             <nav class="nav-menu" role="menu" aria-label="Main menu">
+                <!-- Primary views -->
                 <a href="#" class="nav-item active" data-view="dashboard">
                     <i class="fas fa-th-large"></i>
                     <span>Dashboard</span>
                 </a>
                 <a href="#" class="nav-item" data-view="prompt">
-                    <i class="fas fa-robot"></i>
-                    <span>Prompt</span>
+                    <i class="fas fa-comments"></i>
+                    <span>New Project</span>
                 </a>
                 <a href="#" class="nav-item" data-view="workflow">
                     <i class="fas fa-sitemap"></i>
-                    <span>Workflow</span>
+                    <span>Projects</span>
                 </a>
                 <a href="#" class="nav-item" data-view="models">
                     <i class="fas fa-microchip"></i>
                     <span>Models</span>
                 </a>
-                <a href="#" class="nav-item" data-view="tasks">
-                    <i class="fas fa-tasks"></i>
-                    <span>Tasks</span>
-                </a>
-                <a href="#" class="nav-item" data-view="agents">
-                    <i class="fas fa-robot"></i>
-                    <span>Agents</span>
-                </a>
-                <a href="#" class="nav-item" data-view="output">
-                    <i class="fas fa-file-code"></i>
-                    <span>Output</span>
-                </a>
-                <a href="#" class="nav-item" data-view="archive">
-                    <i class="fas fa-archive"></i>
-                    <span>Archive</span>
-                </a>
-                <a href="#" class="nav-item" data-view="decomposition">
-                    <i class="fas fa-sitemap"></i>
-                    <span>Decomposition Lab</span>
-                </a>
                 <a href="#" class="nav-item" data-view="settings">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
                 </a>
+
+                <!-- Advanced / Developer Tools (collapsible) -->
+                <div class="nav-section-divider">
+                    <button class="nav-section-toggle" id="advancedNavToggle" aria-expanded="false" title="Toggle advanced tools">
+                        <i class="fas fa-chevron-right" id="advancedNavChevron"></i>
+                        <span>Advanced Tools</span>
+                    </button>
+                </div>
+                <div class="nav-advanced" id="advancedNavItems" style="display:none;">
+                    <a href="#" class="nav-item nav-item-advanced" data-view="agents">
+                        <i class="fas fa-robot"></i>
+                        <span>Agents</span>
+                    </a>
+                    <a href="#" class="nav-item nav-item-advanced" data-view="output">
+                        <i class="fas fa-file-code"></i>
+                        <span>Output Viewer</span>
+                    </a>
+                    <a href="#" class="nav-item nav-item-advanced" data-view="archive">
+                        <i class="fas fa-archive"></i>
+                        <span>Archive</span>
+                    </a>
+                    <a href="#" class="nav-item nav-item-advanced" data-view="tasks">
+                        <i class="fas fa-tasks"></i>
+                        <span>Task Queue</span>
+                    </a>
+                    <a href="#" class="nav-item nav-item-advanced" data-view="decomposition">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>Decomp Lab</span>
+                    </a>
+                </div>
             </nav>
             <!-- Persistent Projects Panel -->
             <div class="projects-panel">
@@ -131,6 +142,12 @@
                         </div>
                     </div>
 
+                    <!-- LM Studio Connection Status -->
+                    <div id="lmStatusBar" class="lm-status-bar">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Checking LM Studio connection...</span>
+                    </div>
+
                     <!-- Stats Grid -->
                     <div class="grid grid-4" style="margin-bottom: var(--space-8);">
                         <div class="stats-card">
@@ -163,6 +180,35 @@
                         </div>
                     </div>
 
+                    <!-- Onboarding card (shown only when no projects exist) -->
+                    <div id="onboardingContainer" style="display:none;">
+                        <div class="onboarding-card">
+                            <h2><i class="fas fa-rocket"></i>&nbsp; Welcome to Vetinari</h2>
+                            <p>Your AI orchestration system is ready. Start by describing a project goal — Vetinari will plan it, decompose it into tasks, assign the best model to each task, and run everything automatically.</p>
+                            <div class="onboarding-steps">
+                                <div class="onboarding-step">
+                                    <div class="step-num">1</div>
+                                    <p>Click <strong>New Project</strong> in the sidebar</p>
+                                </div>
+                                <div class="onboarding-step">
+                                    <div class="step-num">2</div>
+                                    <p>Describe your goal in natural language</p>
+                                </div>
+                                <div class="onboarding-step">
+                                    <div class="step-num">3</div>
+                                    <p>Vetinari plans, assigns models &amp; executes</p>
+                                </div>
+                                <div class="onboarding-step">
+                                    <div class="step-num">4</div>
+                                    <p>Review results in the <strong>Projects</strong> view</p>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="switchView('prompt')">
+                                <i class="fas fa-plus"></i> Start a New Project
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Main Content Grid -->
                     <div class="grid grid-2">
                         <!-- Quick Prompt -->
@@ -173,7 +219,7 @@
                             <div class="card-body">
                                 <div class="input-group">
                                     <label class="input-label">Select Model</label>
-                                    <select class="select" id="quickModelSelect">
+                                    <select class="select" id="quickPromptModel">
                                         <option value="">Loading models...</option>
                                     </select>
                                 </div>
