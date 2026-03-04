@@ -103,11 +103,11 @@ class FeedbackLoop:
             # Incorporate quality score into success rate
             new_rate = (new_rate + quality) / 2
 
+            # Pass dict-form update (new signature)
             mem.update_model_performance(model_id, task_type, {
                 "success_rate": round(new_rate, 4),
                 "avg_latency": int(new_latency),
                 "total_uses": old_uses + 1,
-                "last_used_at": datetime.now().isoformat(),
             })
         except Exception as e:
             logger.debug(f"Memory performance update failed: {e}")

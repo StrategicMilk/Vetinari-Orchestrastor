@@ -60,7 +60,7 @@ def _load_config(config_path: str) -> dict:
 
 def _get_host(args_host: Optional[str]) -> str:
     """Resolve host from args → env → default."""
-    return args_host or os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+    return args_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
 
 
 def _build_orchestrator(config_path: str, host: str, mode: str = "execution"):
@@ -182,6 +182,21 @@ def cmd_start(args) -> int:
     # Run health check
     print("\n[Vetinari] Running startup health checks...")
     _health_check_quiet(host)
+
+    # Start AutoTuner background cycle (every 15 minutes while running)
+    def _auto_tuner_loop():
+        import time as _time
+        while True:
+            _time.sleep(900)  # 15 minutes
+            try:
+                from vetinari.learning.auto_tuner import get_auto_tuner
+                get_auto_tuner().run_cycle()
+                logger.debug("[AutoTuner] Periodic cycle complete")
+            except Exception as _at_err:
+                logger.debug(f"[AutoTuner] Cycle error (non-fatal): {_at_err}")
+
+    _tuner_thread = threading.Thread(target=_auto_tuner_loop, daemon=True, name="auto-tuner")
+    _tuner_thread.start()
 
     # Execute goal if provided
     if args.goal:

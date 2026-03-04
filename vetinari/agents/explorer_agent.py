@@ -66,21 +66,36 @@ Output format must be a findings object with references."""
             )
         
         task = self.prepare_task(task)
-        
+
         try:
             goal_context = task.prompt or task.description
             scope = task.context.get("scope", "code")
-            
-            # Perform exploration (simulated - in production would use actual search)
-            findings = self._explore(goal_context, scope)
-            
+            codebase_path = task.context.get("codebase_path", "")
+
+            # Local codebase exploration via RepoMap
+            repo_context = ""
+            if codebase_path and scope in ("code", "patterns", "apis"):
+                try:
+                    from vetinari.repo_map import get_repo_map
+                    mapper = get_repo_map()
+                    repo_context = mapper.generate_for_task(
+                        root_path=codebase_path,
+                        task_description=goal_context,
+                        max_tokens=1000,
+                    )
+                except Exception as _rm_err:
+                    self._log("debug", f"RepoMap failed: {_rm_err}")
+
+            findings = self._explore(goal_context, scope, repo_context=repo_context)
+
             return AgentResult(
                 success=True,
                 output=findings,
                 metadata={
                     "scope": scope,
-                    "findings_count": len(findings.get("findings", []))
-                }
+                    "findings_count": len(findings.get("findings", [])),
+                    "local_repo_mapped": bool(repo_context),
+                },
             )
             
         except Exception as e:
@@ -123,13 +138,18 @@ Output format must be a findings object with references."""
         passed = score >= 0.5
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
-    def _explore(self, goal_context: str, scope: str) -> Dict[str, Any]:
+    def _explore(self, goal_context: str, scope: str, repo_context: str = "") -> Dict[str, Any]:
         """Perform exploration using real web search + LLM synthesis.
 
         Searches the web for relevant patterns, references, and implementations
         for the goal context, then uses the LLM to rank and summarize findings.
         """
         import json as _json
+
+        # If we have local repo context, include it in the synthesis prompt
+        local_context_str = (
+            f"\nLOCAL CODEBASE STRUCTURE:\n{repo_context}\n" if repo_context else ""
+        )
 
         # Real web search for the goal context
         search_query = f"{goal_context} {scope} examples patterns"
@@ -147,14 +167,11 @@ Output format must be a findings object with references."""
 
         if not search_results:
             # No search results -- use LLM knowledge directly
-            prompt = f"""Explore and discover relevant {scope} patterns for: {goal_context}
-
-Return JSON:
-{{
-  "findings": [{{"id":"f1","type":"{scope}","summary":"...","relevance_score":0.9,"description":"..."}}],
-  "references": [{{"title":"...","url":"...","type":"{scope}"}}],
-  "search_terms": ["term1","term2"]
-}}"""
+            prompt = (
+                f"Explore and discover relevant {scope} patterns for: {goal_context}\n"
+                f"{local_context_str}\n"
+                f"Return JSON with: findings[], references[], search_terms[]"
+            )
             result = self._infer_json(prompt)
             if result:
                 result["scope"] = scope
@@ -163,7 +180,7 @@ Return JSON:
         # Use LLM to synthesize real search results into structured findings
         search_text = _json.dumps(search_results[:8], indent=2)
 
-        prompt = f"""You are an exploration expert. Analyze these search results about '{goal_context}' (scope: {scope}).
+        prompt = f"""You are an exploration expert. Analyze these search results about '{goal_context}' (scope: {scope}).{local_context_str}
 
 SEARCH RESULTS:
 {search_text}

@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment / secrets
+.env
+*.env.local
+
+# Test artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+coverage.json
+htmlcov/
+test_collection.txt
+test_results.txt
+TEST_REPORT.md
+
+# Logs
+server.log
+logs/
+*.log
+
+# Runtime data (generated at run-time, not source-controlled)
+vetinari_memory.db
+vetinari_checkpoints/
+model_cache/
+.vetinari/
+outputs/
+projects/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

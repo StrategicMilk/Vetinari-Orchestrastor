@@ -261,8 +261,19 @@ class TestAgentRegistry(unittest.TestCase):
     """Test the agent registry."""
     
     def test_registry_has_all_agents(self):
-        """Test that registry contains all 15 agents."""
-        self.assertEqual(len(AGENT_REGISTRY), 15)
+        """Test that registry contains the expected number of agents (grows as new agents are added)."""
+        # Original 15 agents + IMPROVEMENT + USER_INTERACTION + DEVOPS + VERSION_CONTROL + ERROR_RECOVERY + CONTEXT_MANAGER
+        self.assertGreaterEqual(len(AGENT_REGISTRY), 15)
+        # Verify the original 15 are still present
+        original_types = [
+            AgentType.PLANNER, AgentType.EXPLORER, AgentType.LIBRARIAN, AgentType.ORACLE,
+            AgentType.RESEARCHER, AgentType.EVALUATOR, AgentType.SYNTHESIZER, AgentType.BUILDER,
+            AgentType.UI_PLANNER, AgentType.SECURITY_AUDITOR, AgentType.DATA_ENGINEER,
+            AgentType.DOCUMENTATION_AGENT, AgentType.COST_PLANNER, AgentType.TEST_AUTOMATION,
+            AgentType.EXPERIMENTATION_MANAGER,
+        ]
+        for at in original_types:
+            self.assertIn(at, AGENT_REGISTRY, f"{at} missing from registry")
     
     def test_get_agent_spec(self):
         """Test getting an agent spec from registry."""

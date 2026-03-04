@@ -40,7 +40,7 @@ class UserInteractionAgent(BaseAgent):
     INTERACTION_MODES = ("interactive", "callback", "non_interactive")
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(AgentType.PLANNER, config)  # Uses PLANNER type for now
+        super().__init__(AgentType.USER_INTERACTION, config)
         self._mode = config.get("mode", "interactive") if config else "interactive"
         self._callback: Optional[Callable[[str, List[str]], str]] = None
         self._pending_questions: List[Dict[str, Any]] = []

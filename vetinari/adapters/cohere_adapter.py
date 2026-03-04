@@ -129,31 +129,34 @@ class CohereProviderAdapter(ProviderAdapter):
             }
 
     def infer(self, request: InferenceRequest) -> InferenceResponse:
-        """Run inference using Cohere API."""
+        """Run inference using Cohere Chat API (v2)."""
         start_time = time.time()
 
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
             }
-            
-            # Cohere uses a different API structure
-            prompt = request.prompt
+
+            # Build messages list for the chat API
+            messages = []
             if request.system_prompt:
-                prompt = f"{request.system_prompt}\n\n{request.prompt}"
-            
+                messages.append({"role": "system", "content": request.system_prompt})
+            messages.append({"role": "user", "content": request.prompt})
+
             payload = {
                 "model": request.model_id,
-                "prompt": prompt,
+                "messages": messages,
                 "temperature": request.temperature,
                 "p": request.top_p,
                 "max_tokens": request.max_tokens,
-                "stop_sequences": request.stop_sequences,
             }
+            if request.stop_sequences:
+                payload["stop_sequences"] = request.stop_sequences
 
             response = self.session.post(
-                "https://api.cohere.ai/v1/generate",
+                "https://api.cohere.com/v2/chat",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout_seconds
@@ -163,16 +166,24 @@ class CohereProviderAdapter(ProviderAdapter):
 
             latency_ms = int((time.time() - start_time) * 1000)
 
-            # Parse response
+            # Parse response from v2 chat format
             output = ""
             tokens_used = 0
 
-            if "generations" in data and len(data["generations"]) > 0:
-                output = data["generations"][0].get("text", "")
+            if "message" in data:
+                content_blocks = data["message"].get("content", [])
+                for block in content_blocks:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        output += block.get("text", "")
+                    elif isinstance(block, str):
+                        output += block
 
-            # Cohere doesn't always return token counts in standard format
-            if "meta" in data and "billed_units" in data["meta"]:
-                tokens_used = data["meta"]["billed_units"].get("output_tokens", 0)
+            # Count BOTH input and output tokens
+            usage = data.get("usage", {})
+            billed = usage.get("billed_units", usage)
+            input_tokens = billed.get("input_tokens", 0)
+            output_tokens = billed.get("output_tokens", 0)
+            tokens_used = input_tokens + output_tokens
 
             return InferenceResponse(
                 model_id=request.model_id,

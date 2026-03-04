@@ -1,10 +1,12 @@
 """
 Vetinari UI Planner Agent
 
-The UI Planner agent is responsible for front-end design, UX flows,
-and UI scaffolding.
+LLM-powered UI/UX planning agent that generates real design specifications,
+component maps, design tokens, wireframes, and accessibility guidelines based
+on actual project requirements.
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
@@ -12,32 +14,83 @@ from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
     AgentType,
-    VerificationResult
+    VerificationResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class UIPlannerAgent(BaseAgent):
-    """UI Planner agent - front-end design, UX flows, and UI scaffolding."""
-    
+    """UI Planner agent — LLM-powered front-end design, UX flows, and UI scaffolding."""
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.UI_PLANNER, config)
         self._framework = self._config.get("framework", "react")
-        
+
     def get_system_prompt(self) -> str:
-        return """You are Vetinari's UI Planner. Convert backend plans into user-friendly UI scaffolds, 
-wireframes, and a CSS system. Output a UI spec, component map, and sample HTML/CSS/JS scaffolding 
-aligned with the design tokens.
+        return f"""You are Vetinari's UI Planner — a senior front-end architect and UX designer.
+Your role is to convert project requirements into complete, production-ready UI specifications.
 
-You must:
-1. Design user-friendly interfaces aligned with backend logic
-2. Create component maps and wireframes
-3. Define design tokens (colors, spacing, typography)
-4. Generate HTML/CSS/JS scaffolding
-5. Document UX flows and interactions
-6. Provide accessibility guidelines
+Framework preference: {self._framework}
 
-Output format must include ui_spec, component_map, design_tokens, components, and wireframes."""
-    
+You MUST analyse the actual requirements provided and produce a TAILORED response.
+Do NOT produce generic boilerplate — every design decision must reference the specific project.
+
+Required output (JSON):
+{{
+  "ui_spec": {{
+    "title": "...",
+    "app_type": "...",
+    "pages": [{{"name": "...", "route": "...", "description": "...", "components": []}}],
+    "navigation": [],
+    "state_management": "...",
+    "api_integration": []
+  }},
+  "component_map": {{
+    "layout": [],
+    "shared": [],
+    "feature_specific": {{}}
+  }},
+  "design_tokens": {{
+    "colors": {{}},
+    "typography": {{}},
+    "spacing": {{}},
+    "shadows": {{}},
+    "breakpoints": {{}}
+  }},
+  "components": [
+    {{
+      "name": "...",
+      "description": "...",
+      "props": [],
+      "state": [],
+      "events": [],
+      "html_scaffold": "...",
+      "css_classes": []
+    }}
+  ],
+  "css_scaffold": "/* Complete CSS with design system */",
+  "wireframes": [{{"page": "...", "layout": "...", "sections": [], "interactions": []}}],
+  "ux_flows": [{{"name": "...", "trigger": "...", "steps": [], "success_state": "...", "error_state": "..."}}],
+  "accessibility": {{
+    "wcag_level": "AA",
+    "aria_patterns": [],
+    "keyboard_nav": [],
+    "guidelines": []
+  }},
+  "responsive_strategy": "...",
+  "performance_considerations": [],
+  "summary": "..."
+}}
+
+Base design decisions on modern best practices (2025/2026). Consider:
+- Responsive design (mobile-first)
+- Dark/light mode support
+- WCAG AA accessibility
+- Performance (lazy loading, code splitting)
+- Component reusability
+"""
+
     def get_capabilities(self) -> List[str]:
         return [
             "ui_design",
@@ -45,265 +98,195 @@ Output format must include ui_spec, component_map, design_tokens, components, an
             "component_mapping",
             "design_token_definition",
             "ux_flow_design",
-            "accessibility_planning"
+            "accessibility_planning",
         ]
-    
+
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the UI planning task.
-        
-        Args:
-            task: The task containing the plan or requirements
-            
-        Returns:
-            AgentResult containing the UI specification
-        """
+        """Execute the UI planning task using LLM inference."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
                 output=None,
-                errors=[f"Invalid task for {self._agent_type.value}"]
+                errors=[f"Invalid task for {self._agent_type.value}"],
             )
-        
+
         task = self.prepare_task(task)
-        
+
         try:
             plan_or_requirements = task.context.get("plan", task.description)
-            
-            # Generate UI plan (simulated - in production would use actual design generation)
-            ui_plan = self._design_ui(plan_or_requirements)
-            
-            return AgentResult(
+            artifacts = task.context.get("artifacts", [])
+
+            # Search for current UI best practices
+            best_practices = ""
+            try:
+                search_results = self._search(
+                    f"{self._framework} UI design system best practices 2025 accessibility"
+                )
+                if search_results:
+                    best_practices = "\n".join(
+                        [r.get("snippet", "") for r in search_results[:3]]
+                    )
+            except Exception:
+                pass
+
+            context_parts = [f"Project requirements:\n{plan_or_requirements}"]
+            if artifacts:
+                context_parts.append(
+                    f"Available artifacts:\n{', '.join(str(a) for a in artifacts[:5])}"
+                )
+            if best_practices:
+                context_parts.append(
+                    f"Current best practices reference:\n{best_practices[:800]}"
+                )
+
+            prompt = (
+                "\n\n".join(context_parts)
+                + f"\n\nDesign a complete {self._framework} UI specification for the above. "
+                "Return a single JSON object matching the required output format exactly."
+            )
+
+            ui_plan = self._infer_json(
+                prompt=prompt,
+                fallback=self._fallback_ui_design(plan_or_requirements),
+            )
+
+            # Ensure all required keys exist
+            ui_plan.setdefault(
+                "ui_spec",
+                {"title": "Application", "pages": [], "navigation": []},
+            )
+            ui_plan.setdefault("component_map", {"layout": [], "shared": []})
+            ui_plan.setdefault("design_tokens", {"colors": {}, "typography": {}, "spacing": {}})
+            ui_plan.setdefault("components", [])
+            ui_plan.setdefault("css_scaffold", "")
+            ui_plan.setdefault("wireframes", [])
+            ui_plan.setdefault("ux_flows", [])
+            ui_plan.setdefault("accessibility", {"wcag_level": "AA", "guidelines": []})
+            ui_plan.setdefault("summary", "UI specification generated")
+
+            result = AgentResult(
                 success=True,
                 output=ui_plan,
                 metadata={
                     "framework": self._framework,
                     "components_count": len(ui_plan.get("components", [])),
-                    "pages_count": len(ui_plan.get("ui_spec", {}).get("pages", []))
-                }
+                    "pages_count": len(ui_plan.get("ui_spec", {}).get("pages", [])),
+                },
             )
-            
+            task = self.complete_task(task, result)
+            return result
+
         except Exception as e:
-            self._log("error", f"UI planning failed: {str(e)}")
-            return AgentResult(
-                success=False,
-                output=None,
-                errors=[str(e)]
-            )
-    
+            self._log("error", f"UI planning failed: {e}")
+            return AgentResult(success=False, output=None, errors=[str(e)])
+
     def verify(self, output: Any) -> VerificationResult:
-        """Verify the UI specification meets quality standards.
-        
-        Args:
-            output: The UI specification to verify
-            
-        Returns:
-            VerificationResult with pass/fail status
-        """
         issues = []
         score = 1.0
-        
+
         if not isinstance(output, dict):
             issues.append({"type": "invalid_type", "message": "Output must be a dict"})
-            score -= 0.5
-            return VerificationResult(passed=False, issues=issues, score=score)
-        
-        # Check for UI spec
+            return VerificationResult(passed=False, issues=issues, score=0.0)
+
         if not output.get("ui_spec"):
             issues.append({"type": "missing_spec", "message": "UI specification missing"})
             score -= 0.25
-        
-        # Check for component map
         if not output.get("component_map"):
             issues.append({"type": "missing_components", "message": "Component map missing"})
             score -= 0.2
-        
-        # Check for design tokens
         if not output.get("design_tokens"):
             issues.append({"type": "missing_tokens", "message": "Design tokens missing"})
             score -= 0.15
-        
-        # Check for scaffolding
         if not output.get("components"):
             issues.append({"type": "missing_scaffolding", "message": "UI scaffolding missing"})
             score -= 0.2
-        
-        # Check for wireframes
         if not output.get("wireframes"):
             issues.append({"type": "missing_wireframes", "message": "Wireframes missing"})
             score -= 0.1
-        
+
         passed = score >= 0.5
-        return VerificationResult(passed=passed, issues=issues, score=max(0, score))
-    
-    def _design_ui(self, plan_or_requirements: str) -> Dict[str, Any]:
-        """Design UI from plan or requirements.
-        
-        Args:
-            plan_or_requirements: The plan or requirements to design from
-            
-        Returns:
-            Dictionary containing UI specification and scaffolding
-        """
-        # This is a simplified implementation
-        # In production, this would use actual design generation
-        
-        design_tokens = {
-            "colors": {
-                "primary": "#007bff",
-                "secondary": "#6c757d",
-                "success": "#28a745",
-                "danger": "#dc3545",
-                "background": "#f8f9fa",
-                "text": "#212529"
-            },
-            "typography": {
-                "font_family": "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-                "sizes": {"small": "12px", "base": "16px", "large": "20px", "xl": "24px"},
-                "weights": {"normal": 400, "semibold": 600, "bold": 700}
-            },
-            "spacing": {
-                "xs": "4px",
-                "sm": "8px",
-                "md": "16px",
-                "lg": "24px",
-                "xl": "32px"
-            }
-        }
-        
-        components = [
-            {
-                "name": "Button",
-                "description": "Reusable button component",
-                "props": ["label", "onClick", "variant", "disabled"],
-                "html": '<button class="btn btn-primary">Label</button>'
-            },
-            {
-                "name": "Input",
-                "description": "Text input field",
-                "props": ["placeholder", "value", "onChange", "type"],
-                "html": '<input type="text" placeholder="Enter text" class="form-control">'
-            },
-            {
-                "name": "Card",
-                "description": "Content container",
-                "props": ["title", "children"],
-                "html": '<div class="card"><div class="card-body">Content</div></div>'
-            }
-        ]
-        
-        css_scaffold = '''
-/* Design System CSS */
-:root {
-  --primary: #007bff;
-  --secondary: #6c757d;
-  --success: #28a745;
-  --danger: #dc3545;
-  --background: #f8f9fa;
-  --text: #212529;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-}
+        return VerificationResult(passed=passed, issues=issues, score=max(0.0, score))
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
-  color: var(--text);
-  background-color: var(--background);
-}
-
-.btn {
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.3s ease;
-}
-
-.btn-primary {
-  background-color: var(--primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-.card {
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.card-body {
-  padding: var(--spacing-md);
-}
-
-.form-control {
-  width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-}
-'''
-        
+    def _fallback_ui_design(self, requirements: str) -> Dict[str, Any]:
+        """Structured fallback when LLM inference fails."""
+        app_name = requirements[:40].strip() if requirements else "Application"
         return {
             "ui_spec": {
-                "title": "UI Specification",
+                "title": app_name,
+                "app_type": "web",
                 "pages": [
-                    {"name": "Dashboard", "description": "Main dashboard"},
-                    {"name": "Settings", "description": "User settings page"},
-                    {"name": "Profile", "description": "User profile page"}
+                    {"name": "Dashboard", "route": "/", "description": "Main view"},
+                    {"name": "Settings", "route": "/settings", "description": "Configuration"},
                 ],
-                "navigation": ["Dashboard", "Settings", "Profile", "Logout"]
+                "navigation": ["Dashboard", "Settings"],
+                "state_management": "React Context / Zustand",
+                "api_integration": [],
             },
             "component_map": {
-                "layout": ["Header", "Sidebar", "Main", "Footer"],
-                "common": ["Button", "Input", "Card", "Modal", "Dropdown"],
-                "dashboard": ["StatCard", "Chart", "Table", "Timeline"]
+                "layout": ["AppShell", "Header", "Sidebar", "Footer"],
+                "shared": ["Button", "Input", "Card", "Modal", "Toast", "Spinner"],
+                "feature_specific": {},
             },
-            "design_tokens": design_tokens,
-            "components": components,
-            "css_scaffold": css_scaffold,
+            "design_tokens": {
+                "colors": {
+                    "primary": "#3b82f6",
+                    "secondary": "#6366f1",
+                    "success": "#10b981",
+                    "danger": "#ef4444",
+                    "warning": "#f59e0b",
+                    "background": "#0f172a",
+                    "surface": "#1e293b",
+                    "text": "#f1f5f9",
+                    "text_muted": "#94a3b8",
+                },
+                "typography": {
+                    "font_family": "'Inter', system-ui, sans-serif",
+                    "sizes": {"xs": "12px", "sm": "14px", "base": "16px", "lg": "20px", "xl": "24px", "2xl": "32px"},
+                    "weights": {"normal": 400, "medium": 500, "semibold": 600, "bold": 700},
+                },
+                "spacing": {"1": "4px", "2": "8px", "3": "12px", "4": "16px", "6": "24px", "8": "32px", "12": "48px"},
+                "shadows": {"sm": "0 1px 3px rgba(0,0,0,0.3)", "md": "0 4px 12px rgba(0,0,0,0.3)"},
+                "breakpoints": {"sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px"},
+            },
+            "components": [
+                {
+                    "name": "Button",
+                    "description": "Primary action button",
+                    "props": ["label", "onClick", "variant", "disabled", "loading"],
+                    "html_scaffold": '<button class="btn btn-primary" type="button">Label</button>',
+                    "css_classes": ["btn", "btn-primary", "btn-secondary", "btn-danger"],
+                },
+                {
+                    "name": "Card",
+                    "description": "Content container",
+                    "props": ["title", "children", "actions"],
+                    "html_scaffold": '<div class="card"><div class="card-header"><h3></h3></div><div class="card-body"></div></div>',
+                    "css_classes": ["card", "card-header", "card-body", "card-footer"],
+                },
+            ],
+            "css_scaffold": ":root{--primary:#3b82f6;--bg:#0f172a;--surface:#1e293b;--text:#f1f5f9}*{box-sizing:border-box}body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}",
             "wireframes": [
-                {"page": "Dashboard", "layout": "Grid with cards"},
-                {"page": "Settings", "layout": "Form with sections"},
-                {"page": "Profile", "layout": "Profile header with details"}
+                {"page": "Dashboard", "layout": "Header + Sidebar + Main grid", "sections": ["KPI cards", "Activity feed", "Quick actions"], "interactions": []},
             ],
             "ux_flows": [
-                {"flow": "Login", "steps": ["Enter credentials", "Validate", "Navigate to dashboard"]},
-                {"flow": "Update profile", "steps": ["Navigate to profile", "Edit fields", "Save changes"]}
+                {"name": "Primary action", "trigger": "User clicks CTA", "steps": ["Validate input", "Call API", "Show result"], "success_state": "Success toast", "error_state": "Error message"},
             ],
             "accessibility": {
                 "wcag_level": "AA",
-                "guidelines": [
-                    "All images must have alt text",
-                    "Color contrast ratio must be at least 4.5:1",
-                    "Interactive elements must be keyboard accessible",
-                    "Form labels must be associated with inputs"
-                ]
+                "aria_patterns": ["role='button'", "aria-label", "aria-live regions for status updates"],
+                "keyboard_nav": ["Tab order", "Enter/Space for buttons", "Escape to close modals"],
+                "guidelines": ["4.5:1 contrast ratio for normal text", "All images need alt text", "Focus indicators visible"],
             },
-            "summary": "Generated UI specification with component library and design tokens"
+            "responsive_strategy": "Mobile-first with CSS Grid and Flexbox",
+            "performance_considerations": ["Code splitting per route", "Lazy load below-fold content", "Optimise images"],
+            "summary": f"UI specification generated for: {app_name}",
         }
 
 
-# Singleton instance
 _ui_planner_agent: Optional[UIPlannerAgent] = None
 
 
 def get_ui_planner_agent(config: Optional[Dict[str, Any]] = None) -> UIPlannerAgent:
-    """Get the singleton UI Planner agent instance."""
     global _ui_planner_agent
     if _ui_planner_agent is None:
         _ui_planner_agent = UIPlannerAgent(config)

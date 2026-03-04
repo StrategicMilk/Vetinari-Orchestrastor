@@ -15,7 +15,7 @@ class TestChatEndpoint(unittest.TestCase):
         mock_post.return_value = mock_resp
 
         import requests
-        url = "http://100.78.30.7:1234/api/v1/chat"
+        url = "http://localhost:1234/api/v1/chat"
         payload = {
             "model": "qwen2.5-0.5b-instruct",
             "system_prompt": "You answer only in rhymes.",
@@ -40,7 +40,7 @@ class TestChatEndpoint(unittest.TestCase):
         mock_post.return_value = mock_resp
 
         import requests
-        r = requests.post("http://100.78.30.7:1234/api/v1/chat",
+        r = requests.post("http://localhost:1234/api/v1/chat",
                           json={}, timeout=60)
         self.assertNotEqual(r.status_code, 200)
 
@@ -53,7 +53,7 @@ class TestChatEndpoint(unittest.TestCase):
         mock_post.return_value = mock_resp
 
         import requests
-        r = requests.post("http://100.78.30.7:1234/api/v1/chat",
+        r = requests.post("http://localhost:1234/api/v1/chat",
                           json={}, timeout=60)
         data = r.json()
         self.assertNotIn("output", data)

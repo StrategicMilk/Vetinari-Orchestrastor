@@ -284,6 +284,152 @@ let tasks = [];
 let activityLog = [];
 let sidebarCollapsed = false;
 
+// SSE (Server-Sent Events) management
+const _sseConnections = {};  // project_id -> EventSource
+
+function subscribeToProjectStream(projectId) {
+    if (_sseConnections[projectId]) return; // Already subscribed
+    const es = new EventSource(`/api/project/${encodeURIComponent(projectId)}/stream`);
+
+    es.addEventListener('task_start', (e) => {
+        const data = JSON.parse(e.data);
+        addActivity(`Task ${data.task_id} started (${data.model})`, 'info');
+        updateTaskStatusInUI(projectId, data.task_id, 'running');
+    });
+
+    es.addEventListener('task_complete', (e) => {
+        const data = JSON.parse(e.data);
+        const pct = Math.round(((data.task_index + 1) / data.total) * 100);
+        addActivity(`Task ${data.task_id} complete — ${data.tokens_used || 0} tokens`, 'success');
+        updateTaskStatusInUI(projectId, data.task_id, 'completed');
+        updateProgressBar(pct);
+        updateTokenCounter(projectId, data.tokens_used || 0);
+    });
+
+    es.addEventListener('status', (e) => {
+        const data = JSON.parse(e.data);
+        if (data.status === 'completed') {
+            addActivity('All tasks completed!', 'success');
+            showStatusBanner('Project completed successfully!', 'success');
+            loadProjectDetails(projectId);
+            unsubscribeFromProjectStream(projectId);
+        }
+    });
+
+    es.addEventListener('cancelled', () => {
+        addActivity('Project cancelled by user', 'warning');
+        showStatusBanner('Project cancelled', 'warning');
+        unsubscribeFromProjectStream(projectId);
+    });
+
+    es.onerror = () => {
+        // Connection lost — will auto-reconnect or we clean up
+        if (es.readyState === EventSource.CLOSED) {
+            delete _sseConnections[projectId];
+        }
+    };
+
+    _sseConnections[projectId] = es;
+}
+
+function unsubscribeFromProjectStream(projectId) {
+    const es = _sseConnections[projectId];
+    if (es) {
+        es.close();
+        delete _sseConnections[projectId];
+    }
+}
+
+// Token counter display
+let _sessionTokens = 0;
+
+function updateTokenCounter(projectId, tokensAdded) {
+    _sessionTokens += tokensAdded;
+    const el = document.querySelector('#tokenCounter span:last-child');
+    if (el) el.textContent = `${_sessionTokens.toLocaleString()} tokens`;
+}
+
+async function loadTokenStats() {
+    try {
+        const res = await fetch('/api/token-stats');
+        const data = await res.json();
+        _sessionTokens = data.total_tokens_used || 0;
+        const el = document.querySelector('#tokenCounter span:last-child');
+        if (el) el.textContent = `${_sessionTokens.toLocaleString()} tokens`;
+    } catch (e) { /* silently ignore */ }
+}
+
+// Task status update helper
+function updateTaskStatusInUI(projectId, taskId, status) {
+    const el = document.querySelector(`[data-task-id="${taskId}"] .task-status`);
+    if (el) {
+        el.className = `task-status status-${status}`;
+        el.textContent = status;
+    }
+}
+
+// Progress bar update
+function updateProgressBar(pct) {
+    const bar = document.getElementById('progressFill');
+    const label = document.getElementById('progressPercent');
+    if (bar) bar.style.width = `${pct}%`;
+    if (label) label.textContent = `${pct}%`;
+}
+
+// Cancel current project
+async function cancelProject(projectId) {
+    if (!confirm('Cancel the running project? This will stop execution.')) return;
+    try {
+        const res = await fetch(`/api/project/${encodeURIComponent(projectId)}/cancel`, {method: 'POST'});
+        const data = await res.json();
+        if (data.status === 'cancelled') {
+            showStatusBanner('Project cancelled', 'warning');
+            unsubscribeFromProjectStream(projectId);
+            loadProjectDetails(projectId);
+        }
+    } catch (e) {
+        addActivity('Failed to cancel project: ' + e.message, 'error');
+    }
+}
+
+// Global search results overlay
+function showSearchResults(results, query) {
+    let overlay = document.getElementById('searchResultsOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'searchResultsOverlay';
+        overlay.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);width:600px;max-width:90vw;background:var(--surface-bg);border:1px solid var(--border-color);border-radius:12px;box-shadow:var(--shadow-lg);z-index:9999;max-height:400px;overflow-y:auto;padding:1rem;';
+        document.body.appendChild(overlay);
+        document.addEventListener('click', (e) => {
+            if (!overlay.contains(e.target) && e.target.id !== 'globalSearch') hideSearchResults();
+        });
+    }
+
+    if (!results || results.length === 0) {
+        overlay.innerHTML = `<p style="color:var(--text-muted);text-align:center;padding:1rem;">No results for "<strong>${escapeHtml(query)}</strong>"</p>`;
+    } else {
+        overlay.innerHTML = `
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;">${results.length} result(s) for "<strong>${escapeHtml(query)}</strong>"</div>
+            ${results.map(r => `
+                <div class="search-result-item" onclick="${r.type === 'project' ? `selectProjectFromSidebar('${escapeHtml(r.id)}')` : `selectProjectFromSidebar('${escapeHtml(r.project_id || '')}')`}; hideSearchResults()" style="padding:0.5rem;cursor:pointer;border-radius:6px;margin-bottom:0.25rem;border:1px solid var(--border-subtle);">
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <span class="badge" style="font-size:0.7rem;background:var(--primary-muted);color:var(--primary-color);padding:2px 6px;border-radius:4px;">${escapeHtml(r.type)}</span>
+                        <strong>${escapeHtml(r.name || r.task_id || 'Result')}</strong>
+                    </div>
+                    ${r.description ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.description)}</div>` : ''}
+                    ${r.preview ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;font-style:italic;">${escapeHtml(r.preview)}</div>` : ''}
+                </div>
+            `).join('')}
+        `;
+    }
+    overlay.style.display = 'block';
+}
+
+function hideSearchResults() {
+    const overlay = document.getElementById('searchResultsOverlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
 // Status Banner Functions
 function showStatusBanner(message, type = 'info') {
     const banner = document.getElementById('statusBanner');
@@ -324,11 +470,34 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDashboard().then(() => checkLMStudioConnection());
     loadSettings();
     loadSidebarProjects();
+    loadTokenStats();
 
     // Auto-refresh — dashboard every 60s (includes model check), projects every 15s
     setInterval(loadDashboard, 60000);
     setInterval(loadSidebarProjects, 15000);
     setInterval(checkLMStudioConnection, 90000);
+    setInterval(loadTokenStats, 30000);
+
+    // Global search
+    const searchInput = document.getElementById('globalSearch');
+    if (searchInput) {
+        const doSearch = debounce(async () => {
+            const q = searchInput.value.trim();
+            if (q.length < 2) return;
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                showSearchResults(data.results, q);
+            } catch (e) { /* ignore */ }
+        }, 400);
+        searchInput.addEventListener('input', doSearch);
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                hideSearchResults();
+            }
+        });
+    }
     
     // Output dropdown change handler
     document.getElementById('outputTaskSelect')?.addEventListener('change', loadOutputForTask);
@@ -430,7 +599,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Refresh projects
                 loadSidebarProjects();
-                
+
+                // Subscribe to SSE stream for real-time updates
+                if (data.project_id) {
+                    subscribeToProjectStream(data.project_id);
+                    currentProjectId = data.project_id;
+                }
+
                 // Switch to workflow view to show progress
                 switchView('workflow');
             }
@@ -478,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Quick prompt on dashboard
     document.getElementById('quickPromptBtn')?.addEventListener('click', async () => {
         const input = document.getElementById('quickPromptInput');
-        const select = document.getElementById('quickModelSelect');
+        const select = document.getElementById('quickPromptModel');
         const prompt = input?.value.trim();
         const model = select?.value;
         
@@ -910,19 +1085,19 @@ async function loadSidebarProjects() {
             const completedCount = p.tasks?.filter(t => t.status === 'completed').length || 0;
             
             return `
-                <div class="sidebar-project-item ${p.id === currentProjectId ? 'active' : ''}" data-id="${p.id}" onclick="selectProjectFromSidebar('${p.id}')">
+                <div class="sidebar-project-item ${p.id === currentProjectId ? 'active' : ''}" data-id="${escapeHtml(p.id)}" onclick="selectProjectFromSidebar('${escapeHtml(p.id)}')">
                     <div class="sidebar-project-info">
-                        <span class="sidebar-project-name">${p.name}</span>
+                        <span class="sidebar-project-name">${escapeHtml(p.name)}</span>
                         <div class="sidebar-project-status">
                             <span class="status-dot status-${status}"></span>
                             <span>${completedCount}/${taskCount} tasks</span>
                         </div>
                     </div>
                     <div class="project-item-actions">
-                        <button class="btn btn-icon btn-secondary" onclick="event.stopPropagation(); quickRename('${p.id}')" title="Rename">
+                        <button class="btn btn-icon btn-secondary" onclick="event.stopPropagation(); quickRename('${escapeHtml(p.id)}')" title="Rename">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-icon btn-secondary" onclick="event.stopPropagation(); archiveProject('${p.id}')" title="Archive">
+                        <button class="btn btn-icon btn-secondary" onclick="event.stopPropagation(); archiveProject('${escapeHtml(p.id)}')" title="Archive">
                             <i class="fas fa-archive"></i>
                         </button>
                     </div>
@@ -1050,18 +1225,29 @@ function renderConversation(conversation, append = false) {
 }
 
 function formatMessageContent(content) {
-    // Convert code blocks
-    let formatted = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+    if (!content) return '';
+    // Extract code blocks first (before HTML escaping) so we can escape
+    // code content separately and protect the rest from injection.
+    const codeBlocks = [];
+    let processed = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        const idx = codeBlocks.length;
+        codeBlocks.push(`<pre><code class="language-${escapeHtml(lang || 'text')}">${escapeHtml(code.trim())}</code></pre>`);
+        return `\x00CODE${idx}\x00`;
     });
-    
-    // Convert inline code
-    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-    // Convert newlines to br
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    return formatted;
+
+    // Escape the non-code portion to prevent XSS
+    processed = escapeHtml(processed);
+
+    // Restore code blocks (already escaped)
+    processed = processed.replace(/\x00CODE(\d+)\x00/g, (_, idx) => codeBlocks[parseInt(idx, 10)]);
+
+    // Convert inline code (content already escaped above)
+    processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Convert newlines to <br>
+    processed = processed.replace(/\n/g, '<br>');
+
+    return processed;
 }
 
 function escapeHtml(text) {
@@ -1243,7 +1429,7 @@ function applyModelOverride() {
             return;
         }
         
-        showStatus('Model override applied successfully');
+        showStatusBanner('Model override applied successfully', 'success');
         
         loadProjectDetails(currentProjectId);
     })
@@ -3272,7 +3458,7 @@ document.getElementById('saveCredentialBtn')?.addEventListener('click', async ()
             return;
         }
         
-        showStatus('Credential saved successfully');
+        showStatusBanner('Credential saved successfully', 'success');
         document.getElementById('credentialTokenInput').value = '';
         loadCredentials();
         
@@ -3296,7 +3482,7 @@ async function deleteCredential(source) {
             return;
         }
         
-        showStatus('Credential deleted');
+        showStatusBanner('Credential deleted', 'success');
         loadCredentials();
         
     } catch (error) {

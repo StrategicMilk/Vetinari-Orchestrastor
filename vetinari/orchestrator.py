@@ -38,7 +38,7 @@ class Orchestrator:
     def __init__(self, manifest_path: str, host: str = None, api_token: str = None, max_concurrent: int = 4, execution_mode: str = None):
         # Resolve host from env if not provided
         if host is None:
-            host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
 
         # Make manifest_path absolute if it's relative
         manifest_path_obj = Path(manifest_path)

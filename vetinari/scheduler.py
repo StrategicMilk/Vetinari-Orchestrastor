@@ -77,24 +77,25 @@ class Scheduler:
         while len(processed) < len(tasks) and iteration < max_iterations:
             iteration += 1
             # Find all tasks with in-degree 0 (no pending dependencies) and not unresolvable
-            current_layer = []
+            ready = []
             for task_id, degree in in_degree.items():
                 if task_id not in processed and task_id not in unresolvable and degree == 0:
                     task = task_map[task_id]
-                    current_layer.append(task)
-            
-            if not current_layer:
+                    ready.append(task)
+
+            if not ready:
                 # Circular dependency or missing task - log and break
                 remaining = [tid for tid in task_ids if tid not in processed]
                 logging.error(f"Possible circular dependency or missing tasks. Remaining: {remaining}")
                 break
-            
-            # Limit layer size to max_concurrent
-            if len(current_layer) > self.max_concurrent:
-                current_layer = current_layer[:self.max_concurrent]
-            
+
+            # Emit layers of at most max_concurrent tasks, but keep iterating
+            # so that overflow tasks are scheduled in subsequent layers rather
+            # than being silently dropped.
+            current_layer = ready[:self.max_concurrent]
+
             layers.append(current_layer)
-            
+
             # Mark these tasks as processed and update in-degrees
             for task in current_layer:
                 processed.add(task["id"])

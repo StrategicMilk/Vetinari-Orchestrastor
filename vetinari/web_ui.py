@@ -1,12 +1,19 @@
 import os
 import json
+import logging
 import yaml
 import threading
 import time
+import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, jsonify, request, send_from_directory
-from apscheduler.schedulers.background import BackgroundScheduler
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    _APSCHEDULER_AVAILABLE = True
+except ImportError:
+    _APSCHEDULER_AVAILABLE = False
+    BackgroundScheduler = None
 
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +38,49 @@ app = Flask(__name__,
 
 # Global state
 orchestrator = None
+
+# ---------------------------------------------------------------------------
+# Task cancellation registry
+# ---------------------------------------------------------------------------
+_cancel_flags: dict = {}  # project_id -> threading.Event
+
+
+def _register_project_task(project_id: str) -> "threading.Event":
+    import threading as _threading
+    flag = _threading.Event()
+    _cancel_flags[project_id] = flag
+    return flag
+
+
+def _cancel_project_task(project_id: str) -> bool:
+    flag = _cancel_flags.get(project_id)
+    if flag:
+        flag.set()
+        return True
+    return False
+
+# ---------------------------------------------------------------------------
+# SSE stream registry (project_id -> queue of messages)
+# ---------------------------------------------------------------------------
+import queue as _queue
+_sse_streams: dict = {}  # project_id -> queue.Queue
+
+
+def _get_sse_queue(project_id: str):
+    if project_id not in _sse_streams:
+        _sse_streams[project_id] = _queue.Queue(maxsize=200)
+    return _sse_streams[project_id]
+
+
+def _push_sse_event(project_id: str, event_type: str, data: dict) -> None:
+    """Push an SSE event to all listeners for a project."""
+    import json as _json
+    q = _sse_streams.get(project_id)
+    if q:
+        try:
+            q.put_nowait({"event": event_type, "data": _json.dumps(data)})
+        except Exception:
+            pass  # Queue full — drop event
 
 # ---------------------------------------------------------------------------
 # Model discovery cache  (avoids blocking the UI on every request)
@@ -69,7 +119,7 @@ def _get_models_cached(force: bool = False) -> list:
         return _models_cache               # Return stale cache on error
 
 current_config = {
-    "host": os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234"),
+    "host": os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),
     "config_path": "manifest/vetinari.yaml",
     "api_token": os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
     "default_models": ["qwen3-coder-next", "qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8"],
@@ -82,9 +132,14 @@ current_config = {
 # Global feature flag for external model discovery (default enabled)
 ENABLE_EXTERNAL_DISCOVERY = str(os.environ.get("ENABLE_EXTERNAL_DISCOVERY", "true")).lower() in ("1", "true", "yes")
 
-# Model search scheduler
-scheduler = BackgroundScheduler()
-scheduler.start()
+# Model search scheduler (only if APScheduler is installed)
+scheduler = None
+if _APSCHEDULER_AVAILABLE:
+    try:
+        scheduler = BackgroundScheduler()
+        scheduler.start()
+    except Exception as _sched_err:
+        logging.warning(f"[Vetinari] Could not start background scheduler: {_sched_err}")
 
 def refresh_model_cache():
     try:
@@ -95,13 +150,17 @@ def refresh_model_cache():
     except Exception as e:
         print(f"[Vetinari] Error refreshing model cache: {e}")
 
-scheduler.add_job(
-    func=refresh_model_cache,
-    trigger="interval",
-    days=30,
-    id="monthly_model_refresh",
-    name="Monthly model cache refresh"
-)
+if scheduler is not None:
+    try:
+        scheduler.add_job(
+            func=refresh_model_cache,
+            trigger="interval",
+            days=30,
+            id="monthly_model_refresh",
+            name="Monthly model cache refresh"
+        )
+    except Exception as _job_err:
+        logging.warning(f"[Vetinari] Could not add scheduler job: {_job_err}")
 
 def trigger_light_search(project_id: str, task_description: str):
     try:
@@ -111,7 +170,7 @@ def trigger_light_search(project_id: str, task_description: str):
         lm_models = []
         try:
             from vetinari.model_pool import ModelPool
-            model_pool = ModelPool(current_config, current_config.get("host", "http://100.78.30.7:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception:
@@ -166,6 +225,142 @@ def api_status():
         "memory_budget_gb": current_config.get("memory_budget_gb", 32),
         "active_model_id": current_config.get("active_model_id")
     })
+
+
+# API: Server-Sent Events stream for real-time task updates
+@app.route('/api/project/<project_id>/stream')
+def api_project_stream(project_id):
+    """SSE endpoint — subscribe to real-time events for a project."""
+    from flask import Response, stream_with_context
+    import json as _json
+
+    def generate():
+        q = _get_sse_queue(project_id)
+        # Send an initial connected event
+        yield f"data: {_json.dumps({'type': 'connected', 'project_id': project_id})}\n\n"
+        while True:
+            try:
+                msg = q.get(timeout=25)
+                if msg is None:  # Sentinel: stream closed
+                    yield f"data: {_json.dumps({'type': 'done'})}\n\n"
+                    break
+                yield f"event: {msg['event']}\ndata: {msg['data']}\n\n"
+            except Exception:
+                # Heartbeat to keep connection alive
+                yield f"data: {_json.dumps({'type': 'heartbeat'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+# API: Cancel a running project task
+@app.route('/api/project/<project_id>/cancel', methods=['POST'])
+def api_cancel_project(project_id):
+    """Cancel a running project execution."""
+    cancelled = _cancel_project_task(project_id)
+    _push_sse_event(project_id, "cancelled", {"project_id": project_id, "status": "cancelled"})
+
+    # Update project status in config
+    try:
+        project_dir = PROJECT_ROOT / 'projects' / project_id
+        config_path = project_dir / 'project.yaml'
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                project_config = yaml.safe_load(f) or {}
+            project_config['status'] = 'cancelled'
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(project_config, f)
+    except Exception:
+        pass
+
+    return jsonify({"status": "cancelled" if cancelled else "not_found", "project_id": project_id})
+
+
+# API: Token usage statistics
+@app.route('/api/token-stats')
+def api_token_stats():
+    """Return token usage statistics from the analytics system."""
+    stats = {
+        "total_tokens_used": 0,
+        "total_cost_usd": 0.0,
+        "by_model": {},
+        "by_provider": {},
+        "session_requests": 0,
+    }
+    try:
+        from vetinari.telemetry import get_telemetry_collector
+        tel = get_telemetry_collector()
+        if hasattr(tel, "get_summary"):
+            summary = tel.get_summary()
+            if summary:
+                stats.update(summary)
+    except Exception:
+        pass
+    try:
+        from vetinari.analytics.cost import get_cost_tracker
+        cost_summary = get_cost_tracker().get_summary()
+        if cost_summary:
+            stats["total_cost_usd"] = cost_summary.get("total_cost_usd", 0.0)
+            stats["by_model"] = cost_summary.get("by_model", {})
+    except Exception:
+        pass
+    return jsonify(stats)
+
+
+# API: Global search across projects and outputs
+@app.route('/api/search', methods=['GET'])
+def api_global_search():
+    """Search across project names, descriptions, and outputs."""
+    query = request.args.get('q', '').strip().lower()
+    if not query:
+        return jsonify({"results": [], "query": ""})
+
+    results = []
+    projects_dir = PROJECT_ROOT / 'projects'
+    if projects_dir.exists():
+        for proj_dir in projects_dir.iterdir():
+            if not proj_dir.is_dir():
+                continue
+            config_path = proj_dir / 'project.yaml'
+            if not config_path.exists():
+                continue
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                name = config.get('project_name', proj_dir.name)
+                desc = config.get('description', '')
+                if query in name.lower() or query in desc.lower():
+                    results.append({
+                        "type": "project",
+                        "id": proj_dir.name,
+                        "name": name,
+                        "description": desc[:100],
+                        "status": config.get('status', 'unknown'),
+                    })
+                # Search task outputs
+                for task_dir in (proj_dir / 'outputs').glob('*/output.txt') if (proj_dir / 'outputs').exists() else []:
+                    try:
+                        content = task_dir.read_text(encoding='utf-8', errors='ignore')
+                        if query in content.lower():
+                            results.append({
+                                "type": "output",
+                                "project_id": proj_dir.name,
+                                "task_id": task_dir.parent.name,
+                                "preview": content[:150],
+                            })
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+    return jsonify({"results": results[:20], "query": query, "total": len(results)})
 
 # API: Get available models (uses TTL cache — does NOT block on every request)
 @app.route('/api/models')
@@ -320,7 +515,7 @@ def api_run_prompt():
         result = orb.adapter.chat(model, system_prompt, prompt)
         
         # Save output
-        task_id = "custom_" + str(int(os.times().elapsed * 1000))
+        task_id = "custom_" + uuid.uuid4().hex[:12]
         output_path = PROJECT_ROOT / 'outputs' / task_id
         output_path.mkdir(parents=True, exist_ok=True)
         (output_path / 'output.txt').write_text(result.get('output', ''), encoding='utf-8')
@@ -420,7 +615,7 @@ def api_new_project():
         tasks = [t.to_dict() for t in plan.tasks]
         
         # Save tasks to config
-        project_dir = PROJECT_ROOT / 'projects' / f'project_{int(os.times().elapsed * 1000)}'
+        project_dir = PROJECT_ROOT / 'projects' / f'project_{uuid.uuid4().hex[:12]}'
         project_dir.mkdir(parents=True, exist_ok=True)
         
         # Create project config
@@ -494,35 +689,55 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
         
         # If auto_run is True, run tasks in background thread
         if auto_run:
+            _proj_id = project_dir.name
+            _cancel_event = _register_project_task(_proj_id)
+            _get_sse_queue(_proj_id)  # Pre-create queue
+
             def run_tasks_background():
                 try:
                     # Update config to show running
                     project_config["status"] = "running"
                     with open(config_path, 'w', encoding='utf-8') as f:
                         yaml.dump(project_config, f)
-                    
+
+                    _push_sse_event(_proj_id, "status", {"status": "running", "total_tasks": len(tasks)})
+
                     results = []
                     task_outputs_text = []
-                    
-                    for task in tasks:
+
+                    for idx, task in enumerate(tasks):
+                        # Check cancel flag
+                        if _cancel_event.is_set():
+                            _push_sse_event(_proj_id, "cancelled", {"message": "Cancelled by user"})
+                            break
+
                         task_id = task['id']
                         task_model = task['assigned_model_id'] or model or available_models[0].get('name', '')
-                        
+
+                        _push_sse_event(_proj_id, "task_start", {
+                            "task_id": task_id,
+                            "task_index": idx,
+                            "total": len(tasks),
+                            "description": task['description'],
+                            "model": task_model,
+                        })
+
                         task_prompt = f"""Task: {task['description']}
 
 Inputs: {', '.join(task['inputs'])}
 Outputs: {', '.join(task['outputs'])}
 
 Implement this task. Output the code as code blocks with filenames."""
-                        
+
                         task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
                         task_output = task_result.get('output', '')
-                        
+                        tokens_used = task_result.get('tokens_used', 0)
+
                         # Save task output
                         task_output_dir = project_dir / 'outputs' / task_id
                         task_output_dir.mkdir(parents=True, exist_ok=True)
                         (task_output_dir / 'output.txt').write_text(task_output, encoding='utf-8')
-                        
+
                         code_blocks = orb.executor._parse_code_blocks(task_output)
                         if code_blocks:
                             generated_dir = task_output_dir / 'generated'
@@ -531,15 +746,26 @@ Implement this task. Output the code as code blocks with filenames."""
                                 filepath = generated_dir / filename
                                 filepath.write_text(code, encoding='utf-8')
                                 print(f"[Vetinari] Written: {filepath}")
-                        
+
                         results.append({
                             "task_id": task_id,
                             "model_used": task_model,
                             "status": "completed",
-                            "output": task_output
+                            "output": task_output,
                         })
-                        
-                        task_outputs_text.append(f"=== Task {task_id} (using {task_model}): {task['description']} ===\n\n{task_output}")
+
+                        task_outputs_text.append(
+                            f"=== Task {task_id} (using {task_model}): {task['description']} ===\n\n{task_output}"
+                        )
+
+                        _push_sse_event(_proj_id, "task_complete", {
+                            "task_id": task_id,
+                            "task_index": idx,
+                            "total": len(tasks),
+                            "status": "completed",
+                            "tokens_used": tokens_used,
+                            "output_length": len(task_output),
+                        })
                     
                     # Add results to conversation
                     results_text = "Tasks completed! Here are the results:\n\n" + "="*50 + "\n\n".join(task_outputs_text)
@@ -552,6 +778,12 @@ Implement this task. Output the code as code blocks with filenames."""
                     project_config["status"] = "completed"
                     with open(config_path, 'w', encoding='utf-8') as f:
                         yaml.dump(project_config, f)
+
+                    _push_sse_event(_proj_id, "status", {
+                        "status": "completed",
+                        "total_tasks": len(tasks),
+                        "completed_tasks": len(results),
+                    })
                     
                     # Assemble final deliverable
                     try:
@@ -1887,7 +2119,7 @@ def api_model_search(project_id):
         lm_models = []
         try:
             from vetinari.model_pool import ModelPool
-            model_pool = ModelPool(current_config, current_config.get("host", "http://100.78.30.7:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception as e:

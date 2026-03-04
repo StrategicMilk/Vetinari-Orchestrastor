@@ -41,7 +41,7 @@ class ImprovementAgent(BaseAgent):
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        super().__init__(AgentType.EXPERIMENTATION_MANAGER, config)
+        super().__init__(AgentType.IMPROVEMENT, config)
         self._review_interval_hours = self._config.get("review_interval_hours", 1)
         self._auto_apply_threshold = self._config.get("auto_apply_threshold", 0.7)
 

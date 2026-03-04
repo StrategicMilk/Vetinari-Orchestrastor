@@ -48,7 +48,7 @@ CLOUD_PROVIDERS = {
 
 
 class ModelPool:
-    def __init__(self, config: dict, host: str = "http://100.78.30.7:1234", api_token: Optional[str] = None, memory_budget_gb: int = None):
+    def __init__(self, config: dict, host: str = "http://localhost:1234", api_token: Optional[str] = None, memory_budget_gb: int = None):
         self.config = config
         self.host = host
         self.api_token = api_token

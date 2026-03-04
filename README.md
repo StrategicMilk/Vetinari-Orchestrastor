@@ -1,6 +1,6 @@
 # Vetinari AI Orchestration System
 
-**v0.2.0** -- Comprehensive Multi-Agent AI Orchestration with Assembly-Line Execution and Self-Improvement
+**v0.2.1** -- Comprehensive Multi-Agent AI Orchestration with Assembly-Line Execution, Self-Improvement, and Token Optimization
 
 ## Overview
 
@@ -9,13 +9,18 @@ Vetinari is a comprehensive AI orchestration system that automatically plans, de
 ### Key Features
 
 - **Assembly-Line Pipeline**: Input Analysis → Plan Generation → Recursive Task Decomposition → Model Assignment → Parallel Execution → Output Review → Final Assembly
-- **16 Specialized Agents**: Planner, Explorer, Oracle, Librarian, Researcher, Evaluator, Synthesizer, Builder, UI Planner, Security Auditor, Data Engineer, Documentation, Cost Planner, Test Automation, Experimentation Manager, Improvement Agent
-- **Self-Improvement System**: Thompson Sampling model selection, prompt A/B testing, workflow learning, cost optimization, auto-tuning
+- **21 Specialized Agents**: Planner, Explorer (with RepoMap), Oracle, Librarian, Researcher, Evaluator, Synthesizer, Builder, UI Planner, Security Auditor (heuristic + LLM), Data Engineer, Documentation, Cost Planner, Test Automation, Experimentation Manager, Improvement Agent, DevOps Agent, Version Control, Error Recovery, Context Manager
+- **Token Optimizer**: Per-task token budgets, dynamic max_tokens by task type, context deduplication, local LLM preprocessing for cloud models (30-60% cloud token reduction)
+- **RepoMap**: Tree-sitter-inspired structural codebase mapping — sends function signatures instead of raw files, saving thousands of tokens
+- **Local-Cloud Hybrid**: Local LLMs pre-process and compress context before expensive cloud API calls
+- **Self-Improvement System**: Thompson Sampling model selection, prompt A/B testing (PromptEvolver), workflow learning, cost optimization, auto-tuning — all fully wired into execution
 - **Real Web Search**: Multi-source search with DuckDuckGo, Wikipedia, arXiv -- with anti-hallucination verification (two-source rule)
 - **User Interaction**: Detects ambiguous goals and asks targeted clarifying questions
-- **Multi-Provider Support**: LM Studio (local), OpenAI, Anthropic, Google Gemini, Cohere, HuggingFace, Replicate
+- **Multi-Provider Support**: LM Studio (local), OpenAI, Anthropic (with prompt caching), Google Gemini, Cohere (v2 chat API), HuggingFace, Replicate
 - **Durable Execution**: Checkpoint-based recovery for long-running projects
-- **Full Observability**: Structured JSON logging, distributed tracing, telemetry, analytics
+- **Real-Time UI**: SSE streaming of task progress, cancel button, token counter, global search, auto-wired analytics
+- **Full Observability**: Structured JSON logging, distributed tracing, telemetry, analytics — all wired into the execution pipeline
+- **Security**: XSS-safe chat rendering, `.gitignore`, CSRF awareness, heuristic vulnerability scanning in Security Auditor agent
 
 ---
 

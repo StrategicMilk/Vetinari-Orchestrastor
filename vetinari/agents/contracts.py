@@ -33,6 +33,12 @@ class AgentType(Enum):
     COST_PLANNER = "COST_PLANNER"
     TEST_AUTOMATION = "TEST_AUTOMATION"
     EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"
+    IMPROVEMENT = "IMPROVEMENT"
+    USER_INTERACTION = "USER_INTERACTION"
+    DEVOPS = "DEVOPS"
+    VERSION_CONTROL = "VERSION_CONTROL"
+    ERROR_RECOVERY = "ERROR_RECOVERY"
+    CONTEXT_MANAGER = "CONTEXT_MANAGER"
 
 
 class TaskStatus(Enum):
@@ -376,6 +382,48 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         agent_type=AgentType.EXPERIMENTATION_MANAGER,
         name="Experimentation Manager",
         description="Experiment tracking, versioning, reproducibility",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.IMPROVEMENT: AgentSpec(
+        agent_type=AgentType.IMPROVEMENT,
+        name="Improvement Agent",
+        description="Meta-analyst reviewing system performance, recommending optimizations",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.USER_INTERACTION: AgentSpec(
+        agent_type=AgentType.USER_INTERACTION,
+        name="User Interaction Agent",
+        description="Ambiguity detection, clarifying question generation, context gathering",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.DEVOPS: AgentSpec(
+        agent_type=AgentType.DEVOPS,
+        name="DevOps Agent",
+        description="CI/CD pipeline design, containerisation, IaC, deployment, monitoring",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="medium"
+    ),
+    AgentType.VERSION_CONTROL: AgentSpec(
+        agent_type=AgentType.VERSION_CONTROL,
+        name="Version Control Agent",
+        description="Git operations, branch strategy, PR creation, code review coordination",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="medium"
+    ),
+    AgentType.ERROR_RECOVERY: AgentSpec(
+        agent_type=AgentType.ERROR_RECOVERY,
+        name="Error Recovery Agent",
+        description="Failure analysis, retry strategies, circuit breaking, fallback planning",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.CONTEXT_MANAGER: AgentSpec(
+        agent_type=AgentType.CONTEXT_MANAGER,
+        name="Context Manager Agent",
+        description="Long-term context management, memory consolidation, session summarisation",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
     ),

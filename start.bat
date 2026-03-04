@@ -17,8 +17,9 @@ if exist "venv\Scripts\activate.bat" (
 )
 
 :: Set default environment variables if not already set
+:: Override LM_STUDIO_HOST in your .env file or environment for a different host.
 if not defined LM_STUDIO_HOST (
-    set LM_STUDIO_HOST=http://100.78.30.7:1234
+    set LM_STUDIO_HOST=http://localhost:1234
 )
 
 echo ============================================================

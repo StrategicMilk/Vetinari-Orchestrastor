@@ -195,5 +195,39 @@ class ProviderAdapter(ABC):
 
         return min(1.0, score)
 
+    def _record_telemetry(self, request: "InferenceRequest", response: "InferenceResponse") -> None:
+        """
+        Record inference telemetry to all analytics/learning modules.
+
+        Called automatically after each infer() call in concrete adapters.
+        Failures are silently suppressed — telemetry must never crash inference.
+        """
+        try:
+            from vetinari.telemetry import get_telemetry_collector
+            get_telemetry_collector().record_adapter_latency(
+                provider=self.provider_type.value,
+                model_id=request.model_id,
+                latency_ms=response.latency_ms,
+                tokens_used=response.tokens_used,
+                success=response.status == "ok",
+            )
+        except Exception:
+            pass
+
+        try:
+            from vetinari.analytics.cost import get_cost_tracker
+            # Estimate input/output token split (60/40 if unavailable)
+            total = response.tokens_used or 0
+            input_tokens = int(total * 0.6)
+            output_tokens = total - input_tokens
+            get_cost_tracker().record(
+                model_id=request.model_id,
+                provider=self.provider_type.value,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        except Exception:
+            pass
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(provider={self.provider_type.value}, endpoint={self.endpoint})"

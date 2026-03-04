@@ -115,13 +115,17 @@
                     <input type="search" class="search-input" id="globalSearch" placeholder="Search models, projects, tasks..." aria-label="Global search">
                 </div>
                 <div class="header-right">
-                    <button class="btn btn-secondary" id="themeToggle" title="Toggle theme">
+                    <span id="tokenCounter" class="token-counter" title="Total tokens used this session" style="font-size:0.75rem;color:var(--text-muted);padding:0 0.5rem;display:inline-flex;align-items:center;gap:4px;">
+                        <i class="fas fa-coins" style="font-size:0.7rem;"></i>
+                        <span>0 tokens</span>
+                    </span>
+                    <button class="btn btn-secondary" id="themeToggle" title="Toggle theme" aria-label="Toggle dark/light theme">
                         <i class="fas fa-moon"></i>
                     </button>
-                    <button class="btn btn-secondary" id="discoverBtn" title="Discover available models">
+                    <button class="btn btn-secondary" id="discoverBtn" title="Discover available models" aria-label="Discover models">
                         <i class="fas fa-compass"></i>
                     </button>
-                    <button class="btn btn-primary" id="runAllBtn" title="Run all pending tasks">
+                    <button class="btn btn-primary" id="runAllBtn" title="Run all pending tasks" aria-label="Run all tasks">
                         <i class="fas fa-play"></i>
                     </button>
                 </div>

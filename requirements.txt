@@ -3,6 +3,9 @@ requests>=2.28.0
 pyyaml>=6.0
 flask>=2.0.0
 
+# Background scheduler (used by web_ui.py for model cache refresh)
+apscheduler>=3.10.0
+
 # Web search support
 duckduckgo-search>=4.0.0
 

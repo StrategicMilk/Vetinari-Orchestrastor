@@ -4,29 +4,31 @@ description: Local-LM orchestration for task workflows using LM Studio
 created_at: 2026-03-01T12:00:00Z
 
 # 1) Auto-discovery configuration
+# LM Studio host is read from the LM_STUDIO_HOST environment variable.
+# Set this in your .env file or environment. Defaults to http://localhost:1234.
 auto_discover: true
-discovery_source: "LM Studio model registry at http://10.0.0.96:1234"
+discovery_source: "LM Studio model registry (host from LM_STUDIO_HOST env var)"
 discover_interval_minutes: 1440  # daily scans by default
 
 # 2) Model registry (static baseline + dynamic auto-discovery)
 models:
   - id: zglm47
     name: zai-org_glm-4.7-flash@q8_0
-    endpoint: http://10.0.0.96:1234/models/zai-org_glm-4.7-flash@q8_0/infer
+    endpoint: "${LM_STUDIO_HOST}/models/zai-org_glm-4.7-flash@q8_0/infer"
     capabilities: ["code_gen", "docs", "debug"]
     context_len: 8192
     memory_gb: 8
     version: "4.7"
   - id: glm47
     name: glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max
-    endpoint: http://10.0.0.96:1234/models/glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max/infer
+    endpoint: "${LM_STUDIO_HOST}/models/glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max/infer"
     capabilities: ["code_gen", "docs"]
     context_len: 16384
     memory_gb: 12
     version: "4.7"
   - id: qwen3coder
     name: qwen3-coder-next
-    endpoint: http://10.0.0.96:1234/models/qwen3-coder-next/infer
+    endpoint: "${LM_STUDIO_HOST}/models/qwen3-coder-next/infer"
     capabilities: ["code_gen"]
     context_len: 6400
     memory_gb: 16

@@ -1,10 +1,13 @@
 """
 Vetinari Experimentation Manager Agent
 
-The Experimentation Manager agent is responsible for experiment tracking,
-versioning, and reproducibility.
+LLM-powered experimentation management agent that interfaces with the real
+ThompsonSampling, QualityScorer, and TelemetryCollector systems to track
+actual model performance experiments and generate evidence-based recommendations.
 """
 
+import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
@@ -12,30 +15,72 @@ from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
     AgentType,
-    VerificationResult
+    VerificationResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentationManagerAgent(BaseAgent):
-    """Experimentation Manager agent - experiment tracking, versioning, reproducibility."""
-    
+    """Experimentation Manager — real system telemetry + LLM-powered experiment analysis."""
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.EXPERIMENTATION_MANAGER, config)
-        
+
     def get_system_prompt(self) -> str:
-        return """You are Vetinari's Experimentation Manager. Manage experiments, record configurations, 
-track results, and provide reproducible experiment documentation.
+        return """You are Vetinari's Experimentation Manager — a data scientist specialising in
+LLM system evaluation, A/B testing, and model performance analysis.
 
-You must:
-1. Plan experiments with clear hypotheses
-2. Document configuration and parameters
-3. Track experiment results
-4. Ensure reproducibility
-5. Generate experiment reports
-6. Maintain experiment history
+You have access to real system telemetry, model performance history, and quality scores.
+Base ALL analysis on the actual data provided — do not fabricate metrics.
 
-Output format must include experiment_log, configuration, results, reproducibility_plan, and analysis."""
-    
+Required output (JSON):
+{
+  "experiment_log": [
+    {
+      "id": "...",
+      "name": "...",
+      "hypothesis": "...",
+      "status": "active|completed|failed",
+      "start_date": "...",
+      "metrics_tracked": [],
+      "tags": []
+    }
+  ],
+  "configuration": {
+    "model_variants": {},
+    "hyperparameters": {},
+    "environment": {},
+    "seed": null
+  },
+  "results": {
+    "metrics": [
+      {"name": "...", "value": null, "unit": "...", "source": "measured|estimated"}
+    ],
+    "comparisons": [],
+    "statistical_significance": "...",
+    "confidence_level": null
+  },
+  "reproducibility_plan": {
+    "version_control": {},
+    "dependencies": [],
+    "data_checksum": null,
+    "instructions": []
+  },
+  "analysis": {
+    "summary": "...",
+    "insights": [],
+    "recommendations": [],
+    "next_steps": [],
+    "risks": []
+  },
+  "summary": "..."
+}
+
+Important: Mark all values as "source": "measured" only if they come from actual system data.
+Use "source": "estimated" for projected or hypothetical values. Never fabricate measurements.
+"""
+
     def get_capabilities(self) -> List[str]:
         return [
             "experiment_planning",
@@ -43,216 +88,265 @@ Output format must include experiment_log, configuration, results, reproducibili
             "result_recording",
             "reproducibility_documentation",
             "hypothesis_testing",
-            "experiment_analysis"
+            "experiment_analysis",
         ]
-    
+
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the experimentation task.
-        
-        Args:
-            task: The task containing planned experiments
-            
-        Returns:
-            AgentResult containing experiment documentation
-        """
+        """Execute experimentation management using real system data + LLM analysis."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
                 output=None,
-                errors=[f"Invalid task for {self._agent_type.value}"]
+                errors=[f"Invalid task for {self._agent_type.value}"],
             )
-        
+
         task = self.prepare_task(task)
-        
+
         try:
             experiments = task.context.get("experiments", [])
             baseline = task.context.get("baseline", {})
-            
-            # Manage experiments (simulated - in production would use actual tracking)
-            management = self._manage_experiments(experiments, baseline)
-            
-            return AgentResult(
+
+            # Collect real system telemetry and performance data
+            real_data = self._collect_system_data()
+
+            # Build prompt with actual data
+            data_summary = self._format_system_data(real_data)
+            exp_descriptions = "\n".join(
+                [f"- {e.get('name', e)}: {e.get('hypothesis', '')}" for e in experiments[:5]]
+            ) if experiments else "No specific experiments — analyse current system performance"
+
+            prompt = (
+                f"Manage and analyse experiments for Vetinari AI orchestration system.\n\n"
+                f"Planned experiments:\n{exp_descriptions}\n\n"
+                f"Real system data:\n{data_summary}\n\n"
+                f"Baseline configuration:\n{str(baseline)[:500]}\n\n"
+                "Analyse the actual data, identify performance patterns, and generate "
+                "evidence-based recommendations. Return JSON matching the required format. "
+                "Mark all metrics as 'measured' only if sourced from the real system data."
+            )
+
+            management = self._infer_json(
+                prompt=prompt,
+                fallback=self._fallback_management(experiments, real_data),
+            )
+
+            # Ensure required keys
+            management.setdefault("experiment_log", [])
+            management.setdefault("configuration", {})
+            management.setdefault("results", {"metrics": [], "comparisons": []})
+            management.setdefault("reproducibility_plan", {"instructions": []})
+            management.setdefault("analysis", {"insights": [], "recommendations": []})
+            management.setdefault("summary", "Experiment management complete")
+
+            result = AgentResult(
                 success=True,
                 output=management,
                 metadata={
                     "experiments_count": len(experiments),
-                    "experiments_tracked": len(management.get("experiment_log", []))
-                }
+                    "real_data_sources": list(real_data.keys()),
+                    "tracked_experiments": len(management.get("experiment_log", [])),
+                },
             )
-            
+            task = self.complete_task(task, result)
+            return result
+
         except Exception as e:
-            self._log("error", f"Experiment management failed: {str(e)}")
-            return AgentResult(
-                success=False,
-                output=None,
-                errors=[str(e)]
-            )
-    
+            self._log("error", f"Experiment management failed: {e}")
+            return AgentResult(success=False, output=None, errors=[str(e)])
+
     def verify(self, output: Any) -> VerificationResult:
-        """Verify the experiment documentation meets quality standards.
-        
-        Args:
-            output: The experiment documentation to verify
-            
-        Returns:
-            VerificationResult with pass/fail status
-        """
         issues = []
         score = 1.0
-        
+
         if not isinstance(output, dict):
             issues.append({"type": "invalid_type", "message": "Output must be a dict"})
-            score -= 0.5
-            return VerificationResult(passed=False, issues=issues, score=score)
-        
-        # Check for experiment log
-        if not output.get("experiment_log"):
-            issues.append({"type": "missing_log", "message": "Experiment log missing"})
-            score -= 0.25
-        
-        # Check for configuration
-        if not output.get("configuration"):
-            issues.append({"type": "missing_config", "message": "Configuration missing"})
-            score -= 0.2
-        
-        # Check for results
+            return VerificationResult(passed=False, issues=issues, score=0.0)
+
+        if not output.get("experiment_log") and not output.get("analysis"):
+            issues.append({"type": "missing_content", "message": "No experiment log or analysis"})
+            score -= 0.4
         if not output.get("results"):
             issues.append({"type": "missing_results", "message": "Results missing"})
             score -= 0.2
-        
-        # Check for reproducibility plan
         if not output.get("reproducibility_plan"):
             issues.append({"type": "missing_reproducibility", "message": "Reproducibility plan missing"})
             score -= 0.2
-        
-        # Check for analysis
         if not output.get("analysis"):
             issues.append({"type": "missing_analysis", "message": "Analysis missing"})
             score -= 0.1
-        
+
         passed = score >= 0.5
-        return VerificationResult(passed=passed, issues=issues, score=max(0, score))
-    
-    def _manage_experiments(self, experiments: List[Dict[str, Any]], baseline: Dict[str, Any]) -> Dict[str, Any]:
-        """Manage and document experiments.
-        
-        Args:
-            experiments: List of experiments to manage
-            baseline: Baseline configuration for comparison
-            
-        Returns:
-            Dictionary containing experiment management data
-        """
-        # This is a simplified implementation
-        # In production, this would use actual experiment tracking systems
-        
-        experiment_log = []
-        
-        # Create experiment records
-        for i, exp in enumerate(experiments):
-            experiment_record = {
-                "id": f"exp_{i+1:03d}",
-                "name": exp.get("name", f"Experiment {i+1}"),
-                "hypothesis": exp.get("hypothesis", ""),
-                "status": "pending",
-                "created_at": "2026-03-03T12:00:00Z",
-                "tags": exp.get("tags", [])
+        return VerificationResult(passed=passed, issues=issues, score=max(0.0, score))
+
+    def _collect_system_data(self) -> Dict[str, Any]:
+        """Collect real performance data from system modules."""
+        data = {}
+
+        # ThompsonSampling model performance
+        try:
+            from vetinari.learning.model_selector import get_thompson_selector
+            selector = get_thompson_selector()
+            data["thompson_sampling"] = {
+                "model_scores": {
+                    model: {"alpha": arm.alpha, "beta": arm.beta, "mean": arm.alpha / (arm.alpha + arm.beta)}
+                    for model, arm in selector.arms.items()
+                } if hasattr(selector, "arms") else {}
             }
-            experiment_log.append(experiment_record)
-        
-        # Record configuration
-        configuration = {
-            "model": "gpt-4",
-            "temperature": 0.7,
-            "max_tokens": 2000,
-            "framework": "transformers",
-            "environment": "cloud",
-            "seed": 42
-        }
-        
-        # Simulate results
-        results = {
-            "metrics": [
-                {"name": "accuracy", "value": 0.92, "unit": "percent"},
-                {"name": "latency", "value": 1.23, "unit": "seconds"},
-                {"name": "cost", "value": 5.50, "unit": "dollars"}
-            ],
-            "comparisons": [
-                {
-                    "experiment": "exp_001",
-                    "vs_baseline": "better",
-                    "improvement": "5%"
-                },
-                {
-                    "experiment": "exp_002",
-                    "vs_baseline": "worse",
-                    "difference": "-3%"
+        except Exception:
+            pass
+
+        # Quality scores
+        try:
+            from vetinari.learning.quality_scorer import get_quality_scorer
+            scorer = get_quality_scorer()
+            history = scorer.get_history() if hasattr(scorer, "get_history") else []
+            if history:
+                def _score_val(h):
+                    # Handle both QualityScore objects and dicts
+                    return h.overall_score if hasattr(h, "overall_score") else h.get("overall_score", h.get("score", 0))
+                data["quality_scores"] = {
+                    "count": len(history),
+                    "avg_score": sum(_score_val(h) for h in history) / len(history),
+                    "recent": [
+                        {"model": getattr(h, "model_id", "?"), "score": _score_val(h), "type": getattr(h, "task_type", "?")}
+                        for h in history[-5:]
+                    ],
                 }
-            ]
+        except Exception:
+            pass
+
+        # Workflow patterns
+        try:
+            from vetinari.learning.workflow_learner import get_workflow_learner
+            learner = get_workflow_learner()
+            patterns = learner.get_patterns() if hasattr(learner, "get_patterns") else {}
+            if patterns:
+                data["workflow_patterns"] = patterns
+        except Exception:
+            pass
+
+        # Telemetry
+        try:
+            from vetinari.telemetry import get_telemetry_collector
+            tel = get_telemetry_collector()
+            if hasattr(tel, "get_summary"):
+                summary = tel.get_summary()
+                if summary:
+                    data["telemetry"] = summary
+        except Exception:
+            pass
+
+        return data
+
+    def _format_system_data(self, data: Dict) -> str:
+        if not data:
+            return "No system telemetry available (first run or cold start)"
+        lines = []
+        for source, content in data.items():
+            lines.append(f"[{source}]")
+            if isinstance(content, dict):
+                for k, v in list(content.items())[:5]:
+                    lines.append(f"  {k}: {str(v)[:150]}")
+            else:
+                lines.append(f"  {str(content)[:200]}")
+        return "\n".join(lines)
+
+    def _fallback_management(
+        self, experiments: List[Dict], real_data: Dict
+    ) -> Dict[str, Any]:
+        now = datetime.now().isoformat()
+        experiment_log = []
+        for i, exp in enumerate(experiments):
+            name = exp.get("name", f"Experiment {i+1}") if isinstance(exp, dict) else str(exp)
+            experiment_log.append({
+                "id": f"exp_{i+1:03d}",
+                "name": name,
+                "hypothesis": exp.get("hypothesis", "") if isinstance(exp, dict) else "",
+                "status": "active",
+                "start_date": now,
+                "metrics_tracked": ["quality_score", "latency_ms", "tokens_used"],
+                "tags": exp.get("tags", []) if isinstance(exp, dict) else [],
+            })
+
+        # Build configuration from real system state
+        config = {
+            "model_variants": {},
+            "hyperparameters": {"temperature": 0.7, "max_tokens": 2048},
+            "environment": {"vetinari_version": "0.2.0", "local_inference": True},
+            "seed": None,
         }
-        
-        # Create reproducibility plan
-        reproducibility_plan = {
-            "version_control": {
-                "repository": "https://github.com/vetinari/experiments",
-                "branch": "exp_tracking",
-                "commit": "abc123def456"
-            },
-            "dependencies": [
-                {"package": "transformers", "version": "4.30.0"},
-                {"package": "torch", "version": "2.0.0"},
-                {"package": "numpy", "version": "1.24.0"}
-            ],
-            "data": {
-                "source": "s3://vetinari/data",
-                "checksum": "sha256:abc123...",
-                "size": "10GB"
-            },
-            "instructions": [
-                "Clone repository at specified commit",
-                "Install dependencies from requirements.txt",
-                "Download data using data loader script",
-                "Run experiment with config.yaml",
-                "Results will be saved in results/ directory"
-            ]
-        }
-        
-        # Analysis
-        analysis = {
-            "summary": "Experiments show promise with 5% improvement over baseline",
-            "insights": [
-                "Model A outperforms baseline in accuracy",
-                "Model B has lower latency but comparable accuracy",
-                "Cost efficiency improves with larger batch sizes"
-            ],
-            "recommendations": [
-                "Deploy Model A for production",
-                "Consider Model B for latency-critical applications",
-                "Further optimize batch size for cost reduction"
-            ],
-            "next_steps": [
-                "Run larger experiments with more data",
-                "Test with different hyperparameters",
-                "Conduct A/B testing in production"
-            ]
-        }
-        
+
+        # Extract real metrics if available
+        metrics = []
+        ts_data = real_data.get("thompson_sampling", {}).get("model_scores", {})
+        for model, scores in ts_data.items():
+            metrics.append({
+                "name": f"{model}_quality",
+                "value": round(scores.get("mean", 0), 3),
+                "unit": "score",
+                "source": "measured",
+            })
+        if not metrics:
+            metrics.append({
+                "name": "quality_score",
+                "value": None,
+                "unit": "score",
+                "source": "not_yet_collected",
+            })
+
         return {
             "experiment_log": experiment_log,
-            "configuration": configuration,
-            "results": results,
-            "reproducibility_plan": reproducibility_plan,
-            "analysis": analysis,
-            "summary": f"Managed {len(experiment_log)} experiments with full reproducibility documentation"
+            "configuration": config,
+            "results": {
+                "metrics": metrics,
+                "comparisons": [],
+                "statistical_significance": "Insufficient data for significance testing",
+                "confidence_level": None,
+            },
+            "reproducibility_plan": {
+                "version_control": {"note": "Use git to tag experiment versions"},
+                "dependencies": [
+                    {"package": "vetinari", "version": "0.2.0"},
+                    {"package": "duckduckgo-search", "version": ">=4.0.0"},
+                ],
+                "data_checksum": None,
+                "instructions": [
+                    "1. Record the git commit hash at experiment start",
+                    "2. Save the full config snapshot to experiments/<id>/config.json",
+                    "3. Log all inference calls with model ID, tokens, latency",
+                    "4. Store quality scores in vetinari_memory.db",
+                    "5. Archive results to experiments/<id>/results.json",
+                ],
+            },
+            "analysis": {
+                "summary": f"Tracking {len(experiment_log)} experiments. Real telemetry {'available' if real_data else 'not yet collected'}.",
+                "insights": [
+                    f"System has {len(ts_data)} models with performance history" if ts_data else "No model performance history yet — run tasks to collect data",
+                    "Thompson Sampling will adaptively route to better-performing models as data accumulates",
+                ],
+                "recommendations": [
+                    "Run at least 10 tasks per model/task-type combination before drawing conclusions",
+                    "Use the Improvement Agent to apply auto-tuning after collecting sufficient data",
+                    "Monitor quality scores per agent type to identify underperforming agents",
+                ],
+                "next_steps": [
+                    "Enable telemetry collection in all adapter infer() calls",
+                    "Run a sample workload of 50+ tasks to build model performance baselines",
+                    "Schedule regular ImprovementAgent runs (every 100 tasks or daily)",
+                ],
+                "risks": [
+                    "Insufficient data may lead to premature model routing decisions",
+                    "Quality scorer uses LLM-as-judge which may be inconsistent",
+                ],
+            },
+            "summary": f"Experiment management complete. {len(experiment_log)} experiments tracked.",
         }
 
 
-# Singleton instance
 _experimentation_manager_agent: Optional[ExperimentationManagerAgent] = None
 
 
 def get_experimentation_manager_agent(config: Optional[Dict[str, Any]] = None) -> ExperimentationManagerAgent:
-    """Get the singleton Experimentation Manager agent instance."""
     global _experimentation_manager_agent
     if _experimentation_manager_agent is None:
         _experimentation_manager_agent = ExperimentationManagerAgent(config)

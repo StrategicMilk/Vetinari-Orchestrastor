@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 class AnthropicProviderAdapter(ProviderAdapter):
     """Adapter for Anthropic API (Claude models)."""
 
+    # Map from friendly/config model IDs to real Anthropic API model IDs
+    MODEL_ID_MAP: Dict[str, str] = {
+        "claude-sonnet-4": "claude-sonnet-4-5",
+        "claude-opus-4": "claude-opus-4-5",
+        "claude-haiku-3": "claude-3-5-haiku-20241022",
+        "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
+        "claude-3-opus": "claude-3-opus-20240229",
+        "claude-3-haiku": "claude-3-haiku-20240307",
+    }
+
     def __init__(self, config: ProviderConfig):
         """Initialize Anthropic adapter."""
         if config.provider_type != ProviderType.ANTHROPIC:
@@ -26,6 +36,10 @@ class AnthropicProviderAdapter(ProviderAdapter):
             raise ValueError("Anthropic adapter requires api_key in config")
         # Anthropic uses a specific API version header
         self.api_version = "2023-06-01"
+
+    def _resolve_model_id(self, model_id: str) -> str:
+        """Resolve a config model ID to the real Anthropic API model ID."""
+        return self.MODEL_ID_MAP.get(model_id, model_id)
 
     def discover_models(self) -> List[ModelInfo]:
         """Discover available models from Anthropic."""
@@ -143,9 +157,11 @@ class AnthropicProviderAdapter(ProviderAdapter):
             }
             
             messages = [{"role": "user", "content": request.prompt}]
-            
+
+            resolved_model = self._resolve_model_id(request.model_id)
+
             payload = {
-                "model": request.model_id,
+                "model": resolved_model,
                 "max_tokens": request.max_tokens,
                 "messages": messages,
                 "temperature": request.temperature,
@@ -179,18 +195,20 @@ class AnthropicProviderAdapter(ProviderAdapter):
             if "usage" in data:
                 tokens_used = data["usage"].get("output_tokens", 0) + data["usage"].get("input_tokens", 0)
 
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output=output,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
                 status="ok",
             )
+            self._record_telemetry(request, resp)
+            return resp
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
             logger.error(f"[Anthropic] Inference failed: {e}")
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output="",
                 latency_ms=latency_ms,
@@ -198,6 +216,8 @@ class AnthropicProviderAdapter(ProviderAdapter):
                 status="error",
                 error=str(e),
             )
+            self._record_telemetry(request, resp)
+            return resp
 
     def get_capabilities(self) -> Dict[str, List[str]]:
         """Get capabilities of all models."""

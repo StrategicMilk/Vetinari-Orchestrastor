@@ -2,17 +2,33 @@
   "model_a:coding": {
     "model_id": "model_a",
     "task_type": "coding",
-    "alpha": 29.499999999999986,
+    "alpha": 39.00000000000001,
     "beta": 1.0,
-    "total_pulls": 30,
-    "last_updated": "2026-03-04T00:18:51.462911"
+    "total_pulls": 40,
+    "last_updated": "2026-03-04T01:46:27.201804"
   },
   "model_b:coding": {
     "model_id": "model_b",
     "task_type": "coding",
     "alpha": 1.0,
-    "beta": 25.000000000000014,
-    "total_pulls": 30,
-    "last_updated": "2026-03-04T00:18:51.465300"
+    "beta": 33.000000000000014,
+    "total_pulls": 40,
+    "last_updated": "2026-03-04T01:46:27.204343"
+  },
+  "qwen2.5-72b:planner": {
+    "model_id": "qwen2.5-72b",
+    "task_type": "planner",
+    "alpha": 5.76,
+    "beta": 1.0,
+    "total_pulls": 8,
+    "last_updated": "2026-03-04T01:46:27.194020"
+  },
+  "qwen2.5-coder-7b:explorer": {
+    "model_id": "qwen2.5-coder-7b",
+    "task_type": "explorer",
+    "alpha": 7.396000000000002,
+    "beta": 1.0,
+    "total_pulls": 12,
+    "last_updated": "2026-03-04T01:45:58.472528"
   }
 }

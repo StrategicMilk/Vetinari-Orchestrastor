@@ -132,18 +132,20 @@ class LMStudioProviderAdapter(ProviderAdapter):
             if "usage" in data:
                 tokens_used = data["usage"].get("total_tokens", 0)
 
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output=output,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
                 status="ok",
             )
+            self._record_telemetry(request, resp)
+            return resp
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
             logger.error(f"[LMStudio] Inference failed: {e}")
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output="",
                 latency_ms=latency_ms,
@@ -151,6 +153,8 @@ class LMStudioProviderAdapter(ProviderAdapter):
                 status="error",
                 error=str(e),
             )
+            self._record_telemetry(request, resp)
+            return resp
 
     def get_capabilities(self) -> Dict[str, List[str]]:
         """Get capabilities of all models."""

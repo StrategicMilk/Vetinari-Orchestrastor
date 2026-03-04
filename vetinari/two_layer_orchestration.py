@@ -713,7 +713,41 @@ class DurableExecutionEngine:
                     "status": "completed",
                     "attempts": attempt + 1
                 })
-                
+
+                # Wire learning & analytics: record outcome after each completed task
+                try:
+                    output_str = (
+                        output if isinstance(output, str)
+                        else str(output)[:800]
+                    )
+                    model_id = task.assigned_model or "default"
+                    task_type_str = task.agent_type.value.lower() if hasattr(task, "agent_type") else "general"
+
+                    from vetinari.learning.quality_scorer import get_quality_scorer
+                    scorer = get_quality_scorer()
+                    q_score = scorer.score(
+                        task_id=task_id,
+                        model_id=model_id,
+                        task_type=task_type_str,
+                        task_description=task.description or "",
+                        output=output_str,
+                        use_llm=False,
+                    )
+
+                    from vetinari.learning.feedback_loop import get_feedback_loop
+                    get_feedback_loop().record_outcome(
+                        task_id=task_id,
+                        model_id=model_id,
+                        task_type=task_type_str,
+                        quality_score=q_score.overall_score,
+                        success=True,
+                    )
+
+                    from vetinari.learning.model_selector import get_thompson_selector
+                    get_thompson_selector().update(model_id, task_type_str, q_score.overall_score, True)
+                except Exception as _learn_err:
+                    logger.debug(f"Learning hook failed (non-fatal): {_learn_err}")
+
                 # Callback
                 if self._on_task_complete:
                     try:
@@ -1107,18 +1141,50 @@ class TwoLayerOrchestrator:
         return result
 
     def _make_default_handler(self) -> Callable:
-        """Create a default task handler that uses agent inference."""
+        """Create a default task handler that uses agent inference with token optimisation."""
         def handle_task(task: "TaskNode") -> Dict[str, Any]:
             try:
+                # Determine if target model is a cloud model
+                assigned_model = task.input_data.get("assigned_model", "default")
+                is_cloud = not any(
+                    x in assigned_model.lower()
+                    for x in ["qwen", "llama", "mistral", "gemma", "phi", "local", "lm_studio", "default"]
+                )
+
+                # Apply token optimisation
+                task_context = " ".join(
+                    str(v)[:500] for v in task.input_data.values() if v
+                ) if task.input_data else ""
+
+                try:
+                    from vetinari.token_optimizer import get_token_optimizer
+                    optimizer = get_token_optimizer()
+                    opt_result = optimizer.prepare_prompt(
+                        prompt=task.description,
+                        context=task_context,
+                        task_type=task.task_type or "general",
+                        task_description=task.description,
+                        is_cloud_model=is_cloud,
+                        task_id=task.id,
+                    )
+                    optimised_prompt = opt_result["prompt"]
+                    max_tokens = opt_result["max_tokens"]
+                    temperature = opt_result["temperature"]
+                except Exception:
+                    optimised_prompt = task.description
+                    max_tokens = 2048
+                    temperature = 0.3
+
                 adapter_manager = self.agent_context.get("adapter_manager")
                 if adapter_manager:
                     try:
                         from vetinari.adapters.base import InferenceRequest
                         req = InferenceRequest(
-                            model_id=task.input_data.get("assigned_model", "default"),
-                            prompt=task.description,
-                            system_prompt=f"Execute this {task.task_type} task precisely and completely.",
-                            max_tokens=2048,
+                            model_id=assigned_model,
+                            prompt=optimised_prompt,
+                            system_prompt=f"Execute this {task.task_type or 'general'} task precisely and completely.",
+                            max_tokens=max_tokens,
+                            temperature=temperature,
                         )
                         resp = adapter_manager.infer(req)
                         if resp.status == "ok":
@@ -1129,12 +1195,12 @@ class TwoLayerOrchestrator:
                 # Fallback: use LM Studio adapter directly
                 import os
                 from vetinari.lmstudio_adapter import LMStudioAdapter
-                host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+                host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
                 adapter = LMStudioAdapter(host=host)
                 result = adapter.chat(
-                    model_id=task.input_data.get("assigned_model", "default"),
-                    system_prompt=f"You are executing a {task.task_type} task.",
-                    input_text=task.description,
+                    model_id=assigned_model,
+                    system_prompt=f"You are executing a {task.task_type or 'general'} task.",
+                    input_text=optimised_prompt,
                 )
                 return {"result": result.get("output", ""), "status": "ok", "task_id": task.id}
             except Exception as e:

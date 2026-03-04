@@ -40,6 +40,16 @@ from .cost_planner_agent import CostPlannerAgent, get_cost_planner_agent
 from .test_automation_agent import TestAutomationAgent, get_test_automation_agent
 from .experimentation_manager_agent import ExperimentationManagerAgent, get_experimentation_manager_agent
 
+# Meta and interaction agents
+from .improvement_agent import ImprovementAgent
+from .user_interaction_agent import UserInteractionAgent
+
+# New comprehensive orchestration agents
+try:
+    from .devops_agent import DevOpsAgent, get_devops_agent
+except ImportError:
+    pass
+
 # Legacy coding bridge support
 from .coding_bridge import (
     CodingBridge,
@@ -91,6 +101,10 @@ __all__ = [
     "UIPlannerAgent",
     "get_ui_planner_agent",
     
+    # Meta agents
+    "ImprovementAgent",
+    "UserInteractionAgent",
+
     # Extended agents
     "SecurityAuditorAgent",
     "get_security_auditor_agent",

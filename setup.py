@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name="vetinari",
-    version="0.2.0",
+    version="0.2.1",
     packages=find_packages(),
-    description="Comprehensive AI Orchestration System with multi-agent assembly-line execution",
+    description="Comprehensive AI Orchestration System with multi-agent assembly-line execution, token optimization, and local-cloud hybrid inference",
     long_description=open("README.md", encoding="utf-8").read() if __import__("os").path.exists("README.md") else "",
     long_description_content_type="text/markdown",
     author="Vetinari",
@@ -13,6 +13,7 @@ setup(
         "pyyaml>=6.0",
         "flask>=2.0.0",
         "duckduckgo-search>=4.0.0",
+        "apscheduler>=3.10.0",
     ],
     extras_require={
         "cloud": [

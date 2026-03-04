@@ -96,7 +96,9 @@ policy:
   privacy_weight: 1.0
   latency_weight: 0.5
   cost_weight: 0.3
-  max_cost_per_1k_tokens: 0.0
+  # Set to null to allow all cloud models; set to a positive number (e.g. 0.05)
+  # to enforce a per-1k-token cost ceiling across the routing decision.
+  max_cost_per_1k_tokens: null
   preferred_providers:
     - lmstudio
     - ollama

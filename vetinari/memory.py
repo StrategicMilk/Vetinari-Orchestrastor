@@ -322,9 +322,74 @@ class MemoryStore:
         
         return subtasks
     
-    def update_model_performance(self, model_id: str, task_type: str,
-                                success: bool, latency: float) -> bool:
-        """Update model performance metrics."""
+    def get_model_performance(self, model_id: str, task_type: str) -> Optional[Dict[str, Any]]:
+        """Retrieve model performance record for a given model and task type."""
+        if self.use_json_fallback:
+            key = f"{model_id}:{task_type}"
+            return self._json_data.get("model_performance", {}).get(key)
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT * FROM ModelPerformance WHERE model_id = ? AND task_type = ?",
+                (model_id, task_type),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except sqlite3.Error as e:
+            logger.debug(f"get_model_performance failed: {e}")
+            return None
+
+    def update_subtask_quality(
+        self, subtask_id: str, quality_score: float = 0.0, succeeded: bool = True
+    ) -> bool:
+        """Annotate a SubtaskMemory record with a quality score and outcome."""
+        if self.use_json_fallback:
+            subtask = self._json_data.get("subtasks", {}).get(subtask_id, {})
+            if subtask:
+                subtask["quality_score"] = quality_score
+                subtask["outcome"] = "success" if succeeded else "failed"
+                subtask["updated_at"] = datetime.now().isoformat()
+                self._save_json()
+            return True
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """UPDATE SubtaskMemory
+                   SET outcome = ?, updated_at = ?
+                   WHERE subtask_id = ?""",
+                ("success" if succeeded else "failed", datetime.now().isoformat(), subtask_id),
+            )
+            self._conn.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.debug(f"update_subtask_quality failed: {e}")
+            return False
+
+    def update_model_performance(
+        self,
+        model_id: str,
+        task_type: str,
+        success_or_dict=None,
+        latency: float = 0.0,
+    ) -> bool:
+        """Update model performance metrics.
+
+        Accepts two call signatures for backwards compatibility:
+          - Legacy: update_model_performance(model_id, task_type, success: bool, latency: float)
+          - New:    update_model_performance(model_id, task_type, data: dict)
+        """
+        # Normalise arguments
+        if isinstance(success_or_dict, dict):
+            data = success_or_dict
+            success = data.get("success_rate", 1.0) >= 0.5
+            latency = float(data.get("avg_latency", latency))
+        elif success_or_dict is None:
+            data = {}
+            success = True
+        else:
+            success = bool(success_or_dict)
+            data = {}
+
         if self.use_json_fallback:
             return self._update_model_perf_json(model_id, task_type, success, latency)
         
@@ -508,7 +573,9 @@ def init_memory_store(db_path: str = None, use_json_fallback: bool = False) -> M
 
 
 try:
-    from .memory import (
+    # Import from the vetinari.memory package (the memory/ subdirectory),
+    # NOT from this file itself — that would be a circular import.
+    from vetinari.memory import (
         DualMemoryStore,
         get_dual_memory_store,
         init_dual_memory_store,
