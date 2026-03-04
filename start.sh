@@ -17,7 +17,7 @@ if [ -f "venv/bin/activate" ]; then
 fi
 
 # Set default environment variables if not already set
-export LM_STUDIO_HOST="${LM_STUDIO_HOST:-http://100.78.30.7:1234}"
+export LM_STUDIO_HOST="${LM_STUDIO_HOST:-http://localhost:1234}"
 
 echo "============================================================"
 echo " VETINARI AI Orchestration System"

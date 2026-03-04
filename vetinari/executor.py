@@ -131,11 +131,24 @@ class TaskExecutor:
         try:
             from vetinari.verification import get_verifier_pipeline
             pipeline = get_verifier_pipeline()
-            vr = pipeline.verify(output_text)
-            verification_result = {"passed": vr.passed, "score": getattr(vr, "score", 1.0)}
-            if not vr.passed:
-                logger.warning(f"Verification failed for task {task_id}: {vr.issues}")
-                # Don't fail the task for verification issues, just warn
+            vr_dict = pipeline.verify(output_text)
+            # pipeline.verify() returns Dict[str, VerificationResult] - aggregate results
+            if isinstance(vr_dict, dict):
+                all_passed = all(getattr(v, "passed", True) for v in vr_dict.values())
+                avg_score = (
+                    sum(getattr(v, "score", 1.0) for v in vr_dict.values()) / len(vr_dict)
+                    if vr_dict else 1.0
+                )
+                all_issues = []
+                for v in vr_dict.values():
+                    all_issues.extend(getattr(v, "issues", []))
+                verification_result = {"passed": all_passed, "score": avg_score, "issues": all_issues}
+                if not all_passed:
+                    logger.warning(f"Verification failed for task {task_id}: {all_issues}")
+            else:
+                # Single result (legacy path)
+                verification_result = {"passed": getattr(vr_dict, "passed", True),
+                                       "score": getattr(vr_dict, "score", 1.0)}
         except Exception as e:
             logger.debug(f"Verification pipeline skipped: {e}")
 

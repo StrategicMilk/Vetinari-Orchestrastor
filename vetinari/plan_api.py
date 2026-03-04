@@ -477,8 +477,7 @@ def get_plan_explanations(plan_id):
     sanitized = request.args.get('sanitized', 'false').lower() in ('1', 'true', 'yes')
     
     try:
-        from .explain_agent import get_explain_agent
-        from .plan_types import PlanExplanation
+        from .explain_agent import get_explain_agent, PlanExplanation
         
         engine = get_plan_engine()
         plan = engine.get_plan(plan_id)

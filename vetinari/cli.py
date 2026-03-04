@@ -332,7 +332,7 @@ def cmd_review(args) -> int:
 
         task = AgentTask(
             task_id="review-cli",
-            agent_type=AgentType.EXPERIMENTATION_MANAGER,
+            agent_type=AgentType.IMPROVEMENT,
             description="Run system performance review",
             context={"review_type": "full"},
         )
@@ -484,10 +484,15 @@ Examples:
     # Default command: start (interactive)
     if args.command is None:
         args.command = "start"
-        args.goal = None
-        args.task = None
-        args.port = None
-        args.no_dashboard = False
+        # Set safe defaults for any attributes subparsers would normally define
+        if not hasattr(args, "goal"):
+            args.goal = None
+        if not hasattr(args, "task"):
+            args.task = None
+        if not hasattr(args, "port"):
+            args.port = None
+        if not hasattr(args, "no_dashboard"):
+            args.no_dashboard = False
 
     dispatch = {
         "run": cmd_run,

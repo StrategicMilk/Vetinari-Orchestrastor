@@ -70,7 +70,7 @@ Output format must include architecture_vision, risks array, and recommended_gui
             # Generate architectural guidance
             guidance = self._provide_guidance(goal, context)
             
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=guidance,
                 metadata={
@@ -78,6 +78,8 @@ Output format must include architecture_vision, risks array, and recommended_gui
                     "guidelines_count": len(guidance.get("recommended_guidelines", []))
                 }
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Oracle guidance failed: {str(e)}")

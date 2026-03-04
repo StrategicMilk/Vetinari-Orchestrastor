@@ -68,10 +68,10 @@ Output format must include synthesized_artifact, provenance, integration_notes, 
             sources = task.context.get("sources", [])
             artifact_type = task.context.get("type", "document")
             
-            # Perform synthesis (simulated - in production would use actual synthesis logic)
+            # Perform synthesis via LLM
             synthesized = self._synthesize_artifacts(sources, artifact_type)
             
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=synthesized,
                 metadata={
@@ -80,6 +80,8 @@ Output format must include synthesized_artifact, provenance, integration_notes, 
                     "integration_score": synthesized.get("integration_score", 0)
                 }
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Synthesis failed: {str(e)}")

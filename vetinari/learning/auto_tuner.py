@@ -84,10 +84,17 @@ class AutoTuner:
         try:
             from vetinari.analytics.sla import get_sla_tracker
             tracker = get_sla_tracker()
-            reports = tracker.get_all_reports() if hasattr(tracker, "get_all_reports") else {}
+            raw_reports = tracker.get_all_reports() if hasattr(tracker, "get_all_reports") else []
+            # get_all_reports() returns List[SLAReport]; convert to dict for iteration
+            if isinstance(raw_reports, list):
+                reports = {r.slo.name if hasattr(r, "slo") else str(i): r
+                           for i, r in enumerate(raw_reports)}
+            else:
+                reports = raw_reports  # legacy dict path
 
             for slo_name, report in reports.items():
-                if not report.get("is_compliant", True):
+                report_dict = report.to_dict() if hasattr(report, "to_dict") else report
+                if not report_dict.get("is_compliant", True):
                     # SLA breach -- reduce concurrency to slow down
                     current = self._current_config["max_concurrent"]
                     if current > self.MIN_AUTO_CONCURRENT:
@@ -97,7 +104,7 @@ class AutoTuner:
                                              f"SLA '{slo_name}' breached -- reducing concurrency",
                                              auto=True)
                         actions.append(action)
-                elif report.get("compliance_pct", 100) > 99:
+                elif report_dict.get("compliance_pct", 100) > 99:
                     # Excellent compliance -- try increasing concurrency
                     current = self._current_config["max_concurrent"]
                     if current < self.MAX_AUTO_CONCURRENT:

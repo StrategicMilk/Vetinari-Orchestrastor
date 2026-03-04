@@ -212,9 +212,10 @@ Required output (JSON):
         try:
             from vetinari.analytics.cost import get_cost_tracker
             tracker = get_cost_tracker()
-            summary = tracker.get_summary()
-            if summary:
-                usage["cost_tracker"] = summary
+            # get_stats() is the correct method (not get_summary)
+            stats = tracker.get_stats() if hasattr(tracker, "get_stats") else {}
+            if stats:
+                usage["cost_tracker"] = stats
         except Exception:
             pass
 
@@ -222,9 +223,10 @@ Required output (JSON):
         try:
             from vetinari.learning.model_selector import get_thompson_selector
             selector = get_thompson_selector()
-            efficiencies = selector.get_efficiencies()
-            if efficiencies:
-                usage["model_efficiencies"] = efficiencies
+            # get_rankings() is the correct method (not get_efficiencies)
+            rankings = selector.get_rankings() if hasattr(selector, "get_rankings") else []
+            if rankings:
+                usage["model_rankings"] = rankings
         except Exception:
             pass
 
@@ -232,7 +234,12 @@ Required output (JSON):
         try:
             from vetinari.telemetry import get_telemetry_collector
             tel = get_telemetry_collector()
-            metrics = tel.get_summary() if hasattr(tel, "get_summary") else {}
+            # Combine available metric getters
+            metrics = {}
+            if hasattr(tel, "get_adapter_metrics"):
+                metrics["adapters"] = tel.get_adapter_metrics()
+            if hasattr(tel, "get_plan_metrics"):
+                metrics["plans"] = tel.get_plan_metrics()
             if metrics:
                 usage["telemetry"] = metrics
         except Exception:

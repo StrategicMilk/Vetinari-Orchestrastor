@@ -186,11 +186,16 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
         try:
             from vetinari.learning.model_selector import get_thompson_selector
             selector = get_thompson_selector()
+            # Use _arms (private attribute is correct) or get_arm_state()
+            arms = getattr(selector, "_arms", None) or (
+                selector.get_arm_state() if hasattr(selector, "get_arm_state") else {}
+            )
             data["thompson_sampling"] = {
                 "model_scores": {
-                    model: {"alpha": arm.alpha, "beta": arm.beta, "mean": arm.alpha / (arm.alpha + arm.beta)}
-                    for model, arm in selector.arms.items()
-                } if hasattr(selector, "arms") else {}
+                    model: {"alpha": arm.alpha, "beta": arm.beta,
+                            "mean": arm.alpha / (arm.alpha + arm.beta)}
+                    for model, arm in arms.items()
+                } if arms else {}
             }
         except Exception:
             pass
@@ -208,7 +213,8 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
                     "count": len(history),
                     "avg_score": sum(_score_val(h) for h in history) / len(history),
                     "recent": [
-                        {"model": getattr(h, "model_id", "?"), "score": _score_val(h), "type": getattr(h, "task_type", "?")}
+                        {"model": getattr(h, "model_id", "?"), "score": _score_val(h),
+                         "type": getattr(h, "task_type", "?")}
                         for h in history[-5:]
                     ],
                 }
@@ -219,7 +225,8 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
         try:
             from vetinari.learning.workflow_learner import get_workflow_learner
             learner = get_workflow_learner()
-            patterns = learner.get_patterns() if hasattr(learner, "get_patterns") else {}
+            # get_all_patterns() is the correct method (not get_patterns)
+            patterns = learner.get_all_patterns() if hasattr(learner, "get_all_patterns") else {}
             if patterns:
                 data["workflow_patterns"] = patterns
         except Exception:
@@ -229,10 +236,13 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
         try:
             from vetinari.telemetry import get_telemetry_collector
             tel = get_telemetry_collector()
-            if hasattr(tel, "get_summary"):
-                summary = tel.get_summary()
-                if summary:
-                    data["telemetry"] = summary
+            tel_data = {}
+            if hasattr(tel, "get_adapter_metrics"):
+                tel_data["adapters"] = tel.get_adapter_metrics()
+            if hasattr(tel, "get_plan_metrics"):
+                tel_data["plans"] = tel.get_plan_metrics()
+            if tel_data:
+                data["telemetry"] = tel_data
         except Exception:
             pass
 

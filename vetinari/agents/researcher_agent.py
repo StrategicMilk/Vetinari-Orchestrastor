@@ -72,7 +72,7 @@ Output format must include findings by area, feasibility score, competitor analy
             # Perform domain research (simulated - in production would use actual research)
             findings = self._perform_research(domain_topic, questions)
             
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=findings,
                 metadata={
@@ -81,6 +81,8 @@ Output format must include findings by area, feasibility score, competitor analy
                     "areas_covered": len(findings.get("findings", []))
                 }
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Research failed: {str(e)}")
@@ -147,19 +149,22 @@ Output format must include findings by area, feasibility score, competitor analy
         search_queries = [domain_topic] + (questions[:3] if questions else [])
         search_queries.extend([
             f"{domain_topic} alternatives comparison",
-            f"{domain_topic} best practices 2025",
+            f"{domain_topic} best practices {__import__('datetime').datetime.now().year}",
             f"{domain_topic} technical challenges",
         ])
 
         all_results: List[Dict] = []
+        seen_urls: set = set()
         citations: List[str] = []
 
         for query in search_queries[:5]:  # Limit to 5 queries
             results = self._search(query, max_results=3)
             for r in results:
-                if r["url"] not in [x.get("url") for x in all_results]:
+                url = r.get("url", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
                     all_results.append(r)
-                    citations.append(f"[{len(citations)+1}] {r['title']}. {r['url']}")
+                    citations.append(f"[{len(citations)+1}] {r['title']}. {url}")
 
         # ------------------------------------------------------------------
         # Step 2: LLM synthesis of search results

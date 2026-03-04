@@ -123,7 +123,11 @@ class SharedMemory:
         content: str,
         tags: List[str] = None,
         project_id: str = "",
-        session_id: str = ""
+        session_id: str = "",
+        plan_id: str = "",
+        wave_id: str = "",
+        task_id: str = "",
+        provenance: str = "agent"
     ) -> MemoryEntry:
         entry = MemoryEntry(
             entry_id=str(uuid.uuid4())[:8],
@@ -134,7 +138,11 @@ class SharedMemory:
             timestamp=datetime.now().isoformat(),
             tags=tags or [],
             project_id=project_id,
-            session_id=session_id
+            session_id=session_id,
+            plan_id=plan_id,
+            wave_id=wave_id,
+            task_id=task_id,
+            provenance=provenance
         )
         
         self.entries.append(entry)

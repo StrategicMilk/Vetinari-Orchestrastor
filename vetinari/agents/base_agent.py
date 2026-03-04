@@ -491,30 +491,4 @@ class BaseAgent(ABC):
         return f"<{self.__class__.__name__}(type={self._agent_type.value}, name={self.name})>"
 
 
-class AsyncBaseAgent(BaseAgent):
-    """Base class for async agents.
-    
-    Agents that need to perform async operations should inherit from this class.
-    """
-    
-    async def execute_async(self, task: AgentTask) -> AgentResult:
-        """Execute the given task asynchronously.
-        
-        Args:
-            task: The task to execute
-            
-        Returns:
-            AgentResult containing success status, output, and metadata
-        """
-        return self.execute(task)
-    
-    async def verify_async(self, output: Any) -> VerificationResult:
-        """Verify the output asynchronously.
-        
-        Args:
-            output: The output to verify
-            
-        Returns:
-            VerificationResult with pass/fail status and issues
-        """
-        return self.verify(output)
+

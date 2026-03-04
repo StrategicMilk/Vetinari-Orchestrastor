@@ -1,11 +1,11 @@
 import os
-import json
 import logging
+import sys
 import time
 from pathlib import Path
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Set, Optional
+from typing import Optional
 
 from vetinari.lmstudio_adapter import LMStudioAdapter
 from vetinari.model_pool import ModelPool
@@ -319,7 +319,7 @@ class Orchestrator:
         
         # Check if running in non-interactive mode
         auto_approve = os.environ.get("VETINARI_UPGRADE_AUTO_APPROVE", "false").lower() in ("1", "true", "yes")
-        is_interactive = not auto_approve and hasattr(__builtins__, '__dict__')
+        is_interactive = not auto_approve and sys.stdin.isatty()
         
         upgrades = self.upgrader.check_for_upgrades()
         if not upgrades:

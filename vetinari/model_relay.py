@@ -132,7 +132,15 @@ class ModelRelay:
 
     def __init__(self, config_path: str = None):
         if config_path is None:
-            config_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "models.yaml"
+            # Use project-relative config or env var override
+            import os
+            env_path = os.environ.get("VETINARI_MODELS_CONFIG", "")
+            if env_path:
+                config_path = Path(env_path)
+            else:
+                # Resolve relative to this file's package root
+                pkg_root = Path(__file__).parent.parent
+                config_path = pkg_root / "config" / "models.yaml"
 
         self.config_path = Path(config_path)
         self.models: Dict[str, ModelEntry] = {}

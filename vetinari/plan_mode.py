@@ -348,6 +348,46 @@ class PlanModeEngine:
                         prerequisites=["Recommendations proposed"]
                     )
                 }
+            ],
+            TaskDomain.GENERAL: [
+                {
+                    "description": "Understand requirements and define scope",
+                    "domain": TaskDomain.GENERAL,
+                    "definition_of_done": DefinitionOfDone(
+                        criteria=["Requirements understood", "Scope defined", "Success criteria clear"]
+                    ),
+                    "definition_of_ready": DefinitionOfReady(prerequisites=[])
+                },
+                {
+                    "description": "Plan approach and identify resources",
+                    "domain": TaskDomain.GENERAL,
+                    "definition_of_done": DefinitionOfDone(
+                        criteria=["Approach documented", "Resources identified"]
+                    ),
+                    "definition_of_ready": DefinitionOfReady(
+                        prerequisites=["Scope defined"]
+                    )
+                },
+                {
+                    "description": "Execute the core work",
+                    "domain": TaskDomain.GENERAL,
+                    "definition_of_done": DefinitionOfDone(
+                        criteria=["Core deliverables produced", "Quality checked"]
+                    ),
+                    "definition_of_ready": DefinitionOfReady(
+                        prerequisites=["Approach planned"]
+                    )
+                },
+                {
+                    "description": "Review and finalise deliverables",
+                    "domain": TaskDomain.GENERAL,
+                    "definition_of_done": DefinitionOfDone(
+                        criteria=["Deliverables reviewed", "Feedback incorporated", "Final output ready"]
+                    ),
+                    "definition_of_ready": DefinitionOfReady(
+                        prerequisites=["Core work complete"]
+                    )
+                }
             ]
         }
     

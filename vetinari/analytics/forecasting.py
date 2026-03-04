@@ -36,7 +36,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class ForecastResult:
 # Math helpers
 # ---------------------------------------------------------------------------
 
-def _ols(y: List[float]) -> tuple[float, float]:
+def _ols(y: List[float]) -> Tuple[float, float]:
     """Return (slope, intercept) of the OLS line through enumerate(y)."""
     n = len(y)
     sx = n * (n - 1) / 2           # sum of 0..n-1
@@ -124,7 +124,7 @@ def _stddev(vals: List[float]) -> float:
 
 
 def _conf_bounds(preds: List[float], std: float, z: float = 1.28
-                 ) -> tuple[List[float], List[float]]:
+                 ) -> Tuple[List[float], List[float]]:
     lo = [p - z * std for p in preds]
     hi = [p + z * std for p in preds]
     return lo, hi

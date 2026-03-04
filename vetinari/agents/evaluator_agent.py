@@ -69,10 +69,10 @@ Output format must include verdict (pass/fail), quality_score, findings, securit
             artifacts = task.context.get("artifacts", [])
             evaluation_focus = task.context.get("focus", "all")
             
-            # Perform evaluation (simulated - in production would use actual code analysis tools)
+            # Perform evaluation via LLM + heuristic analysis
             evaluation = self._evaluate_artifacts(artifacts, evaluation_focus)
             
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=evaluation,
                 metadata={
@@ -81,6 +81,8 @@ Output format must include verdict (pass/fail), quality_score, findings, securit
                     "verdict": evaluation.get("verdict")
                 }
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Evaluation failed: {str(e)}")
@@ -171,21 +173,36 @@ Be specific and actionable. Do not make up issues that are not evidenced by the 
         result = self._infer_json(prompt)
 
         if result and isinstance(result, dict) and "verdict" in result:
-            # Ensure verdict respects quality threshold
             quality_score = float(result.get("quality_score", 0.7))
-            result["verdict"] = "pass" if quality_score >= self._quality_threshold else "fail"
+            # Respect LLM's qualitative verdict first; only override if score is
+            # clearly below threshold (LLM may flag critical issues with high score)
+            llm_verdict = result.get("verdict", "").lower()
+            has_critical = any(
+                si.get("severity") == "critical"
+                for si in result.get("security_issues", [])
+            )
+            if has_critical:
+                # Critical security issues always fail regardless of score
+                result["verdict"] = "fail"
+            elif llm_verdict in ("pass", "fail"):
+                # If LLM gave a clear verdict, respect it but reconcile with score
+                if quality_score < self._quality_threshold:
+                    result["verdict"] = "fail"
+                # else keep LLM's verdict (it may be "fail" for qualitative reasons)
+            else:
+                result["verdict"] = "pass" if quality_score >= self._quality_threshold else "fail"
             result["quality_score"] = round(quality_score, 2)
             return result
 
-        # Fallback: return minimal result
-        self._log("warning", "LLM evaluation unavailable, returning baseline assessment")
+        # Fallback: return inconclusive result (never rubber-stamp as passing)
+        self._log("warning", "LLM evaluation unavailable, returning inconclusive assessment")
         return {
-            "verdict": "pass",
-            "quality_score": 0.7,
-            "findings": [{"area": "general", "message": "Evaluation performed without LLM", "score": 0.7}],
+            "verdict": "inconclusive",
+            "quality_score": 0.5,
+            "findings": [{"area": "general", "message": "LLM unavailable — manual review required", "score": 0.5}],
             "security_issues": [],
-            "improvements": [{"area": "general", "issue": "Manual review recommended", "suggestion": "Review artifacts manually"}],
-            "summary": "Baseline evaluation (LLM unavailable)"
+            "improvements": [{"area": "general", "issue": "Manual review required", "suggestion": "Review artifacts manually before proceeding"}],
+            "summary": "Inconclusive evaluation (LLM unavailable) — manual review required"
         }
 
 

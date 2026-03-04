@@ -65,6 +65,104 @@
         {"skill_id": "synthesizer", "default_capability": "summarization"},
         {"skill_id": "ui-planner", "default_capability": "css_design"}
       ]
+    },
+    "planner_agent": {
+      "description": "Decomposes goals into executable plans with subtasks",
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"}
+      ]
+    },
+    "security_auditor_agent": {
+      "description": "Security vulnerability scanning and OWASP compliance",
+      "default_skills": [
+        {"skill_id": "evaluator", "default_capability": "security_audit"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"},
+        {"skill_id": "librarian", "default_capability": "docs_lookup"}
+      ]
+    },
+    "data_engineer_agent": {
+      "description": "Database schema design, pipeline creation, data modelling",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "code_generation"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "comparative_analysis"}
+      ]
+    },
+    "documentation_agent": {
+      "description": "API docs, user guides, README and changelog generation",
+      "default_skills": [
+        {"skill_id": "explorer", "default_capability": "file_discovery"},
+        {"skill_id": "builder", "default_capability": "code_generation"}
+      ]
+    },
+    "cost_planner_agent": {
+      "description": "Budget planning, model cost optimisation, usage tracking",
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "trade_off_evaluation"},
+        {"skill_id": "researcher", "default_capability": "comparative_analysis"}
+      ]
+    },
+    "test_automation_agent": {
+      "description": "Test generation, coverage analysis, test fixture creation",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "test_writing"},
+        {"skill_id": "explorer", "default_capability": "grep_search"},
+        {"skill_id": "evaluator", "default_capability": "quality_assessment"}
+      ]
+    },
+    "experimentation_manager_agent": {
+      "description": "A/B test management, experiment tracking and reproducibility",
+      "default_skills": [
+        {"skill_id": "researcher", "default_capability": "comparative_analysis"},
+        {"skill_id": "oracle", "default_capability": "trade_off_evaluation"},
+        {"skill_id": "synthesizer", "default_capability": "report_generation"}
+      ]
+    },
+    "improvement_agent": {
+      "description": "Meta-analysis and self-improvement recommendations",
+      "default_skills": [
+        {"skill_id": "evaluator", "default_capability": "quality_assessment"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "synthesizer", "default_capability": "summarization"}
+      ]
+    },
+    "user_interaction_agent": {
+      "description": "Ambiguity detection and user clarification",
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"}
+      ]
+    },
+    "devops_agent": {
+      "description": "CI/CD pipeline design, containerisation, IaC, deployment",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "code_generation"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"}
+      ]
+    },
+    "version_control_agent": {
+      "description": "Git workflow, branch strategy, PR creation, code review coordination",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "code_generation"},
+        {"skill_id": "evaluator", "default_capability": "code_review"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"}
+      ]
+    },
+    "error_recovery_agent": {
+      "description": "Failure analysis, retry strategies, circuit breaking, fallback planning",
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"},
+        {"skill_id": "builder", "default_capability": "debugging"}
+      ]
+    },
+    "context_manager_agent": {
+      "description": "Long-term context management, memory consolidation, session summarisation",
+      "default_skills": [
+        {"skill_id": "synthesizer", "default_capability": "summarization"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"}
+      ]
     }
   },
   "environment_overrides": {

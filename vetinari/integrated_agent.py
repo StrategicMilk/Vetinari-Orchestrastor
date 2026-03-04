@@ -141,8 +141,10 @@ class IntegratedAgent:
         if self.model_pool is None:
             try:
                 from vetinari.model_pool import ModelPool
-                config = self.config.get("model_pool", {})
-                self.model_pool = ModelPool(config)
+                pool_config = self.config.get("model_pool", {})
+                host = self.config.get("lm_studio_host",
+                       os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"))
+                self.model_pool = ModelPool(pool_config, host=host)
             except Exception as e:
                 logger.warning(f"Could not initialize model pool: {e}")
         
@@ -153,11 +155,16 @@ class IntegratedAgent:
                 prefer_local = self.config.get("prefer_local", True)
                 self.model_router = init_model_router(prefer_local=prefer_local)
                 
-                # Register models from pool
+                # Register models from pool (discover first so models list is populated)
                 if self.model_pool:
-                    self.model_router.register_models_from_pool(
-                        self.model_pool.models
-                    )
+                    try:
+                        self.model_pool.discover_models()
+                    except Exception:
+                        pass
+                    if self.model_pool.models:
+                        self.model_router.register_models_from_pool(
+                            self.model_pool.models
+                        )
             except Exception as e:
                 logger.warning(f"Could not initialize model router: {e}")
         
@@ -188,8 +195,8 @@ class IntegratedAgent:
         # Code executor
         if self.code_executor is None:
             try:
-                from vetinari.code_sandbox import get_code_executor
-                self.code_executor = get_code_executor()
+                from vetinari.code_sandbox import get_subprocess_executor
+                self.code_executor = get_subprocess_executor()
             except Exception as e:
                 logger.warning(f"Could not initialize code executor: {e}")
     

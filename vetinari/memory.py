@@ -379,9 +379,15 @@ class MemoryStore:
           - New:    update_model_performance(model_id, task_type, data: dict)
         """
         # Normalise arguments
+        # When a dict is passed (from FeedbackLoop), use the pre-calculated EMA values directly
+        explicit_rate = None
+        explicit_total_uses = None
         if isinstance(success_or_dict, dict):
             data = success_or_dict
-            success = data.get("success_rate", 1.0) >= 0.5
+            # Use the pre-calculated EMA success rate directly rather than converting to bool
+            explicit_rate = data.get("success_rate")
+            explicit_total_uses = data.get("total_uses")
+            success = (explicit_rate >= 0.5) if explicit_rate is not None else True
             latency = float(data.get("avg_latency", latency))
         elif success_or_dict is None:
             data = {}
@@ -391,7 +397,8 @@ class MemoryStore:
             data = {}
 
         if self.use_json_fallback:
-            return self._update_model_perf_json(model_id, task_type, success, latency)
+            return self._update_model_perf_json(model_id, task_type, success, latency,
+                                                explicit_rate=explicit_rate)
         
         try:
             cursor = self._conn.cursor()
@@ -404,9 +411,14 @@ class MemoryStore:
             row = cursor.fetchone()
             
             if row:
-                new_success_rate = (row["success_rate"] * row["total_uses"] + (1 if success else 0)) / (row["total_uses"] + 1)
+                # If FeedbackLoop provided pre-calculated EMA values, use them directly
+                if explicit_rate is not None:
+                    new_success_rate = explicit_rate
+                    new_uses = explicit_total_uses or (row["total_uses"] + 1)
+                else:
+                    new_success_rate = (row["success_rate"] * row["total_uses"] + (1 if success else 0)) / (row["total_uses"] + 1)
+                    new_uses = row["total_uses"] + 1
                 new_latency = (row["avg_latency"] * row["total_uses"] + latency) / (row["total_uses"] + 1)
-                new_uses = row["total_uses"] + 1
                 
                 cursor.execute("""
                     UPDATE ModelPerformance
@@ -416,11 +428,12 @@ class MemoryStore:
                 """, (new_success_rate, new_latency, new_uses,
                       datetime.now().isoformat(), model_id, task_type))
             else:
+                init_rate = explicit_rate if explicit_rate is not None else (1.0 if success else 0.0)
                 cursor.execute("""
                     INSERT INTO ModelPerformance
                     (model_id, task_type, success_rate, avg_latency, total_uses, last_used_at)
                     VALUES (?, ?, ?, ?, 1, ?)
-                """, (model_id, task_type, 1.0 if success else 0.0, 
+                """, (model_id, task_type, init_rate,
                       latency, datetime.now().isoformat()))
             
             self._conn.commit()
@@ -431,7 +444,8 @@ class MemoryStore:
             return False
     
     def _update_model_perf_json(self, model_id: str, task_type: str,
-                                success: bool, latency: float) -> bool:
+                                success: bool, latency: float,
+                                explicit_rate=None) -> bool:
         """Update model performance in JSON fallback."""
         key = f"{model_id}:{task_type}"
         if key not in self._json_data["model_performance"]:
@@ -445,7 +459,11 @@ class MemoryStore:
         
         perf = self._json_data["model_performance"][key]
         total = perf["total_uses"] + 1
-        perf["success_rate"] = (perf["success_rate"] * perf["total_uses"] + (1 if success else 0)) / total
+        # Use pre-calculated EMA rate if provided (from FeedbackLoop)
+        if explicit_rate is not None:
+            perf["success_rate"] = explicit_rate
+        else:
+            perf["success_rate"] = (perf["success_rate"] * perf["total_uses"] + (1 if success else 0)) / total
         perf["avg_latency"] = (perf["avg_latency"] * perf["total_uses"] + latency) / total
         perf["total_uses"] = total
         perf["last_used_at"] = datetime.now().isoformat()

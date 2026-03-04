@@ -4,7 +4,7 @@ Vetinari Agents Module.
 This module provides specialized agents for Vetinari's orchestration system.
 """
 
-from .base_agent import BaseAgent, AsyncBaseAgent
+from .base_agent import BaseAgent
 from .contracts import (
     AgentType,
     AgentSpec,
@@ -41,14 +41,34 @@ from .test_automation_agent import TestAutomationAgent, get_test_automation_agen
 from .experimentation_manager_agent import ExperimentationManagerAgent, get_experimentation_manager_agent
 
 # Meta and interaction agents
-from .improvement_agent import ImprovementAgent
-from .user_interaction_agent import UserInteractionAgent
+from .improvement_agent import ImprovementAgent, get_improvement_agent
+from .user_interaction_agent import UserInteractionAgent, get_user_interaction_agent
 
 # New comprehensive orchestration agents
 try:
     from .devops_agent import DevOpsAgent, get_devops_agent
 except ImportError:
-    pass
+    DevOpsAgent = None
+    get_devops_agent = None
+
+# Newly implemented phantom agents (VERSION_CONTROL, ERROR_RECOVERY, CONTEXT_MANAGER)
+try:
+    from .version_control_agent import VersionControlAgent, get_version_control_agent
+except ImportError:
+    VersionControlAgent = None
+    get_version_control_agent = None
+
+try:
+    from .error_recovery_agent import ErrorRecoveryAgent, get_error_recovery_agent
+except ImportError:
+    ErrorRecoveryAgent = None
+    get_error_recovery_agent = None
+
+try:
+    from .context_manager_agent import ContextManagerAgent, get_context_manager_agent
+except ImportError:
+    ContextManagerAgent = None
+    get_context_manager_agent = None
 
 # Legacy coding bridge support
 from .coding_bridge import (
@@ -64,8 +84,7 @@ from .coding_bridge import (
 __all__ = [
     # Base classes
     "BaseAgent",
-    "AsyncBaseAgent",
-    
+
     # Contracts and types
     "AgentType",
     "AgentSpec",
@@ -103,7 +122,21 @@ __all__ = [
     
     # Meta agents
     "ImprovementAgent",
+    "get_improvement_agent",
     "UserInteractionAgent",
+    "get_user_interaction_agent",
+
+    # DevOps agent
+    "DevOpsAgent",
+    "get_devops_agent",
+
+    # New orchestration agents
+    "VersionControlAgent",
+    "get_version_control_agent",
+    "ErrorRecoveryAgent",
+    "get_error_recovery_agent",
+    "ContextManagerAgent",
+    "get_context_manager_agent",
 
     # Extended agents
     "SecurityAuditorAgent",

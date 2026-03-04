@@ -20,13 +20,11 @@ import json
 import logging
 import time
 import uuid
-import hashlib
 from typing import List, Dict, Any, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import copy
 import threading
 
 logger = logging.getLogger(__name__)
@@ -721,7 +719,7 @@ class DurableExecutionEngine:
                         else str(output)[:800]
                     )
                     model_id = task.assigned_model or "default"
-                    task_type_str = task.agent_type.value.lower() if hasattr(task, "agent_type") else "general"
+                    task_type_str = task.task_type.lower() if hasattr(task, "task_type") and task.task_type else "general"
 
                     from vetinari.learning.quality_scorer import get_quality_scorer
                     scorer = get_quality_scorer()
@@ -988,30 +986,53 @@ class TwoLayerOrchestrator:
         # Re-initialize any cached agents
         self._agents.clear()
 
+    # Complete mapping from agent type string to (module, getter_function)
+    _AGENT_MODULE_MAP = {
+        "PLANNER":                  ("vetinari.agents.planner_agent",               "get_planner_agent"),
+        "EXPLORER":                 ("vetinari.agents.explorer_agent",              "get_explorer_agent"),
+        "ORACLE":                   ("vetinari.agents.oracle_agent",                "get_oracle_agent"),
+        "LIBRARIAN":                ("vetinari.agents.librarian_agent",             "get_librarian_agent"),
+        "RESEARCHER":               ("vetinari.agents.researcher_agent",            "get_researcher_agent"),
+        "EVALUATOR":                ("vetinari.agents.evaluator_agent",             "get_evaluator_agent"),
+        "SYNTHESIZER":              ("vetinari.agents.synthesizer_agent",           "get_synthesizer_agent"),
+        "BUILDER":                  ("vetinari.agents.builder_agent",               "get_builder_agent"),
+        "UI_PLANNER":               ("vetinari.agents.ui_planner_agent",            "get_ui_planner_agent"),
+        "SECURITY_AUDITOR":         ("vetinari.agents.security_auditor_agent",      "get_security_auditor_agent"),
+        "DATA_ENGINEER":            ("vetinari.agents.data_engineer_agent",         "get_data_engineer_agent"),
+        "DOCUMENTATION_AGENT":      ("vetinari.agents.documentation_agent",         "get_documentation_agent"),
+        "COST_PLANNER":             ("vetinari.agents.cost_planner_agent",          "get_cost_planner_agent"),
+        "TEST_AUTOMATION":          ("vetinari.agents.test_automation_agent",       "get_test_automation_agent"),
+        "EXPERIMENTATION_MANAGER":  ("vetinari.agents.experimentation_manager_agent", "get_experimentation_manager_agent"),
+        "IMPROVEMENT":              ("vetinari.agents.improvement_agent",           "get_improvement_agent"),
+        "USER_INTERACTION":         ("vetinari.agents.user_interaction_agent",      "get_user_interaction_agent"),
+        "DEVOPS":                   ("vetinari.agents.devops_agent",                "get_devops_agent"),
+        "VERSION_CONTROL":          ("vetinari.agents.version_control_agent",       "get_version_control_agent"),
+        "ERROR_RECOVERY":           ("vetinari.agents.error_recovery_agent",        "get_error_recovery_agent"),
+        "CONTEXT_MANAGER":          ("vetinari.agents.context_manager_agent",       "get_context_manager_agent"),
+    }
+
     def _get_agent(self, agent_type_str: str):
         """Get or create an agent by type string, initialized with context."""
-        if agent_type_str in self._agents:
-            return self._agents[agent_type_str]
+        key = agent_type_str.upper()
+        if key in self._agents:
+            return self._agents[key]
+        if key not in self._AGENT_MODULE_MAP:
+            logger.debug(f"No agent module registered for type: {key}")
+            return None
         try:
-            from vetinari.agents.contracts import AgentType
-            agent_type = AgentType[agent_type_str.upper()]
-            module_map = {
-                "EVALUATOR": ("vetinari.agents.evaluator_agent", "get_evaluator_agent"),
-                "SYNTHESIZER": ("vetinari.agents.synthesizer_agent", "get_synthesizer_agent"),
-            }
-            if agent_type_str.upper() in module_map:
-                mod_path, fn_name = module_map[agent_type_str.upper()]
-                import importlib
-                mod = importlib.import_module(mod_path)
-                agent = getattr(mod, fn_name)()
-            else:
+            import importlib
+            mod_path, fn_name = self._AGENT_MODULE_MAP[key]
+            mod = importlib.import_module(mod_path)
+            getter = getattr(mod, fn_name, None)
+            if getter is None:
                 return None
+            agent = getter()
             if self.agent_context:
                 agent.initialize(self.agent_context)
-            self._agents[agent_type_str] = agent
+            self._agents[key] = agent
             return agent
         except Exception as e:
-            logger.warning(f"Could not get agent '{agent_type_str}': {e}")
+            logger.warning(f"Could not get agent '{key}': {e}")
             return None
 
     def _route_model_for_task(self, task: "TaskNode") -> str:
@@ -1113,7 +1134,7 @@ class TwoLayerOrchestrator:
             "goal": goal,
             "completed": exec_results.get("completed", 0),
             "failed": exec_results.get("failed", 0),
-            "outputs": exec_results.get("outputs", {}),
+            "outputs": exec_results.get("task_results", {}),
             "review_result": review_result,
             "final_output": final_output,
             "stages": stages,
@@ -1215,7 +1236,8 @@ class TwoLayerOrchestrator:
             evaluator = self._get_agent("EVALUATOR")
             if evaluator:
                 from vetinari.agents.contracts import AgentTask, AgentType
-                artifacts = [str(v) for v in exec_results.get("outputs", {}).values() if v]
+                task_results = exec_results.get("task_results", {})
+                artifacts = [str(v) for v in task_results.values() if v]
                 eval_task = AgentTask(
                     task_id="review-0",
                     agent_type=AgentType.EVALUATOR,
@@ -1227,7 +1249,7 @@ class TwoLayerOrchestrator:
                     return result.output
         except Exception as e:
             logger.warning(f"Output review failed: {e}")
-        return {"verdict": "pass", "quality_score": 0.7, "summary": "Review skipped (evaluator unavailable)"}
+        return {"verdict": "inconclusive", "quality_score": 0.5, "summary": "Review skipped (evaluator unavailable)"}
 
     def _assemble_final_output(self, exec_results: Dict[str, Any],
                                review_result: Dict[str, Any], goal: str) -> str:
@@ -1236,9 +1258,10 @@ class TwoLayerOrchestrator:
             synthesizer = self._get_agent("SYNTHESIZER")
             if synthesizer:
                 from vetinari.agents.contracts import AgentTask, AgentType
+                task_results = exec_results.get("task_results", {})
                 sources = [
                     {"agent": k, "artifact": str(v)[:500]}
-                    for k, v in exec_results.get("outputs", {}).items() if v
+                    for k, v in task_results.items() if v
                 ]
                 sources.append({"agent": "review", "artifact": str(review_result)[:200]})
                 synth_task = AgentTask(
@@ -1253,9 +1276,9 @@ class TwoLayerOrchestrator:
         except Exception as e:
             logger.warning(f"Final assembly failed: {e}")
 
-        # Fallback: join outputs
-        outputs = exec_results.get("outputs", {})
-        parts = [f"# Task {k}\n{v}" for k, v in outputs.items() if v]
+        # Fallback: join task_results
+        task_results = exec_results.get("task_results", {})
+        parts = [f"# Task {k}\n{v}" for k, v in task_results.items() if v]
         return "\n\n".join(parts) if parts else f"Completed: {goal}"
 
     def generate_plan_only(self,

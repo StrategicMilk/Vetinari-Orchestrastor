@@ -153,7 +153,16 @@ Output must be actionable: what to change, why, expected impact, and risk level.
         # Telemetry
         try:
             from vetinari.telemetry import get_telemetry_collector
-            metrics["telemetry"] = get_telemetry_collector().get_metrics()
+            tel = get_telemetry_collector()
+            tel_data = {}
+            if hasattr(tel, "get_adapter_metrics"):
+                tel_data["adapters"] = tel.get_adapter_metrics()
+            if hasattr(tel, "get_memory_metrics"):
+                tel_data["memory"] = tel.get_memory_metrics()
+            if hasattr(tel, "get_plan_metrics"):
+                tel_data["plans"] = tel.get_plan_metrics()
+            if tel_data:
+                metrics["telemetry"] = tel_data
         except Exception:
             pass
 

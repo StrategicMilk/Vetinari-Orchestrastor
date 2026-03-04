@@ -454,12 +454,25 @@ class DynamicModelRouter:
             preference_score = 1.0 - (pref_index * 0.3)  # First choice = 1.0, second = 0.7, etc.
             score += 0.20 * preference_score
         
-        # Performance (20%)
+        # Performance (20%) - incorporates Thompson Sampling bonus when available
         if model.total_uses > 0:
             perf_score = model.success_rate * (1.0 - min(model.avg_latency_ms / 60000, 1.0))
             score += 0.20 * perf_score
         else:
             score += 0.10  # Neutral for unknown performance
+
+        # Thompson Sampling bonus (up to +0.10) - uses learned exploration/exploitation data
+        try:
+            from vetinari.learning.model_selector import get_thompson_selector
+            ts = get_thompson_selector()
+            task_type_str = task_type.value if hasattr(task_type, "value") else str(task_type)
+            arm = ts._arms.get(f"{model.id}:{task_type_str}")
+            if arm is not None and (arm.alpha + arm.beta) > 2:
+                # Use the arm's mean as a quality signal (0-1 range)
+                ts_bonus = arm.mean * 0.10
+                score += ts_bonus
+        except Exception:
+            pass
         
         # Provider preference (10%)
         if self.prefer_local:

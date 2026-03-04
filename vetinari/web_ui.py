@@ -656,7 +656,7 @@ When the user provides a goal:
 Be concise but thorough. Focus on creating actionable, clear tasks."""
         
         # Call the model with the user's actual goal
-        planning_model_id = model or plan.notes.split(": ")[-1] if plan.notes else available_models[0].get('name', '')
+        planning_model_id = (model or plan.notes.split(": ")[-1]) if plan.notes else (model or (available_models[0].get('name', '') if available_models else ''))
         
         model_response = ""
         try:

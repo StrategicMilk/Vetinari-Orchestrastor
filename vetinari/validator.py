@@ -26,9 +26,8 @@ class Validator:
 
     def _looks_like_code(self, text: str) -> bool:
         # Check for code patterns, including markdown code blocks
-        # Remove markdown code blocks first
-        cleaned = re.sub(r'```[\w]*\n', '\n', text)
-        cleaned = re.sub(r'```$', '', cleaned)
+        # Remove markdown code blocks first (handles both opening and closing fences)
+        cleaned = re.sub(r'```[\w]*\n?', '', text)
         cleaned = cleaned.strip()
         return bool(re.search(r'^(def|class|import|from|@|#|async|with|\s+=\s+)', cleaned, re.M))
 
@@ -51,6 +50,5 @@ class Validator:
             ast.parse(cleaned)
             return True
         except (SyntaxError, ValueError):
-            # Even if there's a syntax error, the content might still be valid
-            # So we accept it if there's substantial content
-            return len(cleaned) > 50
+            # Real syntax error - return False so the executor can flag it
+            return False

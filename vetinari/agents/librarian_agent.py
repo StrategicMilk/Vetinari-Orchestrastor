@@ -69,11 +69,11 @@ Output format must include summary, sources, fit_assessment, and recommendations
         try:
             topic = task.context.get("topic", task.description)
             sources = task.context.get("sources", self._sources)
-            
-            # Perform library research (simulated - in production would use actual lookups)
+
+            # Perform library research via LLM + web search
             findings = self._research_libraries(topic, sources)
             
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=findings,
                 metadata={
@@ -82,6 +82,8 @@ Output format must include summary, sources, fit_assessment, and recommendations
                     "results_count": len(findings.get("sources", []))
                 }
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Library research failed: {str(e)}")
@@ -144,7 +146,7 @@ Output format must include summary, sources, fit_assessment, and recommendations
         queries = [
             f"{topic} library documentation site:pypi.org OR site:npmjs.com OR site:github.com",
             f"{topic} API reference official documentation",
-            f"best {topic} libraries 2025",
+            f"best {topic} libraries {__import__('datetime').datetime.now().year}",
         ]
 
         all_results = []

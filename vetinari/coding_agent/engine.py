@@ -13,7 +13,7 @@ import uuid
 import json
 import time
 from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
 
@@ -58,7 +58,7 @@ class CodeTask:
     framework: str = ""
     repo_path: str = ""
     target_files: List[str] = field(default_factory=list)
-    constraints: str = ""
+    constraints: Union[str, List[str]] = ""
     description: str = ""
     status: CodingTaskStatus = CodingTaskStatus.PENDING
     rationale: str = ""
@@ -160,8 +160,13 @@ class CodeAgentEngine:
             raise
     
     def _run_in_process(self, task: CodeTask) -> CodeArtifact:
-        """Run task using internal LM (MVP stub)."""
-        
+        """Run task using AdapterManager (LLM-powered) with template fallback."""
+        # Try LLM-powered generation first
+        llm_result = self._generate_via_llm(task)
+        if llm_result:
+            return llm_result
+
+        # Fallback to template stubs
         if task.type == CodingTaskType.SCAFFOLD:
             return self._generate_scaffold(task)
         elif task.type == CodingTaskType.IMPLEMENT:
@@ -172,6 +177,89 @@ class CodeAgentEngine:
             return self._generate_review(task)
         else:
             return self._generate_generic(task)
+
+    def _generate_via_llm(self, task: CodeTask) -> Optional["CodeArtifact"]:
+        """Generate code using the LLM via AdapterManager."""
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+
+            constraints_str = (
+                ", ".join(task.constraints) if isinstance(task.constraints, list)
+                else task.constraints
+            )
+            target = task.target_files[0] if task.target_files else "output.py"
+
+            prompts = {
+                CodingTaskType.SCAFFOLD: (
+                    f"Generate a complete {task.language} project scaffold for: {task.description}. "
+                    f"Framework: {task.framework or 'standard library'}. "
+                    f"Target file: {target}. "
+                    f"Constraints: {constraints_str or 'none'}. "
+                    "Return ONLY the code, no explanations."
+                ),
+                CodingTaskType.IMPLEMENT: (
+                    f"Implement the following in {task.language}: {task.description}. "
+                    f"Target file: {target}. "
+                    f"Constraints: {constraints_str or 'none'}. "
+                    "Return ONLY the complete implementation code."
+                ),
+                CodingTaskType.TEST: (
+                    f"Write comprehensive unit tests in {task.language} for: {task.description}. "
+                    f"Target: {target}. Use pytest. "
+                    "Return ONLY the test code."
+                ),
+                CodingTaskType.REVIEW: (
+                    f"Review this {task.language} code and provide actionable feedback: "
+                    f"{task.description}. "
+                    "Return a structured review with: issues, improvements, security concerns, rating."
+                ),
+                CodingTaskType.REFACTOR: (
+                    f"Refactor the following {task.language} code to improve quality: "
+                    f"{task.description}. "
+                    "Return ONLY the refactored code."
+                ),
+                CodingTaskType.FIX: (
+                    f"Fix the following bug in {task.language}: {task.description}. "
+                    f"Target: {target}. "
+                    "Return ONLY the fixed code."
+                ),
+                CodingTaskType.DOCUMENT: (
+                    f"Write documentation for: {task.description}. "
+                    "Return well-structured markdown documentation."
+                ),
+            }
+
+            user_prompt = prompts.get(task.type, f"Complete this coding task: {task.description}")
+            system_prompt = (
+                f"You are an expert {task.language} developer. "
+                f"Framework: {task.framework or 'none'}. "
+                "Write clean, well-commented, production-quality code. "
+                "Follow best practices and handle edge cases."
+            )
+
+            adapter_manager = get_adapter_manager()
+            response = adapter_manager.infer(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                max_tokens=2048,
+            )
+            content = response.get("output", "").strip() if isinstance(response, dict) else str(response).strip()
+
+            if not content:
+                return None
+
+            return CodeArtifact(
+                artifact_id=f"art_{uuid.uuid4().hex[:8]}",
+                task_id=task.task_id,
+                type=ArtifactType.FILE_CONTENTS,
+                path=f"{task.repo_path}/{target}" if task.repo_path else target,
+                content=content,
+                provenance="llm_generated",
+                language=task.language,
+            )
+        except Exception as e:
+            logger.debug(f"LLM code generation failed (will use fallback): {e}")
+            return None
     
     def _generate_scaffold(self, task: CodeTask) -> CodeArtifact:
         """Generate a Python package scaffold."""
@@ -301,7 +389,7 @@ if __name__ == "__main__":
 {task.target_files}
 
 ### Constraints
-{task.constraints}
+{", ".join(task.constraints) if isinstance(task.constraints, list) else task.constraints}
 
 ### Notes
 - Code follows Python style guidelines

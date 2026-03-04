@@ -149,18 +149,22 @@ class TestCodeBridge:
 class TestCodingAgentPlanIntegration:
     """Tests for coding agent integration with plan mode."""
     
-    def test_execute_coding_task_method_exists(self):
+    def test_execute_coding_task_method_exists(self, tmp_path):
         """Test that PlanModeEngine has execute_coding_task method."""
+        import os
+        os.environ["VETINARI_MEMORY_PATH"] = str(tmp_path / "vetinari_memory.db")
         from vetinari.plan_mode import PlanModeEngine
-        
-        engine = PlanModeEngine()
+        from vetinari.memory import MemoryStore
+        mem = MemoryStore(db_path=str(tmp_path / "mem.db"))
+        engine = PlanModeEngine(memory_store=mem)
         assert hasattr(engine, 'execute_coding_task')
     
-    def test_execute_multi_step_coding_method_exists(self):
+    def test_execute_multi_step_coding_method_exists(self, tmp_path):
         """Test that PlanModeEngine has execute_multi_step_coding method."""
         from vetinari.plan_mode import PlanModeEngine
-        
-        engine = PlanModeEngine()
+        from vetinari.memory import MemoryStore
+        mem = MemoryStore(db_path=str(tmp_path / "mem.db"))
+        engine = PlanModeEngine(memory_store=mem)
         assert hasattr(engine, 'execute_multi_step_coding')
 
 

@@ -338,15 +338,17 @@ class SandboxManager:
                     allow_network=False,
                 )
                 result = csb.execute_python(code, input_data=context or {})
+                # Map ExecutionResult fields -> SandboxResult fields
+                combined_output = result.output or ""
+                if result.stdout:
+                    combined_output = result.stdout + ("\n" + combined_output if combined_output else "")
+                execution_id = str(uuid.uuid4())
                 return SandboxResult(
-                    execution_id=result.execution_id,
+                    execution_id=execution_id,
                     success=result.success,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    return_value=result.return_value,
+                    result=combined_output,
+                    error=result.error or (result.stderr or ""),
                     execution_time_ms=result.execution_time_ms,
-                    return_code=result.return_code,
-                    error=result.error,
                 )
             except ImportError:
                 # Fallback to in-process if code_sandbox not available

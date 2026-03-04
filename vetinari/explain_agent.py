@@ -346,7 +346,8 @@ class ExplainAgent:
             return "infra"
         elif any(kw in goal_lower for kw in ["etl", "data pipeline", "ingest", "data transformation", "spark", "process data"]):
             return "data_processing"
-        elif any(kw in goal_lower for kw in ["benchmark", "model experiment", "compare models", "evaluate models"]):
+        elif any(kw in goal_lower for kw in ["benchmark", "model experiment", "compare models", "evaluate models",
+                                              "experiment", "comparison", "evaluate", "compare model"]):
             return "ai_experiments"
         elif any(kw in goal_lower for kw in ["research", "literature", "study analysis", "investigation"]):
             return "research"
@@ -358,16 +359,6 @@ class ExplainAgent:
             return "coding"
         elif any(kw in goal_lower for kw in ["web app", "rest api", "python", "javascript", "java", "code", "function", "module", "class", "api endpoint"]):
             return "coding"
-        elif any(kw in goal_lower for kw in ["etl", "data process", "transform data", "ingest data", "process data"]):
-            return "data_processing"
-        elif any(kw in goal_lower for kw in ["monitor", "logging", "deploy", "infrastructure"]):
-            return "infra"
-        elif any(kw in goal_lower for kw in ["document", "write docs", "create guide"]):
-            return "docs"
-        elif any(kw in goal_lower for kw in ["experiment", "benchmark", "evaluate", "compare"]):
-            return "ai_experiments"
-        elif any(kw in goal_lower for kw in ["research", "analyze study", "investigate"]):
-            return "research"
         else:
             return "general"
     

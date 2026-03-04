@@ -88,7 +88,7 @@ Output format must be a findings object with references."""
 
             findings = self._explore(goal_context, scope, repo_context=repo_context)
 
-            return AgentResult(
+            result = AgentResult(
                 success=True,
                 output=findings,
                 metadata={
@@ -97,6 +97,8 @@ Output format must be a findings object with references."""
                     "local_repo_mapped": bool(repo_context),
                 },
             )
+            self.complete_task(task, result)
+            return result
             
         except Exception as e:
             self._log("error", f"Exploration failed: {str(e)}")

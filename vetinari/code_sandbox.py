@@ -556,12 +556,18 @@ class CodeExecutor:
 _code_executor: Optional[CodeExecutor] = None
 
 
-def get_code_executor() -> CodeExecutor:
-    """Get or create the global code executor."""
+def get_subprocess_executor() -> CodeExecutor:
+    """Get or create the global subprocess-based code executor."""
     global _code_executor
     if _code_executor is None:
         _code_executor = CodeExecutor()
     return _code_executor
+
+
+# Backward-compatibility alias
+def get_code_executor() -> CodeExecutor:
+    """Alias for get_subprocess_executor() - use get_subprocess_executor() for new code."""
+    return get_subprocess_executor()
 
 
 def init_code_executor(**kwargs) -> CodeExecutor:

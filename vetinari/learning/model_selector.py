@@ -12,6 +12,7 @@ When selecting a model, we sample from each distribution and pick the highest.
 """
 
 import logging
+import os
 import random
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -175,14 +176,22 @@ class ThompsonSamplingSelector:
             self._arms[key] = BetaArm(model_id=model_id, task_type=task_type)
         return self._arms[key]
 
+    def _get_state_dir(self) -> str:
+        """Get the .vetinari state directory, using project root or env var."""
+        import os
+        # Allow override via env var
+        state_dir = os.environ.get("VETINARI_STATE_DIR", "")
+        if not state_dir:
+            # Use the directory two levels above this file (project root/.vetinari)
+            pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            state_dir = os.path.join(pkg_root, ".vetinari")
+        return state_dir
+
     def _load_state(self) -> None:
         """Load persisted arm states from memory/disk."""
         try:
-            import json, os
-            state_file = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-                ".vetinari", "thompson_state.json"
-            )
+            import json
+            state_file = os.path.join(self._get_state_dir(), "thompson_state.json")
             if os.path.exists(state_file):
                 with open(state_file, "r") as f:
                     data = json.load(f)
@@ -195,11 +204,9 @@ class ThompsonSamplingSelector:
     def _save_state(self) -> None:
         """Persist arm states for continuity across restarts."""
         try:
-            import json, os
+            import json
             from dataclasses import asdict
-            state_dir = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari"
-            )
+            state_dir = self._get_state_dir()
             os.makedirs(state_dir, exist_ok=True)
             state_file = os.path.join(state_dir, "thompson_state.json")
             with open(state_file, "w") as f:

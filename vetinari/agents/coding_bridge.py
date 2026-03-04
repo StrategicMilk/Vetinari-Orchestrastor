@@ -210,13 +210,25 @@ class CodingBridge:
             )
     
     def get_task_status(self, task_id: str) -> Optional[CodingTask]:
-        """Get the status of a coding task."""
+        """Get the status of a coding task from the active task registry."""
         logger.debug(f"Checking status for task: {task_id}")
-        
+        # Check in-memory task registry if available
+        if hasattr(self, "_active_tasks") and task_id in self._active_tasks:
+            return self._active_tasks[task_id]
+        # Check output directory for completion artefacts
+        import os
+        output_base = os.environ.get("VETINARI_OUTPUTS_DIR", "outputs")
+        output_path = os.path.join(output_base, task_id)
+        if os.path.exists(output_path):
+            return CodingTask(
+                task_id=task_id,
+                status=CodingTaskStatus.COMPLETED,
+                result=f"Output available at {output_path}"
+            )
         return CodingTask(
             task_id=task_id,
-            status=CodingTaskStatus.COMPLETED,
-            result="Task completed (placeholder)"
+            status=CodingTaskStatus.PENDING,
+            result=""
         )
     
     def cancel_task(self, task_id: str) -> bool:
