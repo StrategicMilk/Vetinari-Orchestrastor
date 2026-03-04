@@ -1,0 +1,320 @@
+{
+  "registry_version": "1.0.0",
+  "registry_generated_at": "2026-03-04T00:00:00Z",
+  "description": "Central registry for all Vetinari skills. Provides metadata, capabilities, permissions, and sample usage for each skill.",
+  "skills": [
+    {
+      "id": "builder",
+      "name": "builder",
+      "version": "1.0.0",
+      "description": "Code implementation, refactoring, and testing. Use when user wants to create new features, implement logic, or modify existing code.",
+      "manifest_path": "vetinari/skills/builder/manifest.json",
+      "tools_exported": ["BuilderSkillTool"],
+      "permissions_required": ["FILE_READ", "FILE_WRITE", "MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "feature_implementation",
+        "refactoring",
+        "test_writing",
+        "error_handling",
+        "code_generation",
+        "debugging"
+      ],
+      "triggers": ["build", "implement", "create", "refactor", "test", "fix", "debug"],
+      "sample_usage": {
+        "capability": "feature_implementation",
+        "parameters": {
+          "description": "Create a new user authentication module",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_code_snippet", "sample_test_fixture"]
+    },
+    {
+      "id": "explorer",
+      "name": "explorer",
+      "version": "1.0.0",
+      "description": "Fast codebase search and file discovery. Use when user wants to find files, search code, or understand project structure.",
+      "manifest_path": "vetinari/skills/explorer/manifest.json",
+      "tools_exported": ["ExplorerSkillTool"],
+      "permissions_required": ["FILE_READ", "MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "grep_search",
+        "file_discovery",
+        "pattern_matching",
+        "symbol_lookup",
+        "import_analysis",
+        "project_mapping"
+      ],
+      "triggers": ["find", "search", "where", "locate", "grep", "explore", "map"],
+      "sample_usage": {
+        "capability": "grep_search",
+        "parameters": {
+          "query": "function_name",
+          "path": "src/",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_project_structure"]
+    },
+    {
+      "id": "evaluator",
+      "name": "evaluator",
+      "version": "1.0.0",
+      "description": "Code review, quality assessment, and testing strategies. Use when user wants to review code, check quality, or validate implementations.",
+      "manifest_path": "vetinari/skills/evaluator/manifest.json",
+      "tools_exported": ["EvaluatorSkillTool"],
+      "permissions_required": ["FILE_READ", "MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "code_review",
+        "quality_assessment",
+        "security_audit",
+        "test_strategy",
+        "performance_review",
+        "best_practices"
+      ],
+      "triggers": ["review", "check", "validate", "test", "audit", "assess", "quality"],
+      "sample_usage": {
+        "capability": "code_review",
+        "parameters": {
+          "code": "def hello():\n    pass",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_code_snippet", "security_sample"]
+    },
+    {
+      "id": "librarian",
+      "name": "librarian",
+      "version": "1.0.0",
+      "description": "Library research, documentation lookup, and example finding. Use when user asks about libraries, APIs, frameworks, or needs real-world code examples.",
+      "manifest_path": "vetinari/skills/librarian/manifest.json",
+      "tools_exported": ["LibrarianSkillTool"],
+      "permissions_required": ["NETWORK_REQUEST", "MODEL_INFERENCE", "FILE_READ"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "docs_lookup",
+        "github_examples",
+        "api_reference",
+        "package_info",
+        "best_practices"
+      ],
+      "triggers": ["how does", "library", "documentation", "example", "docs", "api reference", "best practice"],
+      "sample_usage": {
+        "capability": "docs_lookup",
+        "parameters": {
+          "query": "React Query",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_docs_url"]
+    },
+    {
+      "id": "oracle",
+      "name": "oracle",
+      "version": "1.0.0",
+      "description": "Strategic thinking for architecture decisions, debugging, and technical trade-offs. Use when user needs to evaluate options, make design choices, or debug complex issues.",
+      "manifest_path": "vetinari/skills/oracle/manifest.json",
+      "tools_exported": ["OracleSkillTool"],
+      "permissions_required": ["MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "architecture_analysis",
+        "trade_off_evaluation",
+        "debugging_strategy",
+        "code_review",
+        "pattern_suggestion",
+        "technical_guidance"
+      ],
+      "triggers": ["should I", "better", "architecture", "design decision", "trade-off", "debug", "why", "which one"],
+      "sample_usage": {
+        "capability": "architecture_analysis",
+        "parameters": {
+          "question": "What architecture for a microservice?",
+          "thinking_mode": "high"
+        }
+      },
+      "contexts": ["sample_architecture_pattern"]
+    },
+    {
+      "id": "researcher",
+      "name": "researcher",
+      "version": "1.0.0",
+      "description": "Comprehensive exploration and fact-finding. Use when user needs thorough investigation, source verification, or detailed analysis of complex topics.",
+      "manifest_path": "vetinari/skills/researcher/manifest.json",
+      "tools_exported": ["ResearcherSkillTool"],
+      "permissions_required": ["MODEL_INFERENCE", "NETWORK_REQUEST"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "deep_dive",
+        "source_verification",
+        "comparative_analysis",
+        "fact_finding",
+        "comprehensive_report",
+        "data_collection"
+      ],
+      "triggers": ["research", "investigate", "analyze", "deep dive", "find out", "explore", "compare"],
+      "sample_usage": {
+        "capability": "deep_dive",
+        "parameters": {
+          "topic": "React state management 2026",
+          "thinking_mode": "high"
+        }
+      },
+      "contexts": ["sample_research_topic"]
+    },
+    {
+      "id": "synthesizer",
+      "name": "synthesizer",
+      "version": "1.0.0",
+      "description": "Combine results, summarize findings, and consolidate information. Use when user needs to merge outputs from multiple agents or generate final reports.",
+      "manifest_path": "vetinari/skills/synthesizer/manifest.json",
+      "tools_exported": ["SynthesizerSkillTool"],
+      "permissions_required": ["MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "result_combination",
+        "summarization",
+        "report_generation",
+        "insight_extraction",
+        "consolidation",
+        "presentation"
+      ],
+      "triggers": ["combine", "summarize", "merge", "synthesize", "consolidate", "final report", "wrap up"],
+      "sample_usage": {
+        "capability": "summarization",
+        "parameters": {
+          "content": "Long research findings...",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_findings"]
+    },
+    {
+      "id": "ui-planner",
+      "name": "ui-planner",
+      "version": "1.0.0",
+      "description": "Frontend design, CSS, animations, and visual polish. Use when user wants to improve UI/UX, create responsive layouts, or design interfaces.",
+      "manifest_path": "vetinari/skills/ui_planner/manifest.json",
+      "tools_exported": ["UIPlannerSkillTool"],
+      "permissions_required": ["MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION", "PLANNING"],
+      "capabilities": [
+        "css_design",
+        "responsive_layout",
+        "animation",
+        "accessibility",
+        "design_systems",
+        "visual_polish"
+      ],
+      "triggers": ["design", "css", "ui", "style", "visual", "animation", "responsive", "make it look"],
+      "sample_usage": {
+        "capability": "css_design",
+        "parameters": {
+          "element": "button",
+          "thinking_mode": "medium"
+        }
+      },
+      "contexts": ["sample_css_component"]
+    }
+  ],
+  "version_matrix": {
+    "vetinari_core": {
+      "min": "0.1.0",
+      "recommended": "0.4.0",
+      "compatibility": {
+        "builder": ">=1.0.0",
+        "explorer": ">=1.0.0",
+        "evaluator": ">=1.0.0",
+        "librarian": ">=1.0.0",
+        "oracle": ">=1.0.0",
+        "researcher": ">=1.0.0",
+        "synthesizer": ">=1.0.0",
+        "ui-planner": ">=1.0.0"
+      }
+    }
+  },
+  "orchestration_features": {
+    "enabled": true,
+    "default_workflow_template": "full_stack_feature",
+    "memory_schema_version": "v1",
+    "telemetry_schema_version": "v1",
+    "supported_execution_modes": ["EXECUTION", "PLANNING", "SANDBOX"],
+    "max_workflow_depth": 20,
+    "max_parallel_tasks": 10,
+    "default_timeout_seconds": 300,
+    "retry_policy": {
+      "max_retries": 3,
+      "backoff_multiplier": 2,
+      "initial_delay_seconds": 1
+    }
+  },
+  "workflow_templates": {
+    "full_stack_feature": {
+      "description": "Complete feature implementation from research to deployment-ready code",
+      "stages": [
+        {"skill": "explorer", "capability": "grep_search", "purpose": "Analyze existing codebase"},
+        {"skill": "librarian", "capability": "docs_lookup", "purpose": "Research best practices"},
+        {"skill": "oracle", "capability": "architecture_analysis", "purpose": "Design solution"},
+        {"skill": "builder", "capability": "feature_implementation", "purpose": "Implement feature"},
+        {"skill": "builder", "capability": "test_writing", "purpose": "Write tests"},
+        {"skill": "evaluator", "capability": "code_review", "purpose": "Review implementation"},
+        {"skill": "evaluator", "capability": "security_audit", "purpose": "Security check"},
+        {"skill": "synthesizer", "capability": "report_generation", "purpose": "Generate final report"}
+      ]
+    },
+    "security_audit": {
+      "description": "Comprehensive security audit of codebase",
+      "stages": [
+        {"skill": "explorer", "capability": "project_mapping", "purpose": "Map project structure"},
+        {"skill": "evaluator", "capability": "security_audit", "purpose": "Audit code"},
+        {"skill": "librarian", "capability": "docs_lookup", "purpose": "Check vulnerability disclosures"},
+        {"skill": "synthesizer", "capability": "report_generation", "purpose": "Generate audit report"}
+      ]
+    },
+    "quick_fix": {
+      "description": "Quick bug fix with minimal overhead",
+      "stages": [
+        {"skill": "explorer", "capability": "grep_search", "purpose": "Find issue"},
+        {"skill": "builder", "capability": "debugging", "purpose": "Fix bug"},
+        {"skill": "evaluator", "capability": "code_review", "purpose": "Verify fix"}
+      ]
+    },
+    "research_and_report": {
+      "description": "Research topic and generate comprehensive report",
+      "stages": [
+        {"skill": "researcher", "capability": "deep_dive", "purpose": "Initial research"},
+        {"skill": "librarian", "capability": "docs_lookup", "purpose": "Find documentation"},
+        {"skill": "oracle", "capability": "trade_off_evaluation", "purpose": "Evaluate options"},
+        {"skill": "synthesizer", "capability": "report_generation", "purpose": "Generate report"}
+      ]
+    },
+    "ui_upgrade": {
+      "description": "Upgrade UI with design system",
+      "stages": [
+        {"skill": "explorer", "capability": "file_discovery", "purpose": "Find UI files"},
+        {"skill": "ui-planner", "capability": "design_systems", "purpose": "Create design tokens"},
+        {"skill": "ui-planner", "capability": "css_design", "purpose": "Apply styles"},
+        {"skill": "ui-planner", "capability": "responsive_layout", "purpose": "Make responsive"},
+        {"skill": "evaluator", "capability": "best_practices", "purpose": "Review UI"}
+      ]
+    }
+  },
+  "skill_dependencies": {
+    "builder": ["explorer", "librarian"],
+    "evaluator": ["explorer"],
+    "oracle": ["researcher", "librarian"],
+    "synthesizer": ["builder", "evaluator", "researcher", "oracle"],
+    "ui-planner": ["explorer"]
+  }
+}

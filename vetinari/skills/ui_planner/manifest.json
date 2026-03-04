@@ -1,0 +1,30 @@
+{
+  "skill_id": "ui-planner",
+  "name": "ui-planner",
+  "version": "1.0.0",
+  "description": "Frontend design, CSS, animations, and visual polish. Use when user wants to improve UI/UX, create responsive layouts, or design interfaces.",
+  "capabilities": ["css_design", "responsive_layout", "animation", "accessibility", "design_systems", "visual_polish"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["design", "css", "ui", "style", "visual", "animation", "responsive", "make it look"],
+  "required_permissions": ["MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "css_design",
+    "element": "button",
+    "thinking_mode": "medium"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["css_design", "responsive_layout", "animation", "accessibility", "design_systems", "visual_polish"]},
+    "element": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"}
+  },
+  "outputs": {
+    "css_code": "string - Generated CSS",
+    "summary": "string - Description of design decisions",
+    "notes": "list - Implementation notes"
+  },
+  "contexts": ["sample_css_component", "sample_design_token"],
+  "external_endpoints": {"allowed": false, "endpoints": []},
+  "metadata": {"author": "Vetinari", "category": "CODE_EXECUTION", "tags": ["ui", "css", "design", "frontend", "animation", "ux"]}
+}

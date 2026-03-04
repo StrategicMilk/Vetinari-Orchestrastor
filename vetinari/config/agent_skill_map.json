@@ -1,0 +1,157 @@
+{
+  "agents": {
+    "builder_agent": {
+      "description": "Primary agent for code implementation and modification",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "feature_implementation"},
+        {"skill_id": "explorer", "default_capability": "grep_search"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "evaluator", "default_capability": "code_review"},
+        {"skill_id": "librarian", "default_capability": "docs_lookup"}
+      ]
+    },
+    "explorer_agent": {
+      "description": "Agent for code discovery and analysis",
+      "default_skills": [
+        {"skill_id": "explorer", "default_capability": "grep_search"},
+        {"skill_id": "explorer", "default_capability": "project_mapping"}
+      ]
+    },
+    "evaluator_agent": {
+      "description": "Agent for code review and quality assessment",
+      "default_skills": [
+        {"skill_id": "evaluator", "default_capability": "code_review"},
+        {"skill_id": "evaluator", "default_capability": "security_audit"}
+      ]
+    },
+    "research_agent": {
+      "description": "Agent for documentation and library research",
+      "default_skills": [
+        {"skill_id": "librarian", "default_capability": "docs_lookup"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"}
+      ]
+    },
+    "oracle_agent": {
+      "description": "Agent for architecture and technical decision making",
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "oracle", "default_capability": "trade_off_evaluation"}
+      ]
+    },
+    "synthesizer_agent": {
+      "description": "Agent for combining results and generating reports",
+      "default_skills": [
+        {"skill_id": "synthesizer", "default_capability": "summarization"},
+        {"skill_id": "synthesizer", "default_capability": "report_generation"}
+      ]
+    },
+    "ui_agent": {
+      "description": "Agent for frontend design and UI/UX",
+      "default_skills": [
+        {"skill_id": "ui-planner", "default_capability": "css_design"},
+        {"skill_id": "ui-planner", "default_capability": "responsive_layout"}
+      ]
+    },
+    "general_agent": {
+      "description": "General purpose agent with access to all skills",
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "feature_implementation"},
+        {"skill_id": "explorer", "default_capability": "grep_search"},
+        {"skill_id": "evaluator", "default_capability": "code_review"},
+        {"skill_id": "librarian", "default_capability": "docs_lookup"},
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"},
+        {"skill_id": "synthesizer", "default_capability": "summarization"},
+        {"skill_id": "ui-planner", "default_capability": "css_design"}
+      ]
+    }
+  },
+  "environment_overrides": {
+    "dev": {
+      "general_agent": {
+        "default_skills": [
+          {"skill_id": "builder", "default_capability": "feature_implementation"},
+          {"skill_id": "explorer", "default_capability": "grep_search"}
+        ]
+      }
+    },
+    "staging": {
+      "general_agent": {
+        "default_skills": [
+          {"skill_id": "builder", "default_capability": "feature_implementation"},
+          {"skill_id": "explorer", "default_capability": "grep_search"},
+          {"skill_id": "evaluator", "default_capability": "code_review"}
+        ]
+      }
+    },
+    "prod": {
+      "general_agent": {
+        "default_skills": [
+          {"skill_id": "builder", "default_capability": "feature_implementation"},
+          {"skill_id": "explorer", "default_capability": "grep_search"},
+          {"skill_id": "evaluator", "default_capability": "code_review"},
+          {"skill_id": "evaluator", "default_capability": "security_audit"}
+        ]
+      }
+    }
+  },
+  "workflows": {
+    "code_review_pipeline": [
+      {"skill_id": "explorer", "capability": "grep_search"},
+      {"skill_id": "evaluator", "capability": "code_review"},
+      {"skill_id": "evaluator", "capability": "security_audit"},
+      {"skill_id": "synthesizer", "capability": "report_generation"}
+    ],
+    "feature_implementation_pipeline": [
+      {"skill_id": "explorer", "capability": "grep_search"},
+      {"skill_id": "librarian", "capability": "docs_lookup"},
+      {"skill_id": "builder", "capability": "feature_implementation"},
+      {"skill_id": "evaluator", "capability": "code_review"},
+      {"skill_id": "builder", "capability": "test_writing"},
+      {"skill_id": "synthesizer", "capability": "summarization"}
+    ],
+    "research_pipeline": [
+      {"skill_id": "researcher", "capability": "deep_dive"},
+      {"skill_id": "librarian", "capability": "docs_lookup"},
+      {"skill_id": "oracle", "capability": "trade_off_evaluation"},
+      {"skill_id": "synthesizer", "capability": "report_generation"}
+    ],
+    "full_stack_feature": [
+      {"skill_id": "explorer", "capability": "grep_search", "purpose": "Analyze existing codebase"},
+      {"skill_id": "librarian", "capability": "docs_lookup", "purpose": "Research best practices"},
+      {"skill_id": "oracle", "capability": "architecture_analysis", "purpose": "Design solution"},
+      {"skill_id": "builder", "capability": "feature_implementation", "purpose": "Implement feature"},
+      {"skill_id": "builder", "capability": "test_writing", "purpose": "Write tests"},
+      {"skill_id": "evaluator", "capability": "code_review", "purpose": "Review implementation"},
+      {"skill_id": "evaluator", "capability": "security_audit", "purpose": "Security check"},
+      {"skill_id": "synthesizer", "capability": "report_generation", "purpose": "Generate final report"}
+    ],
+    "security_audit": [
+      {"skill_id": "explorer", "capability": "project_mapping", "purpose": "Map project structure"},
+      {"skill_id": "evaluator", "capability": "security_audit", "purpose": "Audit code"},
+      {"skill_id": "librarian", "capability": "docs_lookup", "purpose": "Check vulnerability disclosures"},
+      {"skill_id": "synthesizer", "capability": "report_generation", "purpose": "Generate audit report"}
+    ],
+    "quick_fix": [
+      {"skill_id": "explorer", "capability": "grep_search", "purpose": "Find issue"},
+      {"skill_id": "builder", "capability": "debugging", "purpose": "Fix bug"},
+      {"skill_id": "evaluator", "capability": "code_review", "purpose": "Verify fix"}
+    ],
+    "ui_upgrade": [
+      {"skill_id": "explorer", "capability": "file_discovery", "purpose": "Find UI files"},
+      {"skill_id": "ui-planner", "capability": "design_systems", "purpose": "Create design tokens"},
+      {"skill_id": "ui-planner", "capability": "css_design", "purpose": "Apply styles"},
+      {"skill_id": "ui-planner", "capability": "responsive_layout", "purpose": "Make responsive"},
+      {"skill_id": "evaluator", "capability": "best_practices", "purpose": "Review UI"}
+    ],
+    "data_migration": [
+      {"skill_id": "explorer", "capability": "import_analysis", "purpose": "Analyze current data model"},
+      {"skill_id": "researcher", "capability": "comparative_analysis", "purpose": "Research migration strategies"},
+      {"skill_id": "oracle", "capability": "architecture_analysis", "purpose": "Design migration plan"},
+      {"skill_id": "builder", "capability": "code_generation", "purpose": "Generate migration code"},
+      {"skill_id": "evaluator", "capability": "quality_assessment", "purpose": "Review migration code"},
+      {"skill_id": "synthesizer", "capability": "report_generation", "purpose": "Document migration"}
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "skill_id": "librarian",
+  "name": "librarian",
+  "version": "1.0.0",
+  "description": "Library research, documentation lookup, and example finding. Use when user asks about libraries, APIs, frameworks, or needs real-world code examples.",
+  "capabilities": ["docs_lookup", "github_examples", "api_reference", "package_info", "best_practices"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["how does", "library", "documentation", "example", "docs", "api reference", "best practice"],
+  "required_permissions": ["NETWORK_REQUEST", "MODEL_INFERENCE", "FILE_READ"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "docs_lookup",
+    "query": "React Query",
+    "thinking_mode": "medium"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["docs_lookup", "github_examples", "api_reference", "package_info", "best_practices"]},
+    "query": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"},
+    "focus_areas": {"type": "list", "required": false}
+  },
+  "outputs": {
+    "summary": "string - Research summary",
+    "documentation_url": "string - Link to official docs",
+    "code_example": "string - Sample code",
+    "best_practices": "list - Recommendations",
+    "citations": "list - Sources"
+  },
+  "contexts": ["sample_docs_url", "sample_github_repo"],
+  "external_endpoints": {"allowed": true, "endpoints": ["https://docs.example.com", "https://api.example.com", "https://github.com"]},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["research", "documentation", "libraries", "examples", "api"]}
+}

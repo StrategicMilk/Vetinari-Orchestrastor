@@ -1,0 +1,30 @@
+{
+  "skill_id": "synthesizer",
+  "name": "synthesizer",
+  "version": "1.0.0",
+  "description": "Combine results, summarize findings, and consolidate information. Use when user needs to merge outputs from multiple agents or generate final reports.",
+  "capabilities": ["result_combination", "summarization", "report_generation", "insight_extraction", "consolidation", "presentation"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["combine", "summarize", "merge", "synthesize", "consolidate", "final report", "wrap up"],
+  "required_permissions": ["MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "summarization",
+    "content": "Long research findings...",
+    "thinking_mode": "medium"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["result_combination", "summarization", "report_generation", "insight_extraction", "consolidation", "presentation"]},
+    "content": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"}
+  },
+  "outputs": {
+    "summary": "string - Concise summary",
+    "insights": "list - Extracted insights",
+    "report": "string - Generated report"
+  },
+  "contexts": ["sample_findings", "sample_report_template"],
+  "external_endpoints": {"allowed": false, "endpoints": []},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["synthesis", "summary", "consolidation", "report", "merge"]}
+}

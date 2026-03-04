@@ -1,0 +1,66 @@
+{
+  "skill_id": "builder",
+  "name": "builder",
+  "version": "1.0.0",
+  "description": "Code implementation, refactoring, and testing. Use when user wants to create new features, implement logic, or modify existing code.",
+  "capabilities": [
+    "feature_implementation",
+    "refactoring",
+    "test_writing",
+    "error_handling",
+    "code_generation",
+    "debugging"
+  ],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["build", "implement", "create", "refactor", "test", "fix", "debug"],
+  "required_permissions": ["FILE_READ", "FILE_WRITE", "MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "feature_implementation",
+    "description": "Create a new user authentication module",
+    "code": null,
+    "thinking_mode": "medium",
+    "requirements": ["Must use async/await", "Include error handling"]
+  },
+  "inputs": {
+    "capability": {
+      "type": "string",
+      "required": true,
+      "allowed_values": ["feature_implementation", "refactoring", "test_writing", "error_handling", "code_generation", "debugging"]
+    },
+    "description": {
+      "type": "string",
+      "required": true
+    },
+    "context": {
+      "type": "string",
+      "required": false
+    },
+    "thinking_mode": {
+      "type": "string",
+      "required": false,
+      "default": "medium"
+    },
+    "requirements": {
+      "type": "list",
+      "required": false
+    }
+  },
+  "outputs": {
+    "code": "string - Generated code",
+    "explanation": "string - Explanation of implementation",
+    "files_affected": "list - List of files modified",
+    "tests_added": "int - Number of tests added",
+    "warnings": "list - Any warnings"
+  },
+  "contexts": ["sample_code_snippet", "sample_test_fixture", "sample_refactoring_pattern"],
+  "external_endpoints": {
+    "allowed": false,
+    "endpoints": []
+  },
+  "metadata": {
+    "author": "Vetinari",
+    "category": "CODE_EXECUTION",
+    "tags": ["implementation", "coding", "refactoring", "testing", "build"]
+  }
+}

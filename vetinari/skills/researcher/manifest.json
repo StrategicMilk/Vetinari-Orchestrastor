@@ -1,0 +1,32 @@
+{
+  "skill_id": "researcher",
+  "name": "researcher",
+  "version": "1.0.0",
+  "description": "Comprehensive exploration and fact-finding. Use when user needs thorough investigation, source verification, or detailed analysis of complex topics.",
+  "capabilities": ["deep_dive", "source_verification", "comparative_analysis", "fact_finding", "comprehensive_report", "data_collection"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["research", "investigate", "analyze", "deep dive", "find out", "explore", "compare"],
+  "required_permissions": ["MODEL_INFERENCE", "NETWORK_REQUEST"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "deep_dive",
+    "topic": "React state management 2026",
+    "thinking_mode": "high"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["deep_dive", "source_verification", "comparative_analysis", "fact_finding", "comprehensive_report", "data_collection"]},
+    "topic": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"},
+    "criteria": {"type": "list", "required": false}
+  },
+  "outputs": {
+    "findings": "list - Key findings",
+    "summary": "string - Executive summary",
+    "sources": "list - Verified sources",
+    "confidence": "string - Confidence level"
+  },
+  "contexts": ["sample_research_topic", "sample_comparison_criteria"],
+  "external_endpoints": {"allowed": true, "endpoints": ["https://arxiv.org", "https://pubmed.ncbi.nlm.nih.gov", "https://github.com"]},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["research", "investigation", "analysis", "facts"]}
+}

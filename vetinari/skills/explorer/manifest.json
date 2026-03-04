@@ -1,0 +1,31 @@
+{
+  "skill_id": "explorer",
+  "name": "explorer",
+  "version": "1.0.0",
+  "description": "Fast codebase search and file discovery. Use when user wants to find files, search code, or understand project structure.",
+  "capabilities": ["grep_search", "file_discovery", "pattern_matching", "symbol_lookup", "import_analysis", "project_mapping"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["find", "search", "where", "locate", "grep", "explore", "map"],
+  "required_permissions": ["FILE_READ", "MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "grep_search",
+    "query": "function_name",
+    "path": "src/",
+    "thinking_mode": "medium"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["grep_search", "file_discovery", "pattern_matching", "symbol_lookup", "import_analysis", "project_mapping"]},
+    "query": {"type": "string", "required": true},
+    "path": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"}
+  },
+  "outputs": {
+    "matches": "list - File paths and line numbers",
+    "count": "int - Number of matches",
+    "files": "list - Unique files found"
+  },
+  "contexts": ["sample_project_structure", "sample_code_pattern"],
+  "external_endpoints": {"allowed": false, "endpoints": []},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["search", "explore", "find", "grep"]}
+}

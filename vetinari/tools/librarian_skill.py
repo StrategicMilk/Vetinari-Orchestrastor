@@ -25,8 +25,7 @@ from vetinari.tool_interface import (
 )
 from vetinari.execution_context import ToolPermission, ExecutionMode
 
-# Assume webfetch is available for documentation/web content retrieval
-from default_api import webfetch # Placeholder: actual import handled by system
+# Note: Web fetching capabilities are provided by the system environment
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +154,7 @@ class LibrarianSkillTool(Tool):
                 ),
             ],
             required_permissions=[
-                ToolPermission.WEB_FETCH,
+                ToolPermission.NETWORK_REQUEST,
                 ToolPermission.MODEL_INFERENCE,
                 ToolPermission.FILE_READ, # For accessing internal guides
             ],

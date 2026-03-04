@@ -1,0 +1,31 @@
+{
+  "skill_id": "oracle",
+  "name": "oracle",
+  "version": "1.0.0",
+  "description": "Strategic thinking for architecture decisions, debugging, and technical trade-offs. Use when user needs to evaluate options, make design choices, or debug complex issues.",
+  "capabilities": ["architecture_analysis", "trade_off_evaluation", "debugging_strategy", "code_review", "pattern_suggestion", "technical_guidance"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["should I", "better", "architecture", "design decision", "trade-off", "debug", "why", "which one"],
+  "required_permissions": ["MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "architecture_analysis",
+    "question": "What architecture for a microservice?",
+    "thinking_mode": "high"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["architecture_analysis", "trade_off_evaluation", "debugging_strategy", "code_review", "pattern_suggestion", "technical_guidance"]},
+    "question": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"},
+    "options": {"type": "list", "required": false}
+  },
+  "outputs": {
+    "recommendation": "string - Recommended option",
+    "analysis": "string - Detailed analysis",
+    "pros_cons": "dict - Pros and cons for each option"
+  },
+  "contexts": ["sample_architecture_pattern", "sample_debugging_scenario"],
+  "external_endpoints": {"allowed": false, "endpoints": []},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["architecture", "decision", "debugging", "trade-offs", "strategy"]}
+}

@@ -1,0 +1,33 @@
+{
+  "skill_id": "evaluator",
+  "name": "evaluator",
+  "version": "1.0.0",
+  "description": "Code review, quality assessment, and testing strategies. Use when user wants to review code, check quality, or validate implementations.",
+  "capabilities": ["code_review", "quality_assessment", "security_audit", "test_strategy", "performance_review", "best_practices"],
+  "thinking_modes": ["low", "medium", "high", "xhigh"],
+  "triggers": ["review", "check", "validate", "test", "audit", "assess", "quality"],
+  "required_permissions": ["FILE_READ", "MODEL_INFERENCE"],
+  "allowed_modes": ["EXECUTION", "PLANNING"],
+  "sample_usage": {
+    "capability": "code_review",
+    "code": "def hello():\n    pass",
+    "thinking_mode": "medium"
+  },
+  "inputs": {
+    "capability": {"type": "string", "required": true, "allowed_values": ["code_review", "quality_assessment", "security_audit", "test_strategy", "performance_review", "best_practices"]},
+    "code": {"type": "string", "required": true},
+    "context": {"type": "string", "required": false},
+    "thinking_mode": {"type": "string", "required": false, "default": "medium"},
+    "focus_areas": {"type": "list", "required": false}
+  },
+  "outputs": {
+    "issues": "list - Found issues with severity",
+    "quality_score": "string - A/B/C/D/F grade",
+    "summary": "string - Summary of findings",
+    "recommendations": "list - Suggested improvements",
+    "test_coverage": "float - Estimated test coverage"
+  },
+  "contexts": ["sample_code_snippet", "security_sample"],
+  "external_endpoints": {"allowed": false, "endpoints": []},
+  "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["review", "quality", "testing", "validation", "assessment", "security"]}
+}
