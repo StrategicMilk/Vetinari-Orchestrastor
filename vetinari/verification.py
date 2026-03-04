@@ -18,6 +18,7 @@ import re
 import json
 import ast
 import logging
+from abc import ABC
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
