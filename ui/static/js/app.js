@@ -1,4 +1,226 @@
 // Vetinari Web UI - Main Application
+// Enhanced UX Version with Responsive & Micro-interactions
+
+// ==================== RESPONSIVE SIDEBAR MANAGEMENT ====================
+
+class SidebarManager {
+    constructor() {
+        this.sidebar = document.querySelector('.sidebar');
+        this.mainContent = document.querySelector('.main-content');
+        this.toggleBtn = document.getElementById('sidebarToggle');
+        this.isCollapsed = this.loadCollapsedState();
+        this.isMobile = window.innerWidth < 768;
+        
+        this.init();
+    }
+    
+    init() {
+        this.applyCollapsedState();
+        this.attachEventListeners();
+        this.handleResponsive();
+    }
+    
+    loadCollapsedState() {
+        return localStorage.getItem('sidebarCollapsed') === 'true';
+    }
+    
+    saveCollapsedState(state) {
+        localStorage.setItem('sidebarCollapsed', state);
+    }
+    
+    applyCollapsedState() {
+        if (this.isCollapsed && !this.isMobile) {
+            this.sidebar.classList.add('collapsed');
+            this.mainContent.classList.add('sidebar-collapsed');
+        } else if (this.isMobile) {
+            this.sidebar.classList.remove('open');
+        }
+    }
+    
+    toggle() {
+        if (this.isMobile) {
+            this.sidebar.classList.toggle('open');
+            const isOpen = this.sidebar.classList.contains('open');
+            this.toggleBtn.setAttribute('aria-expanded', isOpen);
+        } else {
+            this.isCollapsed = !this.isCollapsed;
+            this.sidebar.classList.toggle('collapsed');
+            this.mainContent.classList.toggle('sidebar-collapsed');
+            this.saveCollapsedState(this.isCollapsed);
+            this.toggleBtn.setAttribute('aria-expanded', !this.isCollapsed);
+        }
+    }
+    
+    attachEventListeners() {
+        this.toggleBtn.addEventListener('click', () => this.toggle());
+        document.addEventListener('click', (e) => {
+            if (this.isMobile && !e.target.closest('.sidebar') && !e.target.closest('#sidebarToggle')) {
+                this.sidebar.classList.remove('open');
+            }
+        });
+    }
+    
+    handleResponsive() {
+        window.addEventListener('resize', () => {
+            const wasMobile = this.isMobile;
+            this.isMobile = window.innerWidth < 768;
+            
+            if (wasMobile && !this.isMobile) {
+                this.sidebar.classList.remove('open');
+                if (this.isCollapsed) {
+                    this.sidebar.classList.add('collapsed');
+                    this.mainContent.classList.add('sidebar-collapsed');
+                }
+            } else if (!wasMobile && this.isMobile) {
+                this.sidebar.classList.remove('collapsed');
+                this.mainContent.classList.remove('sidebar-collapsed');
+                this.sidebar.classList.remove('open');
+            }
+        });
+    }
+}
+
+// Initialize sidebar manager
+let sidebarManager;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        sidebarManager = new SidebarManager();
+    });
+} else {
+    sidebarManager = new SidebarManager();
+}
+
+// ==================== ACCESSIBILITY ENHANCEMENTS ====================
+
+class AccessibilityManager {
+    constructor() {
+        this.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        this.init();
+    }
+    
+    init() {
+        this.enhanceKeyboardNavigation();
+        this.setupReducedMotionToggle();
+    }
+    
+    enhanceKeyboardNavigation() {
+        // Add keyboard navigation for sidebar
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + B to toggle sidebar
+            if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                e.preventDefault();
+                sidebarManager?.toggle();
+            }
+            // Escape to close mobile sidebar
+            if (e.key === 'Escape' && sidebarManager?.isMobile) {
+                document.querySelector('.sidebar')?.classList.remove('open');
+            }
+        });
+        
+        // Ensure all interactive elements are keyboard accessible
+        const interactiveElements = document.querySelectorAll('.nav-item, .btn, input, textarea, select');
+        interactiveElements.forEach(el => {
+            if (!el.hasAttribute('tabindex') && el.tagName !== 'BUTTON' && el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT') {
+                el.setAttribute('tabindex', '0');
+            }
+        });
+    }
+    
+    setupReducedMotionToggle() {
+        if (this.prefersReducedMotion) {
+            document.documentElement.style.setProperty('--transition-fast', '0ms');
+            document.documentElement.style.setProperty('--transition-base', '0ms');
+            document.documentElement.style.setProperty('--transition-slow', '0ms');
+            document.documentElement.style.setProperty('--transition-slowest', '0ms');
+        }
+    }
+}
+
+// Initialize accessibility manager
+let a11yManager;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        a11yManager = new AccessibilityManager();
+    });
+} else {
+    a11yManager = new AccessibilityManager();
+}
+
+// ==================== PREFERENCES MANAGER ====================
+
+class PreferencesManager {
+    constructor() {
+        this.reducedMotionToggle = document.getElementById('reducedMotionToggle');
+        this.compactModeToggle = document.getElementById('compactModeToggle');
+        
+        if (this.reducedMotionToggle || this.compactModeToggle) {
+            this.loadPreferences();
+            this.attachEventListeners();
+        }
+    }
+    
+    loadPreferences() {
+        const reducedMotion = localStorage.getItem('reducedMotion') === 'true';
+        const compactMode = localStorage.getItem('compactMode') === 'true';
+        
+        if (this.reducedMotionToggle) {
+            this.reducedMotionToggle.checked = reducedMotion;
+        }
+        if (this.compactModeToggle) {
+            this.compactModeToggle.checked = compactMode;
+        }
+        
+        this.applyPreferences(reducedMotion, compactMode);
+    }
+    
+    applyPreferences(reducedMotion, compactMode) {
+        const root = document.documentElement;
+        
+        if (reducedMotion) {
+            root.style.setProperty('--transition-fast', '0ms');
+            root.style.setProperty('--transition-base', '0ms');
+            root.style.setProperty('--transition-slow', '0ms');
+            root.style.setProperty('--transition-slowest', '0ms');
+        } else {
+            root.style.removeProperty('--transition-fast');
+            root.style.removeProperty('--transition-base');
+            root.style.removeProperty('--transition-slow');
+            root.style.removeProperty('--transition-slowest');
+        }
+        
+        if (compactMode) {
+            document.body.classList.add('compact-mode');
+        } else {
+            document.body.classList.remove('compact-mode');
+        }
+    }
+    
+    attachEventListeners() {
+        if (this.reducedMotionToggle) {
+            this.reducedMotionToggle.addEventListener('change', (e) => {
+                localStorage.setItem('reducedMotion', e.target.checked);
+                this.applyPreferences(e.target.checked, document.getElementById('compactModeToggle')?.checked || false);
+            });
+        }
+        
+        if (this.compactModeToggle) {
+            this.compactModeToggle.addEventListener('change', (e) => {
+                localStorage.setItem('compactMode', e.target.checked);
+                this.applyPreferences(document.getElementById('reducedMotionToggle')?.checked || false, e.target.checked);
+            });
+        }
+    }
+}
+
+// Initialize preferences manager
+let prefsManager;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        prefsManager = new PreferencesManager();
+    });
+} else {
+    prefsManager = new PreferencesManager();
+}
 
 // Safe JSON parsing helper
 function safeJsonParse(response) {

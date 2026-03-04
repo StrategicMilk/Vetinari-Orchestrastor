@@ -11,14 +11,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="app-container">
+    <div class="app-container" role="application" aria-label="Vetinari - Local LLM Orchestration System">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="logo">
                 <i class="fas fa-brain"></i>
                 <span>Vetinari</span>
             </div>
-            <nav class="nav-menu">
+            <nav class="nav-menu" role="menu" aria-label="Main menu">
                 <a href="#" class="nav-item active" data-view="dashboard">
                     <i class="fas fa-th-large"></i>
                     <span>Dashboard</span>
@@ -81,7 +81,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content" role="main" aria-label="Main content area">
             <!-- Status Banner -->
             <div class="status-banner" id="statusBanner" style="display: none;">
                 <div class="status-banner-content" id="statusBannerContent">
@@ -94,136 +94,151 @@
             </div>
             
             <!-- Header -->
-            <header class="header">
+            <header class="header" role="banner" aria-label="Top navigation bar">
                 <div class="header-left">
-                    <button class="btn btn-secondary" id="sidebarToggle">
+                    <button class="btn btn-secondary" id="sidebarToggle" title="Toggle sidebar" aria-label="Toggle sidebar navigation" aria-expanded="false">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div class="header-title">
-                        <h1>Dashboard</h1>
-                        <p class="subtitle">Local LLM Orchestration System</p>
-                    </div>
                 </div>
-                <div class="header-actions">
+                <div class="header-center">
+                    <input type="search" class="search-input" id="globalSearch" placeholder="Search models, projects, tasks..." aria-label="Global search">
+                </div>
+                <div class="header-right">
                     <button class="btn btn-secondary" id="themeToggle" title="Toggle theme">
                         <i class="fas fa-moon"></i>
                     </button>
-                    <button class="btn btn-secondary" id="discoverBtn">
-                        <i class="fas fa-sync"></i> Discover Models
+                    <button class="btn btn-secondary" id="discoverBtn" title="Discover available models">
+                        <i class="fas fa-compass"></i>
                     </button>
-                    <button class="btn btn-primary" id="runAllBtn">
-                        <i class="fas fa-play"></i> Run All Tasks
+                    <button class="btn btn-primary" id="runAllBtn" title="Run all pending tasks">
+                        <i class="fas fa-play"></i>
                     </button>
                 </div>
             </header>
 
             <!-- Dashboard View -->
             <div class="view active" id="dashboardView">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon models">
-                            <i class="fas fa-microchip"></i>
+                <div class="content">
+                    <div class="page-header">
+                        <div>
+                            <h1>Dashboard</h1>
+                            <p>Local LLM Orchestration System</p>
                         </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="modelCount">0</span>
-                            <span class="stat-label">Available Models</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon tasks">
-                            <i class="fas fa-tasks"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="taskCount">0</span>
-                            <span class="stat-label">Total Tasks</span>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" id="refreshDashboard" title="Refresh dashboard">
+                                <i class="fas fa-sync"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon completed">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="completedCount">0</span>
-                            <span class="stat-label">Completed</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon running">
-                            <i class="fas fa-spinner"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="runningCount">0</span>
-                            <span class="stat-label">Running</span>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="content-grid">
-                    <!-- Quick Prompt -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Quick Prompt</h3>
-                            <select class="select" id="quickModelSelect">
-                                <option value="">Loading models...</option>
-                            </select>
+                    <!-- Stats Grid -->
+                    <div class="grid grid-4" style="margin-bottom: var(--space-8);">
+                        <div class="stats-card">
+                            <div class="stats-card-label">Available Models</div>
+                            <div class="stats-card-value" id="modelCount">0</div>
+                            <div class="stats-card-change">
+                                <i class="fas fa-microchip"></i> Ready
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="quick-prompt">
-                                <textarea class="prompt-input" id="quickPromptInput" placeholder="Enter a quick prompt... (e.g., 'Write a hello world in Python')"></textarea>
-                                <button class="btn btn-primary" id="quickPromptBtn">
+                        <div class="stats-card">
+                            <div class="stats-card-label">Total Tasks</div>
+                            <div class="stats-card-value" id="taskCount">0</div>
+                            <div class="stats-card-change">
+                                <i class="fas fa-tasks"></i> Queued
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-card-label">Completed</div>
+                            <div class="stats-card-value" id="completedCount">0</div>
+                            <div class="stats-card-change success">
+                                <i class="fas fa-check-circle"></i> Success
+                            </div>
+                        </div>
+                        <div class="stats-card">
+                            <div class="stats-card-label">Running</div>
+                            <div class="stats-card-value" id="runningCount">0</div>
+                            <div class="stats-card-change">
+                                <i class="fas fa-spinner fa-spin"></i> Active
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Content Grid -->
+                    <div class="grid grid-2">
+                        <!-- Quick Prompt -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Quick Prompt</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="input-group">
+                                    <label class="input-label">Select Model</label>
+                                    <select class="select" id="quickModelSelect">
+                                        <option value="">Loading models...</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Your Prompt</label>
+                                    <textarea class="prompt-input" id="quickPromptInput" placeholder="Enter a quick prompt... (e.g., 'Write a hello world in Python')" rows="4"></textarea>
+                                </div>
+                                <button class="btn btn-primary" id="quickPromptBtn" style="width: 100%;">
                                     <i class="fas fa-paper-plane"></i> Send
                                 </button>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Agent Health Panel -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-robot"></i> Agent Status</h3>
-                            <button class="btn btn-small btn-secondary" onclick="refreshAgentStatus()" title="Refresh">
-                                <i class="fas fa-sync"></i>
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div class="agent-status-grid" id="agentStatusGrid">
-                                <!-- Agent status will be loaded here -->
-                                <div class="loading"><div class="spinner"></div></div>
+                        <!-- Agent Health Panel -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-robot"></i> Agent Status</h3>
+                                <button class="btn btn-small btn-secondary" onclick="refreshAgentStatus()" title="Refresh">
+                                    <i class="fas fa-sync"></i>
+                                </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="content-grid">
-                    <!-- Recent Activity -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Recent Activity</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="activity-list" id="activityList">
-                                <div class="activity-item">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span>System initialized</span>
-                                    <span class="time">Just now</span>
+                            <div class="card-body">
+                                <div class="agent-status-grid" id="agentStatusGrid">
+                                    <div class="loading"><div class="spinner"></div></div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Shared Memory Panel -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-brain"></i> Shared Memory</h3>
-                            <button class="btn btn-small btn-secondary" onclick="refreshSharedMemory()" title="Refresh">
-                                <i class="fas fa-sync"></i>
-                            </button>
+                    <!-- Activity & Memory Grid -->
+                    <div class="grid grid-2" style="margin-top: var(--space-6);">
+                        <!-- Recent Activity -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-history"></i> Recent Activity</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="activity-list" id="activityList">
+                                    <div class="activity-item">
+                                        <div class="activity-icon">
+                                            <i class="fas fa-check-circle"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <span>System initialized</span>
+                                            <span class="activity-time">Just now</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="shared-memory-list" id="sharedMemoryList">
-                                <div class="empty-state">
-                                    <i class="fas fa-memory"></i>
-                                    <p>No memories yet</p>
+
+                        <!-- Shared Memory Panel -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-brain"></i> Shared Memory</h3>
+                                <button class="btn btn-small btn-secondary" onclick="refreshSharedMemory()" title="Refresh">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="shared-memory-list" id="sharedMemoryList">
+                                    <div class="empty-state">
+                                        <i class="fas fa-database"></i>
+                                        <p>No memories yet</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -233,7 +248,8 @@
 
             <!-- Prompt View -->
             <div class="view" id="promptView">
-                <div class="chat-container">
+                <div class="content">
+                    <div class="chat-container">
                     <!-- Projects Sidebar -->
                     <div class="chat-sidebar">
                         <div class="sidebar-header">
@@ -374,7 +390,7 @@
 
             <!-- Workflow View -->
             <div class="view" id="workflowView">
-                <div class="workflow-container">
+                <div class="content">
                     <div class="card">
                         <div class="card-header">
                             <h3>Task Workflow Tree</h3>
@@ -393,7 +409,7 @@
 
             <!-- Models View -->
             <div class="view" id="modelsView">
-                <div class="card full-height">
+                <div class="content">
                     <div class="card-header">
                         <h3>Available Models</h3>
                         <button class="btn btn-small" id="refreshModels">
@@ -410,7 +426,7 @@
 
             <!-- Tasks View -->
             <div class="view" id="tasksView">
-                <div class="card full-height">
+                <div class="content">
                     <div class="card-header">
                         <h3>Task Queue</h3>
                     </div>
@@ -424,7 +440,7 @@
 
             <!-- Agents View -->
             <div class="view" id="agentsView">
-                <div class="settings-grid">
+                <div class="content">
                     <!-- Agent Orchestration -->
                     <div class="card">
                         <div class="card-header">
@@ -490,7 +506,7 @@
 
             <!-- Output View -->
             <div class="view" id="outputView">
-                <div class="card full-height">
+                <div class="content">
                     <div class="card-header">
                         <h3>Task Output</h3>
                         <select class="select" id="outputTaskSelect">
@@ -505,7 +521,7 @@
 
             <!-- Archive View -->
             <div class="view" id="archiveView">
-                <div class="card full-height">
+                <div class="content">
                     <div class="card-header">
                         <h3>Archived Projects</h3>
                         <div class="archive-filters">
@@ -527,7 +543,7 @@
 
             <!-- Decomposition Lab View -->
             <div class="view" id="decompositionView">
-                <div class="decomposition-container">
+                <div class="content">
                     <div class="tabs">
                         <button class="tab active" data-tab="templates">Templates</button>
                         <button class="tab" data-tab="live">Live Decomposition</button>
@@ -695,8 +711,40 @@
 
             <!-- Settings View -->
             <div class="view" id="settingsView">
-                <div class="settings-grid">
-                    <div class="card">
+                <div class="content">
+                    <div class="page-header">
+                        <div>
+                            <h1>Settings</h1>
+                            <p>Manage system configuration and preferences</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-grid">
+                        <!-- UI Preferences -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-sliders-h"></i> UI Preferences</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reducedMotionToggle">
+                                        <span>Reduce Motion</span>
+                                    </label>
+                                    <small style="color: var(--text-secondary); display: block; margin-top: var(--space-2);">Minimizes animations and transitions for a more stable visual experience</small>
+                                </div>
+                                <div class="form-group" style="margin-top: var(--space-4);">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="compactModeToggle">
+                                        <span>Compact Mode</span>
+                                    </label>
+                                    <small style="color: var(--text-secondary); display: block; margin-top: var(--space-2);">Reduces spacing and padding for a denser interface</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Connection Settings -->
+                        <div class="card">
                         <div class="card-header">
                             <h3>Connection Settings</h3>
                         </div>
