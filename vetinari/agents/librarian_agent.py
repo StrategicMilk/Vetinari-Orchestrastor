@@ -133,61 +133,73 @@ Output format must include summary, sources, fit_assessment, and recommendations
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _research_libraries(self, topic: str, sources: List[str]) -> Dict[str, Any]:
-        """Perform library and API research.
-        
-        Args:
-            topic: The topic to research
-            sources: The sources to search
-            
-        Returns:
-            Dictionary containing research findings
+        """Perform library and API research using real web search + LLM.
+
+        Searches authoritative sources for libraries, APIs, and patterns,
+        then uses the LLM to evaluate fit and produce recommendations.
         """
-        # This is a simplified implementation
-        # In production, this would use actual API/library lookups
-        
-        found_sources = []
-        
-        # Simulate finding relevant libraries and APIs
-        relevant_keywords = ["api", "sdk", "library", "framework", "package", "module"]
-        keywords_found = [kw for kw in relevant_keywords if kw in topic.lower()]
-        
-        if "api" in topic.lower() or "docs" in sources:
-            found_sources.append({
-                "title": f"Official API Documentation for {topic}",
-                "url": f"https://docs.example.com/{topic.replace(' ', '_')}",
-                "type": "api_docs",
-                "summary": f"Comprehensive API reference for {topic}",
-                "license": "CC-BY-4.0"
-            })
-        
-        if "library" in topic.lower() or "libraries" in sources:
-            found_sources.append({
-                "title": f"Popular {topic} Libraries",
-                "url": f"https://pypi.org/search/?q={topic.replace(' ', '+')}",
-                "type": "libraries",
-                "summary": f"Package registry for {topic} implementations",
-                "license": "Varies"
-            })
-        
-        if "pattern" in topic.lower() or "patterns" in sources:
-            found_sources.append({
-                "title": f"Design Patterns for {topic}",
-                "url": f"https://patterns.example.com/{topic.replace(' ', '-')}",
-                "type": "patterns",
-                "summary": f"Best practices and design patterns for {topic}",
-                "license": "CC0"
-            })
-        
+        import json as _json
+
+        # Multi-query web search targeting authoritative sources
+        queries = [
+            f"{topic} library documentation site:pypi.org OR site:npmjs.com OR site:github.com",
+            f"{topic} API reference official documentation",
+            f"best {topic} libraries 2025",
+        ]
+
+        all_results = []
+        seen_urls: set = set()
+        for query in queries[:2]:
+            for r in self._search(query, max_results=4):
+                if r["url"] not in seen_urls:
+                    seen_urls.add(r["url"])
+                    all_results.append(r)
+
+        search_text = _json.dumps(all_results[:8], indent=2)
+
+        prompt = f"""You are a library research expert. Find and evaluate resources for: "{topic}"
+Sources requested: {sources}
+
+SEARCH RESULTS:
+{search_text}
+
+Produce a JSON research report:
+{{
+  "summary": "Brief summary of findings",
+  "sources": [
+    {{"title": "...", "url": "real URL from search results", "type": "api_docs|library|pattern|tutorial", "summary": "...", "license": "..."}}
+  ],
+  "fit_assessment": "How well do found resources cover {topic}?",
+  "recommendations": ["specific recommendation 1", ...],
+  "keywords": ["key", "terms", "found"]
+}}
+
+Only use real URLs from the search results. Assess licensing where visible."""
+
+        result = self._infer_json(prompt)
+
+        if result and isinstance(result, dict) and result.get("sources"):
+            return result
+
+        # Fallback: return formatted raw search results
+        self._log("warning", "LLM library research unavailable, returning raw search results")
+        found_sources = [
+            {
+                "title": r["title"],
+                "url": r["url"],
+                "type": "web",
+                "summary": r["snippet"][:150],
+                "license": "Unknown",
+            }
+            for r in all_results[:5]
+        ]
+
         return {
-            "summary": f"Research findings for topic: {topic}",
+            "summary": f"Web search results for: {topic}",
             "sources": found_sources,
-            "fit_assessment": f"The identified libraries and APIs provide good coverage for {topic} implementation",
-            "recommendations": [
-                "Consider starting with the official API documentation",
-                "Evaluate popular libraries for feature completeness",
-                "Review design patterns for architectural guidance"
-            ],
-            "keywords": keywords_found or ["general"]
+            "fit_assessment": f"Found {len(found_sources)} resources for {topic} (LLM evaluation unavailable)",
+            "recommendations": ["Review the sources above for relevance", "Check official documentation"],
+            "keywords": topic.lower().split()[:5],
         }
 
 

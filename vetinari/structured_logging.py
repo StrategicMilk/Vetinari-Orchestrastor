@@ -74,10 +74,12 @@ class CorrelationContext:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context and reset correlation IDs."""
+        # Reset each ContextVar to its prior value using the stored reset tokens
         for token in reversed(self._tokens):
-            _trace_id_var.set(None)
-            _span_id_var.set(None)
-            _request_id_var.set(None)
+            try:
+                token.var.reset(token)
+            except Exception:
+                pass
     
     def set_span_id(self, span_id: str):
         """Set or update the span ID within this context."""

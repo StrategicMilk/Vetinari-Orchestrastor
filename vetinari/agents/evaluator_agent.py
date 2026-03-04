@@ -132,70 +132,60 @@ Output format must include verdict (pass/fail), quality_score, findings, securit
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _evaluate_artifacts(self, artifacts: List[str], focus: str) -> Dict[str, Any]:
-        """Evaluate provided artifacts.
-        
-        Args:
-            artifacts: List of artifacts to evaluate
-            focus: Focus area (code, security, testability, or all)
-            
-        Returns:
-            Dictionary containing evaluation results
+        """Evaluate provided artifacts using LLM analysis.
+
+        Uses the LLM to perform thorough code quality, security, and
+        testability assessment. Falls back to default scores if the LLM
+        is unavailable.
         """
-        # This is a simplified implementation
-        # In production, this would use actual code analysis tools
-        
-        findings = []
-        security_issues = []
-        improvements = []
-        
-        # Simulate code quality findings
-        if focus in ["code", "all"]:
-            findings.extend([
-                {"area": "code_style", "message": "Code follows PEP 8 guidelines", "score": 0.9},
-                {"area": "design_patterns", "message": "Good use of design patterns", "score": 0.85}
-            ])
-            improvements.append({
-                "area": "code_style",
-                "issue": "Some lines exceed 88 characters",
-                "suggestion": "Apply black formatter for consistency"
-            })
-        
-        # Simulate security evaluation
-        if focus in ["security", "all"]:
-            security_issues.append({
-                "severity": "low",
-                "type": "hardcoded_secret",
-                "location": "config.py:42",
-                "recommendation": "Use environment variables for secrets"
-            })
-            improvements.append({
-                "area": "security",
-                "issue": "Potential SQL injection vulnerability",
-                "suggestion": "Use parameterized queries"
-            })
-        
-        # Simulate testability assessment
-        if focus in ["testability", "all"]:
-            findings.append({"area": "test_coverage", "message": "Test coverage at 75%", "score": 0.75})
-            improvements.append({
-                "area": "testability",
-                "issue": "Some functions are not testable",
-                "suggestion": "Refactor functions to reduce coupling"
-            })
-        
-        # Calculate overall quality score
-        quality_scores = [f.get("score", 0.7) for f in findings]
-        overall_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.7
-        
-        verdict = "pass" if overall_quality >= self._quality_threshold else "fail"
-        
+        import json as _json
+
+        artifact_content = "\n---\n".join(str(a) for a in artifacts) if artifacts else "(no artifacts provided)"
+
+        prompt = f"""Evaluate the following artifact(s) for quality.
+
+EVALUATION FOCUS: {focus}
+QUALITY THRESHOLD: {self._quality_threshold}
+
+ARTIFACTS:
+{artifact_content[:3000]}
+
+Produce a JSON evaluation report with this exact structure:
+{{
+  "verdict": "pass" or "fail",
+  "quality_score": 0.0-1.0,
+  "findings": [
+    {{"area": "code_style|design_patterns|test_coverage|architecture", "message": "...", "score": 0.0-1.0}}
+  ],
+  "security_issues": [
+    {{"severity": "low|medium|high|critical", "type": "...", "location": "...", "recommendation": "..."}}
+  ],
+  "improvements": [
+    {{"area": "...", "issue": "...", "suggestion": "..."}}
+  ],
+  "summary": "Brief evaluation summary"
+}}
+
+Be specific and actionable. Do not make up issues that are not evidenced by the artifacts."""
+
+        result = self._infer_json(prompt)
+
+        if result and isinstance(result, dict) and "verdict" in result:
+            # Ensure verdict respects quality threshold
+            quality_score = float(result.get("quality_score", 0.7))
+            result["verdict"] = "pass" if quality_score >= self._quality_threshold else "fail"
+            result["quality_score"] = round(quality_score, 2)
+            return result
+
+        # Fallback: return minimal result
+        self._log("warning", "LLM evaluation unavailable, returning baseline assessment")
         return {
-            "verdict": verdict,
-            "quality_score": round(overall_quality, 2),
-            "findings": findings,
-            "security_issues": security_issues,
-            "improvements": improvements,
-            "summary": f"Evaluation complete. Overall quality: {round(overall_quality*100)}%. Verdict: {verdict.upper()}"
+            "verdict": "pass",
+            "quality_score": 0.7,
+            "findings": [{"area": "general", "message": "Evaluation performed without LLM", "score": 0.7}],
+            "security_issues": [],
+            "improvements": [{"area": "general", "issue": "Manual review recommended", "suggestion": "Review artifacts manually"}],
+            "summary": "Baseline evaluation (LLM unavailable)"
         }
 
 

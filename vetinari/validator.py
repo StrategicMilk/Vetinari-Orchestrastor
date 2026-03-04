@@ -38,9 +38,14 @@ class Validator:
         cleaned = re.sub(r'```$', '', cleaned)
         cleaned = cleaned.strip()
         
-        # Also remove JSON code block markers
-        cleaned = re.sub(r'^\{', '', cleaned)
-        cleaned = re.sub(r'\}$', '', cleaned)
+        # Remove JSON wrapper only when the entire content is a single JSON object
+        # (not valid Python code that starts/ends with braces)
+        if cleaned.startswith('{') and cleaned.endswith('}'):
+            # Check if this looks like a JSON code wrapper rather than Python dict/set
+            # Only strip if there is no Python code structure inside
+            inner = cleaned[1:-1].strip()
+            if not re.search(r'^(def|class|import|from|@|async|with|\s+=)', inner, re.M):
+                cleaned = inner
         
         try:
             ast.parse(cleaned)

@@ -447,7 +447,8 @@ class IntegratedAgent:
             # Use LM Studio adapter
             from vetinari.lmstudio_adapter import LMStudioAdapter
             
-            adapter = LMStudioAdapter(host=self.config.get("lmstudio_host", "http://10.0.0.96:1234"))
+            _default_host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+            adapter = LMStudioAdapter(host=self.config.get("lmstudio_host", _default_host))
             
             model_id = model_info.id if model_info else "default"
             

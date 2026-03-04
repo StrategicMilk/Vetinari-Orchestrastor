@@ -1,5 +1,6 @@
 import subprocess
 import json
+import logging
 import os
 import shutil
 from abc import ABC, abstractmethod
@@ -7,6 +8,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class SearchBackendStatus(Enum):
@@ -167,36 +170,41 @@ class CocoIndexAdapter(CodeSearchAdapter):
         query: str,
         limit: int
     ) -> List[CodeSearchResult]:
+        """Cross-platform fallback search using Python's os.walk + re."""
+        import re as _re
         results = []
+        target_extensions = {'.py', '.js', '.ts', '.tsx', '.jsx'}
+        query_pattern = _re.compile(_re.escape(query), _re.IGNORECASE)
 
         try:
-            result = subprocess.run(
-                ['grep', '-r', '-n', '-i',
-                 '--include=*.py', '--include=*.js', '--include=*.ts',
-                 query, self.root_path],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            if result.returncode == 0:
-                for line in result.stdout.split('\n')[:limit]:
-                    if ':' in line:
-                        parts = line.split(':', 2)
-                        if len(parts) >= 3:
-                            results.append(CodeSearchResult(
-                                file_path=parts[0],
-                                language=self._detect_language(parts[0]),
-                                content=parts[2][:200],
-                                line_start=int(parts[1]) if parts[1].isdigit() else 1,
-                                line_end=int(parts[1]) if parts[1].isdigit() else 1,
-                                score=0.5
-                            ))
-
+            root = Path(self.root_path) if self.root_path else Path(".")
+            for dirpath, dirnames, filenames in os.walk(root):
+                # Skip hidden directories and venv
+                dirnames[:] = [d for d in dirnames if not d.startswith('.') and d != 'venv']
+                for filename in filenames:
+                    if Path(filename).suffix.lower() not in target_extensions:
+                        continue
+                    filepath = Path(dirpath) / filename
+                    try:
+                        text = filepath.read_text(encoding="utf-8", errors="ignore")
+                        for lineno, line in enumerate(text.splitlines(), 1):
+                            if query_pattern.search(line):
+                                results.append(CodeSearchResult(
+                                    file_path=str(filepath),
+                                    language=self._detect_language(str(filepath)),
+                                    content=line.strip()[:200],
+                                    line_start=lineno,
+                                    line_end=lineno,
+                                    score=0.5
+                                ))
+                                if len(results) >= limit:
+                                    return results
+                    except Exception:
+                        continue
         except Exception as e:
-            print(f"Fallback search error: {e}")
+            logger.warning(f"Fallback search error: {e}")
 
-        return results
+        return results[:limit]
 
     def index_project(self, project_path: str, force: bool = False) -> bool:
         cmd = [

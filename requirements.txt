@@ -1,0 +1,26 @@
+# Vetinari Core Requirements
+requests>=2.28.0
+pyyaml>=6.0
+flask>=2.0.0
+
+# Web search support
+duckduckgo-search>=4.0.0
+
+# Development / Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Optional: Cloud providers (install as needed)
+# anthropic>=0.20.0
+# openai>=1.0.0
+# google-generativeai>=0.4.0
+# cohere>=5.0.0
+
+# Optional: Enhanced search
+# tavily-python>=0.3.0
+
+# Optional: Encryption
+# cryptography>=41.0.0
+
+# Optional: ML features
+# numpy>=1.24.0

@@ -131,135 +131,61 @@ Output format must include scaffold_code, tests, artifacts (readme, config), and
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _generate_scaffold(self, spec: str, feature_name: str) -> Dict[str, Any]:
-        """Generate code scaffold from specification.
-        
-        Args:
-            spec: The specification to generate from
-            feature_name: Name of the feature
-            
-        Returns:
-            Dictionary containing scaffold code and tests
+        """Generate code scaffold using LLM-powered code generation.
+
+        Calls the LLM to produce complete, functional scaffold code and
+        tests tailored to the specification. Falls back to minimal stubs.
         """
-        # This is a simplified implementation
-        # In production, this would use actual code generation templates
-        
-        # Generate main module code
-        scaffold_code = f'''"""
-{feature_name} module
+        prompt = f"""You are a code generation expert. Generate a complete, production-ready code scaffold.
 
-Auto-generated scaffold for {feature_name}.
-"""
+FEATURE NAME: {feature_name}
+SPECIFICATION: {spec}
 
-class {feature_name.capitalize()}:
-    """Main class for {feature_name} feature."""
-    
-    def __init__(self, config=None):
-        """Initialize the {feature_name} feature."""
-        self.config = config or {{}}
-    
-    def execute(self, input_data):
-        """Execute the {feature_name} feature."""
-        # TODO: Implement feature logic
-        return {{"status": "success", "data": input_data}}
-    
-    def validate(self, input_data):
-        """Validate input for {feature_name}."""
-        if not input_data:
-            raise ValueError("Input data is required")
-        return True
-'''
-        
-        # Generate test scaffold
-        test_code = f'''"""
-Tests for {feature_name} module
-"""
+Produce a JSON response with this exact structure:
+{{
+  "scaffold_code": "complete Python module code as a string",
+  "tests": [
+    {{"filename": "test_{feature_name.lower().replace(' ','_')}.py", "content": "complete test code"}}
+  ],
+  "artifacts": [
+    {{"filename": "README.md", "content": "complete README"}},
+    {{"filename": "config.yaml", "content": "config template"}},
+    {{"filename": ".gitignore", "content": "gitignore content"}}
+  ],
+  "implementation_notes": ["note 1", "note 2"],
+  "summary": "brief summary"
+}}
 
-import unittest
-from {feature_name.lower()} import {feature_name.capitalize()}
+Requirements:
+- Generate real, functional code that implements the specification
+- Include proper error handling, logging, and documentation
+- Tests should cover happy path and edge cases
+- Code must be syntactically valid Python"""
 
+        result = self._infer_json(prompt, temperature=0.2)
 
-class Test{feature_name.capitalize()}(unittest.TestCase):
-    """Test cases for {feature_name}."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.feature = {feature_name.capitalize()}()
-    
-    def test_initialization(self):
-        """Test feature initialization."""
-        self.assertIsNotNone(self.feature)
-    
-    def test_execute_success(self):
-        """Test successful execution."""
-        result = self.feature.execute({{"test": "data"}})
-        self.assertEqual(result["status"], "success")
-    
-    def test_validate_input(self):
-        """Test input validation."""
-        with self.assertRaises(ValueError):
-            self.feature.validate(None)
+        if result and isinstance(result, dict) and result.get("scaffold_code"):
+            return result
 
+        # Fallback: minimal scaffold via direct code generation
+        self._log("warning", "JSON scaffold failed, attempting plain text generation")
+        safe_name = feature_name.lower().replace(" ", "_")
+        class_name = feature_name.replace(" ", "").capitalize()
 
-if __name__ == "__main__":
-    unittest.main()
-'''
-        
-        # Generate artifacts
-        readme = f'''# {feature_name.capitalize()} Feature
+        # Try to get at least good code
+        code_prompt = f"Write a complete Python class named {class_name} that implements: {spec}\nInclude __init__, execute(), validate() methods with full docstrings and error handling."
+        generated_code = self._infer(code_prompt, temperature=0.2)
 
-## Overview
-{spec}
-
-## Installation
-```bash
-pip install -e .
-```
-
-## Usage
-```python
-from {feature_name.lower()} import {feature_name.capitalize()}
-
-feature = {feature_name.capitalize()}()
-result = feature.execute(data)
-print(result)
-```
-
-## Configuration
-See `config.yaml` for configuration options.
-
-## Testing
-```bash
-pytest tests/test_{feature_name.lower()}.py
-```
-'''
-        
-        config = f'''# Configuration for {feature_name}
-
-feature:
-  name: {feature_name}
-  version: 1.0.0
-  debug: false
-
-# Add more configuration as needed
-'''
-        
         return {
-            "scaffold_code": scaffold_code,
-            "tests": [
-                {"filename": f"test_{feature_name.lower()}.py", "content": test_code}
-            ],
+            "scaffold_code": generated_code or f'"""Auto-generated {feature_name} module."""\n\nclass {class_name}:\n    pass\n',
+            "tests": [{"filename": f"test_{safe_name}.py", "content": f"import unittest\n\nclass Test{class_name}(unittest.TestCase):\n    pass\n\nif __name__ == '__main__':\n    unittest.main()\n"}],
             "artifacts": [
-                {"filename": "README.md", "content": readme},
-                {"filename": "config.yaml", "content": config},
+                {"filename": "README.md", "content": f"# {class_name}\n\n{spec}\n"},
+                {"filename": "config.yaml", "content": f"feature:\n  name: {safe_name}\n  version: 1.0.0\n"},
                 {"filename": ".gitignore", "content": "__pycache__/\n*.pyc\n.pytest_cache/\nvenv/\n"}
             ],
-            "implementation_notes": [
-                "Generated scaffold provides basic structure",
-                "Implement feature logic in the execute() method",
-                "Add validation rules in the validate() method",
-                "Update tests as you add functionality"
-            ],
-            "summary": f"Generated scaffold for {feature_name} feature"
+            "implementation_notes": ["Review and customize the generated scaffold", "Run tests with: pytest"],
+            "summary": f"Scaffold generated for {feature_name}"
         }
 
 

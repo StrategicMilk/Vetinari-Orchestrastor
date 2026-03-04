@@ -7,7 +7,9 @@ All agents must implement the execute and verify methods.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -80,12 +82,177 @@ class BaseAgent(ABC):
         """Initialize the agent with context.
         
         Args:
-            context: Context information including available models, 
-                    permissions, and other agent-specific data
+            context: Context information including:
+                - adapter_manager: AdapterManager instance for LLM inference
+                - web_search: WebSearchTool instance for online research
+                - tool_registry: ToolRegistry for registered tools
+                - Any agent-specific configuration
         """
         self._context = context
+        # Extract key shared services from context
+        self._adapter_manager = context.get("adapter_manager")
+        self._web_search = context.get("web_search")
+        self._tool_registry = context.get("tool_registry")
         self._initialized = True
         self._log("info", f"Agent {self.name} initialized")
+
+    # ------------------------------------------------------------------
+    # LLM Inference helper
+    # ------------------------------------------------------------------
+
+    def _infer(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        model_id: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+        expect_json: bool = False,
+    ) -> str:
+        """Call an LLM via the AdapterManager and return the text output.
+
+        Falls back gracefully if the adapter manager is unavailable.
+
+        Args:
+            prompt: The user/task prompt.
+            system_prompt: Optional system prompt override. Uses agent's
+                           get_system_prompt() when not provided.
+            model_id: Optional model override. Uses agent's default_model
+                      when not provided.
+            max_tokens: Maximum tokens to generate.
+            temperature: Sampling temperature.
+            expect_json: If True, appends a JSON-output instruction and
+                         attempts to strip markdown fences from the result.
+
+        Returns:
+            The generated text string, or an empty string on error.
+        """
+        if self._adapter_manager is None:
+            # No adapter: try to use the singleton if available
+            try:
+                from vetinari.adapter_manager import get_adapter_manager
+                self._adapter_manager = get_adapter_manager()
+            except Exception:
+                pass
+
+        if self._adapter_manager is None:
+            # Last resort: call LM Studio directly
+            try:
+                from vetinari.lmstudio_adapter import LMStudioAdapter
+                _host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+                _adapter = LMStudioAdapter(host=_host)
+                _sys = system_prompt or self.get_system_prompt()
+                _model = model_id or self.default_model or "default"
+                resp = _adapter.chat(_model, _sys, prompt)
+                return resp.get("output", "")
+            except Exception as e:
+                self._log("error", f"LLM inference failed (no adapter_manager): {e}")
+                return ""
+
+        # Use AdapterManager.infer() path
+        try:
+            from vetinari.adapters.base import InferenceRequest
+        except ImportError:
+            # Fallback dataclass if adapters not available
+            from dataclasses import dataclass, field as dc_field
+
+            @dataclass
+            class InferenceRequest:  # type: ignore[no-redef]
+                model_id: str
+                prompt: str
+                system_prompt: Optional[str] = None
+                max_tokens: int = 4096
+                temperature: float = 0.3
+                top_p: float = 0.9
+                top_k: int = 40
+                stop_sequences: List[str] = dc_field(default_factory=list)
+                metadata: Dict[str, Any] = dc_field(default_factory=dict)
+
+        if expect_json:
+            prompt = prompt + "\n\nRespond ONLY with valid JSON. Do not include markdown code fences or explanation."
+
+        request = InferenceRequest(
+            model_id=model_id or self.default_model or "default",
+            prompt=prompt,
+            system_prompt=system_prompt or self.get_system_prompt(),
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+        try:
+            response = self._adapter_manager.infer(request)
+            if response.status == "ok":
+                result = response.output
+                if expect_json:
+                    # Strip any accidental markdown fences
+                    result = result.strip()
+                    if result.startswith("```"):
+                        lines = result.split("\n")
+                        result = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+                return result
+            else:
+                self._log("warning", f"Inference failed: {response.error}")
+                return ""
+        except Exception as e:
+            self._log("error", f"Inference exception: {e}")
+            return ""
+
+    def _infer_json(self, prompt: str, system_prompt: Optional[str] = None,
+                    model_id: Optional[str] = None, **kwargs) -> Optional[Dict[str, Any]]:
+        """Call _infer() and parse the result as JSON.
+
+        Returns None if the LLM output cannot be parsed.
+        """
+        # Remove expect_json from kwargs to avoid duplicate keyword argument
+        kwargs.pop("expect_json", None)
+        raw = self._infer(prompt, system_prompt=system_prompt, model_id=model_id,
+                          expect_json=True, **kwargs)
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Try to extract JSON object/array from surrounding text
+            import re
+            match = re.search(r'(\{.*\}|\[.*\])', raw, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    pass
+            self._log("warning", "Could not parse LLM output as JSON")
+            return None
+
+    # ------------------------------------------------------------------
+    # Web search helper
+    # ------------------------------------------------------------------
+
+    def _search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+        """Perform a web search and return a list of result dicts.
+
+        Each result dict has keys: title, url, snippet, source_reliability.
+        Returns an empty list if no search tool is available.
+        """
+        if self._web_search is None:
+            try:
+                from vetinari.tools.web_search_tool import get_search_tool
+                self._web_search = get_search_tool()
+            except Exception:
+                return []
+        try:
+            response = self._web_search.search(query, max_results=max_results)
+            return [
+                {
+                    "title": r.title,
+                    "url": r.url,
+                    "snippet": r.snippet,
+                    "source_reliability": r.source_reliability,
+                }
+                for r in response.results
+            ]
+        except Exception as e:
+            self._log("warning", f"Web search failed for '{query}': {e}")
+            return []
         
     def _log(self, level: str, message: str, **kwargs) -> None:
         """Emit structured log with agent context."""
@@ -184,6 +351,23 @@ class BaseAgent(ABC):
             self.initialize({})
         
         task.started_at = datetime.now().isoformat()
+
+        # Emit structured trace span for this task
+        try:
+            from vetinari.structured_logging import log_event
+            log_event("info", f"agent.{self._agent_type.value}", "task_started",
+                      task_id=task.id, agent=self._agent_type.value)
+        except Exception:
+            pass
+
+        # Register prompt variant if evolver is available
+        try:
+            from vetinari.learning.prompt_evolver import get_prompt_evolver
+            evolver = get_prompt_evolver()
+            evolver.register_baseline(self._agent_type.value, self.get_system_prompt())
+        except Exception:
+            pass
+
         return task
     
     def complete_task(self, task: AgentTask, result: AgentResult) -> AgentTask:
@@ -202,6 +386,51 @@ class BaseAgent(ABC):
         task.result = result.output
         if not result.success:
             task.error = "; ".join(result.errors)
+
+        # Emit structured trace span for completion
+        try:
+            from vetinari.structured_logging import log_event
+            log_event("info", f"agent.{self._agent_type.value}", "task_completed",
+                      task_id=task.id, success=result.success,
+                      agent=self._agent_type.value)
+        except Exception:
+            pass
+
+        # Feed results into quality scoring and feedback loop
+        if result.success and result.output:
+            try:
+                import json as _json
+                output_str = (result.output if isinstance(result.output, str)
+                              else _json.dumps(result.output, default=str)[:1000])
+                task_type = self._agent_type.value.lower()
+                model_id = self.default_model or "default"
+
+                from vetinari.learning.quality_scorer import get_quality_scorer
+                scorer = get_quality_scorer()
+                scorer._adapter_manager = self._adapter_manager
+                score = scorer.score(
+                    task_id=task.id,
+                    model_id=model_id,
+                    task_type=task_type,
+                    task_description=task.description or "",
+                    output=output_str,
+                    use_llm=False,  # Avoid recursive inference calls
+                )
+
+                from vetinari.learning.feedback_loop import get_feedback_loop
+                get_feedback_loop().record_outcome(
+                    task_id=task.id,
+                    model_id=model_id,
+                    task_type=task_type,
+                    quality_score=score.overall_score,
+                    success=result.success,
+                )
+
+                from vetinari.learning.model_selector import get_thompson_selector
+                get_thompson_selector().update(model_id, task_type, score.overall_score, result.success)
+            except Exception:
+                pass  # Learning subsystem errors must never crash agents
+
         return task
     
     def __repr__(self) -> str:

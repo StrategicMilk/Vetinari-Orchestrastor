@@ -1,0 +1,18 @@
+{
+  "model_a:coding": {
+    "model_id": "model_a",
+    "task_type": "coding",
+    "alpha": 29.499999999999986,
+    "beta": 1.0,
+    "total_pulls": 30,
+    "last_updated": "2026-03-04T00:18:51.462911"
+  },
+  "model_b:coding": {
+    "model_id": "model_b",
+    "task_type": "coding",
+    "alpha": 1.0,
+    "beta": 25.000000000000014,
+    "total_pulls": 30,
+    "last_updated": "2026-03-04T00:18:51.465300"
+  }
+}

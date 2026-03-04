@@ -238,7 +238,7 @@ class WebSearchTool:
             backend=self.backend_name,
             total_results=len(results),
             execution_time_ms=int((time.time() - start_time) * 1000),
-            citations=results[:max_results] if results else [],
+            citations=[f"[{i+1}] {r.title}. {r.url}" for i, r in enumerate(results[:max_results])] if results else [],
             provenance=[{
                 "backend": self.backend_name,
                 "timestamp": datetime.now().isoformat(),
@@ -273,7 +273,7 @@ class WebSearchTool:
             
             results = []
             with DDGS() as ddgs:
-                for r in ddgs.search(query, max_results=max_results, language=language):
+                for r in ddgs.search(query, max_results=max_results, region=language):
                     results.append(SearchResult(
                         title=r.get("title", ""),
                         url=r.get("href", ""),
@@ -601,6 +601,136 @@ class WebSearchTool:
         """Clear the search cache."""
         self._cache.clear()
         logger.info("Search cache cleared")
+
+    def multi_source_search(
+        self,
+        query: str,
+        max_results: int = 5,
+        backends: Optional[List[str]] = None,
+    ) -> "SearchResponse":
+        """Search across multiple backends and merge results.
+
+        Queries DuckDuckGo, Wikipedia and arXiv in parallel (sequentially
+        here for simplicity) and cross-references results to increase
+        reliability.  Deduplicated by URL; sorted by credibility.
+
+        Args:
+            query: The search query.
+            max_results: Max results per backend.
+            backends: List of backend names to query. Defaults to
+                      ["duckduckgo", "wikipedia", "arxiv"].
+
+        Returns:
+            Merged SearchResponse with combined results.
+        """
+        if backends is None:
+            backends = ["duckduckgo", "wikipedia", "arxiv"]
+
+        start_time = time.time()
+        all_results: List[SearchResult] = []
+        seen_urls: set = set()
+        provenance: List[Dict[str, Any]] = []
+
+        original_backend = self.backend_name
+        for backend in backends:
+            try:
+                self.backend_name = backend
+                response = self.search(query, max_results=max_results)
+                for r in response.results:
+                    if r.url not in seen_urls:
+                        seen_urls.add(r.url)
+                        all_results.append(r)
+                provenance.append({
+                    "backend": backend,
+                    "result_count": len(response.results),
+                    "timestamp": datetime.now().isoformat(),
+                })
+            except Exception as e:
+                logger.warning(f"Backend {backend} failed for query '{query}': {e}")
+        self.backend_name = original_backend
+
+        # Sort by credibility, then trim
+        all_results.sort(key=lambda x: x.source_reliability, reverse=True)
+        all_results = all_results[:max_results * len(backends)]
+
+        return SearchResponse(
+            results=all_results,
+            query=query,
+            backend=f"multi:{','.join(backends)}",
+            total_results=len(all_results),
+            execution_time_ms=int((time.time() - start_time) * 1000),
+            citations=[f"[{i+1}] {r.title}. {r.url}" for i, r in enumerate(all_results)],
+            provenance=provenance,
+        )
+
+    def verify_claim(
+        self,
+        claim: str,
+        min_sources: int = 2,
+        max_search_results: int = 5,
+    ) -> Dict[str, Any]:
+        """Verify a factual claim against multiple web sources.
+
+        Implements the "two-source rule" from web browsing agent best
+        practices: a claim is only considered verified when at least
+        ``min_sources`` independent sources corroborate it.
+
+        Args:
+            claim: The factual statement to verify.
+            min_sources: Minimum number of sources needed for verification.
+            max_search_results: Max results per search query.
+
+        Returns:
+            Dict with keys: verified (bool), confidence (float),
+            supporting_sources (list), contradicting_sources (list),
+            verdict (str).
+        """
+        # Search for the claim and its negation
+        supporting_results = self.multi_source_search(
+            claim, max_results=max_search_results
+        ).results
+        negation_query = f"NOT ({claim}) OR problems with {claim}"
+        contradicting_results = self.search(
+            negation_query, max_results=3
+        ).results
+
+        claim_lower = claim.lower()
+        claim_words = set(claim_lower.split())
+
+        supporting: List[Dict] = []
+        contradicting: List[Dict] = []
+
+        for r in supporting_results:
+            text = f"{r.title} {r.snippet}".lower()
+            # Simple overlap scoring
+            overlap = len(claim_words & set(text.split())) / max(len(claim_words), 1)
+            entry = {"title": r.title, "url": r.url, "overlap": round(overlap, 2),
+                     "reliability": r.source_reliability}
+            if overlap > 0.2:
+                supporting.append(entry)
+
+        for r in contradicting_results:
+            text = f"{r.title} {r.snippet}".lower()
+            if any(w in text for w in ["not", "false", "wrong", "incorrect", "debunked", "myth"]):
+                contradicting.append({"title": r.title, "url": r.url,
+                                      "reliability": r.source_reliability})
+
+        verified = len(supporting) >= min_sources
+        confidence = min(1.0, len(supporting) / max(min_sources, 1)) * 0.9
+        if contradicting:
+            confidence *= 0.7  # Reduce confidence when contradictions exist
+
+        verdict = "VERIFIED" if verified else ("UNVERIFIED" if not supporting else "UNCERTAIN")
+
+        return {
+            "claim": claim,
+            "verified": verified,
+            "confidence": round(confidence, 2),
+            "verdict": verdict,
+            "supporting_sources": supporting[:5],
+            "contradicting_sources": contradicting[:3],
+            "min_sources_required": min_sources,
+        }
 
 
 # Global instance

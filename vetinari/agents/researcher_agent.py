@@ -132,62 +132,109 @@ Output format must include findings by area, feasibility score, competitor analy
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _perform_research(self, domain_topic: str, questions: List[str]) -> Dict[str, Any]:
-        """Perform domain research and analysis.
-        
-        Args:
-            domain_topic: The domain to research
-            questions: Specific questions to answer
-            
-        Returns:
-            Dictionary containing research findings
+        """Perform domain research using real web search + LLM synthesis.
+
+        Pipeline:
+        1. Multi-query web search across domain aspects
+        2. LLM synthesis of real search results
+        3. Graceful fallback to structured template if LLM unavailable
         """
-        # This is a simplified implementation
-        # In production, this would use actual research data sources
+        import json
+
+        # ------------------------------------------------------------------
+        # Step 1: Web search across multiple aspects
+        # ------------------------------------------------------------------
+        search_queries = [domain_topic] + (questions[:3] if questions else [])
+        search_queries.extend([
+            f"{domain_topic} alternatives comparison",
+            f"{domain_topic} best practices 2025",
+            f"{domain_topic} technical challenges",
+        ])
+
+        all_results: List[Dict] = []
+        citations: List[str] = []
+
+        for query in search_queries[:5]:  # Limit to 5 queries
+            results = self._search(query, max_results=3)
+            for r in results:
+                if r["url"] not in [x.get("url") for x in all_results]:
+                    all_results.append(r)
+                    citations.append(f"[{len(citations)+1}] {r['title']}. {r['url']}")
+
+        # ------------------------------------------------------------------
+        # Step 2: LLM synthesis of search results
+        # ------------------------------------------------------------------
+        synthesis_prompt = f"""You are a research analyst. Analyze these search results about '{domain_topic}':
+
+SEARCH RESULTS:
+{json.dumps(all_results[:10], indent=2)}
+
+QUESTIONS TO ANSWER: {questions}
+
+Produce a comprehensive research report as JSON with this exact structure:
+{{
+  "findings": [
+    {{"area": "market", "summary": "...", "findings": ["insight1", "insight2"], "evidence": [{{"source": "...", "link": "..."}}]}},
+    {{"area": "technology", "summary": "...", "findings": [...], "evidence": [...]}},
+    {{"area": "feasibility", "summary": "...", "findings": [...], "evidence": [...]}},
+    {{"area": "risks", "summary": "...", "findings": [...], "evidence": [...]}}
+  ],
+  "feasibility_score": 0.75,
+  "feasibility_assessment": "...",
+  "competitor_analysis": [{{"name": "...", "strengths": [...], "weaknesses": [...], "market_position": "..."}}],
+  "recommendations": ["recommendation 1", ...],
+  "risks": [{{"risk": "...", "likelihood": 0.5, "impact": 0.5}}]
+}}
+
+Base all findings strictly on the search results. Do not hallucinate. If information is not in the search results, indicate uncertainty."""
+
+        llm_result = self._infer_json(synthesis_prompt)
+
+        if llm_result and isinstance(llm_result, dict) and llm_result.get("findings"):
+            llm_result["domain"] = domain_topic
+            llm_result["provenance"] = citations
+            llm_result["sources_searched"] = len(all_results)
+            return llm_result
+
+        # ------------------------------------------------------------------
+        # Step 3: Fallback – structured output from search results alone
+        # ------------------------------------------------------------------
+        self._log("info", f"LLM synthesis unavailable, returning raw search results for '{domain_topic}'")
         
         findings = []
-        
-        # Create research areas
-        research_areas = ["market", "technology", "feasibility", "risks"]
-        
-        for area in research_areas:
+        for i, area in enumerate(["market", "technology", "feasibility", "risks"]):
+            area_results = all_results[i*2:(i+1)*2] if all_results else []
             findings.append({
                 "area": area,
-                "summary": f"Analysis of {area} for {domain_topic}",
-                "findings": [
-                    f"Key insight 1 about {area}",
-                    f"Key insight 2 about {area}"
-                ],
-                "evidence": [
-                    {"source": "industry_report", "link": f"https://reports.example.com/{area}"},
-                    {"source": "technical_paper", "link": f"https://papers.example.com/{area}"}
-                ]
+                "summary": f"{area.title()} analysis for {domain_topic}",
+                "findings": [r["snippet"][:150] for r in area_results] or [f"See {domain_topic} documentation"],
+                "evidence": [{"source": r["title"], "link": r["url"]} for r in area_results]
             })
-        
-        # Competitor analysis
+
         competitors = []
-        for i in range(min(3, self._max_competitors)):
-            competitors.append({
-                "name": f"Competitor {i+1}",
-                "strengths": ["Feature A", "Feature B"],
-                "weaknesses": ["Limitation A", "Limitation B"],
-                "market_position": "Growing" if i == 0 else "Established"
-            })
-        
+        for r in all_results[:self._max_competitors]:
+            if r.get("title"):
+                competitors.append({
+                    "name": r["title"][:60],
+                    "strengths": [r["snippet"][:100]],
+                    "weaknesses": [],
+                    "market_position": "Identified"
+                })
+
         return {
             "domain": domain_topic,
             "findings": findings,
-            "feasibility_score": 0.75,
-            "feasibility_assessment": f"{domain_topic} is technically and commercially feasible",
+            "feasibility_score": 0.7 if all_results else 0.5,
+            "feasibility_assessment": f"Based on {len(all_results)} sources found for {domain_topic}",
             "competitor_analysis": competitors,
             "recommendations": [
-                "Recommend approach A for implementation",
-                "Consider timing for market entry",
-                "Invest in differentiation strategy"
-            ],
+                f"Review: {r['url']}" for r in all_results[:3]
+            ] or ["Further research required"],
             "risks": [
-                {"risk": "Market saturation", "likelihood": 0.6, "impact": 0.7},
-                {"risk": "Technical complexity", "likelihood": 0.4, "impact": 0.5}
-            ]
+                {"risk": "Information may be incomplete", "likelihood": 0.5 if all_results else 0.9, "impact": 0.4}
+            ],
+            "provenance": citations,
+            "sources_searched": len(all_results),
         }
 
 

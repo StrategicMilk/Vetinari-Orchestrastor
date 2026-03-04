@@ -329,12 +329,31 @@ class SandboxManager:
     ) -> SandboxResult:
         if sandbox_type == "in_process":
             return self.in_process.execute(code, context)
+        elif sandbox_type == "subprocess":
+            # External subprocess sandbox using code_sandbox.py
+            try:
+                from vetinari.code_sandbox import CodeSandbox
+                csb = CodeSandbox(
+                    max_execution_time=timeout,
+                    allow_network=False,
+                )
+                result = csb.execute_python(code, input_data=context or {})
+                return SandboxResult(
+                    execution_id=result.execution_id,
+                    success=result.success,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    return_value=result.return_value,
+                    execution_time_ms=result.execution_time_ms,
+                    return_code=result.return_code,
+                    error=result.error,
+                )
+            except ImportError:
+                # Fallback to in-process if code_sandbox not available
+                return self.in_process.execute(code, context)
         else:
-            return SandboxResult(
-                execution_id="",
-                success=False,
-                error="External sandbox not implemented in Phase 1"
-            )
+            # Unknown type -- fall back to in-process
+            return self.in_process.execute(code, context)
 
     def get_status(self) -> Dict:
         return {
@@ -356,3 +375,8 @@ class SandboxManager:
 
 
 sandbox_manager = SandboxManager.get_instance()
+
+
+def get_code_executor() -> SandboxManager:
+    """Get the singleton sandbox manager as a code executor."""
+    return sandbox_manager

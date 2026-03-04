@@ -1,6 +1,28 @@
 // Vetinari Web UI - Main Application
 // Enhanced UX Version with Responsive & Micro-interactions
 
+// ==================== UTILITY FUNCTIONS ====================
+
+/**
+ * Debounce: delay execution until after `wait` ms since last call.
+ */
+function debounce(fn, wait) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), wait);
+    };
+}
+
+/**
+ * loadCurrentProject: refresh the currently open project if one is active.
+ */
+function loadCurrentProject() {
+    if (typeof currentProjectId !== 'undefined' && currentProjectId) {
+        loadProjectDetails(currentProjectId);
+    }
+}
+
 // ==================== RESPONSIVE SIDEBAR MANAGEMENT ====================
 
 class SidebarManager {
@@ -599,7 +621,8 @@ function switchView(view) {
         workflow: 'Workflow',
         decomposition: 'Decomposition Lab'
     };
-    document.querySelector('.header-title h1').textContent = titles[view];
+    const titleEl = document.querySelector('.header-title h1') || document.querySelector('header h1') || document.querySelector('h1');
+    if (titleEl) titleEl.textContent = titles[view] || view;
     
     // Show loading indicator
     const mainContent = document.querySelector('.main-content');
@@ -2064,11 +2087,11 @@ async function loadAdrList() {
             </div>
         `).join('');
     } catch (e) {
-        list.innerHTML = `<p>Error: ${e;
+        list.innerHTML = `<p>Error: ${e.message}</p>`;
     }
 }
 
-.message}</p>`async function decomposeWithAgent() {
+async function decomposeWithAgent() {
     const prompt = document.getElementById('decomposePrompt').value;
     const planId = document.getElementById('decomposePlanId').value || 'default';
     

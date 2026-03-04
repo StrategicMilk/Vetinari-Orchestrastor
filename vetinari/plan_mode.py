@@ -597,7 +597,7 @@ class PlanModeEngine:
         
         self._persist_plan(plan)
         
-        logger.info(f"Plan {plan.plan_id} {request.approved if 'approved' else 'rejected'} "
+        logger.info(f"Plan {plan.plan_id} {'approved' if request.approved else 'rejected'} "
                    f"by {request.approver}")
         
         return plan
@@ -687,9 +687,8 @@ class PlanModeEngine:
             import vetinari.plan_mode as _self_mod
             _get_store = getattr(_self_mod, 'get_dual_memory_store', get_dual_memory_store)
 
-            if True:  # DUAL_MEMORY_AVAILABLE is always True
-                store = _get_store()
-                
+            store = _get_store()
+            if store is not None:
                 approval_details = ApprovalDetails(
                     task_id=subtask_id,
                     task_type="coding",
@@ -715,6 +714,7 @@ class PlanModeEngine:
             else:
                 logger.warning("Dual memory not available, approval not logged")
                 return False
+
                 
         except Exception as e:
             logger.error(f"Failed to log approval decision: {e}")
@@ -748,7 +748,7 @@ class PlanModeEngine:
         Returns the generated artifact info.
         """
         try:
-            from ..coding_agent import (
+            from .coding_agent import (
                 CodeAgentEngine, CodeTask, CodingTaskType,
                 get_coding_agent
             )
@@ -784,7 +784,7 @@ class PlanModeEngine:
             
             # Log to memory
             try:
-                from ..memory import (
+                from .memory import (
                     get_dual_memory_store, MemoryEntry, MemoryEntryType
                 )
                 store = get_dual_memory_store()

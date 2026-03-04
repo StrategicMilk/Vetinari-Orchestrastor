@@ -4,7 +4,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 CLOUD_PROVIDERS = {
@@ -196,7 +196,7 @@ class ModelPool:
         else:
             logging.info(f"[Model Discovery] Available models: {len(self.models)}")
     
-    def get_discovery_health(self) -> Dict[str, any]:
+    def get_discovery_health(self) -> Dict[str, Any]:
         """Get health information about model discovery."""
         return {
             "discovery_failed": self._discovery_failed,

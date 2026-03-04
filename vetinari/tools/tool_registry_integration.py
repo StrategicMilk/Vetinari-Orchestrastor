@@ -201,7 +201,7 @@ class CodeExecutionToolWrapper(Tool):
     
     def _get_executor(self):
         if self._executor is None:
-            from vetinari.code_sandbox import get_code_executor
+            from vetinari.sandbox import get_code_executor
             self._executor = get_code_executor()
         return self._executor
     

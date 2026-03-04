@@ -208,13 +208,17 @@ class CodeSandbox:
                     pass
     
     def _wrap_python_code(self, code: str, input_data: Dict[str, Any] = None) -> str:
-        """Wrap code with input/output handling."""
+        """Wrap code with input/output handling and proper indentation inside try block."""
+        import base64 as _b64
         input_json = json.dumps(input_data or {})
-        
+        # Encode user code as base64 to avoid any escaping / indentation issues
+        code_b64 = _b64.b64encode(code.encode("utf-8")).decode("ascii")
+
         wrapped = f'''
 import sys
 import json
 import traceback
+import base64
 
 # Input data
 INPUT_DATA = {input_json}
@@ -233,9 +237,10 @@ class OutputCapture:
 sys.stdout = OutputCapture()
 sys.stderr = OutputCapture()
 
-# User code
+# User code (base64-encoded to preserve indentation and avoid injection)
+_user_code = base64.b64decode("{code_b64}").decode("utf-8")
 try:
-{code}
+    exec(compile(_user_code, "<vetinari_sandbox>", "exec"), {{}})
 except Exception as e:
     _errors.append(traceback.format_exc())
 

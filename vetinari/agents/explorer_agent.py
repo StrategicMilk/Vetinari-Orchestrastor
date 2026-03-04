@@ -124,77 +124,93 @@ Output format must be a findings object with references."""
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _explore(self, goal_context: str, scope: str) -> Dict[str, Any]:
-        """Perform exploration based on the goal.
-        
-        Args:
-            goal_context: The context to search for
-            scope: The scope of search (code, docs, apis, patterns)
-            
-        Returns:
-            Dictionary containing findings
+        """Perform exploration using real web search + LLM synthesis.
+
+        Searches the web for relevant patterns, references, and implementations
+        for the goal context, then uses the LLM to rank and summarize findings.
         """
-        # This is a simplified implementation
-        # In production, this would use actual search tools
-        
+        import json as _json
+
+        # Real web search for the goal context
+        search_query = f"{goal_context} {scope} examples patterns"
+        search_results = self._search(search_query, max_results=self._max_results)
+
+        # Secondary search for code examples if scope is code-related
+        if scope in ("code", "apis", "patterns"):
+            code_results = self._search(f"{goal_context} code implementation", max_results=3)
+            # Merge, deduplicating by URL
+            seen = {r["url"] for r in search_results}
+            for r in code_results:
+                if r["url"] not in seen:
+                    search_results.append(r)
+                    seen.add(r["url"])
+
+        if not search_results:
+            # No search results -- use LLM knowledge directly
+            prompt = f"""Explore and discover relevant {scope} patterns for: {goal_context}
+
+Return JSON:
+{{
+  "findings": [{{"id":"f1","type":"{scope}","summary":"...","relevance_score":0.9,"description":"..."}}],
+  "references": [{{"title":"...","url":"...","type":"{scope}"}}],
+  "search_terms": ["term1","term2"]
+}}"""
+            result = self._infer_json(prompt)
+            if result:
+                result["scope"] = scope
+                return result
+
+        # Use LLM to synthesize real search results into structured findings
+        search_text = _json.dumps(search_results[:8], indent=2)
+
+        prompt = f"""You are an exploration expert. Analyze these search results about '{goal_context}' (scope: {scope}).
+
+SEARCH RESULTS:
+{search_text}
+
+Synthesize the findings into a structured exploration report as JSON:
+{{
+  "findings": [
+    {{"id": "f1", "type": "{scope}", "summary": "...", "relevance_score": 0.9, "description": "..."}}
+  ],
+  "references": [
+    {{"title": "...", "url": "actual URL from results", "type": "{scope}"}}
+  ],
+  "search_terms": ["extracted", "key", "terms"],
+  "scope": "{scope}"
+}}
+
+Use only URLs from the actual search results. Rank by relevance to the goal."""
+
+        result = self._infer_json(prompt)
+
+        if result and isinstance(result, dict) and result.get("findings"):
+            result["scope"] = scope
+            return result
+
+        # Fallback: convert raw search results to findings format
         findings = []
         references = []
-        
-        # Analyze the goal context to determine search terms
-        search_terms = self._extract_search_terms(goal_context)
-        
-        # Generate findings based on search terms
-        for i, term in enumerate(search_terms[:self._max_results]):
-            finding = {
+        for i, r in enumerate(search_results[:self._max_results]):
+            findings.append({
                 "id": f"f{i+1}",
                 "type": scope,
-                "source": "explorer",
-                "summary": f"Pattern for {term}",
-                "relevance_score": 0.9 - (i * 0.1),
-                "description": f"Found relevant patterns for '{term}' in {scope}"
-            }
-            findings.append(finding)
-            references.append({
-                "title": f"Reference for {term}",
-                "url": f"https://example.com/{term}",
-                "type": scope
+                "summary": r["title"],
+                "relevance_score": r.get("source_reliability", 0.5),
+                "description": r["snippet"][:200],
             })
-        
+            references.append({
+                "title": r["title"],
+                "url": r["url"],
+                "type": scope,
+            })
+
         return {
             "findings": findings,
             "references": references,
             "scope": scope,
-            "search_terms": search_terms
+            "search_terms": goal_context.split()[:5],
         }
-    
-    def _extract_search_terms(self, goal_context: str) -> List[str]:
-        """Extract search terms from the goal context.
-        
-        Args:
-            goal_context: The context to extract from
-            
-        Returns:
-            List of search terms
-        """
-        # Simple extraction - split on common delimiters
-        terms = []
-        
-        # Extract key phrases
-        important_words = [
-            "api", "database", "frontend", "backend", "authentication",
-            "testing", "deployment", "configuration", "models", "views",
-            "controller", "service", "repository", "middleware"
-        ]
-        
-        context_lower = goal_context.lower()
-        for word in important_words:
-            if word in context_lower:
-                terms.append(word)
-        
-        # If no terms found, use the whole context
-        if not terms:
-            terms = goal_context.split()[:5]
-        
-        return terms
 
 
 # Singleton instance

@@ -130,65 +130,79 @@ Output format must include synthesized_artifact, provenance, integration_notes, 
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _synthesize_artifacts(self, sources: List[Dict[str, Any]], artifact_type: str) -> Dict[str, Any]:
-        """Synthesize multiple artifact sources into a unified output.
-        
-        Args:
-            sources: List of source artifacts to synthesize
-            artifact_type: Type of artifact to create (document, code, spec, etc.)
-            
-        Returns:
-            Dictionary containing the synthesized artifact
+        """Synthesize multiple artifact sources into a unified output using LLM.
+
+        Builds provenance mechanically, then uses the LLM to actually merge
+        and reconcile content. Falls back to simple concatenation.
         """
-        # This is a simplified implementation
-        # In production, this would use actual content merging and conflict resolution
-        
-        provenance = []
-        integration_notes = []
-        decisions = []
-        
-        # Build provenance from sources
-        for i, source in enumerate(sources):
-            provenance.append({
+        import json as _json
+
+        # Mechanical provenance (always reliable)
+        provenance = [
+            {
                 "index": i,
                 "agent": source.get("agent", "unknown"),
-                "artifact": source.get("artifact", ""),
-                "confidence": 0.9
-            })
-        
-        # Identify integration decisions
-        if len(sources) > 1:
-            integration_notes.append(f"Merged {len(sources)} source artifacts")
-            integration_notes.append("Resolved conflicts by prioritizing recent sources")
-            integration_notes.append("Maintained consistency across sections")
-            
-            decisions.append({
-                "decision": "Conflict resolution strategy",
-                "approach": "Latest source wins",
-                "rationale": "More recent information is typically more accurate"
-            })
-        
-        # Create the synthesized artifact
-        synthesized_content = f"Unified {artifact_type}\n"
-        synthesized_content += f"Created from {len(sources)} sources\n"
-        synthesized_content += "\n".join(integration_notes) + "\n"
-        
-        # Calculate integration score (0-1)
-        if len(sources) == 0:
-            integration_score = 0.0
-        elif len(sources) == 1:
-            integration_score = 1.0
-        else:
-            # Higher score for more sources successfully integrated
-            integration_score = min(1.0, 0.8 + (len(sources) * 0.05))
-        
+                "artifact": str(source.get("artifact", ""))[:100],
+                "confidence": source.get("confidence", 0.9),
+            }
+            for i, source in enumerate(sources)
+        ]
+
+        if not sources:
+            return {
+                "synthesized_artifact": "(no sources provided)",
+                "artifact_type": artifact_type,
+                "provenance": [],
+                "integration_notes": ["No sources to synthesize"],
+                "decisions": [],
+                "integration_score": 0.0,
+                "summary": "No sources provided for synthesis",
+            }
+
+        # Serialize source content for LLM (truncate to avoid context overflow)
+        sources_text = _json.dumps(
+            [{"agent": s.get("agent", "?"), "content": str(s.get("artifact", s))[:500]} for s in sources],
+            indent=2
+        )
+
+        prompt = f"""You are a synthesis expert. Combine the following {len(sources)} source artifacts into a unified {artifact_type}.
+
+SOURCES:
+{sources_text}
+
+Produce a JSON synthesis report:
+{{
+  "synthesized_artifact": "The complete, unified {artifact_type} content",
+  "integration_notes": ["note about what was merged", ...],
+  "decisions": [
+    {{"decision": "...", "approach": "...", "rationale": "..."}}
+  ],
+  "integration_score": 0.0-1.0,
+  "summary": "Brief synthesis summary"
+}}
+
+Resolve any conflicts intelligently. Flag inconsistencies in integration_notes."""
+
+        result = self._infer_json(prompt)
+
+        if result and isinstance(result, dict) and result.get("synthesized_artifact"):
+            result["artifact_type"] = artifact_type
+            result["provenance"] = provenance
+            return result
+
+        # Fallback: concatenate content
+        self._log("warning", "LLM synthesis unavailable, concatenating sources")
+        concat_content = "\n\n---\n\n".join(
+            str(s.get("artifact", s)) for s in sources
+        )
         return {
-            "synthesized_artifact": synthesized_content,
+            "synthesized_artifact": concat_content,
             "artifact_type": artifact_type,
             "provenance": provenance,
-            "integration_notes": integration_notes,
-            "decisions": decisions,
-            "integration_score": round(integration_score, 2),
-            "summary": f"Successfully synthesized {artifact_type} from {len(sources)} sources"
+            "integration_notes": [f"Concatenated {len(sources)} sources (LLM unavailable)"],
+            "decisions": [],
+            "integration_score": round(min(1.0, 0.5 + len(sources) * 0.1), 2),
+            "summary": f"Concatenated {len(sources)} source artifacts for {artifact_type}",
         }
 
 

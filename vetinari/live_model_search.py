@@ -249,7 +249,7 @@ class RedditAdapter:
     def _extract_model_mentions(self, text: str) -> List[str]:
         known_models = [
             "Qwen", "Llama", "Mistral", "DeepSeek", "CodeLlama", "Gemma",
-            "Phi", "Yi", "StarCoder", "Mixtral", "Command-R", "Haoku"
+            "Phi", "Yi", "StarCoder", "Mixtral", "Command-R", "Haiku"
         ]
         
         found = []

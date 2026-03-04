@@ -15,6 +15,8 @@ except ImportError:
     def get_logger(name):
         return logging.getLogger(name)
 
+logger = get_logger(__name__)
+
 
 class TaskExecutor:
     def __init__(self, adapter: LMStudioAdapter, validator: "Validator", config: dict):
@@ -63,7 +65,7 @@ class TaskExecutor:
             filepath = output_dir / filename
             filepath.write_text(code, encoding="utf-8")
             written.append(str(filepath))
-            print(f"[Vetinari] Written: {filepath}")
+            logger.info(f"[Vetinari] Written: {filepath}")
         return written
 
     def execute_task(self, task_id: str) -> dict:
@@ -124,6 +126,40 @@ class TaskExecutor:
         if not self.validator.is_valid_text(output_text):
             valid = False
 
+        # Run verification pipeline if available
+        verification_result = None
+        try:
+            from vetinari.verification import get_verifier_pipeline
+            pipeline = get_verifier_pipeline()
+            vr = pipeline.verify(output_text)
+            verification_result = {"passed": vr.passed, "score": getattr(vr, "score", 1.0)}
+            if not vr.passed:
+                logger.warning(f"Verification failed for task {task_id}: {vr.issues}")
+                # Don't fail the task for verification issues, just warn
+        except Exception as e:
+            logger.debug(f"Verification pipeline skipped: {e}")
+
+        # Record quality score in learning system
+        try:
+            from vetinari.learning.quality_scorer import get_quality_scorer
+            from vetinari.learning.feedback_loop import get_feedback_loop
+            scorer = get_quality_scorer()
+            score = scorer.score(
+                task_id=task_id, model_id=model_id or "default",
+                task_type=task.get("type", "generic"),
+                task_description=task.get("description", ""),
+                output=output_text, use_llm=False,
+            )
+            get_feedback_loop().record_outcome(
+                task_id=task_id, model_id=model_id or "default",
+                task_type=task.get("type", "generic"),
+                quality_score=score.overall_score,
+                latency_ms=int(result.get("latency_ms") or 0),
+                success=(result.get("status") == "ok"),
+            )
+        except Exception:
+            pass
+
         status = "completed" if result.get("status") == "ok" and valid else "failed"
         
         # Log task completion
@@ -141,5 +177,6 @@ class TaskExecutor:
             "latency_ms": result.get("latency_ms"),
             "output_path": str(output_path),
             "generated_files": written_files,
-            "error": result.get("error")
+            "error": result.get("error"),
+            "verification": verification_result,
         }

@@ -123,158 +123,68 @@ Output format must include architecture_vision, risks array, and recommended_gui
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _provide_guidance(self, goal: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Provide architectural guidance for the goal.
-        
-        Args:
-            goal: The architectural question
-            context: Additional context
-            
-        Returns:
-            Dictionary containing guidance
+        """Provide architectural guidance using LLM reasoning.
+
+        Replaces all keyword-based heuristics with genuine LLM analysis.
+        Falls back to a generic guidance set if the LLM is unavailable.
         """
-        goal_lower = goal.lower()
-        
-        # Analyze the goal to determine architecture type
-        architecture_type = self._determine_architecture(goal_lower)
-        
-        # Generate vision
-        vision = self._generate_vision(architecture_type, goal_lower)
-        
-        # Identify risks
-        risks = self._identify_risks(architecture_type, goal_lower)
-        
-        # Generate guidelines
-        guidelines = self._generate_guidelines(architecture_type, goal_lower)
-        
+        import json as _json
+
+        context_str = ""
+        if context:
+            context_str = f"\nContext: {_json.dumps(context, default=str)[:500]}"
+
+        # Optionally search for architectural best practices
+        search_results = self._search(f"{goal} architecture best practices", max_results=3)
+        search_context = ""
+        if search_results:
+            search_context = "\nRelevant references:\n" + "\n".join(
+                f"- {r['title']}: {r['snippet'][:100]}" for r in search_results
+            )
+
+        prompt = f"""You are an expert software architect. Provide comprehensive architectural guidance.
+
+GOAL: {goal}{context_str}{search_context}
+
+Produce a JSON architectural assessment:
+{{
+  "architecture_vision": "Detailed description of the recommended architecture",
+  "architecture_type": "api_service|web_application|data_platform|microservice|cli_tool|ml_pipeline|general",
+  "risks": [
+    {{"risk": "...", "likelihood": 0.0-1.0, "impact": 0.0-1.0, "mitigation": "..."}}
+  ],
+  "recommended_guidelines": ["guideline 1", "guideline 2", ...],
+  "trade_offs": "Description of key trade-offs in the chosen approach",
+  "constraints": {{}}
+}}
+
+Provide {self._max_risks} specific, actionable risks with realistic probabilities.
+Guidelines should be concrete and goal-specific."""
+
+        result = self._infer_json(prompt)
+
+        if result and isinstance(result, dict) and result.get("architecture_vision"):
+            result["constraints"] = context.get("constraints", result.get("constraints", {}))
+            return result
+
+        # Fallback: minimal but generic guidance
+        self._log("warning", "LLM oracle guidance unavailable, returning generic guidance")
         return {
-            "architecture_vision": vision,
-            "architecture_type": architecture_type,
-            "risks": risks,
-            "recommended_guidelines": guidelines,
-            "constraints": context.get("constraints", {})
+            "architecture_vision": f"A modular, maintainable architecture for: {goal}",
+            "architecture_type": "general",
+            "risks": [
+                {"risk": "Scope creep", "likelihood": 0.6, "impact": 0.7, "mitigation": "Define clear MVP requirements"},
+                {"risk": "Technical debt", "likelihood": 0.5, "impact": 0.6, "mitigation": "Schedule regular refactoring"},
+            ],
+            "recommended_guidelines": [
+                "Use version control from day one",
+                "Write automated tests for all new code",
+                "Use CI/CD pipelines",
+                "Document architectural decisions",
+            ],
+            "trade_offs": "Evaluated without LLM — manual review recommended",
+            "constraints": context.get("constraints", {}),
         }
-    
-    def _determine_architecture(self, goal: str) -> str:
-        """Determine the type of architecture needed.
-        
-        Args:
-            goal: The goal description
-            
-        Returns:
-            Architecture type
-        """
-        if "api" in goal or "rest" in goal:
-            return "api_service"
-        elif "web" in goal or "frontend" in goal:
-            return "web_application"
-        elif "data" in goal or "database" in goal:
-            return "data_platform"
-        elif "microservice" in goal:
-            return "microservice"
-        else:
-            return "general"
-    
-    def _generate_vision(self, architecture_type: str, goal: str) -> str:
-        """Generate an architecture vision.
-        
-        Args:
-            architecture_type: Type of architecture
-            goal: The goal
-            
-        Returns:
-            Architecture vision string
-        """
-        visions = {
-            "api_service": "A clean RESTful API with proper separation of concerns, using a service layer pattern for business logic and a repository pattern for data access.",
-            "web_application": "A modern single-page application with a separate backend API, using component-based architecture and state management.",
-            "data_platform": "A scalable data platform with proper ETL pipelines, data warehousing, and analytics capabilities.",
-            "microservice": "A distributed microservice architecture with API gateway, service discovery, and proper inter-service communication.",
-            "general": "A modular, maintainable codebase with clear separation of concerns, proper testing coverage, and documentation."
-        }
-        return visions.get(architecture_type, visions["general"])
-    
-    def _identify_risks(self, architecture_type: str, goal: str) -> List[Dict[str, Any]]:
-        """Identify potential risks.
-        
-        Args:
-            architecture_type: Type of architecture
-            goal: The goal
-            
-        Returns:
-            List of risk dictionaries
-        """
-        common_risks = [
-            {
-                "risk": "Scope creep",
-                "likelihood": 0.6,
-                "impact": 0.7,
-                "mitigation": "Define clear MVP requirements and prioritize features"
-            },
-            {
-                "risk": "Technical debt accumulation",
-                "likelihood": 0.5,
-                "impact": 0.6,
-                "mitigation": "Schedule regular refactoring sprints"
-            },
-            {
-                "risk": "Integration challenges",
-                "likelihood": 0.4,
-                "impact": 0.7,
-                "mitigation": "Define clear API contracts early and use contract testing"
-            }
-        ]
-        
-        # Add architecture-specific risks
-        if architecture_type == "microservice":
-            common_risks.extend([
-                {
-                    "risk": "Service communication overhead",
-                    "likelihood": 0.5,
-                    "impact": 0.5,
-                    "mitigation": "Use asynchronous messaging where possible"
-                },
-                {
-                    "risk": "Distributed system complexity",
-                    "likelihood": 0.6,
-                    "impact": 0.8,
-                    "mitigation": "Implement proper observability and tracing"
-                }
-            ])
-        
-        return common_risks[:self._max_risks]
-    
-    def _generate_guidelines(self, architecture_type: str, goal: str) -> List[str]:
-        """Generate recommended guidelines.
-        
-        Args:
-            architecture_type: Type of architecture
-            goal: The goal
-            
-        Returns:
-            List of guideline strings
-        """
-        base_guidelines = [
-            "Use version control from day one",
-            "Write automated tests for all new code",
-            "Use continuous integration and deployment",
-            "Document architectural decisions",
-            "Use code reviews for all changes"
-        ]
-        
-        if architecture_type == "api_service":
-            base_guidelines.extend([
-                "Follow RESTful conventions",
-                "Use OpenAPI/Swagger for API documentation",
-                "Implement proper error handling and HTTP status codes"
-            ])
-        elif architecture_type == "web_application":
-            base_guidelines.extend([
-                "Use a component library for consistency",
-                "Implement proper state management",
-                "Optimize for performance"
-            ])
-        
-        return base_guidelines
 
 
 # Singleton instance

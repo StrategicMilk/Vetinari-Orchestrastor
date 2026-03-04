@@ -1,0 +1,16 @@
+[
+  {
+    "pattern_id": "pattern_coding",
+    "domain": "coding",
+    "avg_depth": 4.0,
+    "avg_breadth": 2.9999999999999996,
+    "preferred_agents": [
+      "BUILDER",
+      "EVALUATOR"
+    ],
+    "success_rate": 1.0,
+    "avg_quality": 0.85,
+    "sample_count": 3,
+    "last_updated": "2026-03-04T00:18:51.470107"
+  }
+]

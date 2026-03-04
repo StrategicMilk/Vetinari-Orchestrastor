@@ -35,7 +35,11 @@ VERIFICATION_LEVEL = os.environ.get("VERIFICATION_LEVEL", "standard").lower()
 
 
 class Orchestrator:
-    def __init__(self, manifest_path: str, host: str = "http://100.78.30.7:1234", api_token: str = None, max_concurrent: int = 4, execution_mode: str = None):
+    def __init__(self, manifest_path: str, host: str = None, api_token: str = None, max_concurrent: int = 4, execution_mode: str = None):
+        # Resolve host from env if not provided
+        if host is None:
+            host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+
         # Make manifest_path absolute if it's relative
         manifest_path_obj = Path(manifest_path)
         if not manifest_path_obj.is_absolute():
@@ -85,7 +89,49 @@ class Orchestrator:
                 logging.warning(f"Plan Mode initialization failed: {e}. Continuing without Plan Mode.")
                 self.plan_mode_enabled = False
 
+        # Phase 2+: Initialize agent system and wire context
+        self._agent_context = {
+            "adapter_manager": self.adapter_manager,
+            "tool_registry": self.tool_registry,
+        }
+        # Lazily initialize web search tool into agent context
+        try:
+            from vetinari.tools.web_search_tool import get_search_tool
+            self._agent_context["web_search"] = get_search_tool()
+            logging.info("Web search tool registered in agent context")
+        except Exception as e:
+            logging.warning(f"Web search tool unavailable: {e}")
+
+        # Register LM Studio as a provider in the adapter manager
+        self._register_lmstudio_adapter(host, api_token)
+
         logging.info("Vetinari orchestrator initialized with Phase 2 OpenCode integration.")
+
+    def _register_lmstudio_adapter(self, host: str, api_token: Optional[str] = None):
+        """Register LM Studio as a provider in the AdapterManager.
+        
+        This bridges the legacy LMStudioAdapter with the new adapter system,
+        ensuring that AdapterManager.infer() works via LM Studio.
+        """
+        try:
+            from vetinari.adapters.base import ProviderConfig, ProviderType
+            config = ProviderConfig(
+                provider_type=ProviderType.LM_STUDIO,
+                endpoint=host,
+                api_key=api_token or "",
+                timeout=120,
+            )
+            self.adapter_manager.register_provider(config, "lmstudio")
+            logging.info(f"LM Studio registered in AdapterManager at {host}")
+        except Exception as e:
+            logging.warning(f"Could not register LM Studio in AdapterManager: {e}")
+
+    def _initialize_agent(self, agent_instance) -> None:
+        """Initialize a single agent with the shared context."""
+        try:
+            agent_instance.initialize(self._agent_context)
+        except Exception as e:
+            logging.warning(f"Agent initialization failed for {agent_instance}: {e}")
 
     def update_settings(self, host: str = None, api_token: str = None):
         """Update settings including host and API token."""

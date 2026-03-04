@@ -203,40 +203,48 @@ class ExecutionGraph:
         
         return ready
     
-    def get_next_layer(self) -> List[List[TaskNode]]:
+    def get_next_layer(self) -> List[List["TaskNode"]]:
         """
-        Get the next layer of tasks that can be executed in parallel.
-        
+        Get the full execution schedule as layers of tasks that can run in parallel.
+
+        Uses a simulation pass: tasks are "virtually completed" after being placed in
+        a layer so that subsequent layers correctly detect their dependencies as satisfied.
+
         Returns list of layers (each layer is a list of tasks that can run in parallel).
         """
         layers = []
-        remaining = {nid: n for nid, n in self.nodes.items() 
-                    if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED)}
-        
+        # Work on copies of status so we don't mutate real node state
+        simulated_completed: set = {
+            nid for nid, n in self.nodes.items()
+            if n.status == TaskStatus.COMPLETED
+        }
+        remaining = {
+            nid: n for nid, n in self.nodes.items()
+            if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED)
+        }
+
         while remaining:
-            # Find tasks with no pending dependencies
             current_layer = []
             to_remove = []
-            
+
             for task_id, node in remaining.items():
-                deps_met = all(
-                    self.nodes.get(dep_id, TaskNode(id=dep_id, description="")).status == TaskStatus.COMPLETED
-                    for dep_id in node.depends_on
-                )
-                
+                # A task is ready when ALL its dependencies are in the simulated-completed set
+                deps_met = all(dep_id in simulated_completed for dep_id in node.depends_on)
+
                 if deps_met:
                     current_layer.append(node)
                     to_remove.append(task_id)
-            
+
             if not current_layer:
-                # No progress possible - circular dependency or all blocked
+                # No progress possible -- circular dependency or all remaining tasks blocked
                 break
-            
+
             layers.append(current_layer)
-            
+
             for task_id in to_remove:
                 del remaining[task_id]
-        
+                simulated_completed.add(task_id)
+
         return layers
     
     def get_execution_order(self) -> List[List[TaskNode]]:
@@ -340,117 +348,105 @@ class PlanGenerator:
     
     def _decompose_goal(self, goal: str, max_depth: int) -> List[Dict]:
         """
-        Decompose a goal into tasks.
-        
-        This is a simplified implementation - in production,
-        this would use an LLM for intelligent decomposition.
+        Decompose a goal into tasks using the assembly-line pattern.
+
+        Assembly-line stages:
+        1. INPUT ANALYSIS  -- classify request, assess complexity
+        2. PLAN GENERATION -- high-level workflow
+        3. TASK DECOMP     -- break plan into atomic tasks
+        4. MODEL ASSIGNMENT-- assign model to each task
+        5. PARALLEL EXEC   -- execute assigned tasks (DAG)
+        6. OUTPUT REVIEW   -- verify outputs for consistency
+        7. FINAL ASSEMBLY  -- combine outputs
+
+        Uses the PlannerAgent (LLM-powered) when available, falls back to
+        keyword-based heuristics.
         """
+        # Try to use the PlannerAgent for intelligent decomposition
+        try:
+            from vetinari.agents.planner_agent import get_planner_agent
+            from vetinari.agents.contracts import AgentTask, AgentType
+
+            planner = get_planner_agent()
+            task = AgentTask(
+                task_id="decomp-0",
+                agent_type=AgentType.PLANNER,
+                description=goal,
+                prompt=goal,
+                context={"max_depth": max_depth},
+            )
+            result = planner.execute(task)
+            if result.success and result.output and result.output.get("tasks"):
+                # Convert Plan.tasks to internal format
+                return [
+                    {
+                        "id": t.get("id", f"t{i+1}"),
+                        "description": t.get("description", "Task"),
+                        "type": t.get("assigned_agent", "general").lower() if isinstance(t.get("assigned_agent"), str) else "general",
+                        "depends_on": t.get("dependencies", []),
+                        "input": {"goal": goal, "inputs": t.get("inputs", [])},
+                    }
+                    for i, t in enumerate(result.output["tasks"])
+                ]
+        except Exception as e:
+            logger.warning(f"PlannerAgent decomposition failed: {e}, using keyword fallback")
+
+        # Keyword-based fallback decomposition
         tasks = []
-        task_counter = [1]
-        
-        def next_id(prefix="t"):
-            tid = f"{prefix}{task_counter[0]}"
-            task_counter[0] += 1
+        counter = [1]
+
+        def next_id(p="t"):
+            tid = f"{p}{counter[0]}"
+            counter[0] += 1
             return tid
-        
+
         goal_lower = goal.lower()
-        
-        # Determine task types from goal
-        is_code = any(k in goal_lower for k in ["code", "implement", "build", "create", "program", "app", "web"])
-        is_research = any(k in goal_lower for k in ["research", "analyze", "investigate", "study"])
-        is_docs = any(k in goal_lower for k in ["document", "readme", "explain", "write"])
-        
-        # Phase 1: Analysis & Planning
-        t1_id = next_id()
-        tasks.append({
-            "id": t1_id,
-            "description": "Analyze requirements and create detailed specification",
-            "type": "analysis",
-            "depends_on": [],
-            "input": {"goal": goal}
-        })
-        
-        # Phase 2: Implementation
+        is_code = any(k in goal_lower for k in ["code", "implement", "build", "create", "program", "app", "web", "software"])
+        is_research = any(k in goal_lower for k in ["research", "analyze", "investigate", "study", "review"])
+        is_docs = any(k in goal_lower for k in ["document", "readme", "explain", "write", "report"])
+
+        # Stage 1: Analysis
+        t1 = next_id()
+        tasks.append({"id": t1, "description": "Analyze requirements and create specification",
+                      "type": "analysis", "depends_on": [], "input": {"goal": goal}})
+
+        # Stage 2: Implementation
         if is_code:
-            t2_id = next_id()
-            tasks.append({
-                "id": t2_id,
-                "description": "Set up project structure and dependencies",
-                "type": "implementation",
-                "depends_on": [t1_id],
-                "input": {}
-            })
-            
-            t3_id = next_id()
-            tasks.append({
-                "id": t3_id,
-                "description": "Implement core functionality",
-                "type": "implementation",
-                "depends_on": [t2_id],
-                "input": {}
-            })
-            
-            # Additional code tasks based on complexity
-            t4_id = next_id()
-            tasks.append({
-                "id": t4_id,
-                "description": "Implement tests and validation",
-                "type": "testing",
-                "depends_on": [t3_id],
-                "input": {}
-            })
-            
-            t5_id = next_id()
-            tasks.append({
-                "id": t5_id,
-                "description": "Build and verify executable",
-                "type": "verification",
-                "depends_on": [t4_id],
-                "input": {}
-            })
-        
+            t2 = next_id()
+            tasks.append({"id": t2, "description": "Set up project structure",
+                          "type": "implementation", "depends_on": [t1], "input": {}})
+            t3 = next_id()
+            tasks.append({"id": t3, "description": "Implement core functionality",
+                          "type": "implementation", "depends_on": [t2], "input": {}})
+            t4 = next_id()
+            tasks.append({"id": t4, "description": "Write and run tests",
+                          "type": "testing", "depends_on": [t3], "input": {}})
+            t5 = next_id()
+            tasks.append({"id": t5, "description": "Verify and validate output",
+                          "type": "verification", "depends_on": [t4], "input": {}})
         elif is_research:
-            t2_id = next_id()
-            tasks.append({
-                "id": t2_id,
-                "description": "Gather background information",
-                "type": "research",
-                "depends_on": [t1_id],
-                "input": {}
-            })
-            
-            t3_id = next_id()
-            tasks.append({
-                "id": t3_id,
-                "description": "Analyze data and findings",
-                "type": "analysis",
-                "depends_on": [t2_id],
-                "input": {}
-            })
-        
+            t2 = next_id()
+            tasks.append({"id": t2, "description": "Gather information and sources",
+                          "type": "research", "depends_on": [t1], "input": {}})
+            t3 = next_id()
+            tasks.append({"id": t3, "description": "Analyze and synthesize findings",
+                          "type": "analysis", "depends_on": [t2], "input": {}})
         else:
-            # Generic task
-            t2_id = next_id()
-            tasks.append({
-                "id": t2_id,
-                "description": "Execute primary task",
-                "type": "implementation",
-                "depends_on": [t1_id],
-                "input": {}
-            })
-        
-        # Documentation phase (if needed)
+            t2 = next_id()
+            tasks.append({"id": t2, "description": "Execute primary task",
+                          "type": "implementation", "depends_on": [t1], "input": {}})
+
+        # Stage 3: Review and Assembly
+        prev = tasks[-1]["id"]
+        trev = next_id()
+        tasks.append({"id": trev, "description": "Review output quality and consistency",
+                      "type": "verification", "depends_on": [prev], "input": {}})
+
         if is_docs or is_code:
-            final_id = next_id()
-            prev_id = tasks[-1]["id"]
-            tasks.append({
-                "id": final_id,
-                "description": "Create documentation and summary",
-                "type": "documentation",
-                "depends_on": [prev_id],
-                "input": {}
-            })
-        
+            tdoc = next_id()
+            tasks.append({"id": tdoc, "description": "Create documentation and final summary",
+                          "type": "documentation", "depends_on": [trev], "input": {}})
+
         return tasks
     
     def _has_circular_dependency(self, graph: ExecutionGraph) -> bool:
@@ -915,79 +911,310 @@ class DurableExecutionEngine:
 
 class TwoLayerOrchestrator:
     """
-    Complete two-layer orchestration system.
-    
+    Complete two-layer orchestration system implementing the assembly-line pattern.
+
+    Assembly-line workflow:
+      1. INPUT ANALYSIS   -- classify and assess complexity
+      2. PLAN GENERATION  -- LLM-powered task decomposition
+      3. TASK DECOMP      -- recursive breakdown to atomic tasks
+      4. MODEL ASSIGNMENT -- intelligent model routing per task
+      5. PARALLEL EXEC    -- DAG-scheduled execution
+      6. OUTPUT REVIEW    -- consistency and quality check
+      7. FINAL ASSEMBLY   -- synthesize final output
+
     Combines:
     - Layer 1: Graph-Based Planning (PlanGenerator)
     - Layer 2: Durable Execution (DurableExecutionEngine)
-    
-    Provides:
-    - Plan generation from goals
-    - Durable execution with checkpoints
-    - Crash recovery
-    - Event tracking
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  checkpoint_dir: str = None,
                  max_concurrent: int = 4,
-                 model_router=None):
+                 model_router=None,
+                 agent_context: Dict[str, Any] = None):
         self.plan_generator = PlanGenerator(model_router)
         self.execution_engine = DurableExecutionEngine(
             checkpoint_dir=checkpoint_dir,
             max_concurrent=max_concurrent
         )
         self.model_router = model_router
-        
-        logger.info("TwoLayerOrchestrator initialized")
-    
+        self.agent_context: Dict[str, Any] = agent_context or {}
+        self._agents: Dict[str, Any] = {}
+
+        logger.info("TwoLayerOrchestrator initialized (assembly-line mode)")
+
     def set_task_handlers(self, handlers: Dict[str, Callable]):
         """Set task handlers for execution."""
         for task_type, handler in handlers.items():
             self.execution_engine.register_handler(task_type, handler)
-    
-    def generate_and_execute(self, 
-                            goal: str,
-                            constraints: Dict[str, Any] = None,
-                            task_handler: Callable = None) -> Dict[str, Any]:
+
+    def set_agent_context(self, context: Dict[str, Any]) -> None:
+        """Set the shared agent context (adapter_manager, web_search, etc.)."""
+        self.agent_context = context
+        # Re-initialize any cached agents
+        self._agents.clear()
+
+    def _get_agent(self, agent_type_str: str):
+        """Get or create an agent by type string, initialized with context."""
+        if agent_type_str in self._agents:
+            return self._agents[agent_type_str]
+        try:
+            from vetinari.agents.contracts import AgentType
+            agent_type = AgentType[agent_type_str.upper()]
+            module_map = {
+                "EVALUATOR": ("vetinari.agents.evaluator_agent", "get_evaluator_agent"),
+                "SYNTHESIZER": ("vetinari.agents.synthesizer_agent", "get_synthesizer_agent"),
+            }
+            if agent_type_str.upper() in module_map:
+                mod_path, fn_name = module_map[agent_type_str.upper()]
+                import importlib
+                mod = importlib.import_module(mod_path)
+                agent = getattr(mod, fn_name)()
+            else:
+                return None
+            if self.agent_context:
+                agent.initialize(self.agent_context)
+            self._agents[agent_type_str] = agent
+            return agent
+        except Exception as e:
+            logger.warning(f"Could not get agent '{agent_type_str}': {e}")
+            return None
+
+    def _route_model_for_task(self, task: "TaskNode") -> str:
+        """Select the best model for a task using dynamic model routing."""
+        if self.model_router is None:
+            try:
+                from vetinari.dynamic_model_router import get_model_router
+                self.model_router = get_model_router()
+            except Exception:
+                return "default"
+        try:
+            from vetinari.dynamic_model_router import TaskType
+            task_type_map = {
+                "analysis": TaskType.ANALYSIS,
+                "implementation": TaskType.CODING,
+                "testing": TaskType.TESTING,
+                "research": TaskType.ANALYSIS,
+                "documentation": TaskType.DOCUMENTATION,
+                "verification": TaskType.CODE_REVIEW,
+            }
+            t_type = task_type_map.get(task.task_type.lower(), TaskType.GENERAL)
+            selection = self.model_router.select_model(t_type)
+            if selection and selection.model:
+                return selection.model.id
+        except Exception as e:
+            logger.debug(f"Model routing failed for task {task.id}: {e}")
+        return "default"
+
+    def generate_and_execute(self,
+                             goal: str,
+                             constraints: Dict[str, Any] = None,
+                             task_handler: Callable = None) -> Dict[str, Any]:
         """
-        Generate a plan and execute it.
-        
+        Full assembly-line pipeline: analyze → plan → decompose →
+        assign models → execute → review → assemble.
+
         Args:
             goal: The goal to achieve
-            constraints: Any constraints
-            task_handler: Handler for executing tasks
-            
+            constraints: Optional constraints (budget, time, etc.)
+            task_handler: Optional custom task handler; defaults to
+                          the registered agent-based handler
+
         Returns:
-            Execution results
+            Dict with keys: plan_id, completed, failed, outputs,
+                            review_result, final_output, stages
         """
-        # Generate plan
+        stages: Dict[str, Any] = {}
+        start_time = time.time()
+
+        # ----------------------------------------------------------------
+        # STAGE 1: Input Analysis
+        # ----------------------------------------------------------------
+        logger.info(f"[Pipeline] Stage 1: Input Analysis for goal: {goal[:80]}")
+        analysis = self._analyze_input(goal, constraints or {})
+        stages["input_analysis"] = analysis
+
+        # ----------------------------------------------------------------
+        # STAGE 2 & 3: Plan Generation + Task Decomposition
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 2-3: Plan Generation & Decomposition")
         graph = self.plan_generator.generate_plan(goal, constraints)
-        
-        # Execute
-        results = self.execution_engine.execute_plan(graph, task_handler)
-        
-        return results
-    
-    def generate_plan_only(self, 
-                          goal: str,
-                          constraints: Dict[str, Any] = None) -> ExecutionGraph:
+        stages["plan"] = {"plan_id": graph.plan_id, "tasks": len(graph.nodes)}
+
+        # ----------------------------------------------------------------
+        # STAGE 4: Model Assignment
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 4: Model Assignment")
+        for node in graph.nodes.values():
+            assigned_model = self._route_model_for_task(node)
+            node.input_data["assigned_model"] = assigned_model
+            logger.debug(f"  Task {node.id} ({node.task_type}) -> {assigned_model}")
+        stages["model_assignment"] = {nid: n.input_data.get("assigned_model") for nid, n in graph.nodes.items()}
+
+        # ----------------------------------------------------------------
+        # STAGE 5: Parallel Execution
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 5: Parallel Execution")
+        effective_handler = task_handler or self._make_default_handler()
+        exec_results = self.execution_engine.execute_plan(graph, effective_handler)
+        stages["execution"] = exec_results
+
+        # ----------------------------------------------------------------
+        # STAGE 6: Output Review
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 6: Output Review")
+        review_result = self._review_outputs(exec_results, goal)
+        stages["review"] = review_result
+
+        # ----------------------------------------------------------------
+        # STAGE 7: Final Assembly
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 7: Final Assembly")
+        final_output = self._assemble_final_output(exec_results, review_result, goal)
+        stages["final_assembly"] = {"output_length": len(str(final_output))}
+
+        total_time = int((time.time() - start_time) * 1000)
+        return {
+            "plan_id": graph.plan_id,
+            "goal": goal,
+            "completed": exec_results.get("completed", 0),
+            "failed": exec_results.get("failed", 0),
+            "outputs": exec_results.get("outputs", {}),
+            "review_result": review_result,
+            "final_output": final_output,
+            "stages": stages,
+            "total_time_ms": total_time,
+        }
+
+    def _analyze_input(self, goal: str, constraints: Dict[str, Any]) -> Dict[str, Any]:
+        """Classify the input goal and estimate complexity."""
+        result = {
+            "goal": goal,
+            "estimated_complexity": "medium",
+            "domain": "general",
+            "needs_research": False,
+            "needs_code": False,
+            "needs_ui": False,
+        }
+        g = goal.lower()
+        result["needs_code"] = any(k in g for k in ["code", "implement", "build", "create", "program", "software"])
+        result["needs_research"] = any(k in g for k in ["research", "analyze", "investigate", "study"])
+        result["needs_ui"] = any(k in g for k in ["ui", "frontend", "interface", "web app", "dashboard"])
+        result["domain"] = ("coding" if result["needs_code"] else
+                            "research" if result["needs_research"] else "general")
+        word_count = len(goal.split())
+        result["estimated_complexity"] = "simple" if word_count < 10 else "complex" if word_count > 30 else "medium"
+        return result
+
+    def _make_default_handler(self) -> Callable:
+        """Create a default task handler that uses agent inference."""
+        def handle_task(task: "TaskNode") -> Dict[str, Any]:
+            try:
+                adapter_manager = self.agent_context.get("adapter_manager")
+                if adapter_manager:
+                    try:
+                        from vetinari.adapters.base import InferenceRequest
+                        req = InferenceRequest(
+                            model_id=task.input_data.get("assigned_model", "default"),
+                            prompt=task.description,
+                            system_prompt=f"Execute this {task.task_type} task precisely and completely.",
+                            max_tokens=2048,
+                        )
+                        resp = adapter_manager.infer(req)
+                        if resp.status == "ok":
+                            return {"result": resp.output, "status": "ok", "task_id": task.id}
+                    except Exception as e:
+                        logger.warning(f"Adapter inference failed for task {task.id}: {e}")
+
+                # Fallback: use LM Studio adapter directly
+                import os
+                from vetinari.lmstudio_adapter import LMStudioAdapter
+                host = os.environ.get("LM_STUDIO_HOST", "http://100.78.30.7:1234")
+                adapter = LMStudioAdapter(host=host)
+                result = adapter.chat(
+                    model_id=task.input_data.get("assigned_model", "default"),
+                    system_prompt=f"You are executing a {task.task_type} task.",
+                    input_text=task.description,
+                )
+                return {"result": result.get("output", ""), "status": "ok", "task_id": task.id}
+            except Exception as e:
+                logger.error(f"Task handler failed for {task.id}: {e}")
+                return {"result": "", "status": "error", "error": str(e), "task_id": task.id}
+
+        return handle_task
+
+    def _review_outputs(self, exec_results: Dict[str, Any], goal: str) -> Dict[str, Any]:
+        """Use EvaluatorAgent to review execution outputs for quality."""
+        try:
+            evaluator = self._get_agent("EVALUATOR")
+            if evaluator:
+                from vetinari.agents.contracts import AgentTask, AgentType
+                artifacts = [str(v) for v in exec_results.get("outputs", {}).values() if v]
+                eval_task = AgentTask(
+                    task_id="review-0",
+                    agent_type=AgentType.EVALUATOR,
+                    description=f"Review outputs for goal: {goal}",
+                    context={"artifacts": artifacts[:5], "focus": "all"},
+                )
+                result = evaluator.execute(eval_task)
+                if result.success:
+                    return result.output
+        except Exception as e:
+            logger.warning(f"Output review failed: {e}")
+        return {"verdict": "pass", "quality_score": 0.7, "summary": "Review skipped (evaluator unavailable)"}
+
+    def _assemble_final_output(self, exec_results: Dict[str, Any],
+                               review_result: Dict[str, Any], goal: str) -> str:
+        """Use SynthesizerAgent to assemble a final coherent output."""
+        try:
+            synthesizer = self._get_agent("SYNTHESIZER")
+            if synthesizer:
+                from vetinari.agents.contracts import AgentTask, AgentType
+                sources = [
+                    {"agent": k, "artifact": str(v)[:500]}
+                    for k, v in exec_results.get("outputs", {}).items() if v
+                ]
+                sources.append({"agent": "review", "artifact": str(review_result)[:200]})
+                synth_task = AgentTask(
+                    task_id="assemble-0",
+                    agent_type=AgentType.SYNTHESIZER,
+                    description=f"Final assembly for goal: {goal}",
+                    context={"sources": sources, "type": "final_report"},
+                )
+                result = synthesizer.execute(synth_task)
+                if result.success and result.output:
+                    return result.output.get("synthesized_artifact", str(result.output))
+        except Exception as e:
+            logger.warning(f"Final assembly failed: {e}")
+
+        # Fallback: join outputs
+        outputs = exec_results.get("outputs", {})
+        parts = [f"# Task {k}\n{v}" for k, v in outputs.items() if v]
+        return "\n\n".join(parts) if parts else f"Completed: {goal}"
+
+    def generate_plan_only(self,
+                           goal: str,
+                           constraints: Dict[str, Any] = None) -> "ExecutionGraph":
         """Generate a plan without executing."""
         return self.plan_generator.generate_plan(goal, constraints)
-    
-    def execute_plan(self, 
-                   graph: ExecutionGraph,
-                   task_handler: Callable = None) -> Dict[str, Any]:
+
+    def execute_plan(self,
+                     graph: "ExecutionGraph",
+                     task_handler: Callable = None) -> Dict[str, Any]:
         """Execute an existing plan."""
         return self.execution_engine.execute_plan(graph, task_handler)
-    
+
     def recover_plan(self, plan_id: str) -> Dict[str, Any]:
         """Recover and continue a plan from checkpoint."""
         return self.execution_engine.recover_execution(plan_id)
-    
+
     def get_plan_status(self, plan_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a plan."""
         return self.execution_engine.get_execution_status(plan_id)
+
+    def list_checkpoints(self) -> List[str]:
+        """List all available plan checkpoints."""
+        return self.execution_engine.list_checkpoints()
 
 
 # Global orchestrator

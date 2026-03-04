@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 PLANNING_PROMPT = """You are a planning agent for Vetinari, an AI orchestration system.
 
 Your role is to:

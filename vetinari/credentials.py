@@ -134,7 +134,8 @@ class CredentialVault:
                 encrypted = self._fernet.encrypt(json_str.encode())
                 with open(self.credentials_file, 'wb') as f:
                     f.write(encrypted)
-            else:
+            except Exception as e:
+                logger.warning(f"Encryption failed, falling back to plain JSON: {e}")
                 # Fallback to plain JSON
                 with open(self.credentials_file, 'w') as f:
                     f.write(json_str)

@@ -150,70 +150,125 @@ Output format must be a valid Plan object."""
         return VerificationResult(passed=passed, issues=issues, score=max(0, score))
     
     def _generate_plan(self, goal: str, context: Dict[str, Any]) -> Plan:
-        """Generate a plan from the goal.
-        
-        Args:
-            goal: The user's goal
-            context: Optional context information
-            
-        Returns:
-            A Plan object
+        """Generate a plan from the goal using LLM-powered decomposition.
+
+        Falls back to keyword-based decomposition if the LLM is unavailable.
         """
-        # Check if goal is too vague
-        vague_indicators = ["something", "stuff", "things", "make", "do", "create something"]
-        goal_words = goal.lower().split()
-        
         plan = Plan.create_new(goal)
-        
-        if len(goal_words) < 5 or any(vague in goal.lower() for vague in vague_indicators):
+
+        # Step 1: Check if the goal is too vague using LLM (or simple heuristics)
+        vague_check_prompt = (
+            f"User goal: \"{goal}\"\n\n"
+            "Is this goal specific enough to begin work on, or does it need clarification?\n"
+            "Reply with JSON: {\"is_clear\": true/false, \"clarification_needed\": \"question if not clear\"}"
+        )
+        vague_result = self._infer_json(vague_check_prompt, expect_json=True)
+        if vague_result and not vague_result.get("is_clear", True):
+            plan.needs_context = True
+            plan.follow_up_question = vague_result.get(
+                "clarification_needed",
+                "Could you provide more details about what you want to build?"
+            )
+            return plan
+
+        # Simple heuristic fallback for vagueness check
+        vague_indicators = ["something", "stuff", "things", "create something"]
+        goal_words = goal.lower().split()
+        if len(goal_words) < 4 and any(vague in goal.lower() for vague in vague_indicators):
             plan.needs_context = True
             plan.follow_up_question = "Could you provide more details about what you want to build?"
             return plan
-        
-        # Generate tasks based on goal analysis
-        tasks = self._decompose_goal(goal, context)
+
+        # Step 2: Use LLM to decompose the goal into tasks
+        tasks = self._decompose_goal_llm(goal, context)
+        if not tasks:
+            # Fallback to keyword-based decomposition
+            tasks = self._decompose_goal_keyword(goal, context)
+
         plan.tasks = tasks
-        
-        # Add warnings if needed
+
         if len(tasks) > self._max_tasks:
             plan.warnings.append(f"Generated {len(tasks)} tasks - consider breaking into smaller goals")
-        
+
         return plan
-    
-    def _decompose_goal(self, goal: str, context: Dict[str, Any]) -> List[Task]:
-        """Decompose a goal into tasks.
-        
-        Args:
-            goal: The goal to decompose
-            context: Context information
-            
-        Returns:
-            List of Task objects
-        """
+
+    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any]) -> List[Task]:
+        """Use LLM to intelligently decompose a goal into ordered tasks."""
+        available_agents = [
+            "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER", "EVALUATOR",
+            "SYNTHESIZER", "BUILDER", "UI_PLANNER", "SECURITY_AUDITOR",
+            "DATA_ENGINEER", "DOCUMENTATION_AGENT", "COST_PLANNER",
+            "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER"
+        ]
+        context_str = ""
+        if context:
+            import json as _json
+            context_str = f"\nContext: {_json.dumps(context, default=str)[:500]}"
+
+        decomp_prompt = f"""Goal: {goal}{context_str}
+
+Available agents: {', '.join(available_agents)}
+
+Break this goal into {self._min_tasks}-{self._max_tasks} discrete, ordered tasks.
+For each task specify: id (t1,t2,...), description, inputs (list), outputs (list), 
+dependencies (list of task ids), assigned_agent (from available agents list).
+
+Output valid JSON array of task objects:
+[
+  {{"id": "t1", "description": "...", "inputs": ["goal"], "outputs": ["spec"], "dependencies": [], "assigned_agent": "EXPLORER"}},
+  ...
+]"""
+
+        result = self._infer_json(decomp_prompt)
+        if not result or not isinstance(result, list):
+            return []
+
+        tasks = []
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            try:
+                agent_str = item.get("assigned_agent", "BUILDER").upper()
+                try:
+                    agent_type = AgentType[agent_str]
+                except KeyError:
+                    agent_type = AgentType.BUILDER
+                t = Task(
+                    id=item.get("id", f"t{len(tasks)+1}"),
+                    description=item.get("description", "Task"),
+                    inputs=item.get("inputs", []),
+                    outputs=item.get("outputs", []),
+                    dependencies=item.get("dependencies", []),
+                    assigned_agent=agent_type,
+                    depth=len(item.get("dependencies", [])),
+                )
+                tasks.append(t)
+            except Exception:
+                continue
+
+        return tasks if len(tasks) >= self._min_tasks else []
+
+    def _decompose_goal_keyword(self, goal: str, context: Dict[str, Any]) -> List[Task]:
+        """Keyword-based fallback decomposition when LLM is unavailable."""
         goal_lower = goal.lower()
         tasks = []
         task_counter = [1]
-        
+
         def next_id(prefix='t'):
             tid = f"{prefix}{task_counter[0]}"
             task_counter[0] += 1
             return tid
-        
-        # Always start with analysis
+
+        # Analysis task always first
         t1 = Task(
-            id=next_id(),
-            description="Analyze requirements and create detailed specification",
-            inputs=["goal"],
-            outputs=["requirements_spec", "architecture_doc"],
-            dependencies=[],
-            assigned_agent=AgentType.EXPLORER,
-            depth=0
+            id=next_id(), description="Analyze requirements and create detailed specification",
+            inputs=["goal"], outputs=["requirements_spec", "architecture_doc"],
+            dependencies=[], assigned_agent=AgentType.EXPLORER, depth=0
         )
         tasks.append(t1)
-        
-        # Determine task types based on goal
+
         is_code_heavy = any(kw in goal_lower for kw in [
-            "code", "implement", "build", "create", "program", "agent", 
+            "code", "implement", "build", "create", "program", "agent",
             "script", "app", "web", "software"
         ])
         is_ui_needed = any(kw in goal_lower for kw in [
@@ -223,120 +278,65 @@ Output format must be a valid Plan object."""
             "research", "analyze", "investigate", "study", "review"
         ])
         is_data = any(kw in goal_lower for kw in [
-            "data", "database", "sql", "query", "analyze"
+            "data", "database", "sql", "query", "schema"
         ])
-        
-        # Setup task
+
         t2 = Task(
-            id=next_id(),
-            description="Set up project structure and dependencies",
-            inputs=["requirements_spec"],
-            outputs=["project_structure", "package_files"],
-            dependencies=[t1.id],
-            assigned_agent=AgentType.BUILDER,
-            depth=1
+            id=next_id(), description="Set up project structure and dependencies",
+            inputs=["requirements_spec"], outputs=["project_structure", "package_files"],
+            dependencies=[t1.id], assigned_agent=AgentType.BUILDER, depth=1
         )
         tasks.append(t2)
-        
-        if is_code_heavy:
-            # Core implementation
-            t3 = Task(
-                id=next_id(),
-                description="Implement core business logic and data models",
-                inputs=["requirements_spec", "project_structure"],
-                outputs=["core_modules", "data_models"],
-                dependencies=[t2.id],
-                assigned_agent=AgentType.BUILDER,
-                depth=1
-            )
-            tasks.append(t3)
-            
-            # UI if needed
-            if is_ui_needed:
-                t4 = Task(
-                    id=next_id(),
-                    description="Implement user interface and interactions",
-                    inputs=["core_modules", "requirements_spec"],
-                    outputs=["ui_components", "frontend_code"],
-                    dependencies=[t3.id],
-                    assigned_agent=AgentType.UI_PLANNER,
-                    depth=1
-                )
-                tasks.append(t4)
-            
-            # Tests
-            t5 = Task(
-                id=next_id(),
-                description="Write unit tests and integration tests",
-                inputs=["core_modules"],
-                outputs=["test_files", "test_results"],
-                dependencies=[t3.id],
-                assigned_agent=AgentType.TEST_AUTOMATION,
-                depth=1
-            )
-            tasks.append(t5)
-        
-        if is_data:
-            t6 = Task(
-                id=next_id(),
-                description="Set up database and data layer",
-                inputs=["requirements_spec"],
-                outputs=["schema_files", "migration_scripts"],
-                dependencies=[t1.id],
-                assigned_agent=AgentType.DATA_ENGINEER,
-                depth=1
-            )
-            tasks.append(t6)
-        
+
         if is_research:
-            t7 = Task(
-                id=next_id(),
-                description="Conduct domain research and competitor analysis",
-                inputs=["goal"],
-                outputs=["research_report", "competitor_analysis"],
-                dependencies=[t1.id],
-                assigned_agent=AgentType.RESEARCHER,
-                depth=1
+            tasks.append(Task(
+                id=next_id(), description="Conduct domain research and competitor analysis",
+                inputs=["goal"], outputs=["research_report"],
+                dependencies=[t1.id], assigned_agent=AgentType.RESEARCHER, depth=1
+            ))
+
+        if is_code_heavy:
+            t_impl = Task(
+                id=next_id(), description="Implement core business logic and data models",
+                inputs=["requirements_spec", "project_structure"], outputs=["core_modules"],
+                dependencies=[t2.id], assigned_agent=AgentType.BUILDER, depth=1
             )
-            tasks.append(t7)
-        
-        # Quality review
-        last_task = tasks[-1]
-        t8 = Task(
-            id=next_id(),
-            description="Review code quality and refine implementation",
-            inputs=[last_task.outputs[0]] if last_task.outputs else ["goal"],
-            outputs=["code_review", "refactoring_suggestions"],
-            dependencies=[last_task.id],
-            assigned_agent=AgentType.EVALUATOR,
-            depth=1
-        )
-        tasks.append(t8)
-        
-        # Documentation
-        t9 = Task(
-            id=next_id(),
-            description="Create documentation and final summary",
-            inputs=["code_review"],
-            outputs=["documentation", "final_summary"],
-            dependencies=[t8.id],
-            assigned_agent=AgentType.DOCUMENTATION_AGENT,
-            depth=1
-        )
-        tasks.append(t9)
-        
-        # Security review
-        t10 = Task(
-            id=next_id(),
-            description="Security review and policy compliance check",
-            inputs=["documentation"],
-            outputs=["security_report", "compliance_status"],
-            dependencies=[t9.id],
-            assigned_agent=AgentType.SECURITY_AUDITOR,
-            depth=1
-        )
-        tasks.append(t10)
-        
+            tasks.append(t_impl)
+            if is_ui_needed:
+                tasks.append(Task(
+                    id=next_id(), description="Implement user interface and interactions",
+                    inputs=["core_modules"], outputs=["ui_components"],
+                    dependencies=[t_impl.id], assigned_agent=AgentType.UI_PLANNER, depth=2
+                ))
+            tasks.append(Task(
+                id=next_id(), description="Write unit tests and integration tests",
+                inputs=["core_modules"], outputs=["test_files"],
+                dependencies=[t_impl.id], assigned_agent=AgentType.TEST_AUTOMATION, depth=2
+            ))
+
+        if is_data:
+            tasks.append(Task(
+                id=next_id(), description="Set up database schema and data layer",
+                inputs=["requirements_spec"], outputs=["schema_files"],
+                dependencies=[t1.id], assigned_agent=AgentType.DATA_ENGINEER, depth=1
+            ))
+
+        last = tasks[-1]
+        tasks.append(Task(
+            id=next_id(), description="Code quality review and refinement",
+            inputs=[last.outputs[0] if last.outputs else "result"], outputs=["code_review"],
+            dependencies=[last.id], assigned_agent=AgentType.EVALUATOR, depth=2
+        ))
+        tasks.append(Task(
+            id=next_id(), description="Generate documentation and final summary",
+            inputs=["code_review"], outputs=["documentation"],
+            dependencies=[tasks[-1].id], assigned_agent=AgentType.DOCUMENTATION_AGENT, depth=3
+        ))
+        tasks.append(Task(
+            id=next_id(), description="Security review and compliance check",
+            inputs=["documentation"], outputs=["security_report"],
+            dependencies=[tasks[-1].id], assigned_agent=AgentType.SECURITY_AUDITOR, depth=4
+        ))
         return tasks
 
 
