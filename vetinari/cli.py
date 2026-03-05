@@ -352,6 +352,82 @@ def cmd_review(args) -> int:
         return 1
 
 
+def cmd_train(args) -> int:
+    """Manage training data and fine-tuning jobs."""
+    _setup_logging(args.verbose)
+
+    from vetinari.learning.training_manager import get_training_manager
+    manager = get_training_manager()
+
+    # --status: list all jobs
+    if args.status:
+        jobs = manager.list_jobs()
+        if not jobs:
+            print("[Vetinari Train] No training jobs found.")
+            return 0
+        print(f"[Vetinari Train] {len(jobs)} job(s):")
+        for job in jobs:
+            result_info = ""
+            if job.result:
+                result_info = f" | loss={job.result.metrics.get('loss', '?')}"
+            print(f"  {job.job_id}  [{job.status}]  {job.provider}/{job.model_id}{result_info}")
+        return 0
+
+    # --stats: training data statistics
+    if args.stats:
+        from vetinari.learning.training_data import get_training_collector
+        stats = get_training_collector().get_stats()
+        print("[Vetinari Train] Training data statistics:")
+        print(f"  Total records  : {stats.get('total', 0)}")
+        print(f"  SFT eligible   : {stats.get('sft_eligible', 0)}")
+        print(f"  Average score  : {stats.get('avg_score', 0.0)}")
+        print(f"  Output path    : {stats.get('output_path', 'N/A')}")
+        by_type = stats.get("by_task_type", {})
+        if by_type:
+            print("  By task type:")
+            for tt, info in by_type.items():
+                print(f"    {tt}: {info.get('count', 0)} records, avg {info.get('avg_score', 0.0)}")
+        return 0
+
+    # --export: export dataset
+    if args.export:
+        fmt = args.export
+        min_score = args.min_score
+        dataset = manager.prepare_training_data(min_score=min_score, format=fmt)
+        print(f"[Vetinari Train] Exported {dataset.stats['count']} records in '{fmt}' format")
+        if dataset.records:
+            import json
+            print(json.dumps(dataset.records[0], indent=2, ensure_ascii=False))
+            if len(dataset.records) > 1:
+                print(f"  ... ({len(dataset.records) - 1} more records)")
+        return 0
+
+    # --model: start a training run
+    if args.model:
+        method = args.method or "qlora"
+        min_score = args.min_score
+        dataset = manager.prepare_training_data(min_score=min_score, format="sft")
+        print(f"[Vetinari Train] Prepared {dataset.stats['count']} SFT records")
+        print(f"[Vetinari Train] Starting local training: {args.model} ({method})")
+        result = manager.train_local(args.model, dataset, method=method)
+        if result.success:
+            print(f"[Vetinari Train] Training complete: {result.model_path}")
+            print(f"  Duration: {result.duration_seconds}s")
+        else:
+            print(f"[Vetinari Train] Training failed: {result.error}")
+            return 1
+        return 0
+
+    # No flags — show help
+    print("[Vetinari Train] Usage:")
+    print("  vetinari train --model <model_id> --method qlora --min-score 0.85")
+    print("  vetinari train --status")
+    print("  vetinari train --export hf")
+    print("  vetinari train --export sft")
+    print("  vetinari train --stats")
+    return 0
+
+
 def cmd_interactive(args) -> int:
     """Enter interactive REPL mode."""
     _setup_logging(args.verbose)
@@ -479,6 +555,18 @@ Examples:
     # interactive
     subparsers.add_parser("interactive", help="Enter interactive REPL mode")
 
+    # train
+    p_train = subparsers.add_parser("train", help="Manage training data and fine-tuning jobs")
+    p_train.add_argument("--model", default=None, help="Model ID to fine-tune")
+    p_train.add_argument("--method", default="qlora", choices=["qlora", "full"],
+                         help="Training method (default: qlora)")
+    p_train.add_argument("--min-score", dest="min_score", type=float, default=0.85,
+                         help="Minimum quality score for dataset export (default: 0.85)")
+    p_train.add_argument("--status", action="store_true", help="Show training jobs")
+    p_train.add_argument("--export", default=None, choices=["hf", "sft", "dpo", "ranking"],
+                         help="Export dataset in the given format")
+    p_train.add_argument("--stats", action="store_true", help="Show training data statistics")
+
     args = parser.parse_args()
 
     # Default command: start (interactive)
@@ -503,6 +591,7 @@ Examples:
         "upgrade": cmd_upgrade,
         "review": cmd_review,
         "interactive": cmd_interactive,
+        "train": cmd_train,
     }
 
     handler = dispatch.get(args.command)

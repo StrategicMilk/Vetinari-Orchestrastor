@@ -315,6 +315,82 @@ class TrainingDataCollector:
             for r in variant_records
         ]
 
+    def export_hf_dataset(
+        self,
+        min_score: float = 0.8,
+        task_type: Optional[str] = None,
+    ) -> List[Dict[str, str]]:
+        """Export records in HuggingFace Datasets / Alpaca format.
+
+        Returns list of ``{"instruction": ..., "input": ..., "output": ...}`` dicts.
+        Does NOT require the ``datasets`` library — returns plain Python dicts.
+        """
+        self.flush()
+        all_records = self._load_all()
+        filtered = [
+            r for r in all_records
+            if r.score >= min_score
+            and r.success
+            and (task_type is None or r.task_type == task_type)
+        ]
+        filtered.sort(key=lambda r: -r.score)
+        return [
+            {
+                "instruction": r.task,
+                "input": r.prompt,
+                "output": r.response,
+            }
+            for r in filtered
+        ]
+
+    def export_few_shot_examples(
+        self,
+        task_type: str,
+        k: int = 5,
+    ) -> List[Dict[str, str]]:
+        """Return top-k highest-scoring examples for a specific task type.
+
+        Returns list of ``{"input": ..., "output": ...}`` pairs suitable for
+        few-shot prompt construction.
+        """
+        self.flush()
+        all_records = self._load_all()
+        filtered = [r for r in all_records if r.task_type == task_type and r.success]
+        filtered.sort(key=lambda r: -r.score)
+        return [
+            {"input": r.task, "output": r.response}
+            for r in filtered[:k]
+        ]
+
+    def export_ranking_dataset(self) -> List[Dict[str, Any]]:
+        """Export grouped, ranked responses for reward-model training.
+
+        Groups records by task text, ranks all responses best→worst by score.
+        Returns list of ``{"prompt": ..., "responses": [...]}`` dicts where
+        ``responses`` is ordered from highest to lowest score.
+        """
+        self.flush()
+        all_records = self._load_all()
+
+        by_task: Dict[str, List[TrainingRecord]] = defaultdict(list)
+        for r in all_records:
+            key = r.task[:200].strip().lower()
+            by_task[key].append(r)
+
+        result: List[Dict[str, Any]] = []
+        for group in by_task.values():
+            if len(group) < 2:
+                continue
+            group.sort(key=lambda r: -r.score)
+            result.append({
+                "prompt": group[0].task,
+                "responses": [
+                    {"response": r.response, "score": r.score}
+                    for r in group
+                ],
+            })
+        return result
+
     def get_stats(self) -> Dict[str, Any]:
         """Return a summary of collected training data."""
         self.flush()

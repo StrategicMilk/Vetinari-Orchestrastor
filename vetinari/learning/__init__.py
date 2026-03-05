@@ -6,6 +6,7 @@ __all__ = [
     "model_selector",
     "prompt_evolver",
     "training_data",
+    "training_manager",
     "episode_memory",
     "auto_tuner",
     "workflow_learner",
