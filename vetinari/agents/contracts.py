@@ -215,6 +215,11 @@ class Task:
     dod_level: str = "Standard"
     dor_level: str = "Standard"
 
+    # --- Milestone checkpoint fields ---
+    is_milestone: bool = False
+    milestone_name: str = ""
+    requires_approval: bool = False
+
     # Backward-compat alias used by planning.py (``task.task_id``)
     @property
     def task_id(self) -> str:
@@ -253,6 +258,9 @@ class Task:
             "decomposition_seed": self.decomposition_seed,
             "dod_level": self.dod_level,
             "dor_level": self.dor_level,
+            "is_milestone": self.is_milestone,
+            "milestone_name": self.milestone_name,
+            "requires_approval": self.requires_approval,
         }
 
     @classmethod
@@ -301,6 +309,9 @@ class Task:
             decomposition_seed=data.get("decomposition_seed", ""),
             dod_level=data.get("dod_level", "Standard"),
             dor_level=data.get("dor_level", "Standard"),
+            is_milestone=data.get("is_milestone", False),
+            milestone_name=data.get("milestone_name", ""),
+            requires_approval=data.get("requires_approval", False),
         )
 
 

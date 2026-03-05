@@ -58,7 +58,9 @@ Output must include: architecture_vision, risks, recommended_guidelines, cost_an
         desc = (task.description or "").lower()
 
         try:
-            if any(kw in desc for kw in ("cost", "price", "budget", "model select", "token", "efficiency", "cheap", "expensive")):
+            if any(kw in desc for kw in ("suggest", "improve", "enhancement", "recommendation", "creative")):
+                result = self._generate_suggestions(task)
+            elif any(kw in desc for kw in ("cost", "price", "budget", "model select", "token", "efficiency", "cheap", "expensive")):
                 result = self._delegate_to_cost_planner(task)
             elif any(kw in desc for kw in ("architect", "design", "risk", "debug", "trade-off", "tradeoff", "structure", "pattern", "guideline")):
                 result = self._delegate_to_oracle(task)
@@ -87,6 +89,102 @@ Output must include: architecture_vision, risks, recommended_guidelines, cost_an
         agent._web_search = self._web_search
         agent._initialized = self._initialized
         return agent.execute(task)
+
+    def _generate_suggestions(self, task: AgentTask) -> AgentResult:
+        """Generate creative improvement suggestions based on project context.
+
+        Called at strategic insertion points (pre-decomposition, mid-execution,
+        post-execution) to propose enhancements the user might want.
+        """
+        goal = task.prompt or task.description
+        context = task.context or {}
+        completed_outputs = context.get("completed_outputs", [])
+
+        prompt = f"""Based on this project context, suggest 3-5 improvements:
+
+Goal: {goal}
+
+{f'Completed so far: {", ".join(str(o)[:100] for o in completed_outputs[:5])}' if completed_outputs else ''}
+
+For each suggestion provide:
+- title: Short name
+- rationale: Why this improvement matters
+- expected_impact: What benefit it brings (low/medium/high)
+- effort: Implementation effort (low/medium/high)
+- category: One of "performance", "security", "ux", "architecture", "testing", "documentation"
+
+Return as JSON array. Only suggest improvements with confidence > 0.7.
+Avoid generic advice — be specific to this project."""
+
+        suggestions = self._infer_json(prompt)
+        if not suggestions or not isinstance(suggestions, list):
+            suggestions = self._fallback_suggestions(goal)
+
+        # Filter low-confidence suggestions
+        filtered = [
+            s for s in suggestions
+            if isinstance(s, dict) and s.get("expected_impact") != "low"
+        ][:5]
+
+        return AgentResult(
+            success=True,
+            output={"suggestions": filtered, "insertion_point": context.get("insertion_point", "post_execution")},
+            metadata={"mode": "suggest", "suggestion_count": len(filtered)},
+        )
+
+    def _fallback_suggestions(self, goal: str) -> list:
+        """Generate basic suggestions without LLM."""
+        goal_lower = goal.lower()
+        suggestions = []
+
+        if "test" not in goal_lower:
+            suggestions.append({
+                "title": "Add comprehensive test coverage",
+                "rationale": "No testing mentioned in the goal — tests catch regressions early",
+                "expected_impact": "high",
+                "effort": "medium",
+                "category": "testing",
+            })
+        if "security" not in goal_lower and "auth" not in goal_lower:
+            suggestions.append({
+                "title": "Security review pass",
+                "rationale": "No explicit security requirements — proactive auditing prevents vulnerabilities",
+                "expected_impact": "high",
+                "effort": "low",
+                "category": "security",
+            })
+        if "doc" not in goal_lower and "readme" not in goal_lower:
+            suggestions.append({
+                "title": "Add API documentation",
+                "rationale": "Documentation helps future maintainers and API consumers",
+                "expected_impact": "medium",
+                "effort": "low",
+                "category": "documentation",
+            })
+        if any(kw in goal_lower for kw in ("api", "web", "server", "endpoint")):
+            suggestions.append({
+                "title": "Add rate limiting and input validation",
+                "rationale": "Public-facing APIs need protection against abuse",
+                "expected_impact": "high",
+                "effort": "medium",
+                "category": "security",
+            })
+        if any(kw in goal_lower for kw in ("database", "sql", "data")):
+            suggestions.append({
+                "title": "Add database migration strategy",
+                "rationale": "Schema changes need a forward migration path",
+                "expected_impact": "medium",
+                "effort": "medium",
+                "category": "architecture",
+            })
+
+        return suggestions[:5] if suggestions else [{
+            "title": "Add error handling and logging",
+            "rationale": "Structured logging and error recovery improve reliability",
+            "expected_impact": "medium",
+            "effort": "low",
+            "category": "architecture",
+        }]
 
     def _execute_default(self, task: AgentTask) -> AgentResult:
         goal = task.prompt or task.description

@@ -92,6 +92,7 @@ class AgentGraph:
         self._execution_plans: Dict[str, ExecutionPlan] = {}
         self._initialized = False
         self._goal_tracker: Optional[Any] = None
+        self._milestone_manager = None
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -237,6 +238,13 @@ class AgentGraph:
             except Exception:
                 self._goal_tracker = None
 
+        # Initialize milestone manager
+        try:
+            from vetinari.orchestration.milestones import MilestoneManager
+            self._milestone_manager = MilestoneManager()
+        except Exception:
+            self._milestone_manager = None
+
         results: Dict[str, AgentResult] = {}
 
         try:
@@ -254,6 +262,41 @@ class AgentGraph:
                         layer, exec_plan, results
                     )
                     results.update(layer_results)
+                    # Check milestones after each layer
+                    if self._milestone_manager:
+                        for tid, res in layer_results.items():
+                            node = exec_plan.nodes.get(tid)
+                            if node and node.task:
+                                approval = self._milestone_manager.check_and_wait(
+                                    node.task, res,
+                                    [t for t, r in results.items() if r.success],
+                                )
+                                if hasattr(approval, 'action'):
+                                    from vetinari.orchestration.milestones import MilestoneAction
+                                    if approval.action == MilestoneAction.ABORT:
+                                        raise RuntimeError("Execution aborted at milestone checkpoint")
+
+            # Post-execution suggestions (non-blocking)
+            if AgentType.ARCHITECT in self._agents:
+                try:
+                    from vetinari.agents.contracts import AgentTask as _AT
+                    suggest_task = _AT(
+                        task_id="suggestion",
+                        agent_type=AgentType.ARCHITECT,
+                        description="suggest improvements for project",
+                        prompt=f"Suggest improvements for: {plan.goal}",
+                        context={
+                            "insertion_point": "post_execution",
+                            "completed_outputs": [
+                                str(r.output)[:200] for r in results.values() if r.success
+                            ][:5],
+                        },
+                    )
+                    suggestion_result = self._agents[AgentType.ARCHITECT].execute(suggest_task)
+                    if suggestion_result.success:
+                        results["_suggestions"] = suggestion_result
+                except Exception as e:
+                    logger.debug(f"[AgentGraph] Suggestion generation failed: {e}")
 
             exec_plan.status = TaskStatus.COMPLETED
 
