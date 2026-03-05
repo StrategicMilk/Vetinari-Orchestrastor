@@ -60,10 +60,12 @@ class AgentType(Enum):
 class TaskStatus(Enum):
     """Status of a task in the orchestration."""
     PENDING = "pending"
+    ASSIGNED = "assigned"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     WAITING = "waiting"
+    BLOCKED = "blocked"
 
 
 class ExecutionMode(Enum):
@@ -112,7 +114,12 @@ class AgentSpec:
 
 @dataclass
 class Task:
-    """A task in the plan."""
+    """A task in the plan.
+
+    This is the single canonical Task type used across planning, orchestration,
+    and agent execution.  Fields added for planning_engine / planning
+    compatibility all carry defaults so existing call-sites are unaffected.
+    """
     id: str
     description: str
     inputs: List[str] = field(default_factory=list)
@@ -123,6 +130,38 @@ class Task:
     depth: int = 0
     parent_id: str = ""
     status: TaskStatus = TaskStatus.PENDING
+
+    # --- Fields from planning.py -------------------------------------------
+    prompt: str = ""
+    wave_id: str = ""
+    priority: int = 5
+    estimated_effort: float = 1.0
+    retry_count: int = 0
+    result: Any = None
+    error: str = ""
+
+    # --- Fields from planning_engine.py ------------------------------------
+    assigned_model_id: str = ""
+    children: List[str] = field(default_factory=list)
+    owner_id: str = ""
+
+    # --- Additional planning.py scheduling / decomposition fields ----------
+    planned_start: str = ""
+    planned_end: str = ""
+    actual_start: str = ""
+    actual_end: str = ""
+    max_depth: int = 14
+    max_depth_override: int = 0
+    subtasks: List["Task"] = field(default_factory=list)
+    decomposition_seed: str = ""
+    dod_level: str = "Standard"
+    dor_level: str = "Standard"
+
+    # Backward-compat alias used by planning.py (``task.task_id``)
+    @property
+    def task_id(self) -> str:
+        """Alias kept for backward-compatibility with planning.py callers."""
+        return self.id
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -135,22 +174,75 @@ class Task:
             "model_override": self.model_override,
             "depth": self.depth,
             "parent_id": self.parent_id,
-            "status": self.status.value
+            "status": self.status.value,
+            "prompt": self.prompt,
+            "wave_id": self.wave_id,
+            "priority": self.priority,
+            "estimated_effort": self.estimated_effort,
+            "retry_count": self.retry_count,
+            "result": self.result,
+            "error": self.error,
+            "assigned_model_id": self.assigned_model_id,
+            "children": self.children,
+            "owner_id": self.owner_id,
+            "planned_start": self.planned_start,
+            "planned_end": self.planned_end,
+            "actual_start": self.actual_start,
+            "actual_end": self.actual_end,
+            "max_depth": self.max_depth,
+            "max_depth_override": self.max_depth_override,
+            "subtasks": [t.to_dict() for t in self.subtasks],
+            "decomposition_seed": self.decomposition_seed,
+            "dod_level": self.dod_level,
+            "dor_level": self.dor_level,
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Task:
+        subtasks = [Task.from_dict(t) for t in data.get("subtasks", [])]
+        # Accept both enum-style ("PLANNER") and lower-case string ("explorer")
+        raw_agent = data.get("assigned_agent", data.get("agent_type", "PLANNER"))
+        try:
+            agent = AgentType(raw_agent)
+        except ValueError:
+            agent = AgentType(raw_agent.upper()) if raw_agent else AgentType.PLANNER
+        # Accept both enum-style and lower-case status strings
+        raw_status = data.get("status", "pending")
+        try:
+            status = TaskStatus(raw_status)
+        except ValueError:
+            status = TaskStatus.PENDING
         return cls(
-            id=data["id"],
-            description=data["description"],
+            id=data.get("id", data.get("task_id", "")),
+            description=data.get("description", ""),
             inputs=data.get("inputs", []),
             outputs=data.get("outputs", []),
             dependencies=data.get("dependencies", []),
-            assigned_agent=AgentType(data.get("assigned_agent", "PLANNER")),
+            assigned_agent=agent,
             model_override=data.get("model_override", ""),
             depth=data.get("depth", 0),
             parent_id=data.get("parent_id", ""),
-            status=TaskStatus(data.get("status", "pending"))
+            status=status,
+            prompt=data.get("prompt", ""),
+            wave_id=data.get("wave_id", ""),
+            priority=data.get("priority", 5),
+            estimated_effort=data.get("estimated_effort", 1.0),
+            retry_count=data.get("retry_count", 0),
+            result=data.get("result"),
+            error=data.get("error", ""),
+            assigned_model_id=data.get("assigned_model_id", ""),
+            children=data.get("children", []),
+            owner_id=data.get("owner_id", ""),
+            planned_start=data.get("planned_start", ""),
+            planned_end=data.get("planned_end", ""),
+            actual_start=data.get("actual_start", ""),
+            actual_end=data.get("actual_end", ""),
+            max_depth=data.get("max_depth", 14),
+            max_depth_override=data.get("max_depth_override", 0),
+            subtasks=subtasks,
+            decomposition_seed=data.get("decomposition_seed", ""),
+            dod_level=data.get("dod_level", "Standard"),
+            dor_level=data.get("dor_level", "Standard"),
         )
 
 
