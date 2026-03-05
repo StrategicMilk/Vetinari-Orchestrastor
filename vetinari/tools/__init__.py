@@ -63,6 +63,9 @@ def get_all_skills():
                     and not inspect.isabstract(attr)
                 ):
                     skills.append(attr)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug(
+                "Skipping skill module %s: %s", name, e
+            )
     return skills

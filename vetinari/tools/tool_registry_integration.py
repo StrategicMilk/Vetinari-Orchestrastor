@@ -532,19 +532,25 @@ def register_all_tools():
         except Exception as e:
             logger.error(f"Failed to register tool {tool.metadata.name}: {e}")
 
-    # Auto-discover and register skill classes from vetinari.tools
+    # Auto-discover and register skill classes from vetinari.tools,
+    # excluding the hard-coded ToolWrapper classes already registered above.
     from vetinari.tools import get_all_skills
 
+    hard_coded_types = {type(t) for t in tools}
+    discovered = 0
     for skill_cls in get_all_skills():
+        if skill_cls in hard_coded_types:
+            continue  # Already registered above
         try:
             instance = skill_cls()
             registry.register(instance)
             logger.info(f"Registered skill: {instance.metadata.name}")
+            discovered += 1
         except Exception as e:
             skill_name = getattr(skill_cls, "__name__", repr(skill_cls))
             logger.error(f"Failed to register skill {skill_name}: {e}")
 
-    return len(tools)
+    return len(tools) + discovered
 
 
 # Auto-register on import
