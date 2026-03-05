@@ -251,7 +251,7 @@ class PonderEngine:
 
 def get_available_models() -> List[Dict]:
     try:
-        from .lmstudio_adapter import LMStudioAdapter
+        from vetinari.lmstudio_adapter import LMStudioAdapter
         host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
         adapter = LMStudioAdapter(host=host)
         models = adapter.list_loaded_models()
@@ -416,9 +416,9 @@ def score_models_with_cloud(available_models: List[Dict], task_description: str,
 
 def ponder_project_for_plan(plan_id: str) -> Dict[str, Any]:
     """Run project-wide ponder pass for all subtasks in a plan."""
-    from .planning import plan_manager
-    from .subtask_tree import subtask_tree
-    
+    from vetinari.planning.planning import plan_manager
+    from vetinari.planning.subtask_tree import subtask_tree
+
     plan = plan_manager.get_plan(plan_id)
     if not plan:
         return {"error": f"Plan {plan_id} not found", "success": False}
@@ -479,8 +479,8 @@ def ponder_project_for_plan(plan_id: str) -> Dict[str, Any]:
 
 def get_ponder_results_for_plan(plan_id: str) -> Dict[str, Any]:
     """Get ponder results for all subtasks in a plan."""
-    from .subtask_tree import subtask_tree
-    
+    from vetinari.planning.subtask_tree import subtask_tree
+
     all_subtasks = subtask_tree.get_all_subtasks(plan_id)
     
     subtask_results = []

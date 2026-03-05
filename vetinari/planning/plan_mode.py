@@ -722,7 +722,7 @@ class PlanModeEngine:
                              risk_score: float = 0.0) -> bool:
         """Log an approval decision to memory."""
         try:
-            from .memory import MemoryEntry, MemoryEntryType, ApprovalDetails
+            from vetinari.memory import MemoryEntry, MemoryEntryType, ApprovalDetails
             # Use module-level import so mocks applied via @patch work correctly
             import vetinari.plan_mode as _self_mod
             _get_store = getattr(_self_mod, 'get_dual_memory_store', get_dual_memory_store)
@@ -788,7 +788,7 @@ class PlanModeEngine:
         Returns the generated artifact info.
         """
         try:
-            from .coding_agent import (
+            from vetinari.coding_agent import (
                 CodeAgentEngine, CodeTask, CodingTaskType,
                 get_coding_agent
             )
@@ -824,7 +824,7 @@ class PlanModeEngine:
             
             # Log to memory
             try:
-                from .memory import (
+                from vetinari.memory import (
                     get_dual_memory_store, MemoryEntry, MemoryEntryType
                 )
                 store = get_dual_memory_store()

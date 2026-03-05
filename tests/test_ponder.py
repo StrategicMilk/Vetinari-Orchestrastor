@@ -511,7 +511,7 @@ class TestFallbackBehavior:
     
     def test_cloud_fallback_graceful(self):
         """Should handle cloud provider errors gracefully"""
-        from vetinari.ponder import _get_model_search_candidates
+        from vetinari.models.ponder import _get_model_search_candidates
         
         # Should return empty dict on error
         with patch("vetinari.model_search.ModelSearchEngine", side_effect=Exception("Simulated error")):

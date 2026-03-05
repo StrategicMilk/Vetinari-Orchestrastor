@@ -204,7 +204,7 @@ def approve_plan(plan_id):
         
         # Log approval decision to dual memory if available
         try:
-            from .memory import DUAL_MEMORY_AVAILABLE, get_dual_memory_store, MemoryEntry, MemoryEntryType
+            from vetinari.memory import DUAL_MEMORY_AVAILABLE, get_dual_memory_store, MemoryEntry, MemoryEntryType
             if DUAL_MEMORY_AVAILABLE:
                 store = get_dual_memory_store()
                 approval_entry = MemoryEntry(
@@ -411,7 +411,7 @@ def get_plan_subtasks(plan_id):
 @plan_api.route('/api/plan/status', methods=['GET'])
 def get_plan_mode_status():
     """Get plan mode status and configuration."""
-    from .memory import get_memory_store
+    from vetinari.memory import get_memory_store
     
     try:
         memory = get_memory_store()
@@ -477,7 +477,7 @@ def get_plan_explanations(plan_id):
     sanitized = request.args.get('sanitized', 'false').lower() in ('1', 'true', 'yes')
     
     try:
-        from .explain_agent import get_explain_agent, PlanExplanation
+        from vetinari.agents.explain_agent import get_explain_agent, PlanExplanation
         
         engine = get_plan_engine()
         plan = engine.get_plan(plan_id)
@@ -564,7 +564,7 @@ def create_coding_task():
     }
     """
     try:
-        from .coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
+        from vetinari.coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
         
         data = request.get_json() or {}
         
@@ -607,7 +607,7 @@ def create_coding_task():
 def get_coding_task(task_id):
     """Get coding task status and result."""
     try:
-        from .coding_agent import get_coding_agent
+        from vetinari.coding_agent import get_coding_agent
         
         agent = get_coding_agent()
         
@@ -642,7 +642,7 @@ def create_multi_step_coding():
     }
     """
     try:
-        from .coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
+        from vetinari.coding_agent import CodeAgentEngine, CodeTask, CodingTaskType, get_coding_agent
         from .plan_types import TaskDomain
         
         data = request.get_json() or {}
