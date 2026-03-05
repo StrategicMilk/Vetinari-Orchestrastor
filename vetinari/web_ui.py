@@ -42,47 +42,66 @@ app = Flask(__name__,
 orchestrator = None
 
 # ---------------------------------------------------------------------------
-# Task cancellation registry
+# Task cancellation registry (thread-safe)
 # ---------------------------------------------------------------------------
 _cancel_flags: dict = {}  # project_id -> threading.Event
+_cancel_flags_lock = threading.Lock()
 
 
 def _register_project_task(project_id: str) -> "threading.Event":
-    import threading as _threading
-    flag = _threading.Event()
-    _cancel_flags[project_id] = flag
+    flag = threading.Event()
+    with _cancel_flags_lock:
+        _cancel_flags[project_id] = flag
     return flag
 
 
 def _cancel_project_task(project_id: str) -> bool:
-    flag = _cancel_flags.get(project_id)
+    with _cancel_flags_lock:
+        flag = _cancel_flags.get(project_id)
     if flag:
         flag.set()
         return True
     return False
 
+
 # ---------------------------------------------------------------------------
-# SSE stream registry (project_id -> queue of messages)
+# SSE stream registry (thread-safe, project_id -> queue of messages)
 # ---------------------------------------------------------------------------
 import queue as _queue
 _sse_streams: dict = {}  # project_id -> queue.Queue
+_sse_streams_lock = threading.Lock()
 
 
 def _get_sse_queue(project_id: str):
-    if project_id not in _sse_streams:
-        _sse_streams[project_id] = _queue.Queue(maxsize=200)
-    return _sse_streams[project_id]
+    with _sse_streams_lock:
+        if project_id not in _sse_streams:
+            _sse_streams[project_id] = _queue.Queue(maxsize=200)
+        return _sse_streams[project_id]
 
 
 def _push_sse_event(project_id: str, event_type: str, data: dict) -> None:
     """Push an SSE event to all listeners for a project."""
     import json as _json
-    q = _sse_streams.get(project_id)
+    with _sse_streams_lock:
+        q = _sse_streams.get(project_id)
     if q:
         try:
             q.put_nowait({"event": event_type, "data": _json.dumps(data)})
         except Exception:
             pass  # Queue full — drop event
+
+
+def _cleanup_project_state(project_id: str) -> None:
+    """Remove cancel flags and SSE queues for a project to prevent memory leaks."""
+    with _cancel_flags_lock:
+        _cancel_flags.pop(project_id, None)
+    with _sse_streams_lock:
+        q = _sse_streams.pop(project_id, None)
+    if q:
+        try:
+            q.put_nowait(None)  # Sentinel to close any active SSE stream
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 # Model discovery cache  (avoids blocking the UI on every request)
@@ -90,13 +109,15 @@ def _push_sse_event(project_id: str, event_type: str, data: dict) -> None:
 _models_cache: list = []          # Last successful list of model dicts
 _models_cache_ts: float = 0.0     # Unix timestamp of last successful discovery
 _MODELS_CACHE_TTL: float = 60.0   # Seconds before cache is considered stale
+_models_cache_lock = threading.Lock()
 
 def _get_models_cached(force: bool = False) -> list:
     """Return models from cache if fresh, otherwise run discovery and cache result."""
     global _models_cache, _models_cache_ts
     now = time.time()
-    if not force and _models_cache and (now - _models_cache_ts) < _MODELS_CACHE_TTL:
-        return _models_cache
+    with _models_cache_lock:
+        if not force and _models_cache and (now - _models_cache_ts) < _MODELS_CACHE_TTL:
+            return list(_models_cache)
     try:
         orb = get_orchestrator()
         orb.model_pool.discover_models()
@@ -111,10 +132,11 @@ def _get_models_cached(force: bool = False) -> list:
             }
             for m in orb.model_pool.models
         ]
-        if fresh:                          # Only update cache on non-empty result
-            _models_cache = fresh
-            _models_cache_ts = now
-        return fresh if fresh else _models_cache   # Return stale if discovery empty
+        with _models_cache_lock:
+            if fresh:                          # Only update cache on non-empty result
+                _models_cache = fresh
+                _models_cache_ts = now
+            return fresh if fresh else list(_models_cache)   # Return stale if discovery empty
     except Exception as e:
         import logging as _log
         _log.warning(f"[web_ui] Model discovery failed: {e}")
@@ -281,6 +303,9 @@ def api_cancel_project(project_id):
                 yaml.dump(project_config, f)
     except Exception:
         pass
+
+    # Clean up in-memory state after cancellation
+    _cleanup_project_state(project_id)
 
     return jsonify({"status": "cancelled" if cancelled else "not_found", "project_id": project_id})
 
@@ -1858,9 +1883,11 @@ def api_delete_project(project_id):
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
         
+        # Clean up in-memory state to prevent memory leaks
+        _cleanup_project_state(project_id)
         # Delete the project directory
         shutil.rmtree(project_dir)
-        
+
         return jsonify({"status": "deleted", "project_id": project_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
