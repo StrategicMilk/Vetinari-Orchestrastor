@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import yaml
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class ModelProvider(Enum):
@@ -161,7 +164,7 @@ class ModelRelay:
                         if 'policy' in data:
                             self.policy = RoutingPolicy.from_dict(data['policy'])
             except Exception as e:
-                print(f"Error loading model config: {e}")
+                logger.error(f"Error loading model config: {e}")
 
         if not self.models:
             self._load_default_models()

@@ -32,6 +32,8 @@ if _env_file.exists():
     except Exception:
         pass
 
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__,
     template_folder=str(PROJECT_ROOT / 'ui' / 'templates'),
     static_folder=str(PROJECT_ROOT / 'ui' / 'static'))
@@ -146,9 +148,9 @@ def refresh_model_cache():
         from vetinari.model_search import ModelSearchEngine
         search_engine = ModelSearchEngine()
         search_engine.refresh_all_caches()
-        print(f"[Vetinari] Model cache refreshed at {datetime.now()}")
+        logger.info(f"Model cache refreshed at {datetime.now()}")
     except Exception as e:
-        print(f"[Vetinari] Error refreshing model cache: {e}")
+        logger.error(f"Error refreshing model cache: {e}")
 
 if scheduler is not None:
     try:
@@ -179,7 +181,7 @@ def trigger_light_search(project_id: str, task_description: str):
         candidates = search_engine.search_for_task(task_description, lm_models)
         return candidates
     except Exception as e:
-        print(f"[Vetinari] Light search error: {e}")
+        logger.error(f"Light search error: {e}")
         return []
 
 def get_orchestrator():
@@ -689,9 +691,9 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
             # Send the user's actual goal to the model and get its response
             result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
             model_response = result.get('output', '')
-            print(f"[Vetinari] Model response received: {len(model_response)} chars")
+            logger.debug(f"Model response received: {len(model_response)} chars")
         except Exception as e:
-            print(f"Error getting model response: {e}")
+            logger.error(f"Error getting model response: {e}")
             model_response = ""
         
         # Build the conversation with model's actual response
@@ -771,7 +773,7 @@ Implement this task. Output the code as code blocks with filenames."""
                             for filename, code in code_blocks.items():
                                 filepath = generated_dir / filename
                                 filepath.write_text(code, encoding='utf-8')
-                                print(f"[Vetinari] Written: {filepath}")
+                                logger.debug(f"Written: {filepath}")
 
                         results.append({
                             "task_id": task_id,
@@ -874,7 +876,7 @@ Implement this task. Output the code as code blocks with filenames."""
                         with open(config_path, 'w', encoding='utf-8') as f:
                             yaml.dump(project_config, f)
                         
-                        print(f"[Vetinari] Final deliverable assembled: {final_report_path}")
+                        logger.info(f"Final deliverable assembled: {final_report_path}")
                     except Exception as assemble_err:
                         logging.error(f"Error assembling final deliverable: {assemble_err}")
                         
@@ -2005,7 +2007,7 @@ def api_read_file(project_id):
         content = target_path.read_text(encoding='utf-8')
         
         # Log the IO operation
-        print(f"[Vetinari IO] Read: {target_path} (project: {project_id})")
+        logger.debug(f"IO Read: {target_path} (project: {project_id})")
         
         return jsonify({
             "status": "ok",
@@ -2052,7 +2054,7 @@ def api_write_file(project_id):
         target_path.write_text(content, encoding='utf-8')
         
         # Log the IO operation
-        print(f"[Vetinari IO] Write: {target_path} (project: {project_id}, size: {len(content)})")
+        logger.debug(f"IO Write: {target_path} (project: {project_id}, size: {len(content)})")
         
         return jsonify({
             "status": "ok",
@@ -2149,7 +2151,7 @@ def api_model_search(project_id):
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception as e:
-            print(f"Could not get LM Studio models: {e}")
+            logger.warning(f"Could not get LM Studio models: {e}")
         
         candidates = search_adapter.search(task_description, lm_models)
         
@@ -3767,11 +3769,11 @@ def api_training_start():
 try:
     from vetinari.plan_api import register_plan_api
     register_plan_api(app)
-    print("[Vetinari] Plan Mode API registered successfully")
+    logger.info("Plan Mode API registered successfully")
 except ImportError as e:
-    print(f"[Vetinari] Warning: Plan Mode API not available: {e}")
+    logger.warning(f"Plan Mode API not available: {e}")
 except Exception as e:
-    print(f"[Vetinari] Warning: Failed to register Plan Mode API: {e}")
+    logger.warning(f"Failed to register Plan Mode API: {e}")
 
 
 if __name__ == '__main__':

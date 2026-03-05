@@ -585,31 +585,31 @@ if __name__ == "__main__":
     sandbox = CodeSandbox(max_execution_time=10)
     
     # Test simple Python execution
-    print("=== Simple Python execution ===")
+    logger.info("=== Simple Python execution ===")
     result = sandbox.execute_python("print('Hello from sandbox!')")
-    print(f"Success: {result.success}")
-    print(f"Output: {result.output}")
-    print(f"Error: {result.error}")
-    
+    logger.info(f"Success: {result.success}")
+    logger.info(f"Output: {result.output}")
+    logger.info(f"Error: {result.error}")
+
     # Test with input
-    print("\n=== With input ===")
+    logger.info("=== With input ===")
     result = sandbox.execute_python("print(f'Got: {{INPUT_DATA}}')")
-    print(f"Output: {result.output}")
-    
+    logger.info(f"Output: {result.output}")
+
     # Test with error
-    print("\n=== With error ===")
+    logger.info("=== With error ===")
     result = sandbox.execute_python("raise Exception('Test error')")
-    print(f"Success: {result.success}")
-    print(f"Error: {result.error[:100]}...")
-    
+    logger.info(f"Success: {result.success}")
+    logger.info(f"Error: {result.error[:100]}...")
+
     # Test code validation
-    print("\n=== Code validation ===")
+    logger.info("=== Code validation ===")
     executor = CodeExecutor(sandbox)
     validation = executor.run_and_validate(
         "print('Test passed')",
         expected_output="Test passed"
     )
-    print(f"Validation: {validation}")
+    logger.info(f"Validation: {validation}")
     
     # Cleanup
     sandbox.cleanup()

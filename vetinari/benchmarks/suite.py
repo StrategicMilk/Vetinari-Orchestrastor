@@ -316,21 +316,21 @@ class BenchmarkSuite:
 
     def print_report(self, results: List[BenchmarkResult]) -> None:
         """Print a human-readable benchmark report."""
-        print("\n" + "=" * 60)
-        print(f"VETINARI BENCHMARK REPORT — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        print("=" * 60)
+        logger.info("\n" + "=" * 60)
+        logger.info(f"VETINARI BENCHMARK REPORT — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        logger.info("=" * 60)
         for r in sorted(results, key=lambda x: -x.avg_score):
             status = "PASS" if r.avg_score >= self.PASS_THRESHOLD else "FAIL"
-            print(
+            logger.info(
                 f"  [{status}] {r.agent_type:<25} "
                 f"score={r.avg_score:.3f}  "
                 f"passed={r.cases_passed}/{r.cases_run}  "
                 f"({r.duration_ms:.0f}ms)"
             )
         overall = sum(r.avg_score for r in results) / max(len(results), 1)
-        print("=" * 60)
-        print(f"  OVERALL AVG: {overall:.3f}")
-        print("=" * 60 + "\n")
+        logger.info("=" * 60)
+        logger.info(f"  OVERALL AVG: {overall:.3f}")
+        logger.info("=" * 60 + "\n")
 
     def check_regression(
         self, new_results: List[BenchmarkResult], threshold: float = 0.05

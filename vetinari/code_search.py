@@ -117,7 +117,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             return self._parse_results(result.stdout)
 
         except Exception as e:
-            print(f"CocoIndex search error: {e}")
+            logger.error(f"CocoIndex search error: {e}")
             return self._fallback_search(query, limit)
 
     def _parse_results(self, output: str) -> List[CodeSearchResult]:
@@ -226,7 +226,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             )
             return result.returncode == 0
         except Exception as e:
-            print(f"CocoIndex index error: {e}")
+            logger.error(f"CocoIndex index error: {e}")
             return False
 
     def get_status(self) -> SearchBackendStatus:

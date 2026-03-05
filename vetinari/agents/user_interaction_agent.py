@@ -199,11 +199,11 @@ Only flag as ambiguous if critical information is missing. Don't ask about nice-
     def _interactive_prompt(self, questions: List[str]) -> List[str]:
         """Prompt the user interactively via CLI."""
         responses: List[str] = []
-        print("\n[Vetinari] Additional context needed:")
-        print("-" * 40)
+        logger.info("[Vetinari] Additional context needed:")
+        logger.info("-" * 40)
 
         for i, question in enumerate(questions, 1):
-            print(f"\n{i}. {question}")
+            logger.info(f"{i}. {question}")
             try:
                 if sys.stdin.isatty():
                     response = input("   > ").strip()
@@ -213,7 +213,7 @@ Only flag as ambiguous if critical information is missing. Don't ask about nice-
             except (EOFError, KeyboardInterrupt):
                 responses.append("(skipped)")
 
-        print("-" * 40)
+        logger.info("-" * 40)
         return responses
 
     def _callback_prompt(self, goal: str, questions: List[str]) -> List[str]:
@@ -244,7 +244,7 @@ Only flag as ambiguous if critical information is missing. Don't ask about nice-
         question = f"For goal '{goal[:60]}', I need: {specific_need}"
 
         if self._mode == "interactive":
-            print(f"\n[Vetinari] {question}")
+            logger.info(f"[Vetinari] {question}")
             try:
                 return input("   > ").strip() if sys.stdin.isatty() else sys.stdin.readline().strip()
             except (EOFError, KeyboardInterrupt):

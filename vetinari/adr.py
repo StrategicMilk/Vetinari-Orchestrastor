@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
@@ -5,6 +6,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class ADRStatus(Enum):
@@ -116,7 +119,7 @@ class ADRSystem:
                     adr = ADR.from_dict(data)
                     self.adrs[adr.adr_id] = adr
             except Exception as e:
-                print(f"Error loading ADR {file}: {e}")
+                logger.error(f"Error loading ADR {file}: {e}")
 
     def _save_adr(self, adr: ADR):
         file_path = self.storage_path / f"{adr.adr_id}.json"

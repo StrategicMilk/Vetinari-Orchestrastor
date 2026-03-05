@@ -1,6 +1,9 @@
 import json
+import logging
 import requests
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class Upgrader:
@@ -28,11 +31,11 @@ class Upgrader:
                 if m.get("memory_gb", 0) <= 96:
                     candidates.append(m)
         except Exception as e:
-            print(f"Upgrade check failed: {e}")
+            logger.error(f"Upgrade check failed: {e}")
         return candidates
 
     def install_upgrade(self, candidate: dict):
         # Placeholder: in real life, this would download/install binaries
-        print(f"Installing upgrade: {candidate.get('name')} v{candidate.get('version')}")
+        logger.info(f"Installing upgrade: {candidate.get('name')} v{candidate.get('version')}")
         # After install, you should update manifest/model registry entry accordingly
         return True

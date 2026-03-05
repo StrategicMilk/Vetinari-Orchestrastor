@@ -1,10 +1,13 @@
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class PlanStatus(Enum):
@@ -302,7 +305,7 @@ class PlanManager:
                     plan = Plan.from_dict(data)
                     self.plans[plan.plan_id] = plan
             except Exception as e:
-                print(f"Error loading plan {file}: {e}")
+                logger.error(f"Error loading plan {file}: {e}")
 
     def _save_plan(self, plan: Plan):
         file_path = self.storage_path / f"{plan.plan_id}.json"

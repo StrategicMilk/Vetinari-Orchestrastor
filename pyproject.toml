@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "vetinari"
+version = "3.4.2"
+description = "AI Orchestration System for Local LLMs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "requests>=2.31",
+    "flask>=3.0",
+    "pyyaml>=6.0",
+    "apscheduler>=3.10",
+    "duckduckgo-search>=4.0",
+]
+
+[project.optional-dependencies]
+cloud = [
+    "anthropic>=0.20.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.4.0",
+    "cohere>=5.0.0",
+]
+crypto = [
+    "cryptography>=41.0.0",
+]
+search = [
+    "duckduckgo-search>=4.0.0",
+    "tavily-python>=0.3.0",
+]
+ml = [
+    "numpy>=1.24.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+vetinari = "vetinari.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: fast unit tests",
+    "integration: tests requiring external services",
+    "slow: long-running tests",
+]
+
+[tool.setuptools.packages.find]
+include = ["vetinari*"]

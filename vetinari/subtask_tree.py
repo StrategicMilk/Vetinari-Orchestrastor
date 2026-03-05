@@ -1,10 +1,13 @@
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class SubtaskStatus(Enum):
@@ -144,7 +147,7 @@ class SubtaskTree:
                         subtask = Subtask.from_dict(st_data)
                         self.trees[plan_id][subtask.subtask_id] = subtask
             except Exception as e:
-                print(f"Error loading subtask tree {file}: {e}")
+                logger.error(f"Error loading subtask tree {file}: {e}")
 
     def _save_tree(self, plan_id: str):
         file_path = self.storage_path / f"{plan_id}.json"

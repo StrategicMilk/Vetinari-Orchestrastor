@@ -59,3 +59,7 @@ dry_run_demo_pkg/
 # OS
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
+*.db
+.vetinari/

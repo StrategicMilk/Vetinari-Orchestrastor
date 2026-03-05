@@ -43,6 +43,17 @@ from .oc_memory import OcMemoryStore
 from .mnemosyne_memory import MnemosyneMemoryStore
 from .dual_memory import DualMemoryStore, get_dual_memory_store, init_dual_memory_store
 
+# Enhanced memory re-exports
+from .enhanced import (
+    EnhancedMemoryManager,
+    SemanticMemoryStore,
+    ContextMemory,
+    MemoryManager,
+    MemoryType,
+    get_memory_manager,
+    init_memory_manager,
+)
+
 # Availability flag — True since both backends are always importable
 DUAL_MEMORY_AVAILABLE = True
 
@@ -572,7 +583,7 @@ __all__ = [
     # New package exports
     "IMemoryStore",
     "MemoryEntry",
-    "MemoryStats", 
+    "MemoryStats",
     "MemoryEntryType",
     "ApprovalDetails",
     "content_hash",
@@ -583,16 +594,24 @@ __all__ = [
     "init_dual_memory_store",
     "MEMORY_BACKEND_MODE",
     "OC_MEMORY_PATH",
-    "MNEMOSYNE_PATH", 
+    "MNEMOSYNE_PATH",
     "MEMORY_PRIMARY_READ",
     "MEMORY_DEDUP_ENABLED",
     "MEMORY_MERGE_LIMIT",
     "DUAL_MEMORY_AVAILABLE",
+    # Enhanced memory exports
+    "EnhancedMemoryManager",
+    "SemanticMemoryStore",
+    "ContextMemory",
+    "MemoryManager",
+    "MemoryType",
+    "get_memory_manager",
+    "init_memory_manager",
     # Legacy exports
     "MemoryStore",
     "get_memory_store",
     "init_memory_store",
     "PLAN_MEMORY_DB_PATH",
     "PLAN_RETENTION_DAYS",
-    "PLAN_ADMIN_TOKEN"
+    "PLAN_ADMIN_TOKEN",
 ]

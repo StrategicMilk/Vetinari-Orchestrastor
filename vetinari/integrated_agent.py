@@ -613,15 +613,15 @@ if __name__ == "__main__":
         constraints={"max_time": 60}
     )
     
-    print("=== Running Agent ===")
+    logger.info("=== Running Agent ===")
     response = agent.execute(request)
-    
-    print(f"\nSuccess: {response.success}")
-    print(f"State: {response.state.value}")
-    print(f"Output: {response.output}")
+
+    logger.info(f"Success: {response.success}")
+    logger.info(f"State: {response.state.value}")
+    logger.info(f"Output: {response.output}")
     if response.error:
-        print(f"Error: {response.error}")
+        logger.error(f"Error: {response.error}")
     if response.citations:
-        print(f"\nCitations:")
+        logger.info("Citations:")
         for cite in response.citations:
-            print(f"  {cite}")
+            logger.info(f"  {cite}")

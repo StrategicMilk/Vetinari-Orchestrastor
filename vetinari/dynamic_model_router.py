@@ -691,7 +691,7 @@ if __name__ == "__main__":
     
     # Test selection
     selection = router.select_model(TaskType.CODING, "Write a Python function")
-    print(f"\nSelected: {selection.model.id}")
-    print(f"Reasoning: {selection.reasoning}")
-    print(f"Confidence: {selection.confidence:.2f}")
-    print(f"Alternatives: {[a.id for a in selection.alternatives]}")
+    logger.info(f"Selected: {selection.model.id}")
+    logger.info(f"Reasoning: {selection.reasoning}")
+    logger.info(f"Confidence: {selection.confidence:.2f}")
+    logger.info(f"Alternatives: {[a.id for a in selection.alternatives]}")
