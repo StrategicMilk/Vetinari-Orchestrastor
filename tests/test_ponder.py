@@ -392,6 +392,8 @@ class TestPonderConfig:
         """Should respect custom value"""
         with patch.dict(os.environ, {"PONDER_CLOUD_WEIGHT": "0.35"}):
             import importlib
+            import vetinari.models.ponder
+            importlib.reload(vetinari.models.ponder)
             import vetinari.ponder
             importlib.reload(vetinari.ponder)
             

@@ -5,7 +5,7 @@ All functionality has been consolidated into ``vetinari.dynamic_model_router``.
 This module re-exports the public API so existing imports continue to work.
 """
 
-from vetinari.dynamic_model_router import (  # noqa: F401
+from vetinari.models.dynamic_model_router import (  # noqa: F401
     # Classes
     ModelRelay,
     ModelEntry,
