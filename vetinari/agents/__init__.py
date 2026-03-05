@@ -51,6 +51,20 @@ from .error_recovery_agent import ErrorRecoveryAgent, get_error_recovery_agent
 from .context_manager_agent import ContextManagerAgent, get_context_manager_agent
 from .image_generator_agent import ImageGeneratorAgent, get_image_generator_agent
 
+# Consolidated agents (8 primary)
+from .architect_agent import ArchitectAgent, get_architect_agent
+from .tester_agent import TesterAgent, get_tester_agent
+from .documenter_agent import DocumenterAgent, get_documenter_agent
+from .resilience_agent import ResilienceAgent, get_resilience_agent
+from .meta_agent import MetaAgent, get_meta_agent
+
+# Consolidation utilities
+from .contracts import (
+    AGENT_CONSOLIDATION_MAP,
+    CONSOLIDATED_AGENT_TYPES,
+    resolve_agent_type,
+)
+
 # Legacy coding bridge support
 from .coding_bridge import (
     CodingBridge,
@@ -135,6 +149,21 @@ __all__ = [
     "ExperimentationManagerAgent",
     "get_experimentation_manager_agent",
     
+    # Consolidated agents
+    "ArchitectAgent",
+    "get_architect_agent",
+    "TesterAgent",
+    "get_tester_agent",
+    "DocumenterAgent",
+    "get_documenter_agent",
+    "ResilienceAgent",
+    "get_resilience_agent",
+    "MetaAgent",
+    "get_meta_agent",
+    "AGENT_CONSOLIDATION_MAP",
+    "CONSOLIDATED_AGENT_TYPES",
+    "resolve_agent_type",
+
     # Legacy coding bridge support
     "CodingBridge",
     "CodingTask",

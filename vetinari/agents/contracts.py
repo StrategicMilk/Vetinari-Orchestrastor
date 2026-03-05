@@ -17,6 +17,9 @@ from typing import Any, Dict, List, Optional
 
 __all__ = [
     "AgentType",
+    "AGENT_CONSOLIDATION_MAP",
+    "CONSOLIDATED_AGENT_TYPES",
+    "resolve_agent_type",
     "TaskStatus",
     "ExecutionMode",
     "AgentSpec",
@@ -32,29 +35,84 @@ __all__ = [
 
 
 class AgentType(Enum):
-    """Enumeration of all Vetinari agents."""
+    """Enumeration of all Vetinari agents.
+
+    Consolidated (8 primary) agents:
+        PLANNER, RESEARCHER, ARCHITECT, BUILDER, TESTER,
+        DOCUMENTER, RESILIENCE, META
+
+    Legacy agent types are preserved for backward compatibility.
+    Use AGENT_CONSOLIDATION_MAP to resolve a legacy type to its
+    consolidated parent.
+    """
+    # --- Consolidated agents (primary) ---
     PLANNER = "PLANNER"
-    EXPLORER = "EXPLORER"
-    LIBRARIAN = "LIBRARIAN"
-    ORACLE = "ORACLE"
     RESEARCHER = "RESEARCHER"
-    EVALUATOR = "EVALUATOR"
-    SYNTHESIZER = "SYNTHESIZER"
+    ARCHITECT = "ARCHITECT"
     BUILDER = "BUILDER"
-    UI_PLANNER = "UI_PLANNER"
-    SECURITY_AUDITOR = "SECURITY_AUDITOR"
-    DATA_ENGINEER = "DATA_ENGINEER"
-    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"
-    COST_PLANNER = "COST_PLANNER"
-    TEST_AUTOMATION = "TEST_AUTOMATION"
-    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"
-    IMPROVEMENT = "IMPROVEMENT"
-    USER_INTERACTION = "USER_INTERACTION"
-    DEVOPS = "DEVOPS"
-    VERSION_CONTROL = "VERSION_CONTROL"
-    ERROR_RECOVERY = "ERROR_RECOVERY"
-    CONTEXT_MANAGER = "CONTEXT_MANAGER"
-    IMAGE_GENERATOR = "IMAGE_GENERATOR"
+    TESTER = "TESTER"
+    DOCUMENTER = "DOCUMENTER"
+    RESILIENCE = "RESILIENCE"
+    META = "META"
+
+    # --- Legacy agent types (kept for backward compat) ---
+    EXPLORER = "EXPLORER"              # → RESEARCHER
+    LIBRARIAN = "LIBRARIAN"            # → RESEARCHER
+    SYNTHESIZER = "SYNTHESIZER"        # → RESEARCHER
+    ORACLE = "ORACLE"                  # → ARCHITECT
+    COST_PLANNER = "COST_PLANNER"      # → ARCHITECT
+    UI_PLANNER = "UI_PLANNER"          # → BUILDER
+    DATA_ENGINEER = "DATA_ENGINEER"    # → BUILDER
+    DEVOPS = "DEVOPS"                  # → BUILDER
+    EVALUATOR = "EVALUATOR"            # → TESTER
+    SECURITY_AUDITOR = "SECURITY_AUDITOR"  # → TESTER
+    TEST_AUTOMATION = "TEST_AUTOMATION"    # → TESTER
+    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"  # → DOCUMENTER
+    VERSION_CONTROL = "VERSION_CONTROL"          # → DOCUMENTER
+    ERROR_RECOVERY = "ERROR_RECOVERY"    # → RESILIENCE
+    IMAGE_GENERATOR = "IMAGE_GENERATOR"  # → RESILIENCE
+    IMPROVEMENT = "IMPROVEMENT"          # → META
+    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"  # → META
+    USER_INTERACTION = "USER_INTERACTION"    # → PLANNER
+    CONTEXT_MANAGER = "CONTEXT_MANAGER"      # → PLANNER
+
+
+# Mapping from legacy agent types to their consolidated parent.
+AGENT_CONSOLIDATION_MAP: Dict[str, str] = {
+    "EXPLORER": "RESEARCHER",
+    "LIBRARIAN": "RESEARCHER",
+    "SYNTHESIZER": "RESEARCHER",
+    "ORACLE": "ARCHITECT",
+    "COST_PLANNER": "ARCHITECT",
+    "UI_PLANNER": "BUILDER",
+    "DATA_ENGINEER": "BUILDER",
+    "DEVOPS": "BUILDER",
+    "EVALUATOR": "TESTER",
+    "SECURITY_AUDITOR": "TESTER",
+    "TEST_AUTOMATION": "TESTER",
+    "DOCUMENTATION_AGENT": "DOCUMENTER",
+    "VERSION_CONTROL": "DOCUMENTER",
+    "ERROR_RECOVERY": "RESILIENCE",
+    "IMAGE_GENERATOR": "RESILIENCE",
+    "IMPROVEMENT": "META",
+    "EXPERIMENTATION_MANAGER": "META",
+    "USER_INTERACTION": "PLANNER",
+    "CONTEXT_MANAGER": "PLANNER",
+}
+
+CONSOLIDATED_AGENT_TYPES = frozenset({
+    AgentType.PLANNER, AgentType.RESEARCHER, AgentType.ARCHITECT,
+    AgentType.BUILDER, AgentType.TESTER, AgentType.DOCUMENTER,
+    AgentType.RESILIENCE, AgentType.META,
+})
+
+
+def resolve_agent_type(agent_type: "AgentType") -> "AgentType":
+    """Resolve a legacy agent type to its consolidated parent."""
+    consolidated = AGENT_CONSOLIDATION_MAP.get(agent_type.value)
+    if consolidated:
+        return AgentType(consolidated)
+    return agent_type
 
 
 class TaskStatus(Enum):
@@ -541,6 +599,42 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
+    ),
+    # --- Consolidated agents ---
+    AgentType.ARCHITECT: AgentSpec(
+        agent_type=AgentType.ARCHITECT,
+        name="Architect",
+        description="Architecture decisions, risk assessment, cost analysis, debugging strategies (absorbs Oracle + Cost Planner)",
+        default_model="qwen3-30b-a3b",
+        thinking_variant="xhigh"
+    ),
+    AgentType.TESTER: AgentSpec(
+        agent_type=AgentType.TESTER,
+        name="Tester",
+        description="Test generation, security audits, code evaluation, coverage improvement (absorbs Test Automation + Security Auditor + Evaluator)",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="high"
+    ),
+    AgentType.DOCUMENTER: AgentSpec(
+        agent_type=AgentType.DOCUMENTER,
+        name="Documenter",
+        description="Documentation, API docs, user guides, git operations, version control (absorbs Documentation + Version Control)",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.RESILIENCE: AgentSpec(
+        agent_type=AgentType.RESILIENCE,
+        name="Resilience",
+        description="Failure analysis, retry strategies, fallback planning, asset generation (absorbs Error Recovery + Image Generator)",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.META: AgentSpec(
+        agent_type=AgentType.META,
+        name="Meta",
+        description="System performance analysis, optimization recommendations, experiment tracking (absorbs Improvement + Experimentation Manager)",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
     ),
 }
 
