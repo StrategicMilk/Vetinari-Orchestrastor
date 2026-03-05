@@ -1376,7 +1376,7 @@ if __name__ == "__main__":
     
     # Simple task handler
     def handle_task(task: TaskNode) -> Dict[str, Any]:
-        print(f"Executing task: {task.description}")
+        logger.info(f"Executing task: {task.description}")
         time.sleep(0.5)  # Simulate work
         return {"result": f"Completed: {task.description}", "status": "ok"}
     
@@ -1389,17 +1389,17 @@ if __name__ == "__main__":
     })
     
     # Generate and execute
-    print("\n=== Generating and executing plan ===")
+    logger.info("\n=== Generating and executing plan ===")
     results = orchestrator.generate_and_execute(
         "Build a Python web application with user authentication",
         task_handler=handle_task
     )
-    
-    print(f"\nResults:")
-    print(f"  Completed: {results['completed']}")
-    print(f"  Failed: {results['failed']}")
-    
+
+    logger.info(f"\nResults:")
+    logger.info(f"  Completed: {results['completed']}")
+    logger.info(f"  Failed: {results['failed']}")
+
     # Test recovery
-    print("\n=== Testing checkpoint recovery ===")
+    logger.info("\n=== Testing checkpoint recovery ===")
     recovery = orchestrator.recover_plan(results["plan_id"])
-    print(f"Recovery status: {recovery.get('status', 'unknown')}")
+    logger.info(f"Recovery status: {recovery.get('status', 'unknown')}")

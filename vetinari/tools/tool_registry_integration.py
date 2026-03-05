@@ -575,10 +575,10 @@ if __name__ == "__main__":
     
     # Manual registration for testing
     count = register_all_tools()
-    print(f"Registered {count} tools")
-    
+    logger.info(f"Registered {count} tools")
+
     # List registered tools
     registry = get_tool_registry()
-    print("\nRegistered tools:")
+    logger.info("\nRegistered tools:")
     for tool in registry.list_tools():
-        print(f"  - {tool.metadata.name}: {tool.metadata.description}")
+        logger.info(f"  - {tool.metadata.name}: {tool.metadata.description}")
