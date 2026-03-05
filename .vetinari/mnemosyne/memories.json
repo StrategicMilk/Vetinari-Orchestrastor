@@ -2005,10 +2005,81 @@
       "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
       "forgotten": false,
       "created_at": "2026-03-04T03:37:47.624771"
+    },
+    {
+      "id": "mem_3e69410b",
+      "agent": "test",
+      "entry_type": "config",
+      "content": "Config: api_key=[REDACTED] endpoint=https://api.openai.com",
+      "summary": "",
+      "timestamp": 1772634410149,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "efc691478cec1afb6a7ddfc1f44f085f2cda8770537522bdd218956dbbb424f5",
+      "forgotten": false,
+      "created_at": "2026-03-04T08:26:50.154242"
+    },
+    {
+      "id": "mem_44176c7b",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 0: approved with risk 0.3",
+      "summary": "",
+      "timestamp": 1772634410157,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "3a23d1d5ea1c4d114f1710a659779c46923fac262c94673102b0ab7fbd618bac",
+      "forgotten": false,
+      "created_at": "2026-03-04T08:26:50.161214"
+    },
+    {
+      "id": "mem_760aabdc",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 1: approved with risk 0.6",
+      "summary": "",
+      "timestamp": 1772634410163,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne",
+        "mnemosyne"
+      ],
+      "content_hash": "5f6421ebf61c3412205404c7bc71470f32c2990737ac31498037aa74f01c49ae",
+      "forgotten": false,
+      "created_at": "2026-03-04T08:26:50.166958"
+    },
+    {
+      "id": "mem_01956b08",
+      "agent": "workflow_test",
+      "entry_type": "approval",
+      "content": "Decision 2: approved with risk 0.8999999999999999",
+      "summary": "",
+      "timestamp": 1772634410168,
+      "provenance": "",
+      "source_backends": [
+        "oc",
+        "oc",
+        "mnemosyne"
+      ],
+      "content_hash": "f58caf86610384bbaf1929a6c98b6a29ac6dd8dd45d7148cb4126bc2a78ad6db",
+      "forgotten": false,
+      "created_at": "2026-03-04T08:26:50.172091"
     }
   ],
   "metadata": {
-    "last_updated": "2026-03-04T03:37:47.624786",
-    "entry_count": 113
+    "last_updated": "2026-03-04T08:26:50.172103",
+    "entry_count": 117
   }
 }
