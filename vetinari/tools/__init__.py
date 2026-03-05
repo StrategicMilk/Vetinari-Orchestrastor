@@ -28,4 +28,41 @@ __all__ = [
     "ResearcherSkillTool",
     "SynthesizerSkillTool",
     "UIPlannerSkillTool",
+    "get_all_skills",
 ]
+
+
+def get_all_skills():
+    """Auto-discover all skill classes in the vetinari.tools package.
+
+    Iterates over every module in this package using ``pkgutil`` and collects
+    concrete ``Tool`` subclasses (i.e. classes that have a ``metadata``
+    attribute, which is set by the ``Tool.__init__`` constructor).  Import
+    errors in individual modules are silently ignored so that a broken or
+    optional skill never prevents the rest of the system from starting.
+
+    Returns:
+        list[type]: A list of discovered skill *classes* (not instances).
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    from vetinari.tool_interface import Tool
+
+    skills = []
+    for finder, name, ispkg in pkgutil.iter_modules(__path__):
+        try:
+            mod = importlib.import_module(f".{name}", __package__)
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, Tool)
+                    and attr is not Tool
+                    and not inspect.isabstract(attr)
+                ):
+                    skills.append(attr)
+        except Exception:
+            pass
+    return skills
