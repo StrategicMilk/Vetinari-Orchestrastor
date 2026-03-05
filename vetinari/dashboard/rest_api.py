@@ -24,6 +24,9 @@ API Endpoints:
 
 import json
 import logging
+import time
+import threading
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
@@ -47,14 +50,36 @@ from vetinari.dashboard.api import get_dashboard_api
 
 logger = logging.getLogger(__name__)
 
+# Simple in-process rate limiter: max requests per IP per window
+_rate_limit_lock = threading.Lock()
+_request_counts: Dict[str, list] = defaultdict(list)
+_RATE_LIMIT_REQUESTS = int(os.environ.get("VETINARI_RATE_LIMIT_REQUESTS", "60"))
+_RATE_LIMIT_WINDOW = int(os.environ.get("VETINARI_RATE_LIMIT_WINDOW", "60"))  # seconds
 
-def create_app(debug: bool = False) -> 'Flask':
+
+def _is_rate_limited(ip: str) -> bool:
+    """Return True if the IP has exceeded the rate limit."""
+    now = time.time()
+    cutoff = now - _RATE_LIMIT_WINDOW
+    with _rate_limit_lock:
+        timestamps = _request_counts[ip]
+        # Evict old timestamps
+        _request_counts[ip] = [t for t in timestamps if t > cutoff]
+        if len(_request_counts[ip]) >= _RATE_LIMIT_REQUESTS:
+            return True
+        _request_counts[ip].append(now)
+        return False
+
+
+def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
     """
     Create and configure Flask application for dashboard.
     
     Args:
         debug: Enable debug mode
-    
+        cors_origin: Allowed CORS origin. Defaults to localhost only in production,
+                     or VETINARI_CORS_ORIGIN env var. Set to '*' only for development.
+
     Returns:
         Flask application instance
     """
@@ -68,10 +93,15 @@ def create_app(debug: bool = False) -> 'Flask':
         static_url_path='/static',
     )
     app.config['JSON_SORT_KEYS'] = False
-    
-    if debug:
-        app.config['DEBUG'] = True
-    
+    app.config['DEBUG'] = debug
+
+    # Determine allowed CORS origin — restrict to localhost by default
+    _cors_origin = (
+        cors_origin
+        or os.environ.get("VETINARI_CORS_ORIGIN")
+        or ("*" if debug else "http://localhost:5000")
+    )
+
     dashboard = get_dashboard_api()
     
     # === Dashboard UI ===
@@ -204,14 +234,17 @@ def create_app(debug: bool = False) -> 'Flask':
     # === Middleware ===
     
     @app.before_request
-    def log_request() -> None:
-        """Log incoming requests."""
+    def log_request():
+        """Log incoming requests and enforce rate limiting."""
         logger.debug(f"{request.method} {request.path}")
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        if _is_rate_limited(client_ip):
+            return jsonify({"error": "Rate limit exceeded", "retry_after": _RATE_LIMIT_WINDOW}), 429
     
     @app.after_request
     def add_cors_headers(response: Any) -> Any:
-        """Add CORS headers for development."""
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        """Add CORS headers. Origin restricted to localhost by default in production."""
+        response.headers['Access-Control-Allow-Origin'] = _cors_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response

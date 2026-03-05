@@ -24,6 +24,9 @@ class GeminiProviderAdapter(ProviderAdapter):
         self.api_key = config.api_key
         if not self.api_key:
             raise ValueError("Gemini adapter requires api_key in config")
+        # Pass API key via header instead of URL query param to prevent key leakage
+        # in server logs, browser history, and referrer headers
+        self.session.headers.update({"x-goog-api-key": self.api_key})
 
     def discover_models(self) -> List[ModelInfo]:
         """Discover available models from Google Gemini."""
@@ -103,7 +106,7 @@ class GeminiProviderAdapter(ProviderAdapter):
         try:
             # Try to list models
             response = self.session.get(
-                f"https://generativelanguage.googleapis.com/v1beta/models?key={self.api_key}",
+                "https://generativelanguage.googleapis.com/v1beta/models",
                 timeout=5
             )
             return {
@@ -126,7 +129,7 @@ class GeminiProviderAdapter(ProviderAdapter):
 
         try:
             # Gemini uses generateContent endpoint
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{request.model_id}:generateContent?key={self.api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{request.model_id}:generateContent"
             
             # Build contents array (Gemini's structure)
             contents = []
