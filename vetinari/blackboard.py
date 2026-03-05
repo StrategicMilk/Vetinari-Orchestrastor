@@ -226,15 +226,17 @@ class Blackboard:
     def get_pending(
         self,
         request_type: Optional[str] = None,
+        request_type_prefix: Optional[str] = None,
         limit: int = 10,
     ) -> List[BlackboardEntry]:
-        """Return pending entries, optionally filtered by type, sorted by priority."""
+        """Return pending entries, optionally filtered by type or prefix, sorted by priority."""
         with self._lock:
             entries = [
                 e for e in self._entries.values()
                 if e.state == EntryState.PENDING
                 and not e.is_expired
                 and (request_type is None or e.request_type == request_type)
+                and (request_type_prefix is None or e.request_type.startswith(request_type_prefix))
             ]
         entries.sort(key=lambda e: (e.priority, e.created_at))
         return entries[:limit]

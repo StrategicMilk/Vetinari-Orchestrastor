@@ -417,6 +417,25 @@ class AgentGraph:
                     f"(attempt {attempt + 1}/{node.max_retries + 1})"
                 )
                 result = agent.execute(agent_task)
+
+                # Handle explicit delegation: agent says "not my domain"
+                if result.metadata.get("delegation_requested"):
+                    reason = result.metadata.get("delegation_reason", "no reason given")
+                    logger.info(
+                        "[AgentGraph] %s delegated task '%s': %s — finding substitute",
+                        agent_type.value, task.id, reason,
+                    )
+                    delegate_type = self._find_delegate(task, exclude=agent_type)
+                    if delegate_type and delegate_type in self._agents:
+                        delegate_agent = self._agents[delegate_type]
+                        result = delegate_agent.execute(agent_task)
+                    else:
+                        return AgentResult(
+                            success=False,
+                            output=None,
+                            errors=[f"Task delegated by {agent_type.value} but no substitute found: {reason}"],
+                        )
+
                 verification = agent.verify(result.output)
 
                 if result.success and verification.passed:
@@ -490,6 +509,50 @@ class AgentGraph:
                 output=failed_result.output,
                 errors=[f"Recovery failed: {e}"],
             )
+
+    def _find_delegate(self, task: Task, exclude: "AgentType" = None) -> Optional["AgentType"]:
+        """Find the best available agent to handle a delegated task.
+
+        Strategy:
+        1. Query each registered agent's can_handle() method.
+        2. Among willing agents, prefer the one whose capabilities best match
+           the task description keywords.
+        3. Fall back to PLANNER (which can re-route) if nothing else fits.
+
+        Args:
+            task: The task needing a substitute handler.
+            exclude: The agent type that just delegated (skip it).
+
+        Returns:
+            Best-matching AgentType, or None if no substitute found.
+        """
+        candidates = []
+        task_lower = (task.description or "").lower()
+
+        for agent_type, agent in self._agents.items():
+            if agent_type == exclude:
+                continue
+            try:
+                agent_task = AgentTask.from_task(task, task.description)
+                if agent.can_handle(agent_task):
+                    # Score by capability keyword overlap
+                    caps = [c.lower() for c in agent.get_capabilities()]
+                    score = sum(1 for cap in caps if cap in task_lower)
+                    candidates.append((score, agent_type))
+            except Exception:
+                pass
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_type = candidates[0]
+
+        # If no candidate has any keyword match, fall back to PLANNER for re-routing
+        if best_score == 0 and AgentType.PLANNER in self._agents:
+            return AgentType.PLANNER
+
+        return best_type
 
     # ------------------------------------------------------------------
     # Helpers
