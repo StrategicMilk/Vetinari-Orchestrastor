@@ -416,7 +416,7 @@ def get_plan_mode_status():
     try:
         memory = get_memory_store()
         stats = memory.get_memory_stats()
-    except:
+    except Exception:
         stats = {}
     
     return jsonify({
@@ -489,7 +489,7 @@ def get_plan_explanations(plan_id):
         if plan.plan_explanation_json:
             try:
                 explanation_data = json.loads(plan.plan_explanation_json)
-            except:
+            except Exception:
                 pass
         
         if sanitized and explanation_data:
@@ -533,7 +533,7 @@ def get_subtask_explanation(plan_id, subtask_id):
         if subtask.subtask_explanation_json:
             try:
                 explanation_data = json.loads(subtask.subtask_explanation_json)
-            except:
+            except Exception:
                 pass
         
         return jsonify({

@@ -85,7 +85,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
                 timeout=5
             )
             return result.returncode == 0
-        except:
+        except Exception:
             return False
 
     def search(
@@ -287,7 +287,7 @@ class CodeSearchRegistry:
                 'status': status.value,
                 'indexed_projects': adapter.get_indexed_projects() if status == SearchBackendStatus.AVAILABLE else []
             }
-        except:
+        except Exception:
             return {'name': name, 'status': 'error'}
 
 

@@ -43,7 +43,7 @@ class Credential:
         try:
             due = datetime.fromisoformat(self.next_rotation_due)
             return datetime.now() >= due
-        except:
+        except Exception:
             return True
 
 

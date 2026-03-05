@@ -245,7 +245,7 @@ class ExternalPluginSandbox:
                         with open(manifest_file) as f:
                             data = yaml.safe_load(f)
                             manifests.append(data)
-                    except:
+                    except Exception:
                         pass
         return manifests
 
