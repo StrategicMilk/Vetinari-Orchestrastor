@@ -13,12 +13,13 @@ Usage:
 import json
 import sys
 from pathlib import Path
+from vetinari.config import get_subdirectory
 
 
 def migrate(storage_root: str = None):
     """Migrate existing subtask files to include ponder fields."""
     if storage_root is None:
-        storage_root = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "subtasks"
+        storage_root = get_subdirectory("subtasks")
     else:
         storage_root = Path(storage_root)
     

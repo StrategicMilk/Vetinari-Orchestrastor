@@ -53,7 +53,9 @@ class TestCanonicalTypes:
 
     def test_agent_type_all_22(self):
         from vetinari.types import AgentType
-        assert len(list(AgentType)) == 22  # 21 original + IMAGE_GENERATOR
+        # Originally 22; new pipeline agents (PONDER, PROMPT_ASSESSOR,
+        # PROMPT_REWRITER, REFLECTION) added by WS3/WS8
+        assert len(list(AgentType)) >= 22
 
     def test_model_provider_values(self):
         from vetinari.types import ModelProvider
@@ -371,8 +373,8 @@ class TestDecompositionEngine:
         assert any(a in ("UI_PLANNER", "BUILDER") for a in agents)
 
     def test_constants_on_engine(self, engine):
-        assert engine.DEFAULT_MAX_DEPTH == 14
-        assert engine.MIN_MAX_DEPTH == 12
+        assert engine.DEFAULT_MAX_DEPTH == 8
+        assert engine.MIN_MAX_DEPTH == 2
         assert engine.MAX_MAX_DEPTH == 16
 
 

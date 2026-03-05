@@ -174,8 +174,15 @@ class IMemoryStore(ABC):
 
 # Environment configuration
 MEMORY_BACKEND_MODE = os.environ.get("MEMORY_BACKEND_MODE", "dual")
-OC_MEMORY_PATH = os.environ.get("OC_MEMORY_PATH", "./.vetinari/mnemoria")
-MNEMOSYNE_PATH = os.environ.get("MNEMOSYNE_PATH", "./.vetinari/mnemosyne")
+try:
+    from vetinari.config import get_subdirectory as _get_subdir
+    _oc_default = str(_get_subdir(".vetinari") / "mnemoria")
+    _mn_default = str(_get_subdir(".vetinari") / "mnemosyne")
+except Exception:
+    _oc_default = "./.vetinari/mnemoria"
+    _mn_default = "./.vetinari/mnemosyne"
+OC_MEMORY_PATH = os.environ.get("OC_MEMORY_PATH", _oc_default)
+MNEMOSYNE_PATH = os.environ.get("MNEMOSYNE_PATH", _mn_default)
 MEMORY_PRIMARY_READ = os.environ.get("MEMORY_PRIMARY_READ", "oc")
 MEMORY_DEDUP_ENABLED = os.environ.get("MEMORY_DEDUP_ENABLED", "true").lower() in ("1", "true", "yes")
 MEMORY_MERGE_LIMIT = int(os.environ.get("MEMORY_MERGE_LIMIT", "100"))

@@ -12,9 +12,10 @@ import pathlib
 from pathlib import Path
 from vetinari.subtask_tree import Subtask
 from vetinari.subtask_tree import SubtaskTree
+from vetinari.config import get_subdirectory
 
 def migrate(storage_root: str = None):
-    root = Path(storage_root or Path.home()/".lmstudio"/"projects"/"Vetinari"/"subtasks")
+    root = Path(storage_root) if storage_root else get_subdirectory("subtasks")
     # For each plan JSON in the subtasks folder, ensure ponder fields exist
     for file in root.glob("*.json"):
         try:

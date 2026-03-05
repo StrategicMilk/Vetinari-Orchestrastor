@@ -23,37 +23,18 @@ import uuid
 from typing import List, Dict, Any, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 import threading
 
 logger = logging.getLogger(__name__)
 
+# Import canonical enums from the single source of truth
+from vetinari.types import TaskStatus, PlanStatus
+
 
 # ============================================================
 # Layer 1: Graph-Based Planning
 # ============================================================
-
-class TaskStatus(Enum):
-    """Status of a task in the execution graph."""
-    PENDING = "pending"
-    BLOCKED = "blocked"  # Waiting for dependencies
-    READY = "ready"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class PlanStatus(Enum):
-    """Status of a plan."""
-    DRAFT = "draft"
-    APPROVED = "approved"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -1019,6 +1000,9 @@ class TwoLayerOrchestrator:
         "ERROR_RECOVERY":           ("vetinari.agents.error_recovery_agent",        "get_error_recovery_agent"),
         "CONTEXT_MANAGER":          ("vetinari.agents.context_manager_agent",       "get_context_manager_agent"),
         "IMAGE_GENERATOR":          ("vetinari.agents.image_generator_agent",       "get_image_generator_agent"),
+        "PROMPT_ASSESSOR":          ("vetinari.agents.prompt_assessor_agent",       "get_prompt_assessor_agent"),
+        "PROMPT_REWRITER":          ("vetinari.agents.prompt_rewriter_agent",       "get_prompt_rewriter_agent"),
+        "REFLECTION":               ("vetinari.agents.reflection_agent",            "get_reflection_agent"),
     }
 
     def _get_agent(self, agent_type_str: str):
@@ -1126,17 +1110,91 @@ class TwoLayerOrchestrator:
             pass
 
         # ----------------------------------------------------------------
+        # STAGE 0: Prompt Assessment (intent / scope / complexity)
+        # ----------------------------------------------------------------
+        assessment: Dict[str, Any] = {}
+        try:
+            from vetinari.agents.prompt_assessor_agent import get_prompt_assessor_agent
+            from vetinari.agents.contracts import AgentTask as _AgentTask
+            assessor = get_prompt_assessor_agent()
+            if self.agent_context:
+                assessor.initialize(self.agent_context)
+            _atask = _AgentTask(
+                task_id=f"assess-{uuid.uuid4().hex[:8]}",
+                agent_type="prompt_assessor",
+                description="Assess user prompt",
+                prompt=enriched_goal,
+                context=context,
+            )
+            _ares = assessor.execute(_atask)
+            if _ares.success and isinstance(_ares.output, dict):
+                assessment = _ares.output
+                stages["prompt_assessment"] = assessment
+                logger.info(
+                    f"[Pipeline] Stage 0: Assessment complete — "
+                    f"intent={assessment.get('intent')}, "
+                    f"complexity={assessment.get('complexity')}"
+                )
+        except Exception as _e:
+            logger.warning(f"[Pipeline] Stage 0: PromptAssessor failed: {_e}")
+
+        # Adapt decomposition depth from assessment
+        if assessment.get("suggested_depth"):
+            _sd = assessment["suggested_depth"]
+            if constraints is None:
+                constraints = {}
+            constraints.setdefault("max_depth", _sd)
+
+        # ----------------------------------------------------------------
+        # STAGE 0.5: Prompt Rewriting (structured AI-optimised prompt)
+        # ----------------------------------------------------------------
+        rewrite: Dict[str, Any] = {}
+        try:
+            from vetinari.agents.prompt_rewriter_agent import get_prompt_rewriter_agent
+            rewriter = get_prompt_rewriter_agent()
+            if self.agent_context:
+                rewriter.initialize(self.agent_context)
+            _rtask = _AgentTask(
+                task_id=f"rewrite-{uuid.uuid4().hex[:8]}",
+                agent_type="prompt_rewriter",
+                description="Rewrite user prompt",
+                prompt=enriched_goal,
+                context=assessment,
+            )
+            _rres = rewriter.execute(_rtask)
+            if _rres.success and isinstance(_rres.output, dict):
+                rewrite = _rres.output
+                stages["prompt_rewrite"] = {
+                    "has_rewritten": True,
+                    "intent": assessment.get("intent"),
+                }
+                # Use the rewritten prompt for planning if available
+                if rewrite.get("rewritten_prompt"):
+                    enriched_goal = rewrite["rewritten_prompt"]
+                logger.info("[Pipeline] Stage 0.5: Prompt rewrite complete")
+        except Exception as _e:
+            logger.warning(f"[Pipeline] Stage 0.5: PromptRewriter failed: {_e}")
+
+        # ----------------------------------------------------------------
         # STAGE 1: Input Analysis
         # ----------------------------------------------------------------
         logger.info(f"[Pipeline] Stage 1: Input Analysis for goal: {goal[:80]}")
         analysis = self._analyze_input(enriched_goal, constraints or {})
+        # Merge assessor results into stage-1 analysis for downstream use
+        if assessment:
+            analysis.update({
+                "assessed_intent": assessment.get("intent"),
+                "assessed_complexity": assessment.get("complexity"),
+                "context_summary": assessment.get("context_summary"),
+            })
         stages["input_analysis"] = analysis
 
         # ----------------------------------------------------------------
         # STAGE 2 & 3: Plan Generation + Task Decomposition
         # ----------------------------------------------------------------
         logger.info("[Pipeline] Stage 2-3: Plan Generation & Decomposition")
-        graph = self.plan_generator.generate_plan(enriched_goal, constraints)
+        _max_depth = (constraints or {}).get("max_depth", 10)
+        graph = self.plan_generator.generate_plan(enriched_goal, constraints, max_depth=_max_depth)
         stages["plan"] = {"plan_id": graph.plan_id, "tasks": len(graph.nodes)}
 
         # ----------------------------------------------------------------
@@ -1163,6 +1221,42 @@ class TwoLayerOrchestrator:
         logger.info("[Pipeline] Stage 6: Output Review")
         review_result = self._review_outputs(exec_results, goal)
         stages["review"] = review_result
+
+        # ----------------------------------------------------------------
+        # STAGE 6.5: Reflection & Validation
+        # ----------------------------------------------------------------
+        logger.info("[Pipeline] Stage 6.5: Reflection & Validation")
+        reflection_result: Dict[str, Any] = {}
+        try:
+            from vetinari.agents.reflection_agent import get_reflection_agent
+            from vetinari.agents.contracts import AgentTask as _AgentTask
+            reflector = get_reflection_agent()
+            if self.agent_context:
+                reflector.initialize(self.agent_context)
+            _outputs = list(exec_results.get("task_results", {}).values())
+            _rtask = _AgentTask(
+                task_id=f"reflect-{uuid.uuid4().hex[:8]}",
+                agent_type="reflection",
+                description="Reflect on pipeline outputs",
+                prompt=goal,
+                context={
+                    "task_description": goal,
+                    "task_type": analysis.get("assessed_intent", "general"),
+                    "outputs": _outputs,
+                    "tool_calls": [],
+                    "cycle": 1,
+                },
+            )
+            _rr = reflector.execute(_rtask)
+            if isinstance(_rr.output, dict):
+                reflection_result = _rr.output
+                stages["reflection"] = {
+                    "verdict": reflection_result.get("verdict"),
+                    "confidence": reflection_result.get("confidence"),
+                    "loop_detected": reflection_result.get("loop_detected"),
+                }
+        except Exception as _re:
+            logger.warning(f"[Pipeline] Stage 6.5: Reflection failed: {_re}")
 
         # ----------------------------------------------------------------
         # STAGE 7: Final Assembly

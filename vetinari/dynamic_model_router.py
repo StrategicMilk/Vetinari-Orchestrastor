@@ -389,19 +389,24 @@ class DynamicModelRouter:
             candidates.append(model)
         
         if not candidates:
-            # Fallback: return any available model
+            # Fallback: score all available models (ignoring strict filters)
             available = [m for m in self.models.values() if m.is_available]
             if not available:
                 logger.warning("No models available!")
                 return None
-            
-            # Pick random available model as fallback
-            fallback = random.choice(available)
+            # Score by capability + performance instead of random choice
+            scored_fallback = sorted(
+                available,
+                key=lambda m: self._score_model(m, task_type, task_description, preferred_models or []),
+                reverse=True,
+            )
+            fallback = scored_fallback[0]
+            logger.warning(f"No models matched strict criteria; falling back to '{fallback.id}' by score")
             return ModelSelection(
                 model=fallback,
                 score=0.0,
-                reasoning="Fallback: no models matched criteria",
-                confidence=0.1
+                reasoning="Soft fallback: best available model by score (strict filters relaxed)",
+                confidence=0.2,
             )
         
         # Score candidates

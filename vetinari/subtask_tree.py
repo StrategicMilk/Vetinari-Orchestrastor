@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
+from vetinari.config import get_subdirectory
 
 
 class SubtaskStatus(Enum):
@@ -126,7 +127,7 @@ class SubtaskTree:
 
     def __init__(self, storage_path: str = None):
         if storage_path is None:
-            storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "subtasks"
+            storage_path = get_subdirectory("subtasks")
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)

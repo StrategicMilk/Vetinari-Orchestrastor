@@ -126,26 +126,15 @@ class GeminiProviderAdapter(ProviderAdapter):
 
         try:
             # Gemini uses generateContent endpoint
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{request.model_id}:generateContent?key={self.api_key}"
-            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{request.model_id}:generateContent"
+            headers = {
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key,
+            }
+
             # Build contents array (Gemini's structure)
-            contents = []
-            
-            if request.system_prompt:
-                contents.append({
-                    "role": "user",
-                    "parts": [{"text": request.system_prompt}]
-                })
-                contents.append({
-                    "role": "model",
-                    "parts": [{"text": "Understood."}]
-                })
-            
-            contents.append({
-                "role": "user",
-                "parts": [{"text": request.prompt}]
-            })
-            
+            contents = [{"role": "user", "parts": [{"text": request.prompt}]}]
+
             payload = {
                 "contents": contents,
                 "generationConfig": {
@@ -155,7 +144,13 @@ class GeminiProviderAdapter(ProviderAdapter):
                     "maxOutputTokens": request.max_tokens,
                 },
             }
-            
+
+            # Use systemInstruction for system prompts (correct Gemini v1beta format)
+            if request.system_prompt:
+                payload["systemInstruction"] = {
+                    "parts": [{"text": request.system_prompt}]
+                }
+
             if request.stop_sequences:
                 payload["generationConfig"]["stopSequences"] = request.stop_sequences
 
@@ -163,7 +158,7 @@ class GeminiProviderAdapter(ProviderAdapter):
                 url,
                 json=payload,
                 timeout=self.timeout_seconds,
-                headers={"Content-Type": "application/json"}
+                headers=headers,
             )
             response.raise_for_status()
             data = response.json()

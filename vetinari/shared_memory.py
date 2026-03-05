@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 import uuid
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class SharedMemory:
     
     def __init__(self, storage_path: str = None):
         if storage_path is None:
-            storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "memory"
+            storage_path = get_subdirectory("memory")
         
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
@@ -203,8 +204,8 @@ class SharedMemory:
         for entry in self.entries:
             by_agent[entry.agent_name] = by_agent.get(entry.agent_name, 0) + 1
         
-        oldest = min([e.timestamp for e in self.entries]) if self.entries else None
-        newest = max([e.timestamp for e in self.entries]) if self.entries else None
+        oldest = min(self.entries, key=lambda e: datetime.fromisoformat(e.timestamp)).timestamp if self.entries else None
+        newest = max(self.entries, key=lambda e: datetime.fromisoformat(e.timestamp)).timestamp if self.entries else None
         
         return {
             "total_entries": total,

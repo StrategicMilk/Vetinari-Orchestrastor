@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
@@ -155,10 +156,7 @@ class WorkflowLearner:
     def _load_patterns(self) -> None:
         try:
             import os
-            path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-                ".vetinari", "workflow_patterns.json"
-            )
+            path = str(get_subdirectory(".vetinari") / "workflow_patterns.json")
             if os.path.exists(path):
                 with open(path) as f:
                     data = json.load(f)
@@ -172,10 +170,7 @@ class WorkflowLearner:
     def _save_patterns(self) -> None:
         try:
             import os
-            state_dir = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari"
-            )
-            os.makedirs(state_dir, exist_ok=True)
+            state_dir = str(get_subdirectory(".vetinari"))
             path = os.path.join(state_dir, "workflow_patterns.json")
             with open(path, "w") as f:
                 json.dump([asdict(p) for p in self._patterns.values()], f, indent=2)

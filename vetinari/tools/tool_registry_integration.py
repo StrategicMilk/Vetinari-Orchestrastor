@@ -507,7 +507,34 @@ class GeneratePlanToolWrapper(Tool):
 def register_all_tools():
     """Register all tools in the global registry."""
     registry = get_tool_registry()
-    
+
+    # Skill tools — import lazily so missing agents don't block registration
+    skill_tools = []
+    skill_imports = [
+        ("vetinari.tools.builder_skill", "BuilderSkillTool"),
+        ("vetinari.tools.evaluator_skill", "EvaluatorSkillTool"),
+        ("vetinari.tools.security_auditor_skill", "SecurityAuditorSkill"),
+        ("vetinari.tools.data_engineer_skill", "DataEngineerSkill"),
+        ("vetinari.tools.documentation_skill", "DocumentationSkill"),
+        ("vetinari.tools.test_automation_skill", "TestAutomationSkill"),
+        ("vetinari.tools.experimentation_manager_skill", "ExperimentationManagerSkill"),
+        ("vetinari.tools.cost_planner_skill", "CostPlannerSkill"),
+        ("vetinari.tools.explorer_skill", "ExplorerSkillTool"),
+        ("vetinari.tools.oracle_skill", "OracleSkillTool"),
+        ("vetinari.tools.researcher_skill", "ResearcherSkillTool"),
+        ("vetinari.tools.synthesizer_skill", "SynthesizerSkillTool"),
+        ("vetinari.tools.ui_planner_skill", "UIPlannerSkillTool"),
+        ("vetinari.tools.librarian_skill", "LibrarianSkillTool"),
+    ]
+    for module_path, class_name in skill_imports:
+        try:
+            import importlib
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+            skill_tools.append(cls())
+        except Exception as e:
+            logger.warning(f"Could not load skill {class_name}: {e}")
+
     # List of tool instances to register
     tools = [
         WebSearchToolWrapper(),
@@ -517,7 +544,7 @@ def register_all_tools():
         MemoryRememberToolWrapper(),
         ModelSelectToolWrapper(),
         GeneratePlanToolWrapper(),
-    ]
+    ] + skill_tools
     
     # Register each tool
     for tool in tools:

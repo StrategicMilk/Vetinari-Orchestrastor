@@ -117,7 +117,8 @@ class CostOptimizer:
             except Exception:
                 pass
 
-            qpd = quality / max(cost, 0.001)  # Avoid division by zero
+            # Local models (cost=0) get a high but bounded score; use quality * 10 as proxy
+            qpd = quality * 10.0 if cost == 0.0 else quality / cost
             efficiencies.append(CostEfficiency(
                 model_id=model_id,
                 task_type=task_type,

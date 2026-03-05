@@ -9,6 +9,7 @@ import os
 import sqlite3
 import json
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -28,6 +29,7 @@ class OcMemoryStore(IMemoryStore):
         self.path = Path(path)
         self.db_path = self.path / "memories.db"
         self._conn = None
+        self._lock = threading.RLock()
         self._init_storage()
     
     def _init_storage(self):

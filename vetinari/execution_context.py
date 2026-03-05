@@ -11,6 +11,8 @@ This allows Vetinari to operate in different modes with varying levels of access
 similar to OpenCode's 'plan' vs 'build' agents.
 """
 
+import json
+import os
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Set, Callable
@@ -192,13 +194,26 @@ class ExecutionContext:
         self.post_execution_hooks.append(hook)
     
     def record_operation(self, operation_name: str, params: Dict[str, Any], result: Any):
-        """Record an executed operation for audit trail."""
-        self.executed_operations.append({
+        """Record an executed operation in the in-memory trail and persist to JSONL."""
+        entry = {
             "timestamp": datetime.now().isoformat(),
             "operation": operation_name,
+            "task_id": self.active_task_id,
+            "mode": self.mode.value,
             "params": params,
-            "result": result,
-        })
+            "result": str(result)[:500] if result is not None else None,
+        }
+        self.executed_operations.append(entry)
+        # Persist to JSONL audit log
+        try:
+            from vetinari.config import get_subdirectory
+            audit_dir = get_subdirectory(".vetinari")
+            audit_dir.mkdir(parents=True, exist_ok=True)
+            audit_file = audit_dir / "audit_trail.jsonl"
+            with open(audit_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as _e:
+            logger.debug(f"Audit trail persistence failed: {_e}")
     
     def get_audit_trail(self) -> List[Dict[str, Any]]:
         """Get the audit trail of all executed operations."""

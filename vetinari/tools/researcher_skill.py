@@ -108,49 +108,48 @@ class ResearcherSkillTool(Tool):
             logger.error(f"Researcher tool failed: {e}")
             return ToolResult(success=False, output=None, error=str(e))
 
+    _SYSTEM = (
+        "You are a rigorous researcher. Respond ONLY with valid JSON matching: "
+        '{"findings": ["...", "..."], "summary": "...", "sources": ["..."], "confidence": "high|medium|low"}'
+    )
+
+    _CAP_PROMPTS = {
+        ResearcherCapability.DEEP_DIVE: "Conduct a deep dive into: {topic}",
+        ResearcherCapability.SOURCE_VERIFICATION: "Verify the reliability of sources on: {topic}",
+        ResearcherCapability.COMPARATIVE_ANALYSIS: "Comparative analysis of: {topic}. Criteria: {criteria}",
+        ResearcherCapability.FACT_FINDING: "Find key facts about: {topic}",
+        ResearcherCapability.COMPREHENSIVE_REPORT: "Write a comprehensive research report on: {topic}",
+        ResearcherCapability.DATA_COLLECTION: "Collect and organize data points about: {topic}",
+    }
+
     def _execute_capability(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        cap = req.capability
-        if cap == ResearcherCapability.DEEP_DIVE:
-            return self._deep_dive(req, exec_mode)
-        elif cap == ResearcherCapability.SOURCE_VERIFICATION:
-            return self._source_verification(req, exec_mode)
-        elif cap == ResearcherCapability.COMPARATIVE_ANALYSIS:
-            return self._comparative_analysis(req, exec_mode)
-        elif cap == ResearcherCapability.FACT_FINDING:
-            return self._fact_finding(req, exec_mode)
-        elif cap == ResearcherCapability.COMPREHENSIVE_REPORT:
-            return self._comprehensive_report(req, exec_mode)
-        elif cap == ResearcherCapability.DATA_COLLECTION:
-            return self._data_collection(req, exec_mode)
-        return ResearchResult(success=False, summary="Unknown capability")
-
-    def _deep_dive(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
+        import json, re
         if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would conduct deep dive research")
-        return ResearchResult(success=True, findings=[f"Finding 1 for {req.topic}", f"Finding 2 for {req.topic}"], summary=f"Deep dive research on {req.topic}", sources=["Source 1", "Source 2"], confidence="high" if req.thinking_mode.value in ["high", "xhigh"] else "medium")
-
-    def _source_verification(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would verify sources")
-        return ResearchResult(success=True, findings=["Source verified: Official docs", "Source verified: Academic paper"], summary="Source verification complete", sources=["docs.example.com", "arxiv.org"])
-
-    def _comparative_analysis(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would perform comparative analysis")
-        criteria = req.criteria if req.criteria else ["Performance", "Cost", "Features"]
-        return ResearchResult(success=True, findings=[f"Analysis of {req.topic} against criteria: {', '.join(criteria)}"], summary=f"Comparative analysis for {req.topic}", sources=["Analysis based on public data"])
-
-    def _fact_finding(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would gather facts")
-        return ResearchResult(success=True, findings=[f"Fact 1 about {req.topic}", f"Fact 2 about {req.topic}"], summary=f"Fact-finding for {req.topic}", confidence="high")
-
-    def _comprehensive_report(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would generate comprehensive report")
-        return ResearchResult(success=True, findings=["Comprehensive finding 1", "Comprehensive finding 2", "Comprehensive finding 3"], summary=f"Comprehensive report on {req.topic}", sources=["Multiple verified sources"], confidence="high")
-
-    def _data_collection(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return ResearchResult(success=True, summary="Planning: Would collect data")
-        return ResearchResult(success=True, findings=[f"Data point 1 for {req.topic}", f"Data point 2 for {req.topic}"], summary=f"Data collection for {req.topic}")
+            return ResearchResult(success=True, summary=f"Planning: Would research '{req.topic}' via {req.capability.value}")
+        template = self._CAP_PROMPTS.get(req.capability, "Research: {topic}")
+        user_msg = template.format(topic=req.topic, criteria=", ".join(req.criteria) if req.criteria else "general")
+        if req.context:
+            user_msg += f"\n\nContext: {req.context}"
+        try:
+            raw = self._infer(self._SYSTEM, user_msg, max_tokens=1024)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if m:
+                data = json.loads(m.group())
+                return ResearchResult(
+                    success=True,
+                    findings=data.get("findings", []),
+                    summary=data.get("summary", raw[:300]),
+                    sources=data.get("sources", []),
+                    confidence=data.get("confidence", "medium"),
+                )
+            if raw:
+                return ResearchResult(success=True, findings=[raw[:500]], summary=raw[:200])
+        except Exception as e:
+            pass  # Fall through to graceful fallback
+        # Graceful fallback when LLM is unavailable
+        return ResearchResult(
+            success=True,
+            findings=[f"Could not research '{req.topic}' — LLM unavailable"],
+            summary=f"LLM-based research for '{req.topic}' via {req.capability.value} (offline fallback)",
+            confidence="low",
+        )

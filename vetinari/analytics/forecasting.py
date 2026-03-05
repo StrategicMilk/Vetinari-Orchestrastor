@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 import time
 from collections import deque
@@ -123,7 +124,10 @@ def _stddev(vals: List[float]) -> float:
     return math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
 
 
-def _conf_bounds(preds: List[float], std: float, z: float = 1.28
+_CONF_Z = float(os.environ.get("FORECAST_CONFIDENCE_Z", "1.28"))
+
+
+def _conf_bounds(preds: List[float], std: float, z: float = _CONF_Z
                  ) -> Tuple[List[float], List[float]]:
     lo = [p - z * std for p in preds]
     hi = [p + z * std for p in preds]

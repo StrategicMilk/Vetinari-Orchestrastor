@@ -163,14 +163,19 @@ class AdapterManager:
             try:
                 health = adapter.health_check()
                 
-                # Update metrics
+                # Update metrics — use explicit enum members to avoid KeyError on unexpected values
                 if instance_name in self._metrics:
-                    status_str = "healthy" if health.get("healthy") else "unhealthy"
-                    self._metrics[instance_name].health_status = ProviderHealthStatus[status_str.upper()]
+                    if health.get("healthy"):
+                        new_status = ProviderHealthStatus.HEALTHY
+                    elif health.get("degraded"):
+                        new_status = ProviderHealthStatus.DEGRADED
+                    else:
+                        new_status = ProviderHealthStatus.UNHEALTHY
+                    self._metrics[instance_name].health_status = new_status
                     self._metrics[instance_name].last_health_check = datetime.now()
-                
+
                 self._last_health_check[instance_name] = datetime.now()
-                logger.info(f"Health check {instance_name}: {status_str}")
+                logger.info(f"Health check {instance_name}: {health.get('healthy', False)}")
                 return {instance_name: health}
             except Exception as e:
                 logger.error(f"Health check failed for {instance_name}: {e}")

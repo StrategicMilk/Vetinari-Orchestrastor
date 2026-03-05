@@ -47,13 +47,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
-_OPTIMIZED_PROMPTS_PATH = Path(
-    os.path.expanduser("~"),
-    ".lmstudio", "projects", "Vetinari", ".vetinari", "optimized_prompts.json"
-)
+_OPTIMIZED_PROMPTS_PATH = get_subdirectory(".vetinari") / "optimized_prompts.json"
 
 
 @dataclass

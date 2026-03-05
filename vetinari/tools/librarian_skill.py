@@ -280,180 +280,93 @@ class LibrarianSkillTool(Tool):
                 summary=f"Unknown capability: {capability.value}",
             )
     
-    def _lookup_documentation(
-        self,
-        request: ResearchRequest,
-        execution_mode: ExecutionMode,
-    ) -> ResearchResult:
-        """Look up official documentation using webfetch."""
-        logger.info(f"Looking up documentation for: {request.query}")
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            return ResearchResult(
-                success=True,
-                summary=f"Planning mode: Would fetch documentation for '{request.query}' at {request.thinking_mode.value} depth.",
-            )
-        
-        # Construct a search query URL for simplicity, mimicking a common pattern
-        search_term = f"{request.query} official documentation".replace(" ", "+")
-        # NOTE: In a real system, this URL would target a specific web search API or documentation portal.
-        # Using a generic search URL as a placeholder for webfetch demonstration.
-        search_url = f"https://www.google.com/search?q={search_term}"
-        
+    _SYSTEM = (
+        "You are an expert technical librarian with deep knowledge of software libraries, APIs, and best practices. "
+        "Respond ONLY with valid JSON matching: "
+        '{"summary": "...", "documentation_url": "url or null", "code_example": "code or null", '
+        '"best_practices": ["...", "..."], "citations": ["..."]}'
+    )
+
+    _CAP_PROMPTS = {
+        LibrarianCapability.DOCS_LOOKUP: (
+            "Look up and explain official documentation for: {query}\n"
+            "Provide a helpful summary, any official doc URL you know, and a code example if applicable."
+        ),
+        LibrarianCapability.GITHUB_EXAMPLES: (
+            "Provide real-world usage examples for: {query}\n"
+            "Include a practical code example showing idiomatic usage."
+        ),
+        LibrarianCapability.API_REFERENCE: (
+            "Retrieve API reference details for: {query}\n"
+            "Explain the API signature, parameters, return values, and common patterns."
+        ),
+        LibrarianCapability.PACKAGE_INFO: (
+            "Provide package information for: {query}\n"
+            "Include installation, purpose, key features, and any known pypi/npm URL."
+        ),
+        LibrarianCapability.BEST_PRACTICES: (
+            "What are the best practices for: {query}\n"
+            "List concrete, actionable best practices used by experienced developers."
+        ),
+    }
+
+    def _run_capability(self, cap: LibrarianCapability, request: ResearchRequest) -> ResearchResult:
+        import json, re
+        template = self._CAP_PROMPTS.get(cap, "Answer this technical question: {query}")
+        user_msg = template.format(query=request.query)
+        if request.context:
+            user_msg += f"\n\nContext: {request.context}"
+        if request.focus_areas:
+            user_msg += f"\nFocus areas: {', '.join(request.focus_areas)}"
         try:
-            # Fetch content - assuming webfetch returns markdown
-            # Placeholder for actual webfetch call simulation
-            
-            if request.thinking_mode == ThinkingMode.LOW:
-                summary = f"Quick lookup result for {request.query}."
-                doc_url = f"https://docs.example.com/{request.query.lower().replace(' ', '-')}"
+            raw = self._infer(self._SYSTEM, user_msg, max_tokens=1024)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if m:
+                data = json.loads(m.group())
                 return ResearchResult(
                     success=True,
-                    summary=summary,
-                    documentation_url=doc_url,
-                    citations=[f"Source: Direct Search for: {request.query}"]
+                    summary=data.get("summary", raw[:300]),
+                    documentation_url=data.get("documentation_url"),
+                    code_example=data.get("code_example"),
+                    best_practices=data.get("best_practices", []),
+                    citations=data.get("citations", []),
                 )
-            
-            # Medium/High mode: Simulate fetching and summarizing
-            mock_content = f"This is the documentation summary for {request.query} at {request.thinking_mode.value} level. It covers the main API points and configuration."
-            
-            # In a real scenario, we would use:
-            # fetch_result = webfetch(url=search_url, format="markdown")
-            # summary = LLM_summarize(fetch_result.content)
-            
-            return ResearchResult(
-                success=True,
-                summary=f"Documentation summary for '{request.query}' found at {request.thinking_mode.value} depth.",
-                documentation_url=f"https://docs.example.com/{request.query.lower().replace(' ', '-')}",
-                code_example="def example_func(): return True # Placeholder example",
-                best_practices=["Keep dependencies up to date"],
-                citations=[f"Simulated fetch from {search_url}"]
-            )
-            
-        except Exception as e:
-            logger.error(f"Webfetch failed during documentation lookup: {e}")
-            return ResearchResult(
-                success=False,
-                summary=f"Failed to retrieve documentation for '{request.query}'.",
-            )
-            
-    def _find_github_examples(
-        self,
-        request: ResearchRequest,
-        execution_mode: ExecutionMode,
-    ) -> ResearchResult:
-        """Find real-world usage examples on GitHub."""
-        logger.info(f"Searching GitHub for examples of: {request.query}")
-
-        if execution_mode == ExecutionMode.PLANNING:
-            return ResearchResult(
-                success=True,
-                summary=f"Planning mode: Would search GitHub for examples of '{request.query}' using {request.thinking_mode.value} depth.",
-            )
-            
-        if request.thinking_mode == ThinkingMode.LOW:
-            return ResearchResult(
-                success=True,
-                summary=f"Low effort GitHub search for '{request.query}' found a sample repository.",
-                code_example="print('Simple example code')",
-                citations=["Source: Popular GitHub repository example"],
-            )
-            
-        # Medium/High/XHigh: Simulate deeper search and synthesis
-        mock_code = f"""
-# Example found for {request.query}
-import library_x as lx
-config = {{ 'mode': '{request.thinking_mode.value}' }}
-lx.initialize(config)
-lx.run_process()
-"""
-        
+            if raw:
+                return ResearchResult(success=True, summary=raw[:500])
+        except Exception:
+            pass  # Fall through to graceful fallback
+        # Graceful fallback when LLM is unavailable
         return ResearchResult(
             success=True,
-            summary=f"Found multiple real-world examples for '{request.query}' using {request.thinking_mode.value} depth.",
-            code_example=mock_code,
-            citations=["Source: Repo A", "Source: Repo B (high star count)"],
-            best_practices=["Initialize configuration first", "Use context managers"],
+            summary=f"{cap.value} lookup for '{request.query}' (offline fallback — LLM unavailable)",
         )
 
-    def _retrieve_api_reference(
-        self,
-        request: ResearchRequest,
-        execution_mode: ExecutionMode,
-    ) -> ResearchResult:
-        """Retrieve specific API reference details."""
+    def _lookup_documentation(self, request: ResearchRequest, execution_mode: ExecutionMode) -> ResearchResult:
+        logger.info(f"Looking up documentation for: {request.query}")
+        if execution_mode == ExecutionMode.PLANNING:
+            return ResearchResult(success=True, summary=f"Planning mode: Would fetch docs for '{request.query}'")
+        return self._run_capability(LibrarianCapability.DOCS_LOOKUP, request)
+
+    def _find_github_examples(self, request: ResearchRequest, execution_mode: ExecutionMode) -> ResearchResult:
+        logger.info(f"Finding examples for: {request.query}")
+        if execution_mode == ExecutionMode.PLANNING:
+            return ResearchResult(success=True, summary=f"Planning: Would find examples for '{request.query}'")
+        return self._run_capability(LibrarianCapability.GITHUB_EXAMPLES, request)
+
+    def _retrieve_api_reference(self, request: ResearchRequest, execution_mode: ExecutionMode) -> ResearchResult:
         logger.info(f"Retrieving API reference for: {request.query}")
-        
         if execution_mode == ExecutionMode.PLANNING:
-            return ResearchResult(
-                success=True,
-                summary=f"Planning mode: Would fetch API reference for '{request.query}'.",
-            )
-            
-        # Simulate API lookup based on query context
-        if "error" in request.query.lower() or "exception" in request.query.lower():
-            return ResearchResult(
-                success=True,
-                summary=f"API reference found for error handling in {request.query}.",
-                best_practices=["Always catch specific exceptions", "Use custom exception types"],
-                documentation_url="https://docs.example.com/errors",
-            )
-        
-        return ResearchResult(
-            success=True,
-            summary=f"API reference retrieved for method/endpoint: {request.query}.",
-            documentation_url="https://docs.example.com/api/ref",
-            citations=["Source: Official API Docs"],
-        )
+            return ResearchResult(success=True, summary=f"Planning: Would retrieve API reference for '{request.query}'")
+        return self._run_capability(LibrarianCapability.API_REFERENCE, request)
 
-    def _retrieve_package_info(
-        self,
-        request: ResearchRequest,
-        execution_mode: ExecutionMode,
-    ) -> ResearchResult:
-        """Retrieve package information (e.g., version, dependencies)."""
+    def _retrieve_package_info(self, request: ResearchRequest, execution_mode: ExecutionMode) -> ResearchResult:
         logger.info(f"Retrieving package info for: {request.query}")
-        
         if execution_mode == ExecutionMode.PLANNING:
-            return ResearchResult(
-                success=True,
-                summary=f"Planning mode: Would retrieve package info for '{request.query}'.",
-            )
+            return ResearchResult(success=True, summary=f"Planning: Would retrieve package info for '{request.query}'")
+        return self._run_capability(LibrarianCapability.PACKAGE_INFO, request)
 
-        # Simulate package info lookup (e.g., via npm or pypi API)
-        package_name = request.query.split()[0].strip() # Simple extraction
-        
-        return ResearchResult(
-            success=True,
-            summary=f"Package information retrieved for '{package_name}'.",
-            documentation_url=f"https://package-registry.org/{package_name}",
-            best_practices=[f"Current version of {package_name} is 2.1.0"],
-            citations=[f"Source: Package Registry API for {package_name}"],
-        )
-
-    def _research_best_practices(
-        self,
-        request: ResearchRequest,
-        execution_mode: ExecutionMode,
-    ) -> ResearchResult:
-        """Research general best practices for a topic."""
+    def _research_best_practices(self, request: ResearchRequest, execution_mode: ExecutionMode) -> ResearchResult:
         logger.info(f"Researching best practices for: {request.query}")
-        
         if execution_mode == ExecutionMode.PLANNING:
-            return ResearchResult(
-                success=True,
-                summary=f"Planning mode: Would research best practices for '{request.query}' using {request.thinking_mode.value} depth.",
-            )
-            
-        # Use high-level thinking to synthesize practices
-        if "security" in request.query.lower() or "security" in request.focus_areas:
-            practices = ["Never trust user input", "Sanitize all output", "Use principle of least privilege"]
-        else:
-            practices = ["Keep code modular", "Use descriptive naming", "Handle exceptions gracefully"]
-            
-        return ResearchResult(
-            success=True,
-            summary=f"Best practices research completed for: {request.query}.",
-            best_practices=practices,
-            citations=["Source: Vetinari Internal Guide", "Source: General Community Wisdom"],
-        )
+            return ResearchResult(success=True, summary=f"Planning: Would research best practices for '{request.query}'")
+        return self._run_capability(LibrarianCapability.BEST_PRACTICES, request)

@@ -8,6 +8,7 @@ test scaffolding, and writing generated files to disk.
 import ast
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,6 +24,18 @@ from vetinari.agents.contracts import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Regex patterns that indicate placeholder / stub code
+_PLACEHOLDER_RE = re.compile(
+    r'\b(TODO|FIXME|raise\s+NotImplementedError|\.\.\.)\b'
+    r'|["\']placeholder["\']'
+    r'|["\']sample["\']'
+    r'|["\']example code["\']'
+    r'|^\s*pass\s*$',
+    re.MULTILINE | re.IGNORECASE,
+)
+
+_MAX_CODE_RETRIES = 3
 
 
 class BuilderAgent(BaseAgent):
@@ -73,16 +86,38 @@ Output format must include scaffold_code, tests, artifacts (readme, config), and
             )
         
         task = self.prepare_task(task)
-        
+
         try:
             spec = task.context.get("spec", task.description)
             feature_name = task.context.get("feature_name", "feature")
             output_dir = task.context.get("output_dir", "")
+            use_two_pass = task.context.get("two_pass", True)
 
-            # Generate scaffold using LLM
-            scaffold = self._generate_scaffold(spec, feature_name)
+            # ---- Retry loop with placeholder detection ----
+            scaffold: Dict[str, Any] = {}
+            last_error: str = ""
+            for attempt in range(1, _MAX_CODE_RETRIES + 1):
+                if attempt == 1 and use_two_pass:
+                    # Two-pass: architect → editor
+                    scaffold = self._generate_scaffold_two_pass(spec, feature_name)
+                else:
+                    extra_inst = (
+                        f" IMPORTANT: Your previous attempt ({attempt - 1}) contained "
+                        "placeholder code. You MUST provide a complete, working "
+                        "implementation. No stubs, no TODO comments, no 'pass'."
+                        if attempt > 1 else ""
+                    )
+                    scaffold = self._generate_scaffold(spec + extra_inst, feature_name)
 
-            # Write files to disk if output_dir is specified or auto-detect project root
+                placeholders = self._detect_placeholders(
+                    scaffold.get("scaffold_code", "")
+                )
+                if not placeholders:
+                    break
+                last_error = f"Placeholder code detected: {placeholders[:2]}"
+                self._log("warning", f"[Builder] Attempt {attempt}: {last_error}")
+
+            # Write files to disk if output_dir is specified
             written_files: List[str] = []
             if output_dir or task.context.get("write_files", False):
                 written_files = self._write_scaffold_to_disk(scaffold, output_dir or ".")
@@ -99,6 +134,7 @@ Output format must include scaffold_code, tests, artifacts (readme, config), and
                     "test_count": len(scaffold.get("tests", [])),
                     "written_files": written_files,
                     "syntax_errors": syntax_errors,
+                    "placeholder_warning": last_error or None,
                 },
             )
 
@@ -207,6 +243,51 @@ Requirements:
             "implementation_notes": ["Review and customize the generated scaffold", "Run tests with: pytest"],
             "summary": f"Scaffold generated for {feature_name}"
         }
+
+    # ------------------------------------------------------------------
+    # Placeholder detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _detect_placeholders(code: str) -> List[str]:
+        """Return list of placeholder match snippets found in ``code``."""
+        if not code:
+            return []
+        return [m.group() for m in _PLACEHOLDER_RE.finditer(code)][:5]
+
+    # ------------------------------------------------------------------
+    # Two-pass architect/editor code generation (WS7)
+    # ------------------------------------------------------------------
+
+    def _generate_scaffold_two_pass(
+        self, spec: str, feature_name: str
+    ) -> Dict[str, Any]:
+        """
+        Architect pass → Editor pass.
+
+        1. Architect: describe the solution in plain English.
+        2. Editor: convert the description into real code.
+
+        Falls back to single-pass ``_generate_scaffold`` on any error.
+        """
+        try:
+            arch_prompt = (
+                f"You are a software architect. Describe (in plain English, no code) "
+                f"how to implement the following. Be precise: list every class, method, "
+                f"function, and data structure needed, with their inputs and outputs.\n\n"
+                f"Feature: {feature_name}\nSpec: {spec}"
+            )
+            architecture = self._infer(arch_prompt, max_tokens=1024, temperature=0.3)
+            if not architecture:
+                raise ValueError("Empty architecture description")
+
+            editor_spec = (
+                f"{spec}\n\nArchitectural blueprint to follow exactly:\n{architecture}"
+            )
+            return self._generate_scaffold(editor_spec, feature_name)
+        except Exception as exc:
+            logger.warning(f"[Builder] Two-pass failed ({exc}), falling back to single-pass")
+            return self._generate_scaffold(spec, feature_name)
 
     # ------------------------------------------------------------------
     # File I/O helpers

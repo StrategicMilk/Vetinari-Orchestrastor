@@ -42,12 +42,13 @@ import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
 _CHROMA_DIR = os.environ.get(
     "VETINARI_CHROMA_DIR",
-    str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari" / "chroma"),
+    str(get_subdirectory(".vetinari") / "chroma"),
 )
 
 

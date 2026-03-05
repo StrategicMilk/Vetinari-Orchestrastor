@@ -37,6 +37,10 @@ class ToolCategory(Enum):
     GIT_OPERATIONS = "git_operations"
     SEARCH_ANALYSIS = "search_analysis"
     DATA_PROCESSING = "data_processing"
+    ANALYSIS = "analysis"
+    IMPLEMENTATION = "implementation"
+    DOCUMENTATION = "documentation"
+    TESTING = "testing"
 
 
 @dataclass
@@ -259,6 +263,53 @@ class Tool(ABC):
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )
     
+    def _infer(self, system_prompt: str, user_prompt: str, model_id: str = None, max_tokens: int = 2048) -> str:
+        """
+        Call the LLM directly via the adapter manager for LLM-backed tool implementations.
+        Returns the text output or raises RuntimeError on failure.
+        """
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+            from vetinari.adapters.base import InferenceRequest
+            import os
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            # Try adapter manager first
+            manager = get_adapter_manager()
+            providers = manager.list_providers()
+            if providers:
+                provider_name = next(iter(providers))
+                from vetinari.adapters.base import InferenceRequest
+                req = InferenceRequest(
+                    model_id=model_id or "",
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.3,
+                )
+                resp = manager.infer(req, provider_name=provider_name)
+                if resp.status == "ok":
+                    return resp.output
+            # Fallback: direct LM Studio call
+            import requests
+            response = requests.post(
+                f"{host}/v1/chat/completions",
+                json={
+                    "model": model_id or "",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.3,
+                },
+                timeout=120,
+            )
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            raise RuntimeError(f"LLM call failed: HTTP {response.status_code}")
+        except Exception as e:
+            raise RuntimeError(f"_infer failed: {e}") from e
+
     def get_description(self) -> str:
         """Get a formatted description of the tool."""
         lines = [

@@ -30,7 +30,7 @@ RETRY_BASE_DELAY: float = 2.0   # Seconds; used in 2^attempt backoff
 # ── Execution ─────────────────────────────────────────────────────────────────
 DEFAULT_MAX_CONCURRENT: int = 4
 DEFAULT_PLAN_DEPTH_CAP: int = int(os.environ.get("PLAN_DEPTH_CAP", 16))
-MIN_PLAN_DEPTH: int = 12
+MIN_PLAN_DEPTH: int = 2
 MAX_PLAN_DEPTH: int = 16
 MIN_TASKS_PER_PLAN: int = 3   # Minimum valid tasks (was 5, now 3 to allow simple goals)
 MAX_TASKS_PER_PLAN: int = 20

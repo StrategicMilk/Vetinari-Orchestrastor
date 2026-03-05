@@ -107,49 +107,52 @@ class OracleSkillTool(Tool):
             logger.error(f"Oracle tool failed: {e}")
             return ToolResult(success=False, output=None, error=str(e))
 
+    _SYSTEM_PROMPT = (
+        "You are an expert technical oracle. Provide precise, actionable recommendations "
+        "with clear reasoning. Structure your response as JSON: "
+        '{"recommendation": "...", "analysis": "...", "pros_cons": {"Pro": [...], "Con": [...]}}'
+    )
+
     def _execute_capability(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        cap = req.capability
-        if cap == OracleCapability.ARCHITECTURE_ANALYSIS:
-            return self._analyze_architecture(req, exec_mode)
-        elif cap == OracleCapability.TRADE_OFF_EVALUATION:
-            return self._evaluate_tradeoffs(req, exec_mode)
-        elif cap == OracleCapability.DEBUGGING_STRATEGY:
-            return self._debugging_strategy(req, exec_mode)
-        elif cap == OracleCapability.CODE_REVIEW:
-            return self._code_review(req, exec_mode)
-        elif cap == OracleCapability.PATTERN_SUGGESTION:
-            return self._suggest_pattern(req, exec_mode)
-        elif cap == OracleCapability.TECHNICAL_GUIDANCE:
-            return self._technical_guidance(req, exec_mode)
-        return OracleResult(success=False, recommendation="Unknown capability")
-
-    def _analyze_architecture(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would analyze architecture")
-        return OracleResult(success=True, recommendation=f"Recommended: Modular monolith for '{req.question}'", analysis="Analysis based on provided context", pros_cons={"Pros": ["Scalable", "Maintainable"], "Cons": ["Initial complexity"]})
+            return OracleResult(
+                success=True,
+                recommendation=f"Planning mode: Would run {req.capability.value} analysis for '{req.question}'",
+                analysis="",
+            )
+        cap_prompts = {
+            OracleCapability.ARCHITECTURE_ANALYSIS: f"Analyze the architecture for: {req.question}",
+            OracleCapability.TRADE_OFF_EVALUATION: f"Evaluate trade-offs between {req.options or ['options']} for: {req.question}",
+            OracleCapability.DEBUGGING_STRATEGY: f"Provide a debugging strategy for: {req.question}",
+            OracleCapability.CODE_REVIEW: f"Review this code/design and identify issues: {req.question}",
+            OracleCapability.PATTERN_SUGGESTION: f"Suggest the best design pattern for: {req.question}",
+            OracleCapability.TECHNICAL_GUIDANCE: f"Provide technical guidance for: {req.question}",
+        }
+        user_msg = cap_prompts.get(req.capability, f"Answer: {req.question}")
+        if req.context:
+            user_msg += f"\n\nContext:\n{req.context}"
 
-    def _evaluate_tradeoffs(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would evaluate trade-offs")
-        opts = req.options if req.options else ["Option A", "Option B"]
-        return OracleResult(success=True, recommendation=f"Recommend {opts[0]}", analysis="Trade-off analysis complete", pros_cons={opts[0]: ["Benefit 1"], opts[1]: ["Benefit 1", "Drawback 1"]})
-
-    def _debugging_strategy(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would develop debugging strategy")
-        return OracleResult(success=True, recommendation="Check logs, enable debugging, use breakpoints", analysis=f"Debugging strategy for: {req.question}")
-
-    def _code_review(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would review code")
-        return OracleResult(success=True, recommendation="Code looks good", analysis="Review complete")
-
-    def _suggest_pattern(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would suggest patterns")
-        return OracleResult(success=True, recommendation="Suggest: Repository Pattern", analysis="Based on the question")
-
-    def _technical_guidance(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return OracleResult(success=True, recommendation="Planning: Would provide guidance")
-        return OracleResult(success=True, recommendation="Guidance provided", analysis=f"Guidance for: {req.question}")
+        try:
+            import json
+            raw = self._infer(self._SYSTEM_PROMPT, user_msg, max_tokens=1024)
+            # Try to parse JSON from response
+            import re
+            m = re.search(r'\{.*?\}', raw, re.DOTALL)
+            if m:
+                data = json.loads(m.group())
+                return OracleResult(
+                    success=True,
+                    recommendation=data.get("recommendation", raw[:300]),
+                    analysis=data.get("analysis", ""),
+                    pros_cons=data.get("pros_cons", {}),
+                )
+            if raw:
+                return OracleResult(success=True, recommendation=raw[:500], analysis="")
+        except Exception as e:
+            logger.warning(f"Oracle LLM call failed: {e}")
+        # Graceful fallback when LLM is unavailable
+        return OracleResult(
+            success=True,
+            recommendation=f"{req.capability.value} analysis (offline fallback — LLM unavailable)",
+            analysis="",
+        )

@@ -295,6 +295,7 @@ function subscribeToProjectStream(projectId) {
         const data = JSON.parse(e.data);
         addActivity(`Task ${data.task_id} started (${data.model})`, 'info');
         updateTaskStatusInUI(projectId, data.task_id, 'running');
+        document.dispatchEvent(new CustomEvent(`sse:task_started:${projectId}`, { detail: data }));
     });
 
     es.addEventListener('task_complete', (e) => {
@@ -304,6 +305,14 @@ function subscribeToProjectStream(projectId) {
         updateTaskStatusInUI(projectId, data.task_id, 'completed');
         updateProgressBar(pct);
         updateTokenCounter(projectId, data.tokens_used || 0);
+        document.dispatchEvent(new CustomEvent(`sse:task_completed:${projectId}`, { detail: data }));
+    });
+
+    es.addEventListener('task_fail', (e) => {
+        const data = JSON.parse(e.data);
+        addActivity(`Task ${data.task_id} failed: ${data.error || ''}`, 'error');
+        updateTaskStatusInUI(projectId, data.task_id, 'failed');
+        document.dispatchEvent(new CustomEvent(`sse:task_failed:${projectId}`, { detail: data }));
     });
 
     es.addEventListener('status', (e) => {
@@ -370,15 +379,23 @@ function updateTaskStatusInUI(projectId, taskId, status) {
 
 // Progress bar update
 function updateProgressBar(pct) {
-    const bar = document.getElementById('progressFill');
+    const bar = document.getElementById('overallProgressBar');
     const label = document.getElementById('progressPercent');
     if (bar) bar.style.width = `${pct}%`;
     if (label) label.textContent = `${pct}%`;
 }
 
+// Cancel the currently-viewed project (called from inline onclick in HTML)
+async function cancelCurrentProject() {
+    const projectId = window.currentProjectId || document.querySelector('[data-project-id]')?.dataset?.projectId;
+    if (projectId) {
+        await cancelProject(projectId);
+    }
+}
+
 // Cancel current project
 async function cancelProject(projectId) {
-    if (!confirm('Cancel the running project? This will stop execution.')) return;
+    if (!await VModal.confirm('Cancel the running project? This will stop execution.', 'Cancel Project')) return;
     try {
         const res = await fetch(`/api/project/${encodeURIComponent(projectId)}/cancel`, {method: 'POST'});
         const data = await res.json();
@@ -473,10 +490,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTokenStats();
 
     // Auto-refresh — dashboard every 60s (includes model check), projects every 15s
-    setInterval(loadDashboard, 60000);
-    setInterval(loadSidebarProjects, 15000);
-    setInterval(checkLMStudioConnection, 90000);
-    setInterval(loadTokenStats, 30000);
+    const _intervals = [
+        setInterval(loadDashboard, 60000),
+        setInterval(loadSidebarProjects, 15000),
+        setInterval(checkLMStudioConnection, 90000),
+        setInterval(loadTokenStats, 30000),
+    ];
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            _intervals.forEach(clearInterval);
+        } else {
+            _intervals[0] = setInterval(loadDashboard, 60000);
+            _intervals[1] = setInterval(loadSidebarProjects, 15000);
+            _intervals[2] = setInterval(checkLMStudioConnection, 90000);
+            _intervals[3] = setInterval(loadTokenStats, 30000);
+        }
+    });
 
     // Global search
     const searchInput = document.getElementById('globalSearch');
@@ -555,7 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('runAllBtn')?.addEventListener('click', async () => {
-        const userGoal = window.prompt('Enter your goal for the project:');
+        const userGoal = await VModal.prompt('Enter your goal for the project:', '', 'New Project');
         if (!userGoal) return;
         
         addActivity(`Creating project with goal: ${userGoal.substring(0, 50)}...`);
@@ -704,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('newSystemPromptBtn')?.addEventListener('click', async () => {
-        const name = prompt('Enter a name for this system prompt preset:');
+        const name = await VModal.prompt('Enter a name for this system prompt preset:', '', 'Save Preset');
         if (!name) return;
         
         const content = document.getElementById('systemPromptInput')?.value || 'You are a helpful coding assistant.';
@@ -738,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const name = selectedOption.text;
-        if (!confirm(`Delete system prompt preset "${name}"?`)) return;
+        if (!await VModal.confirm(`Delete system prompt preset "${name}"?`, 'Delete Preset')) return;
         
         try {
             const res = await fetch(`/api/system-prompts/${encodeURIComponent(name)}`, {
@@ -1111,9 +1140,9 @@ async function loadSidebarProjects() {
 }
 
 async function quickRename(projectId) {
-    const newName = prompt('Enter new project name:');
+    const newName = await VModal.prompt('Enter new project name:', '', 'Rename Project');
     if (!newName) return;
-    
+
     try {
         const res = await fetch(`/api/project/${projectId}/rename`, {
             method: 'POST',
@@ -1307,7 +1336,8 @@ function toggleTaskExpand(taskId) {
 
 function updateDepthView(depth) {
     currentDepthLimit = parseInt(depth);
-    document.getElementById('depthValue').textContent = depth;
+    const depthEl = document.getElementById('depthValue');
+    if (depthEl) depthEl.textContent = depth;
     renderTasks(window.currentProjectTasks || []);
 }
 
@@ -1853,15 +1883,22 @@ async function submitFollowUp() {
 window.submitFollowUp = submitFollowUp;
 window.toggleSubtasks = toggleSubtasks;
 
+// Single poll interval — cleared before each new poll to prevent stacking
+let _activePollInterval = null;
+
 // Poll for project status updates
 function pollProjectStatus(projectId) {
+    if (_activePollInterval !== null) {
+        clearInterval(_activePollInterval);
+        _activePollInterval = null;
+    }
     const pollInterval = setInterval(async () => {
         try {
             const res = await fetch(`/api/project/${projectId}`);
             const data = await safeJsonParse(res);
             
             if (data.error) {
-                clearInterval(pollInterval);
+                clearInterval(_activePollInterval); _activePollInterval = null;
                 return;
             }
             
@@ -1900,7 +1937,7 @@ function pollProjectStatus(projectId) {
             // Check if project is completed
             const config = data.config;
             if (config && config.status === 'completed') {
-                clearInterval(pollInterval);
+                clearInterval(_activePollInterval); _activePollInterval = null;
                 showStatusBanner('All tasks completed! Final deliverable assembled.', 'success');
                 addActivity('Project completed!');
                 loadSidebarProjects();
@@ -1911,7 +1948,7 @@ function pollProjectStatus(projectId) {
                     showFinalDeliveryPanel(config, data.tasks);
                 }
             } else if (config && config.status === 'error') {
-                clearInterval(pollInterval);
+                clearInterval(_activePollInterval); _activePollInterval = null;
                 showStatusBanner('Project failed: ' + (config.error || 'Unknown error'), 'error');
                 addActivity('Project failed: ' + (config.error || 'Unknown error'), 'error');
             }
@@ -1920,9 +1957,10 @@ function pollProjectStatus(projectId) {
             console.error('Error polling project status:', error);
         }
     }, 3000);  // Poll every 3 seconds
-    
+    _activePollInterval = pollInterval;
+
     // Stop polling after 5 minutes max
-    setTimeout(() => clearInterval(pollInterval), 300000);
+    setTimeout(() => { clearInterval(_activePollInterval); _activePollInterval = null; }, 300000);
 }
 
 function showFinalDeliveryPanel(config, tasks) {
@@ -1950,7 +1988,7 @@ function showFinalDeliveryPanel(config, tasks) {
             <strong>Goal:</strong> ${config.high_level_goal || 'N/A'}
         </div>
         <div style="margin-bottom: 1rem;">
-            <strong>Final Report:</strong> <a href="/api/project/${config.project_name}/download-report" target="_blank">Open Final Report</a>
+            <strong>Final Report:</strong> <a href="/api/project/${config.project_id || window.currentProjectId}/download-report" target="_blank">Open Final Report</a>
         </div>
         <div>
             <strong>Tasks:</strong>
@@ -2028,21 +2066,6 @@ async function loadDashboard() {
         addActivity('Error loading dashboard', 'error');
         updateLMStatusBar(false, 0, '');
     }
-}
-
-async function fetchOutputs() {
-    const outputs = [];
-    try {
-        const res = await fetch('/api/output/t1');
-        const data = await safeJsonParse(res);
-        if (data.output) outputs.push('t1');
-    } catch {}
-    try {
-        const res = await fetch('/api/output/t2');
-        const data = await safeJsonParse(res);
-        if (data.output) outputs.push('t2');
-    } catch {}
-    return outputs;
 }
 
 function addActivity(message, type = 'info') {
@@ -2144,47 +2167,6 @@ async function loadWorkflow() {
     } catch (error) {
         treeContainer.innerHTML = '<p>Error loading workflow</p>';
     }
-}
-
-function renderWorkflowTree(node, isRoot = false) {
-    const hasChildren = node.children && node.children.length > 0;
-    const statusClass = node.status || '';
-    
-    let html = `
-        <div class="tree-node ${isRoot ? 'tree-root' : ''}">
-            <div class="tree-item ${node.type} ${statusClass}" data-id="${node.id}">
-                ${hasChildren ? '<span class="tree-toggle"></span>' : '<span class="tree-toggle" style="visibility:hidden"></span>'}
-                <div class="tree-content">
-                    <div class="tree-label">${node.name}</div>
-                    <div class="tree-description">${node.description || ''}</div>
-                </div>
-            </div>
-    `;
-    
-    if (hasChildren) {
-        html += `<div class="tree-children">`;
-        for (const child of node.children) {
-            html += renderWorkflowTree(child, false);
-        }
-        html += `</div>`;
-    }
-    
-    html += `</div>`;
-    return html;
-}
-
-function setupTreeToggle() {
-    document.querySelectorAll('.tree-toggle').forEach(toggle => {
-        toggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const item = toggle.closest('.tree-item');
-            const children = item.nextElementSibling;
-            if (children && children.classList.contains('tree-children')) {
-                children.classList.toggle('expanded');
-                toggle.classList.toggle('expanded');
-            }
-        });
-    });
 }
 
 // Decomposition Lab
@@ -3468,7 +3450,7 @@ document.getElementById('saveCredentialBtn')?.addEventListener('click', async ()
 });
 
 async function deleteCredential(source) {
-    if (!confirm(`Delete credential for ${source}?`)) return;
+    if (!await VModal.confirm(`Delete credential for ${source}?`, 'Delete Credential')) return;
     
     try {
         const res = await fetch(`/api/admin/credentials/${source}`, {
@@ -3710,10 +3692,10 @@ async function loadArchive() {
 }
 
 async function renameProject(projectId) {
-    const newName = prompt('Enter new project name:');
+    const newName = await VModal.prompt('Enter new project name:', '', 'Rename Project');
     if (!newName) return;
-    
-    const newDescription = prompt('Enter new description (or leave empty):') || '';
+
+    const newDescription = await VModal.prompt('Enter new description (or leave empty):', '', 'Rename Project') || '';
     
     try {
         const res = await fetch(`/api/project/${projectId}/rename`, {
@@ -3736,7 +3718,7 @@ async function renameProject(projectId) {
 }
 
 async function unarchiveProject(projectId) {
-    if (!confirm('Unarchive this project?')) return;
+    if (!await VModal.confirm('Unarchive this project?', 'Unarchive Project')) return;
     
     try {
         const res = await fetch(`/api/project/${projectId}/archive`, {
@@ -3760,7 +3742,7 @@ async function unarchiveProject(projectId) {
 }
 
 async function archiveProject(projectId) {
-    if (!confirm('Archive this project?')) return;
+    if (!await VModal.confirm('Archive this project?', 'Archive Project')) return;
     
     try {
         const res = await fetch(`/api/project/${projectId}/archive`, {
@@ -3783,7 +3765,7 @@ async function archiveProject(projectId) {
 }
 
 async function deleteProject(projectId) {
-    if (!confirm('Permanently delete this project? This cannot be undone.')) return;
+    if (!await VModal.confirm('Permanently delete this project? This cannot be undone.', 'Delete Project')) return;
     
     try {
         const res = await fetch(`/api/project/${projectId}`, {

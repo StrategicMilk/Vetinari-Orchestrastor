@@ -5,44 +5,19 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
+from vetinari.config import get_subdirectory
 
-
-class PlanStatus(Enum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+# Import canonical enums from the single source of truth
+from vetinari.types import PlanStatus, TaskStatus, AgentType
 
 
 class WaveStatus(Enum):
+    """Status of a wave (group of tasks) within a plan. Planning-specific."""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     BLOCKED = "blocked"
-
-
-class TaskStatus(Enum):
-    PENDING = "pending"
-    ASSIGNED = "assigned"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
-
-
-class AgentType(Enum):
-    EXPLORER = "explorer"
-    LIBRARIAN = "librarian"
-    ORACLE = "oracle"
-    UI_PLANNER = "ui_planner"
-    BUILDER = "builder"
-    RESEARCHER = "researcher"
-    EVALUATOR = "evaluator"
-    SYNTHESIZER = "synthesizer"
-    PONDER = "ponder"
 
 
 @dataclass
@@ -287,7 +262,7 @@ class PlanManager:
 
     def __init__(self, storage_path: str = None):
         if storage_path is None:
-            storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "plans"
+            storage_path = get_subdirectory("plans")
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)

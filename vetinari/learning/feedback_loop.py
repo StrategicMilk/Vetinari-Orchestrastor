@@ -97,11 +97,10 @@ class FeedbackLoop:
             old_latency = existing.get("avg_latency", latency_ms or 1000)
             old_uses = existing.get("total_uses", 0)
 
-            # Exponential moving average update
-            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * (1.0 if success else 0.0)
+            # Exponential moving average: use quality score as the signal (0.0 for failure)
+            effective_score = quality if success else 0.0
+            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * effective_score
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
-            # Incorporate quality score into success rate
-            new_rate = (new_rate + quality) / 2
 
             # Pass dict-form update (new signature)
             mem.update_model_performance(model_id, task_type, {

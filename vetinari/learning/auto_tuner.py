@@ -127,9 +127,13 @@ class AutoTuner:
             history = getattr(detector, "_anomaly_history", [])
 
             # If too many recent anomalies, threshold is too sensitive
+            def _ts(a):
+                try:
+                    return datetime.fromisoformat(a.get("detected_at", "2000-01-01")).timestamp()
+                except (ValueError, TypeError):
+                    return 0.0
             recent = [a for a in history if isinstance(a, dict) and
-                      (datetime.now().timestamp() - 
-                       datetime.fromisoformat(a.get("detected_at", "2000-01-01")).timestamp()) < 3600]
+                      (datetime.now().timestamp() - _ts(a)) < 3600]
 
             current_thresh = self._current_config["anomaly_threshold"]
             if len(recent) > 10 and current_thresh < 5.0:

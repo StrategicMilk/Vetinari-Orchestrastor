@@ -7,6 +7,7 @@ class Scheduler:
     def __init__(self, config: dict, max_concurrent: int = 4):
         self.config = config
         self.max_concurrent = max_concurrent
+        self.failed_tasks: List[Dict] = []
 
     def build_schedule(self, config: dict) -> List[Dict]:
         """Build a linear schedule (legacy method, use build_schedule_layers for parallelism)."""
@@ -36,9 +37,10 @@ class Scheduler:
         Tasks in layer N only depend on tasks in layers 0 to N-1.
         """
         tasks = config.get("tasks", [])
+        self.failed_tasks = []  # Reset per call
         if not tasks:
             return []
-        
+
         # Validate dependencies first
         task_ids = {t["id"] for t in tasks}
         for task in tasks:
@@ -84,9 +86,13 @@ class Scheduler:
                     ready.append(task)
 
             if not ready:
-                # Circular dependency or missing task - log and break
+                # Circular dependency or missing tasks — log and surface to caller
                 remaining = [tid for tid in task_ids if tid not in processed]
-                logging.error(f"Possible circular dependency or missing tasks. Remaining: {remaining}")
+                logging.error(
+                    f"Scheduler stalled: possible circular dependency or unresolvable deps. "
+                    f"Dropping {len(remaining)} task(s): {remaining}"
+                )
+                self.failed_tasks = [task_map[tid] for tid in remaining if tid in task_map]
                 break
 
             # Emit layers of at most max_concurrent tasks, but keep iterating

@@ -25,7 +25,9 @@ class PlanStatus(Enum):
     """Canonical plan lifecycle status."""
     DRAFT = "draft"
     PENDING = "pending"
+    APPROVED = "approved"     # Plan reviewed and approved for execution
     ACTIVE = "active"
+    RUNNING = "running"       # Plan is actively executing
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -56,6 +58,10 @@ class AgentType(Enum):
     ERROR_RECOVERY = "error_recovery"
     CONTEXT_MANAGER = "context_manager"
     IMAGE_GENERATOR = "image_generator"
+    PONDER = "ponder"         # Deep reasoning / deliberation agent
+    PROMPT_ASSESSOR = "prompt_assessor"   # Stage 0: intent/scope analysis
+    PROMPT_REWRITER = "prompt_rewriter"   # Stage 0.5: optimized prompt generation
+    REFLECTION = "reflection"             # Stage 6.5: 3-phase evaluation + loop detection
 
 
 class ModelProvider(Enum):

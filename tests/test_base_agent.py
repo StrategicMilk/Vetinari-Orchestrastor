@@ -193,7 +193,8 @@ class TestBaseAgent(unittest.TestCase):
         repr_str = repr(self.agent)
         
         self.assertIn("MockAgent", repr_str)
-        self.assertIn("EXPLORER", repr_str)
+        # Canonical type values are lower_case after WS0.4 enum consolidation
+        self.assertIn("explorer", repr_str)
 
 
 class TestAgentConfiguration(unittest.TestCase):

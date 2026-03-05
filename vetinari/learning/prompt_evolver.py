@@ -18,6 +18,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
@@ -284,11 +285,8 @@ Respond with ONLY the improved prompt text, no explanations.""",
 
     def _load_variants(self) -> None:
         try:
+            path = str(get_subdirectory(".vetinari") / "prompt_variants.json")
             import os
-            path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-                ".vetinari", "prompt_variants.json"
-            )
             if os.path.exists(path):
                 with open(path) as f:
                     data = json.load(f)
@@ -301,10 +299,7 @@ Respond with ONLY the improved prompt text, no explanations.""",
         try:
             import os
             from dataclasses import asdict
-            state_dir = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari"
-            )
-            os.makedirs(state_dir, exist_ok=True)
+            state_dir = str(get_subdirectory(".vetinari"))
             path = os.path.join(state_dir, "prompt_variants.json")
             data = {k: [asdict(v) for v in vs] for k, vs in self._variants.items()}
             with open(path, "w") as f:

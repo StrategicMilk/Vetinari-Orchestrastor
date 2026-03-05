@@ -105,8 +105,8 @@ class BaseAgent(ABC):
         prompt: str,
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.3,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
         expect_json: bool = False,
     ) -> str:
         """Call an LLM via the AdapterManager and return the text output.
@@ -161,18 +161,27 @@ class BaseAgent(ABC):
             pass
 
         # Apply token optimisation: task-specific max_tokens/temperature defaults
+        _resolved_max_tokens = max_tokens
+        _resolved_temperature = temperature
         try:
             from vetinari.token_optimizer import get_token_optimizer
             _optimizer = get_token_optimizer()
             _profile = _optimizer.get_task_profile(self._agent_type.value.lower())
             _profile_max_tokens, _profile_temp, _ = _profile
-            # Only override if caller didn't explicitly set non-default values
-            if max_tokens == 4096:
-                max_tokens = _profile_max_tokens
-            if temperature == 0.3:
-                temperature = _profile_temp
+            # Only override if caller used the sentinel (None) defaults
+            if _resolved_max_tokens is None:
+                _resolved_max_tokens = _profile_max_tokens
+            if _resolved_temperature is None:
+                _resolved_temperature = _profile_temp
         except Exception:
             pass
+        # Final defaults if still None
+        if _resolved_max_tokens is None:
+            _resolved_max_tokens = 4096
+        if _resolved_temperature is None:
+            _resolved_temperature = 0.3
+        max_tokens = _resolved_max_tokens
+        temperature = _resolved_temperature
 
         # Use AdapterManager.infer() path
         try:
@@ -221,6 +230,24 @@ class BaseAgent(ABC):
         except Exception as e:
             self._log("error", f"Inference exception: {e}")
             return ""
+
+    def _call_llm(
+        self,
+        system_prompt: str,
+        user_message: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
+        """Convenience wrapper: _infer() with (system, user) argument order.
+
+        Used by new pipeline agents (PromptAssessor, PromptRewriter, Reflection).
+        """
+        return self._infer(
+            user_message,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
     def _infer_json(
         self,
@@ -452,7 +479,11 @@ class BaseAgent(ABC):
 
                 from vetinari.learning.quality_scorer import get_quality_scorer
                 scorer = get_quality_scorer()
-                scorer._adapter_manager = self._adapter_manager
+                # Provide adapter via the public API rather than mutating internal state
+                if self._adapter_manager is not None and hasattr(scorer, "set_adapter_manager"):
+                    scorer.set_adapter_manager(self._adapter_manager)
+                elif self._adapter_manager is not None and not getattr(scorer, "_adapter_manager", None):
+                    scorer._adapter_manager = self._adapter_manager  # fallback if no setter
                 score = scorer.score(
                     task_id=task.task_id,
                     model_id=model_id,
@@ -517,7 +548,35 @@ class BaseAgent(ABC):
             except Exception:
                 pass  # Learning subsystem errors must never crash agents
 
+        # File-backed session memory: update progress.md after each task
+        try:
+            project_id = getattr(task, "project_id", None) or task.task_id.split("-")[0]
+            self._update_progress_file(project_id, task, result)
+        except Exception:
+            pass
+
         return task
+
+    def _update_progress_file(self, project_id: str, task: "AgentTask", result: "AgentResult") -> None:
+        """Append task completion status to project progress.md for cross-agent context."""
+        from vetinari.config import get_data_dir
+        proj_dir = get_data_dir() / "projects" / project_id
+        proj_dir.mkdir(parents=True, exist_ok=True)
+        progress_file = proj_dir / "progress.md"
+        status = "DONE" if result.success else "FAILED"
+        line = (
+            f"- [{status}] `{self._agent_type.value}` — {task.description or task.task_id} "
+            f"({datetime.now().strftime('%H:%M:%S')})\n"
+        )
+        with open(progress_file, "a", encoding="utf-8") as f:
+            f.write(line)
+        # If the agent produced a notable finding, append to findings.md
+        if result.success and result.output and isinstance(result.output, str) and len(result.output) > 50:
+            findings_file = proj_dir / "findings.md"
+            with open(findings_file, "a", encoding="utf-8") as f:
+                f.write(f"\n## {self._agent_type.value} — {task.description or task.task_id}\n")
+                f.write(result.output[:500])
+                f.write("\n")
     
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(type={self._agent_type.value}, name={self.name})>"

@@ -36,6 +36,16 @@ app = Flask(__name__,
     template_folder=str(PROJECT_ROOT / 'ui' / 'templates'),
     static_folder=str(PROJECT_ROOT / 'ui' / 'static'))
 
+# CORS support — restrict origins via VETINARI_CORS_ORIGINS env var
+_CORS_ORIGINS = os.environ.get("VETINARI_CORS_ORIGINS", "*")
+
+@app.after_request
+def _add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = _CORS_ORIGINS
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
 # Global state
 orchestrator = None
 
@@ -577,7 +587,7 @@ def api_new_project():
     goal = data.get('goal', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
-    auto_run = data.get('auto_run', True)
+    auto_run = data.get('auto_run', False)  # Default False: show plan for approval before running
     project_name = data.get('project_name', '')
     project_rules = data.get('project_rules', '')
     required_features = data.get('required_features', [])
@@ -728,6 +738,11 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
 
                     _push_sse_event(_proj_id, "status", {"status": "running", "total_tasks": len(tasks)})
 
+                    # Build agent context once — all tasks route through the full agent framework,
+                    # enabling quality scoring, feedback loops, and Thompson sampling.
+                    from vetinari.agent_dispatcher import dispatch_task, build_agent_context
+                    agent_context = build_agent_context(orb)
+
                     results = []
                     task_outputs_text = []
 
@@ -738,7 +753,7 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
                             break
 
                         task_id = task['id']
-                        task_model = task['assigned_model_id'] or model or available_models[0].get('name', '')
+                        task_model = task['assigned_model_id'] or model or (available_models[0].get('name', '') if available_models else '')
 
                         _push_sse_event(_proj_id, "task_start", {
                             "task_id": task_id,
@@ -748,47 +763,54 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
                             "model": task_model,
                         })
 
-                        task_prompt = f"""Task: {task['description']}
+                        # Route task through the appropriate specialized agent
+                        # (previously called orb.adapter.chat() directly, bypassing the framework)
+                        task['output_dir'] = str(project_dir / 'outputs' / task_id / 'generated')
+                        task_output, task_success, task_meta = dispatch_task(
+                            task_dict=task,
+                            context=agent_context,
+                            model_id=task_model or None,
+                        )
+                        tokens_used = task_meta.get('tokens_used', 0)
 
-Inputs: {', '.join(task['inputs'])}
-Outputs: {', '.join(task['outputs'])}
-
-Implement this task. Output the code as code blocks with filenames."""
-
-                        task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
-                        task_output = task_result.get('output', '')
-                        tokens_used = task_result.get('tokens_used', 0)
-
-                        # Save task output
+                        # Save task output text
                         task_output_dir = project_dir / 'outputs' / task_id
                         task_output_dir.mkdir(parents=True, exist_ok=True)
                         (task_output_dir / 'output.txt').write_text(task_output, encoding='utf-8')
 
-                        code_blocks = orb.executor._parse_code_blocks(task_output)
-                        if code_blocks:
-                            generated_dir = task_output_dir / 'generated'
-                            generated_dir.mkdir(parents=True, exist_ok=True)
-                            for filename, code in code_blocks.items():
-                                filepath = generated_dir / filename
-                                filepath.write_text(code, encoding='utf-8')
-                                print(f"[Vetinari] Written: {filepath}")
+                        # If the agent wrote files to output_dir, also parse any remaining
+                        # code blocks from the text output for backward compatibility
+                        generated_dir = task_output_dir / 'generated'
+                        if not generated_dir.exists() or not any(generated_dir.iterdir()):
+                            code_blocks = orb.executor._parse_code_blocks(task_output)
+                            if code_blocks:
+                                generated_dir.mkdir(parents=True, exist_ok=True)
+                                for filename, code in code_blocks.items():
+                                    filepath = generated_dir / filename
+                                    filepath.write_text(code, encoding='utf-8')
+                                    print(f"[Vetinari] Written: {filepath}")
 
+                        task_status = "completed" if task_success else "failed"
                         results.append({
                             "task_id": task_id,
                             "model_used": task_model,
-                            "status": "completed",
+                            "agent_type": task_meta.get("agent_type", "builder"),
+                            "agent_name": task_meta.get("agent_name", "Builder"),
+                            "status": task_status,
                             "output": task_output,
                         })
 
                         task_outputs_text.append(
-                            f"=== Task {task_id} (using {task_model}): {task['description']} ===\n\n{task_output}"
+                            f"=== Task {task_id} [{task_meta.get('agent_name', 'Builder')}] "
+                            f"(using {task_model}): {task['description']} ===\n\n{task_output}"
                         )
 
                         _push_sse_event(_proj_id, "task_complete", {
                             "task_id": task_id,
                             "task_index": idx,
                             "total": len(tasks),
-                            "status": "completed",
+                            "status": task_status,
+                            "agent_type": task_meta.get("agent_type", "builder"),
                             "tokens_used": tokens_used,
                             "output_length": len(task_output),
                         })
@@ -1346,6 +1368,184 @@ def api_approve_outputs(project_id):
         return jsonify({"status": "approved", "project_id": project_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/project/<project_id>/run', methods=['POST'])
+def api_run_project(project_id):
+    """Start (or re-start) task execution for a saved project.
+
+    This is the plan-approval gate: the frontend shows the plan, the user
+    reviews it, then POSTs here to begin execution. Tasks route through
+    the full agent framework (not orb.adapter.chat directly).
+    """
+    try:
+        project_dir = PROJECT_ROOT / 'projects' / project_id
+        if not project_dir.exists():
+            return jsonify({"error": "Project not found"}), 404
+
+        config_path = project_dir / 'project.yaml'
+        if not config_path.exists():
+            return jsonify({"error": "Project config not found"}), 404
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            project_config = yaml.safe_load(f)
+
+        current_status = project_config.get('status', '')
+        if current_status in ('running',):
+            return jsonify({"error": "Project is already running"}), 409
+        if current_status == 'completed':
+            return jsonify({"error": "Project already completed. Clone it to re-run."}), 409
+
+        tasks = project_config.get('tasks', [])
+        if not tasks:
+            return jsonify({"error": "No tasks found in project"}), 400
+
+        model = project_config.get('active_model_id', '') or project_config.get('model', '')
+        system_prompt = project_config.get('system_prompt', 'You are a helpful coding assistant.')
+        conv_file = project_dir / 'conversation.json'
+
+        # Register cancel event and SSE queue
+        _cancel_event = _register_project_task(project_id)
+        _get_sse_queue(project_id)
+
+        def _run_approved_tasks():
+            try:
+                project_config['status'] = 'running'
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(project_config, f)
+
+                _push_sse_event(project_id, 'status', {'status': 'running', 'total_tasks': len(tasks)})
+
+                orb = get_orchestrator()
+                from vetinari.agent_dispatcher import dispatch_task, build_agent_context
+                agent_context = build_agent_context(orb)
+
+                results = []
+                task_outputs_text = []
+
+                for idx, task in enumerate(tasks):
+                    if _cancel_event.is_set():
+                        _push_sse_event(project_id, 'cancelled', {'message': 'Cancelled by user'})
+                        break
+
+                    task_id = task.get('id', f'task_{idx}')
+                    task_model = task.get('assigned_model_id', '') or model
+
+                    _push_sse_event(project_id, 'task_start', {
+                        'task_id': task_id,
+                        'task_index': idx,
+                        'total': len(tasks),
+                        'description': task.get('description', ''),
+                        'model': task_model,
+                    })
+
+                    task['output_dir'] = str(project_dir / 'outputs' / task_id / 'generated')
+                    task_output, task_success, task_meta = dispatch_task(
+                        task_dict=task,
+                        context=agent_context,
+                        model_id=task_model or None,
+                    )
+
+                    task_output_dir = project_dir / 'outputs' / task_id
+                    task_output_dir.mkdir(parents=True, exist_ok=True)
+                    (task_output_dir / 'output.txt').write_text(task_output, encoding='utf-8')
+
+                    task_status = 'completed' if task_success else 'failed'
+                    results.append({
+                        'task_id': task_id,
+                        'model_used': task_model,
+                        'agent_type': task_meta.get('agent_type', 'builder'),
+                        'status': task_status,
+                        'output': task_output,
+                    })
+                    task_outputs_text.append(
+                        f"=== Task {task_id} [{task_meta.get('agent_name','Builder')}]: "
+                        f"{task.get('description','')} ===\n\n{task_output}"
+                    )
+
+                    _push_sse_event(project_id, 'task_complete', {
+                        'task_id': task_id,
+                        'task_index': idx,
+                        'total': len(tasks),
+                        'status': task_status,
+                        'agent_type': task_meta.get('agent_type', 'builder'),
+                        'tokens_used': task_meta.get('tokens_used', 0),
+                        'output_length': len(task_output),
+                    })
+
+                # Save conversation
+                conversation = []
+                if conv_file.exists():
+                    try:
+                        with open(conv_file, 'r', encoding='utf-8') as f:
+                            conversation = json.load(f)
+                    except Exception:
+                        conversation = []
+                results_text = 'Tasks completed!\n\n' + '='*50 + '\n\n'.join(task_outputs_text)
+                conversation.append({'role': 'assistant', 'content': results_text})
+                with open(conv_file, 'w', encoding='utf-8') as f:
+                    json.dump(conversation, f, indent=2)
+
+                project_config['status'] = 'completed'
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(project_config, f)
+
+                _push_sse_event(project_id, 'status', {
+                    'status': 'completed',
+                    'total_tasks': len(tasks),
+                    'completed_tasks': len(results),
+                })
+            except Exception as e:
+                logging.error(f'[run_project] Error: {e}')
+                _push_sse_event(project_id, 'error', {'message': str(e)})
+
+        import threading as _threading
+        t = _threading.Thread(target=_run_approved_tasks, daemon=True)
+        t.start()
+
+        return jsonify({'status': 'running', 'project_id': project_id, 'total_tasks': len(tasks)})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/project/<project_id>/download-report', methods=['GET'])
+def api_download_report(project_id):
+    """Download or display the final report for a completed project."""
+    try:
+        project_dir = PROJECT_ROOT / 'projects' / project_id
+        if not project_dir.exists():
+            return jsonify({"error": "Project not found"}), 404
+
+        # Look for the final report in standard locations
+        candidates = [
+            project_dir / 'final_delivery' / 'final_report.md',
+            project_dir / 'final_delivery' / 'report.md',
+            project_dir / 'final_report.md',
+        ]
+        report_path = next((p for p in candidates if p.exists()), None)
+
+        if report_path:
+            from flask import send_file
+            return send_file(str(report_path), mimetype='text/markdown', as_attachment=False)
+
+        # Fallback: generate a quick summary from task outputs
+        outputs_dir = project_dir / 'outputs'
+        summary_lines = [f"# Project Report: {project_id}\n"]
+        if outputs_dir.exists():
+            for task_dir in sorted(outputs_dir.iterdir()):
+                out_file = task_dir / 'output.txt'
+                if out_file.exists():
+                    summary_lines.append(f"## {task_dir.name}\n")
+                    content = out_file.read_text(encoding='utf-8', errors='replace')
+                    summary_lines.append(content[:2000])
+                    summary_lines.append("\n\n---\n")
+        summary = "\n".join(summary_lines) if len(summary_lines) > 1 else "No outputs found."
+        from flask import Response
+        return Response(summary, mimetype='text/markdown')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # API: Merge project to final project space
 @app.route('/api/project/<project_id>/merge', methods=['POST'])

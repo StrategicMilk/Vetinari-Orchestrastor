@@ -16,7 +16,8 @@ class TestAgentType(unittest.TestCase):
             self.assertIsInstance(at.value, str)
 
     def test_security_auditor(self):
-        self.assertEqual(AgentType.SECURITY_AUDITOR.value, "SECURITY_AUDITOR")
+        # Canonical values are lower_case after WS0.4 enum consolidation
+        self.assertEqual(AgentType.SECURITY_AUDITOR.value, "security_auditor")
 
 
 class TestTaskStatus(unittest.TestCase):
@@ -51,7 +52,7 @@ class TestAgentSpec(unittest.TestCase):
             default_model="llama",
         )
         d = spec.to_dict()
-        self.assertEqual(d["agent_type"], "EXPLORER")
+        self.assertEqual(d["agent_type"], "explorer")
         self.assertIn("name", d)
         self.assertIn("enabled", d)
 

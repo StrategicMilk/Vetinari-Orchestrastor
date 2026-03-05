@@ -15,6 +15,7 @@ except ImportError:
 
 import base64
 import hashlib
+from vetinari.config import get_subdirectory
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,14 @@ class Credential:
         try:
             due = datetime.fromisoformat(self.next_rotation_due)
             return datetime.now() >= due
-        except:
+        except (ValueError, TypeError):
             return True
 
 
 class CredentialVault:
     def __init__(self, vault_path: str = None):
         if vault_path is None:
-            vault_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "vault"
+            vault_path = get_subdirectory("vault")
         
         self.vault_path = Path(vault_path)
         self.vault_path.mkdir(parents=True, exist_ok=True)

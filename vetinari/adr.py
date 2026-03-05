@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 import json
+from vetinari.config import get_subdirectory
 
 
 class ADRStatus(Enum):
@@ -101,7 +102,7 @@ class ADRSystem:
 
     def __init__(self, storage_path: str = None):
         if storage_path is None:
-            storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "adr"
+            storage_path = get_subdirectory("adr")
         
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)

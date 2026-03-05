@@ -34,8 +34,9 @@ class AnthropicProviderAdapter(ProviderAdapter):
         self.api_key = config.api_key
         if not self.api_key:
             raise ValueError("Anthropic adapter requires api_key in config")
-        # Anthropic uses a specific API version header
-        self.api_version = "2023-06-01"
+        # Anthropic uses a specific API version header; override via env if needed
+        import os as _os
+        self.api_version = _os.environ.get("ANTHROPIC_API_VERSION", "2023-06-01")
 
     def _resolve_model_id(self, model_id: str) -> str:
         """Resolve a config model ID to the real Anthropic API model ID."""

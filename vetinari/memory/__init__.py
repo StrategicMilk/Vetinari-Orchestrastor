@@ -10,6 +10,7 @@ This module provides unified memory storage with dual backend support:
 # Import from original memory.py for backwards compatibility
 import os
 import sqlite3
+import threading
 import json
 import logging
 from datetime import datetime, timedelta
@@ -56,6 +57,7 @@ class MemoryStore:
     def __init__(self, db_path: str = PLAN_MEMORY_DB_PATH, use_json_fallback: bool = False):
         self.db_path = db_path
         self.use_json_fallback = use_json_fallback
+        self._lock = threading.RLock()
         self._conn = None
         self._json_path = db_path.replace(".db", ".json")
         
@@ -413,8 +415,9 @@ class MemoryStore:
             row = cursor.fetchone()
             
             if row:
-                new_success_rate = (row["success_rate"] * row["total_uses"] + (1 if success else 0)) / (row["total_uses"] + 1)
-                new_latency = (row["avg_latency"] * row["total_uses"] + latency) / (row["total_uses"] + 1)
+                alpha = 0.1  # EMA smoothing factor
+                new_success_rate = (1 - alpha) * row["success_rate"] + alpha * (1 if success else 0)
+                new_latency = (1 - alpha) * row["avg_latency"] + alpha * latency
                 new_uses = row["total_uses"] + 1
                 
                 cursor.execute("""
@@ -453,8 +456,9 @@ class MemoryStore:
         
         perf = self._json_data["model_performance"][key]
         total = perf["total_uses"] + 1
-        perf["success_rate"] = (perf["success_rate"] * perf["total_uses"] + (1 if success else 0)) / total
-        perf["avg_latency"] = (perf["avg_latency"] * perf["total_uses"] + latency) / total
+        alpha = 0.1  # EMA smoothing factor
+        perf["success_rate"] = (1 - alpha) * perf["success_rate"] + alpha * (1 if success else 0)
+        perf["avg_latency"] = (1 - alpha) * perf["avg_latency"] + alpha * latency
         perf["total_uses"] = total
         perf["last_used_at"] = datetime.now().isoformat()
         

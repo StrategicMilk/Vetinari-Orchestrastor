@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
+from vetinari.config import get_subdirectory
 
 from vetinari.utils import estimate_model_memory_gb
 
@@ -64,7 +65,7 @@ class ModelSearchEngine:
     }
     
     def __init__(self, cache_dir: str = None):
-        self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / ".lmstudio" / "projects" / "Vetinari" / "model_cache"
+        self.cache_dir = Path(cache_dir) if cache_dir else get_subdirectory("model_cache")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})

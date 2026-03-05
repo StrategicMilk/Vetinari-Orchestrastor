@@ -71,6 +71,10 @@ class QualityScorer:
         self._db_path = db_path
         self._init_db()
 
+    def set_adapter_manager(self, adapter_manager) -> None:
+        """Set the adapter manager used for LLM-as-judge scoring."""
+        self._adapter_manager = adapter_manager
+
     def _init_db(self) -> None:
         """Create quality_scores table if it doesn't exist."""
         try:
@@ -173,7 +177,8 @@ class QualityScorer:
             # Prefer a different, fast local model for judging
             judge_model = self._pick_judge_model(model_id)
 
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            from vetinari.constants import DEFAULT_LM_STUDIO_HOST
+            host = DEFAULT_LM_STUDIO_HOST
             import requests as _req
             resp = _req.post(
                 f"{host}/v1/chat/completions",
@@ -192,7 +197,7 @@ class QualityScorer:
                 return None
 
             text = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            match = re.search(r'\{.*\}', text, re.DOTALL)
+            match = re.search(r'\{.*?\}', text, re.DOTALL)
             if not match:
                 return None
             data = json.loads(match.group(0))

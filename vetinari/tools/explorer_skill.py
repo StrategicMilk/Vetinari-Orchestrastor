@@ -13,7 +13,11 @@ The explorer skill specializes in:
 - Project structure mapping
 """
 
+import ast
+import re
+import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Literal
 import logging
 from enum import Enum
@@ -350,6 +354,67 @@ class ExplorerSkillTool(Tool):
                 warnings=[f"Unknown capability: {capability.value}"],
             )
     
+    # ------------------------------------------------------------------ helpers
+
+    def _get_root(self) -> Path:
+        """Return project root for file searches."""
+        try:
+            from vetinari.config import get_project_root
+            return get_project_root()
+        except Exception:
+            return Path(".").resolve()
+
+    def _iter_files(self, root: Path, extensions: List[str]) -> List[Path]:
+        """Recursively yield files, respecting .gitignore-style skip dirs."""
+        skip_dirs = {".git", "__pycache__", ".venv", "venv", "node_modules",
+                     ".mypy_cache", ".pytest_cache", "dist", "build", ".claude"}
+        exts = set(e if e.startswith(".") else f".{e}" for e in extensions) if extensions else None
+        results = []
+        for path in root.rglob("*"):
+            if path.is_file():
+                if any(part in skip_dirs for part in path.parts):
+                    continue
+                if exts and path.suffix not in exts:
+                    continue
+                results.append(path)
+        return results
+
+    def _build_pattern(self, query: str, strategy: SearchStrategy) -> re.Pattern:
+        """Build a compiled regex from the query and strategy."""
+        if strategy == SearchStrategy.EXACT:
+            return re.compile(re.escape(query))
+        elif strategy == SearchStrategy.REGEX:
+            return re.compile(query)
+        else:  # PARTIAL
+            return re.compile(re.escape(query), re.IGNORECASE)
+
+    def _search_file(self, file_path: Path, pattern: re.Pattern,
+                     context_lines: int, max_results: int,
+                     found: List[SearchResult]) -> int:
+        """Search a single file and append matches to found. Returns match count."""
+        try:
+            lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except Exception:
+            return 0
+        count = 0
+        for i, line in enumerate(lines):
+            if len(found) >= max_results:
+                break
+            if pattern.search(line):
+                before = lines[max(0, i - context_lines): i]
+                after = lines[i + 1: i + 1 + context_lines]
+                found.append(SearchResult(
+                    file_path=str(file_path),
+                    line_number=i + 1,
+                    line_content=line,
+                    before_context=before,
+                    after_context=after,
+                ))
+                count += 1
+        return count
+
+    # ------------------------------------------------------------------ capabilities
+
     def _grep_search(
         self,
         request: ExplorationRequest,
@@ -357,217 +422,271 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Perform grep-based text search."""
         logger.info(f"Grep search: {request.query}")
-        
-        explanation = (
-            f"Grep Search\n"
-            f"Query: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
-        if request.file_extensions:
-            explanation += f"File types: {', '.join(request.file_extensions)}\n"
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would search for the pattern in codebase.\n"
-            explanation += f"Thinking mode: {request.thinking_mode.value}\n"
-        else:
-            explanation += (
-                f"\nSearch Strategy:\n"
-                f"1. Parse query: {request.query}\n"
-                f"2. Build search pattern (strategy: {request.search_strategy.value})\n"
-                f"3. Execute search across files\n"
-                f"4. Gather context ({request.context_lines} lines before/after)\n"
-                f"5. Rank results by relevance\n"
-                f"6. Return top {request.max_results} results\n"
-            )
-        
+        t0 = time.time()
+        root = self._get_root()
+        extensions = request.file_extensions or [".py", ".ts", ".js", ".md", ".yaml", ".json"]
+        files = self._iter_files(root, extensions)
+        pattern = self._build_pattern(request.query, request.search_strategy)
+        found: List[SearchResult] = []
+        for fp in files:
+            if len(found) >= request.max_results:
+                break
+            self._search_file(fp, pattern, request.context_lines, request.max_results, found)
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.GREP_SEARCH.value,
-            total_found=0,
-            files_searched=0,
+            results=found,
+            total_found=len(found),
+            files_searched=len(files),
+            execution_time_ms=int((time.time() - t0) * 1000),
         )
-    
+
     def _file_discovery(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """Discover files matching pattern."""
+        """Discover files matching a glob pattern or name fragment."""
         logger.info(f"File discovery: {request.query}")
-        
-        explanation = (
-            f"File Discovery\n"
-            f"Pattern: {request.query}\n"
-        )
-        
-        if request.file_extensions:
-            explanation += f"Extensions: {', '.join(request.file_extensions)}\n"
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find files matching the pattern.\n"
+        t0 = time.time()
+        root = self._get_root()
+        query = request.query.strip()
+        # Determine if it's a glob pattern or a plain name fragment
+        is_glob = any(c in query for c in ("*", "?", "[", "]"))
+        results: List[SearchResult] = []
+        if is_glob:
+            matches = list(root.rglob(query))
         else:
-            explanation += (
-                f"\nDiscovery Process:\n"
-                f"1. Parse glob pattern: {request.query}\n"
-                f"2. Traverse directories (respecting .gitignore)\n"
-                f"3. Match against pattern\n"
-                f"4. Filter by extensions if provided\n"
-                f"5. Return file list with metadata\n"
-            )
-        
+            # Treat as case-insensitive substring of file name
+            matches = [p for p in root.rglob("*") if query.lower() in p.name.lower()]
+        # Filter hidden / cache dirs
+        skip_dirs = {".git", "__pycache__", ".venv", "venv", "node_modules",
+                     ".mypy_cache", ".pytest_cache", "dist", "build", ".claude"}
+        ext_filter = set(
+            e if e.startswith(".") else f".{e}" for e in request.file_extensions
+        ) if request.file_extensions else None
+        for p in matches:
+            if len(results) >= request.max_results:
+                break
+            if any(part in skip_dirs for part in p.parts):
+                continue
+            if ext_filter and p.suffix not in ext_filter:
+                continue
+            results.append(SearchResult(
+                file_path=str(p),
+                line_number=0,
+                line_content=str(p.relative_to(root)),
+            ))
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.FILE_DISCOVERY.value,
-            total_found=0,
-            files_searched=0,
+            results=results,
+            total_found=len(results),
+            files_searched=len(matches),
+            execution_time_ms=int((time.time() - t0) * 1000),
         )
-    
+
     def _pattern_matching(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """Match patterns in code."""
+        """Match code patterns (delegates to grep with regex strategy)."""
         logger.info(f"Pattern matching: {request.query}")
-        
-        explanation = (
-            f"Pattern Matching\n"
-            f"Pattern: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find all pattern matches.\n"
-        else:
-            explanation += (
-                f"\nMatching Process:\n"
-                f"1. Compile pattern (strategy: {request.search_strategy.value})\n"
-                f"2. Search across codebase\n"
-                f"3. Collect all matches with line info\n"
-                f"4. Group by file\n"
-                f"5. Provide context around matches\n"
-            )
-        
-        return ExplorationResult(
-            success=True,
+        # Pattern matching is grep with regex forced
+        adjusted = ExplorationRequest(
+            capability=request.capability,
             query=request.query,
-            capability=ExplorerCapability.PATTERN_MATCHING.value,
-            total_found=0,
-            files_searched=0,
+            thinking_mode=request.thinking_mode,
+            search_strategy=SearchStrategy.REGEX,
+            file_extensions=request.file_extensions or [".py", ".ts", ".js"],
+            context_lines=request.context_lines,
+            max_results=request.max_results,
         )
-    
+        result = self._grep_search(adjusted, execution_mode)
+        result.capability = ExplorerCapability.PATTERN_MATCHING.value
+        return result
+
     def _symbol_lookup(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """Look up function, class, or variable symbols."""
+        """Look up function, class, or variable definitions."""
         logger.info(f"Symbol lookup: {request.query}")
-        
-        explanation = (
-            f"Symbol Lookup\n"
-            f"Symbol: {request.query}\n"
+        t0 = time.time()
+        root = self._get_root()
+        symbol = request.query.strip()
+        # Build pattern: match def/class/var assignment with the symbol name
+        py_pattern = re.compile(
+            rf"(?:^|\s)(?:def|class|async\s+def)\s+{re.escape(symbol)}\b"
+            rf"|^{re.escape(symbol)}\s*=",
+            re.MULTILINE,
         )
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find symbol definitions and usages.\n"
-        else:
-            explanation += (
-                f"\nLookup Process:\n"
-                f"1. Parse symbol name: {request.query}\n"
-                f"2. Search for definitions (functions, classes, variables)\n"
-                f"3. Find all usages/references\n"
-                f"4. Trace dependencies\n"
-                f"5. Return definition + usage locations\n"
-                f"6. Include signatures and type info\n"
-            )
-        
+        usage_pattern = re.compile(rf"\b{re.escape(symbol)}\b")
+        files = self._iter_files(root, [".py"])
+        found: List[SearchResult] = []
+        # First pass: definitions
+        for fp in files:
+            if len(found) >= request.max_results:
+                break
+            try:
+                lines = fp.read_text(encoding="utf-8", errors="replace").splitlines()
+            except Exception:
+                continue
+            for i, line in enumerate(lines):
+                if py_pattern.search(line):
+                    found.append(SearchResult(
+                        file_path=str(fp),
+                        line_number=i + 1,
+                        line_content=line,
+                        before_context=lines[max(0, i - 1): i],
+                        after_context=lines[i + 1: i + 1 + request.context_lines],
+                    ))
+        # Second pass: usages (if medium+ thinking mode)
+        if request.thinking_mode in (ThinkingMode.MEDIUM, ThinkingMode.HIGH, ThinkingMode.XHIGH):
+            for fp in files:
+                if len(found) >= request.max_results:
+                    break
+                self._search_file(fp, usage_pattern, 1, request.max_results, found)
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.SYMBOL_LOOKUP.value,
-            total_found=0,
-            files_searched=0,
+            results=found,
+            total_found=len(found),
+            files_searched=len(files),
+            execution_time_ms=int((time.time() - t0) * 1000),
         )
-    
+
     def _import_analysis(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """Analyze imports and dependencies."""
+        """Analyze imports of a module or find who imports a given module."""
         logger.info(f"Import analysis: {request.query}")
-        
-        explanation = (
-            f"Import Analysis\n"
-            f"Target: {request.query}\n"
+        t0 = time.time()
+        root = self._get_root()
+        target = request.query.strip()
+        files = self._iter_files(root, [".py"])
+        found: List[SearchResult] = []
+        # Pattern: import target / from target import ... / from X import target
+        import_pattern = re.compile(
+            rf"(?:^import\s+{re.escape(target)}"
+            rf"|^from\s+{re.escape(target)}\s+import"
+            rf"|^from\s+\S+\s+import\s+.*\b{re.escape(target)}\b)",
+            re.MULTILINE,
         )
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would analyze import dependencies.\n"
-        else:
-            explanation += (
-                f"\nAnalysis Process:\n"
-                f"1. Find file/module: {request.query}\n"
-                f"2. Parse import statements\n"
-                f"3. Trace what it imports from\n"
-                f"4. Trace what imports it\n"
-                f"5. Build dependency graph\n"
-                f"6. Identify circular dependencies\n"
-                f"7. Show import relationships\n"
-            )
-        
+        for fp in files:
+            if len(found) >= request.max_results:
+                break
+            try:
+                text = fp.read_text(encoding="utf-8", errors="replace")
+                lines = text.splitlines()
+            except Exception:
+                continue
+            for i, line in enumerate(lines):
+                if import_pattern.search(line):
+                    found.append(SearchResult(
+                        file_path=str(fp),
+                        line_number=i + 1,
+                        line_content=line,
+                        after_context=lines[i + 1: i + 1 + request.context_lines],
+                    ))
+        # If target looks like a file path, also parse it with ast to show its own imports
+        own_imports: List[str] = []
+        if request.thinking_mode in (ThinkingMode.HIGH, ThinkingMode.XHIGH):
+            # Try to find the target file
+            for fp in files:
+                if target.replace(".", "/") in str(fp) or fp.stem == target:
+                    try:
+                        tree = ast.parse(fp.read_text(encoding="utf-8", errors="replace"))
+                        for node in ast.walk(tree):
+                            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                                if isinstance(node, ast.Import):
+                                    own_imports += [alias.name for alias in node.names]
+                                elif node.module:
+                                    own_imports.append(node.module)
+                    except Exception:
+                        pass
+                    break
+        warnings = [f"Own imports: {own_imports}"] if own_imports else []
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.IMPORT_ANALYSIS.value,
-            total_found=0,
-            files_searched=0,
+            results=found,
+            total_found=len(found),
+            files_searched=len(files),
+            execution_time_ms=int((time.time() - t0) * 1000),
+            warnings=warnings,
         )
-    
+
     def _project_mapping(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """Map project structure and architecture."""
+        """Map project structure and detect project type."""
         logger.info(f"Project mapping: {request.query}")
-        
-        explanation = (
-            f"Project Mapping\n"
-            f"Focus: {request.query}\n"
-        )
-        
-        if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would map project structure.\n"
-        else:
-            approach = "Quick scan" if request.thinking_mode == ThinkingMode.LOW else \
-                       "Comprehensive map" if request.thinking_mode == ThinkingMode.MEDIUM else \
-                       "Deep analysis" if request.thinking_mode == ThinkingMode.HIGH else \
-                       "Full AST traversal"
-            
-            explanation += (
-                f"\nMapping Process ({approach}):\n"
-                f"1. Detect project type\n"
-                f"2. Identify entry points\n"
-                f"3. Map directory structure\n"
-                f"4. Find key files (config, setup, main)\n"
-                f"5. Trace major dependencies\n"
-            )
-            
-            if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
-                explanation += "6. Build architecture diagram\n"
-                explanation += "7. Identify design patterns\n"
-                explanation += "8. Analyze import relationships\n"
-        
+        t0 = time.time()
+        root = self._get_root()
+        skip_dirs = {".git", "__pycache__", ".venv", "venv", "node_modules",
+                     ".mypy_cache", ".pytest_cache", "dist", "build", ".claude"}
+
+        # Detect project type from marker files
+        markers: Dict[str, str] = {
+            "pyproject.toml": "Python",
+            "setup.py": "Python",
+            "setup.cfg": "Python",
+            "package.json": "Node.js",
+            "cargo.toml": "Rust",
+            "go.mod": "Go",
+            "pom.xml": "Java/Maven",
+            "build.gradle": "Java/Gradle",
+            "Makefile": "C/C++",
+        }
+        project_type = "Unknown"
+        for marker, ptype in markers.items():
+            if (root / marker).exists() or (root / marker.lower()).exists():
+                project_type = ptype
+                break
+
+        # Collect top-level structure
+        results: List[SearchResult] = []
+        files_checked = 0
+        for item in sorted(root.iterdir()):
+            if item.name in skip_dirs or item.name.startswith("."):
+                continue
+            results.append(SearchResult(
+                file_path=str(item),
+                line_number=0,
+                line_content=f"{'[dir] ' if item.is_dir() else '[file]'} {item.name}",
+            ))
+
+        # For MEDIUM+ mode, include subdirectory listing
+        if request.thinking_mode in (ThinkingMode.MEDIUM, ThinkingMode.HIGH, ThinkingMode.XHIGH):
+            all_files = list(root.rglob("*"))
+            files_checked = len(all_files)
+            py_files = [f for f in all_files if f.suffix == ".py"
+                        and not any(p in skip_dirs for p in f.parts)]
+            if py_files and len(results) < request.max_results:
+                results.append(SearchResult(
+                    file_path=str(root),
+                    line_number=0,
+                    line_content=f"Python files: {len(py_files)}",
+                ))
+
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.PROJECT_MAPPING.value,
-            project_type="Unknown",
-            total_found=0,
-            files_searched=0,
+            results=results[:request.max_results],
+            total_found=len(results),
+            files_searched=files_checked,
+            execution_time_ms=int((time.time() - t0) * 1000),
+            project_type=project_type,
         )

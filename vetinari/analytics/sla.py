@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 import time
 from collections import deque
@@ -308,7 +309,8 @@ class SLATracker:
             good    = n
 
         compliance_pct = (good / n * 100) if n > 0 else 100.0
-        is_compliant   = compliance_pct >= 99.0   # 99% good samples = in-SLA
+        _threshold = float(os.environ.get("SLA_COMPLIANCE_THRESHOLD", "99.0"))
+        is_compliant   = compliance_pct >= _threshold
 
         # Collect breaches within window
         window_breaches = [

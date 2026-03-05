@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 import uuid
+from vetinari.config import get_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class Plan:
 class MilestonePlanner:
     def __init__(self, project_id: str):
         self.project_id = project_id
-        self.storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "projects" / project_id / "milestones"
+        self.storage_path = get_data_dir() / "projects" / project_id / "milestones"
         self.storage_path.mkdir(parents=True, exist_ok=True)
         
         self.milestones: List[Milestone] = []

@@ -15,40 +15,21 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-
-class AgentType(Enum):
-    """Enumeration of all Vetinari agents."""
-    PLANNER = "PLANNER"
-    EXPLORER = "EXPLORER"
-    LIBRARIAN = "LIBRARIAN"
-    ORACLE = "ORACLE"
-    RESEARCHER = "RESEARCHER"
-    EVALUATOR = "EVALUATOR"
-    SYNTHESIZER = "SYNTHESIZER"
-    BUILDER = "BUILDER"
-    UI_PLANNER = "UI_PLANNER"
-    SECURITY_AUDITOR = "SECURITY_AUDITOR"
-    DATA_ENGINEER = "DATA_ENGINEER"
-    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"
-    COST_PLANNER = "COST_PLANNER"
-    TEST_AUTOMATION = "TEST_AUTOMATION"
-    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"
-    IMPROVEMENT = "IMPROVEMENT"
-    USER_INTERACTION = "USER_INTERACTION"
-    DEVOPS = "DEVOPS"
-    VERSION_CONTROL = "VERSION_CONTROL"
-    ERROR_RECOVERY = "ERROR_RECOVERY"
-    CONTEXT_MANAGER = "CONTEXT_MANAGER"
-    IMAGE_GENERATOR = "IMAGE_GENERATOR"
+# Import canonical enums from the single source of truth
+from vetinari.types import AgentType, TaskStatus
 
 
-class TaskStatus(Enum):
-    """Status of a task in the orchestration."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    WAITING = "waiting"
+def _parse_agent_type(value: str) -> AgentType:
+    """Parse an AgentType from a string, handling both old UPPER_CASE and new lower_case values."""
+    try:
+        return AgentType(value)
+    except ValueError:
+        # Fall back: try lower-case conversion for old UPPER_CASE serialized data
+        try:
+            return AgentType(value.lower())
+        except ValueError:
+            # Fall back: try matching by member name
+            return AgentType[value.upper()]
 
 
 class ExecutionMode(Enum):
@@ -84,7 +65,7 @@ class AgentSpec:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> AgentSpec:
         return cls(
-            agent_type=AgentType(data["agent_type"]),
+            agent_type=_parse_agent_type(data["agent_type"]),
             name=data["name"],
             description=data["description"],
             default_model=data["default_model"],
@@ -131,7 +112,7 @@ class Task:
             inputs=data.get("inputs", []),
             outputs=data.get("outputs", []),
             dependencies=data.get("dependencies", []),
-            assigned_agent=AgentType(data.get("assigned_agent", "PLANNER")),
+            assigned_agent=_parse_agent_type(data.get("assigned_agent", "planner")),
             model_override=data.get("model_override", ""),
             depth=data.get("depth", 0),
             parent_id=data.get("parent_id", ""),
@@ -434,6 +415,34 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
+    ),
+    AgentType.PONDER: AgentSpec(
+        agent_type=AgentType.PONDER,
+        name="Ponder Agent",
+        description="Deep reasoning and deliberation for complex multi-step decisions",
+        default_model="qwen2.5-72b",
+        thinking_variant="xhigh"
+    ),
+    AgentType.PROMPT_ASSESSOR: AgentSpec(
+        agent_type=AgentType.PROMPT_ASSESSOR,
+        name="Prompt Assessor",
+        description="Stage 0: intent classification, scope analysis, complexity estimation",
+        default_model="qwen2.5-7b",
+        thinking_variant="low"
+    ),
+    AgentType.PROMPT_REWRITER: AgentSpec(
+        agent_type=AgentType.PROMPT_REWRITER,
+        name="Prompt Rewriter",
+        description="Stage 0.5: translate natural language to structured AI-optimised prompts",
+        default_model="qwen2.5-7b",
+        thinking_variant="low"
+    ),
+    AgentType.REFLECTION: AgentSpec(
+        agent_type=AgentType.REFLECTION,
+        name="Reflection Agent",
+        description="Stage 6.5: 3-phase evaluation, loop detection, self-healing verdicts",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
     ),
 }
 

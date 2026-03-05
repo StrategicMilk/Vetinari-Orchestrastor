@@ -538,18 +538,24 @@ class PlanModeEngine:
         
         templates = self._domain_templates.get(domain, self._domain_templates[TaskDomain.GENERAL])
         
-        for i in range(min(max_candidates, 3)):
+        styles = [
+            ("Minimal", "Focused, fast delivery — core requirements only", 0.10, 0.6, 0.8),
+            ("Standard", "Balanced implementation with testing and documentation", 0.25, 1.0, 1.0),
+            ("Comprehensive", "Thorough implementation with full test coverage, docs, and edge cases", 0.40, 1.8, 1.4),
+        ]
+        for i in range(min(max_candidates, len(styles))):
+            style_name, style_desc, risk, dur_mul, cost_mul = styles[i]
             candidate = PlanCandidate(
                 plan_id=f"plan_{uuid.uuid4().hex[:8]}",
                 plan_version=1,
-                summary=f"Plan variant {i+1} for: {goal[:50]}...",
-                description=f"Implementation plan for: {goal}",
-                justification=f"Generated based on {domain.value} domain patterns",
-                risk_score=0.15 + (i * 0.1),
-                estimated_duration_seconds=3600.0 * (1 + i * 0.5),
-                estimated_cost=10.0 * (1 + i * 0.3),
-                subtask_count=len(templates) + i * 2,
-                max_depth=min(depth_cap, 3 + i),
+                summary=f"{style_name}: {goal[:60]}",
+                description=f"[{style_name}] {style_desc}\n\nGoal: {goal}",
+                justification=f"{style_name} approach using {domain.value} domain patterns",
+                risk_score=risk,
+                estimated_duration_seconds=3600.0 * dur_mul,
+                estimated_cost=10.0 * cost_mul,
+                subtask_count=max(len(templates), 3) + i * 2,
+                max_depth=min(depth_cap, 2 + i),
                 domains=[domain]
             )
             

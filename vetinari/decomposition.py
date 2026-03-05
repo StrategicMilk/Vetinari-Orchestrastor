@@ -14,9 +14,11 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Decomposition configuration knobs
-DEFAULT_MAX_DEPTH = 14
-MIN_MAX_DEPTH = 12
+DEFAULT_MAX_DEPTH = 8
+MIN_MAX_DEPTH = 2
 MAX_MAX_DEPTH = 16
+MAX_BREADTH_PER_LEVEL = 10   # No single task decomposes into more than 10 subtasks
+MAX_TOTAL_TASKS = 200        # Hard ceiling on total tasks in a plan
 SEED_RATE = 0.3   # 30% of tasks seeded with refined subtasks
 SEED_MIX = 0.5    # Balance between breadth and depth seeding
 
@@ -219,7 +221,7 @@ class DecompositionEngine:
             if result.success and isinstance(result.output, dict):
                 tasks = result.output.get("tasks", [])
                 subtasks = []
-                for t in tasks:
+                for t in tasks[:MAX_BREADTH_PER_LEVEL]:  # Enforce breadth limit
                     subtask = {
                         "subtask_id": t.get("id", str(uuid.uuid4())[:8]),
                         "parent_task_id": parent_task_id,
@@ -232,6 +234,8 @@ class DecompositionEngine:
                         "acceptance_criteria": t.get("acceptance_criteria", ""),
                     }
                     subtasks.append(subtask)
+                if len(tasks) > MAX_BREADTH_PER_LEVEL:
+                    logger.warning(f"Breadth limit: truncated {len(tasks)} → {MAX_BREADTH_PER_LEVEL} subtasks")
 
                 # Record history
                 self._history.append(DecompositionEvent(
@@ -245,6 +249,21 @@ class DecompositionEngine:
                 return subtasks
         except Exception as e:
             logger.warning(f"LLM decomposition failed, using keyword fallback: {e}")
+
+        # Template library fallback (before keyword heuristics)
+        try:
+            from vetinari.decomposition_templates import get_template_registry
+            reg = get_template_registry()
+            kws = task_prompt.lower().split()
+            tmpl = reg.find(keywords=kws[:20])
+            if tmpl:
+                logger.info(f"Using template '{tmpl.name}' for task: {task_prompt[:50]}")
+                subtasks = tmpl.to_subtask_list(parent_task_id, depth)
+                # Apply breadth limit to template too
+                subtasks = subtasks[:MAX_BREADTH_PER_LEVEL]
+                return subtasks
+        except Exception as _te:
+            logger.debug(f"Template fallback failed: {_te}")
 
         # Keyword fallback
         return self._keyword_decompose(task_prompt, parent_task_id, depth)
@@ -287,6 +306,83 @@ class DecompositionEngine:
         subtasks.append(make_subtask("Review and document", "EVALUATOR", [last]))
 
         return subtasks
+
+    # ------------------------------------------------------------------
+    # Quality Gates (WS5)
+    # ------------------------------------------------------------------
+
+    _VALID_AGENT_TYPES = {
+        "BUILDER", "EXPLORER", "RESEARCHER", "LIBRARIAN", "ORACLE",
+        "SYNTHESIZER", "EVALUATOR", "PLANNER", "DATA_ENGINEER",
+        "DOCUMENTATION_AGENT", "TEST_AUTOMATION", "SECURITY_AUDITOR",
+        "COST_PLANNER", "EXPERIMENTATION_MANAGER", "IMPROVEMENT",
+        "USER_INTERACTION", "DEVOPS", "VERSION_CONTROL",
+        "ERROR_RECOVERY", "CONTEXT_MANAGER", "IMAGE_GENERATOR",
+        "UI_PLANNER",
+    }
+
+    def validate_subtasks(
+        self,
+        subtasks: List[Dict[str, Any]],
+        original_prompt: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Run quality gates on a subtask list.
+
+        Checks:
+        1. No circular dependencies.
+        2. All referenced dependency IDs exist in the list.
+        3. All agent_type values are known.
+
+        Returns a dict with keys: ``passed`` (bool), ``issues`` (list[str]).
+        """
+        issues: List[str] = []
+
+        # Build ID set
+        id_set = {s["subtask_id"] for s in subtasks}
+
+        # Check unknown dependency refs
+        for st in subtasks:
+            for dep in st.get("dependencies", []):
+                if dep not in id_set:
+                    issues.append(
+                        f"Subtask '{st['subtask_id']}' references unknown dep '{dep}'"
+                    )
+
+        # Check circular dependencies (Kahn's algorithm)
+        in_degree: Dict[str, int] = {s["subtask_id"]: 0 for s in subtasks}
+        dependents: Dict[str, List[str]] = {s["subtask_id"]: [] for s in subtasks}
+        for st in subtasks:
+            sid = st["subtask_id"]
+            for dep in st.get("dependencies", []):
+                if dep in in_degree:
+                    in_degree[sid] += 1
+                    dependents[dep].append(sid)
+
+        queue = [sid for sid, deg in in_degree.items() if deg == 0]
+        processed = 0
+        while queue:
+            cur = queue.pop(0)
+            processed += 1
+            for dep in dependents[cur]:
+                in_degree[dep] -= 1
+                if in_degree[dep] == 0:
+                    queue.append(dep)
+        if processed < len(subtasks):
+            issues.append("Circular dependency detected in subtask graph")
+
+        # Check agent_type validity
+        for st in subtasks:
+            agent = st.get("agent_type", "").upper()
+            if agent and agent not in self._VALID_AGENT_TYPES:
+                issues.append(
+                    f"Subtask '{st['subtask_id']}' has unrecognised agent_type '{agent}'"
+                )
+
+        if issues:
+            logger.warning(f"Decomposition quality gate failed ({len(issues)} issue(s)): {issues[:3]}")
+
+        return {"passed": not issues, "issues": issues}
 
     def get_decomposition_history(
         self, plan_id: Optional[str] = None

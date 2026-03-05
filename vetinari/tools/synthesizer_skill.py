@@ -104,49 +104,50 @@ class SynthesizerSkillTool(Tool):
             logger.error(f"Synthesizer tool failed: {e}")
             return ToolResult(success=False, output=None, error=str(e))
 
+    _SYSTEM = (
+        "You are an expert synthesizer. Respond ONLY with valid JSON matching: "
+        '{"summary": "...", "insights": ["...", "..."], "report": "optional markdown report or null"}'
+    )
+
+    _CAP_PROMPTS = {
+        SynthesizerCapability.RESULT_COMBINATION: "Combine and reconcile these results into a coherent whole:\n{content}",
+        SynthesizerCapability.SUMMARIZATION: "Summarize the following concisely, keeping key points:\n{content}",
+        SynthesizerCapability.REPORT_GENERATION: "Generate a structured markdown report from this content:\n{content}",
+        SynthesizerCapability.INSIGHT_EXTRACTION: "Extract the most important actionable insights from:\n{content}",
+        SynthesizerCapability.CONSOLIDATION: "Consolidate duplicate and overlapping information from:\n{content}",
+        SynthesizerCapability.PRESENTATION: "Create a presentation outline (markdown) from:\n{content}",
+    }
+
     def _execute_capability(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        cap = req.capability
-        if cap == SynthesizerCapability.RESULT_COMBINATION:
-            return self._combine_results(req, exec_mode)
-        elif cap == SynthesizerCapability.SUMMARIZATION:
-            return self._summarize(req, exec_mode)
-        elif cap == SynthesizerCapability.REPORT_GENERATION:
-            return self._generate_report(req, exec_mode)
-        elif cap == SynthesizerCapability.INSIGHT_EXTRACTION:
-            return self._extract_insights(req, exec_mode)
-        elif cap == SynthesizerCapability.CONSOLIDATION:
-            return self._consolidate(req, exec_mode)
-        elif cap == SynthesizerCapability.PRESENTATION:
-            return self._present(req, exec_mode)
-        return SynthesisResult(success=False, summary="Unknown capability")
-
-    def _combine_results(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
+        import json, re
         if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would combine results")
-        return SynthesisResult(success=True, summary=f"Combined results from: {req.content[:50]}...", insights=["Insight 1 from combination", "Insight 2 from combination"])
-
-    def _summarize(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would summarize content")
-        return SynthesisResult(success=True, summary=f"Summary of: {req.content[:30]}...", insights=["Key point 1", "Key point 2"])
-
-    def _generate_report(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would generate report")
-        report = f"# Report\n\n## Summary\n{req.content[:50]}...\n\n## Details\nDetailed findings here."
-        return SynthesisResult(success=True, summary="Report generated", report=report)
-
-    def _extract_insights(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would extract insights")
-        return SynthesisResult(success=True, insights=["Critical insight 1", "Actionable insight 2", "Strategic insight 3"])
-
-    def _consolidate(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would consolidate information")
-        return SynthesisResult(success=True, summary="Information consolidated", insights=["Consolidated point 1", "Consolidated point 2"])
-
-    def _present(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
-        if exec_mode == ExecutionMode.PLANNING:
-            return SynthesisResult(success=True, summary="Planning: Would prepare presentation")
-        return SynthesisResult(success=True, summary="Presentation prepared", report="## Presentation\n- Slide 1\n- Slide 2\n- Slide 3")
+            return SynthesisResult(success=True, summary=f"Planning: Would apply {req.capability.value} to content")
+        template = self._CAP_PROMPTS.get(req.capability, "Process:\n{content}")
+        user_msg = template.format(content=req.content)
+        if req.context:
+            user_msg += f"\n\nAdditional context: {req.context}"
+        try:
+            raw = self._infer(self._SYSTEM, user_msg, max_tokens=1024)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if m:
+                data = json.loads(m.group())
+                return SynthesisResult(
+                    success=True,
+                    summary=data.get("summary", raw[:300]),
+                    insights=data.get("insights", []),
+                    report=data.get("report"),
+                )
+            if raw:
+                return SynthesisResult(success=True, summary=raw[:300], insights=[])
+        except Exception:
+            pass  # Fall through to graceful fallback
+        # Graceful fallback when LLM is unavailable
+        fallback_summary = f"{req.capability.value} synthesis (offline fallback — LLM unavailable)"
+        fallback_insights = [f"Insight from: {req.content[:100]}"] if req.content else ["(no content)"]
+        fallback_report = f"## Report\n{fallback_summary}\n\nContent: {req.content[:200]}"
+        return SynthesisResult(
+            success=True,
+            summary=fallback_summary,
+            insights=fallback_insights,
+            report=fallback_report,
+        )
