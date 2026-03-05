@@ -173,8 +173,20 @@ class ThompsonSamplingSelector:
     def _get_or_create_arm(self, model_id: str, task_type: str) -> BetaArm:
         key = f"{model_id}:{task_type}"
         if key not in self._arms:
-            self._arms[key] = BetaArm(model_id=model_id, task_type=task_type)
+            alpha, beta = self._get_informed_prior(model_id, task_type)
+            self._arms[key] = BetaArm(
+                model_id=model_id, task_type=task_type,
+                alpha=alpha, beta=beta,
+            )
         return self._arms[key]
+
+    def _get_informed_prior(self, model_id: str, task_type: str) -> tuple:
+        """Get informed prior from BenchmarkSeeder, fallback to Beta(1,1)."""
+        try:
+            from vetinari.learning.benchmark_seeder import get_benchmark_seeder
+            return get_benchmark_seeder().get_prior(model_id, task_type)
+        except Exception:
+            return (1.0, 1.0)
 
     def _get_state_dir(self) -> str:
         """Get the .vetinari state directory, using project root or env var."""

@@ -33,7 +33,8 @@ class PlannerAgent(BaseAgent):
         self._max_tasks = self._config.get("max_tasks", 15)
         
     def get_system_prompt(self) -> str:
-        return """You are Vetinari's Planning Master. You receive a user goal and a context.
+        agent_descriptions = self._get_dynamic_agent_list()
+        return f"""You are Vetinari's Planning Master. You receive a user goal and a context.
 Your job is to produce a complete, versioned Plan (DAG) that assigns tasks to the
 appropriate agents, defines dependencies, estimates effort, and flags any context
 needs or follow-up questions.
@@ -48,30 +49,31 @@ Rules:
 7. Prefer parallelism: tasks that don't depend on each other should run in parallel
 8. Minimum viable plan: 3 tasks. Maximum: 20 tasks per top-level goal.
 
-Available agents and their roles:
-- EXPLORER: Code/doc discovery, codebase analysis, web research for patterns
-- ORACLE: Architecture guidance, risk assessment, design decisions
-- LIBRARIAN: API/library research, documentation lookup, license review
-- RESEARCHER: Multi-source web research, feasibility analysis, competitor analysis
-- EVALUATOR: Quality review, output verification, standards enforcement
-- SYNTHESIZER: Merges multi-agent outputs into coherent final artifact
-- BUILDER: Code scaffolding, implementation, boilerplate, feature coding
-- UI_PLANNER: UI/UX design, frontend specifications, accessibility
-- SECURITY_AUDITOR: Vulnerability scanning, compliance, secret detection
-- DATA_ENGINEER: Database schemas, data pipelines, migrations, ETL
-- DOCUMENTATION_AGENT: README, API docs, user guides, changelogs
-- COST_PLANNER: Budget optimization, model selection, token efficiency
-- TEST_AUTOMATION: Test generation, coverage analysis, test execution
-- EXPERIMENTATION_MANAGER: A/B test design, metrics tracking, versioning
-- IMPROVEMENT: Meta-analysis of system performance, recommendations
-- USER_INTERACTION: Gather clarification, handle ambiguous requirements
-- DEVOPS: CI/CD pipelines, Docker, IaC, deployment strategies
-- VERSION_CONTROL: Git strategy, branching, commit messages, PR templates
-- ERROR_RECOVERY: Root cause analysis, retry strategies, circuit breaking
-- CONTEXT_MANAGER: Long-term context management, session summarization
-- IMAGE_GENERATOR: Logo/icon/asset creation via Stable Diffusion
+{agent_descriptions}
 
 Output format: valid JSON array of task objects."""
+
+    def _get_dynamic_agent_list(self) -> str:
+        """Build agent list dynamically from the registry."""
+        try:
+            specs = get_enabled_agents()
+            lines = ["Available agents and their roles:"]
+            for spec in specs:
+                if spec.agent_type == AgentType.PLANNER:
+                    continue  # Don't list self
+                lines.append(f"- {spec.agent_type.value}: {spec.description}")
+            return "\n".join(lines)
+        except Exception:
+            # Fallback to hardcoded list if registry unavailable
+            return """Available agents and their roles:
+- EXPLORER: Code/doc discovery, codebase analysis
+- RESEARCHER: Multi-source research, feasibility analysis
+- BUILDER: Code scaffolding, implementation, feature coding
+- TESTER: Test generation, security auditing, quality evaluation
+- ARCHITECT: Architecture guidance, risk assessment, cost planning
+- DOCUMENTER: Documentation, version control, changelogs
+- RESILIENCE: Error recovery, retry strategies, image generation
+- META: Meta-analysis, experimentation management, improvement suggestions"""
     
     def get_capabilities(self) -> List[str]:
         return [
@@ -194,41 +196,112 @@ Output format: valid JSON array of task objects."""
             )
             return plan
 
-        # Simple heuristic fallback for vagueness check
-        vague_indicators = ["something", "stuff", "things", "create something"]
-        goal_words = goal.lower().split()
-        if len(goal_words) < 4 and any(vague in goal.lower() for vague in vague_indicators):
+        # Heuristic clarity assessment as fallback
+        clarity = self._assess_goal_clarity(goal)
+        if clarity < 0.4:
             plan.needs_context = True
             plan.follow_up_question = "Could you provide more details about what you want to build?"
             return plan
 
+        # Step 1.5: Inject similar past plans for better decomposition
+        past_plans_context = ""
+        try:
+            from vetinari.learning.episode_memory import get_episode_memory
+            episodes = get_episode_memory().recall(goal, k=3, min_score=0.6)
+            if episodes:
+                past_plans_context = "\n\nSimilar past tasks that worked well:\n"
+                for ep in episodes[:3]:
+                    past_plans_context += (
+                        f"- Task: {ep.get('task_description', '')[:100]} "
+                        f"(agent={ep.get('agent_type', '?')}, "
+                        f"quality={ep.get('quality_score', 0):.1f})\n"
+                    )
+        except Exception:
+            pass
+
         # Step 2: Use LLM to decompose the goal into tasks
-        tasks = self._decompose_goal_llm(goal, context)
+        tasks = self._decompose_goal_llm(goal, context, past_plans_context)
         if not tasks:
             # Fallback to keyword-based decomposition
             tasks = self._decompose_goal_keyword(goal, context)
 
         plan.tasks = tasks
 
+        # Validate the DAG
+        dag_issues = self.validate_dag(tasks)
+        if dag_issues:
+            plan.warnings.extend(dag_issues)
+            self._log("warning", f"[Planner] DAG validation issues: {dag_issues}")
+
         if len(tasks) > self._max_tasks:
             plan.warnings.append(f"Generated {len(tasks)} tasks - consider breaking into smaller goals")
 
         return plan
 
-    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any]) -> List[Task]:
+    def _assess_goal_clarity(self, goal: str) -> float:
+        """Assess how clear and actionable a goal is.
+
+        Returns:
+            Clarity score 0.0-1.0 (below 0.4 triggers clarification request).
+        """
+        score = 0.5  # Baseline
+        words = goal.split()
+
+        # Reward: longer, more specific goals
+        if len(words) >= 8:
+            score += 0.15
+        elif len(words) >= 5:
+            score += 0.1
+        elif len(words) < 3:
+            score -= 0.2
+
+        # Reward: contains technical/action terms
+        action_terms = {
+            "create", "build", "implement", "add", "fix", "remove", "update",
+            "refactor", "test", "deploy", "configure", "integrate", "migrate",
+            "design", "optimize", "analyze", "generate", "convert", "extract",
+        }
+        if any(w.lower() in action_terms for w in words):
+            score += 0.15
+
+        # Penalty: vague terms
+        vague_terms = {"something", "stuff", "things", "maybe", "possibly", "whatever", "idk"}
+        vague_count = sum(1 for w in words if w.lower() in vague_terms)
+        score -= vague_count * 0.15
+
+        # Reward: mentions specific technologies
+        tech_terms = {
+            "python", "javascript", "react", "flask", "django", "api", "rest",
+            "graphql", "database", "sql", "docker", "kubernetes", "aws", "gcp",
+            "css", "html", "typescript", "rust", "go", "java",
+        }
+        if any(w.lower() in tech_terms for w in words):
+            score += 0.1
+
+        # Reward: contains numbers (specific requirements)
+        if any(c.isdigit() for c in goal):
+            score += 0.05
+
+        return max(0.0, min(1.0, score))
+
+    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any], past_plans: str = "") -> List[Task]:
         """Use LLM to intelligently decompose a goal into ordered tasks."""
-        available_agents = [
-            "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER", "EVALUATOR",
-            "SYNTHESIZER", "BUILDER", "UI_PLANNER", "SECURITY_AUDITOR",
-            "DATA_ENGINEER", "DOCUMENTATION_AGENT", "COST_PLANNER",
-            "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER", "DEVOPS",
-            "VERSION_CONTROL", "ERROR_RECOVERY", "IMAGE_GENERATOR",
-        ]
+        try:
+            available_agents = [
+                spec.agent_type.value for spec in get_enabled_agents()
+                if spec.agent_type != AgentType.PLANNER
+            ]
+        except Exception:
+            available_agents = [
+                "EXPLORER", "RESEARCHER", "BUILDER", "TESTER",
+                "ARCHITECT", "DOCUMENTER", "RESILIENCE", "META",
+            ]
         context_str = ""
         if context:
             context_str = f"\nContext: {json.dumps(context, default=str)[:500]}"
+        past_str = past_plans if past_plans else ""
 
-        decomp_prompt = f"""Goal: {goal}{context_str}
+        decomp_prompt = f"""Goal: {goal}{context_str}{past_str}
 
 Available agents: {', '.join(available_agents)}
 
@@ -288,6 +361,59 @@ Output valid JSON array of task objects only — no prose, no markdown:
         # Return whatever the LLM generated — don't discard valid small plans
         # If truly empty, caller falls back to keyword decomposition
         return tasks
+
+    @staticmethod
+    def validate_dag(tasks: List[Task]) -> List[str]:
+        """Validate the task DAG for common issues.
+
+        Returns:
+            List of issue descriptions (empty if valid).
+        """
+        issues = []
+        task_ids = {t.id for t in tasks}
+
+        # Check for missing dependencies
+        for t in tasks:
+            for dep in t.dependencies:
+                if dep not in task_ids:
+                    issues.append(f"Task {t.id} depends on non-existent task {dep}")
+
+        # Check for circular dependencies via DFS
+        adj = {t.id: list(t.dependencies) for t in tasks}
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color = {tid: WHITE for tid in task_ids}
+
+        def dfs(node):
+            color[node] = GRAY
+            for dep in adj.get(node, []):
+                if dep not in color:
+                    continue
+                if color[dep] == GRAY:
+                    issues.append(f"Circular dependency detected involving task {node} and {dep}")
+                    return
+                if color[dep] == WHITE:
+                    dfs(dep)
+            color[node] = BLACK
+
+        for tid in task_ids:
+            if color[tid] == WHITE:
+                dfs(tid)
+
+        # Check for orphan tasks (no outputs consumed by anyone)
+        all_deps = set()
+        for t in tasks:
+            all_deps.update(t.dependencies)
+        leaf_tasks = task_ids - all_deps
+        # Having leaf tasks is normal (they're the final outputs), but ALL tasks being leaves is suspicious
+        if len(leaf_tasks) == len(tasks) and len(tasks) > 2:
+            issues.append("No task dependencies defined — all tasks are independent (may indicate poor decomposition)")
+
+        # Check for empty descriptions
+        for t in tasks:
+            if not t.description or len(t.description.strip()) < 5:
+                issues.append(f"Task {t.id} has empty or too-short description")
+
+        return issues
 
     def _decompose_goal_keyword(self, goal: str, context: Dict[str, Any]) -> List[Task]:
         """Keyword-based fallback decomposition when LLM is unavailable."""

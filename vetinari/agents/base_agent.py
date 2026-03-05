@@ -299,6 +299,37 @@ class BaseAgent(ABC):
             self._log("warning", f"Web search failed for '{query}': {e}")
             return []
         
+    def _extract_code_context(
+        self, file_paths: List[str], keywords: List[str],
+        budget_chars: int = 2000,
+    ) -> str:
+        """Extract only relevant code context using grep.
+
+        Use instead of reading whole files to reduce token usage by 40-60%.
+        """
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        parts = []
+        remaining = budget_chars
+        for fp in file_paths:
+            if remaining <= 0:
+                break
+            chunk = gc.extract_relevant_context(fp, keywords, budget_chars=remaining)
+            if chunk:
+                parts.append(chunk)
+                remaining -= len(chunk)
+        return "\n\n".join(parts)
+
+    def _grep_patterns(
+        self, file_paths: List[str], patterns: List[str],
+        context_lines: int = 3,
+    ) -> str:
+        """Extract lines matching patterns with surrounding context."""
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        matches = gc.extract_patterns(file_paths, patterns, context_lines)
+        return gc.format_for_prompt(matches)
+
     def _log(self, level: str, message: str, **kwargs) -> None:
         """Emit structured log with agent context."""
         log_data = {

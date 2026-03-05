@@ -83,6 +83,9 @@ class FeedbackLoop:
         # 3. Update SubtaskMemory outcome with quality score
         self._update_subtask_quality(task_id, quality_score, success)
 
+        # 4. Update Thompson Sampling arms
+        self._update_thompson_arms(model_id, task_type, quality_score, success)
+
     def _update_memory_performance(
         self, model_id: str, task_type: str, quality: float,
         latency_ms: int, success: bool
@@ -148,6 +151,16 @@ class FeedbackLoop:
             mem.update_subtask_quality(task_id, quality_score=quality, succeeded=success)
         except Exception as e:
             logger.debug(f"Subtask quality update failed: {e}")
+
+    def _update_thompson_arms(
+        self, model_id: str, task_type: str, quality: float, success: bool
+    ) -> None:
+        """Update Thompson Sampling arm for this model+task_type pair."""
+        try:
+            from vetinari.learning.model_selector import get_thompson_selector
+            get_thompson_selector().update(model_id, task_type, quality, success)
+        except Exception as e:
+            logger.debug(f"Thompson arm update failed: {e}")
 
 
 # Singleton

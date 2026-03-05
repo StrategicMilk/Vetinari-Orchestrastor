@@ -91,6 +91,7 @@ class AgentGraph:
         self._agents: Dict[AgentType, Any] = {}
         self._execution_plans: Dict[str, ExecutionPlan] = {}
         self._initialized = False
+        self._goal_tracker: Optional[Any] = None
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -226,6 +227,15 @@ class AgentGraph:
         exec_plan = self.create_execution_plan(plan)
         exec_plan.status = TaskStatus.RUNNING
         exec_plan.started_at = datetime.now().isoformat()
+
+        # Initialize goal tracker for drift detection
+        goal_text = getattr(plan, "goal", "") or ""
+        if goal_text:
+            try:
+                from vetinari.drift.goal_tracker import GoalTracker
+                self._goal_tracker = GoalTracker(goal_text)
+            except Exception:
+                self._goal_tracker = None
 
         results: Dict[str, AgentResult] = {}
 
@@ -417,6 +427,22 @@ class AgentGraph:
                     f"(attempt {attempt + 1}/{node.max_retries + 1})"
                 )
                 result = agent.execute(agent_task)
+
+                # Check goal adherence
+                if self._goal_tracker and result.success:
+                    try:
+                        output_str = str(result.output)[:500] if result.output else ""
+                        adherence = self._goal_tracker.check_adherence(
+                            output_str, task.description or ""
+                        )
+                        if adherence.score < 0.4:
+                            logger.warning(
+                                f"[AgentGraph] Goal drift in {task.id}: "
+                                f"score={adherence.score:.2f} — {adherence.deviation_description}"
+                            )
+                            result.metadata["drift_warning"] = adherence.to_dict()
+                    except Exception:
+                        pass
 
                 # Handle explicit delegation: agent says "not my domain"
                 if result.metadata.get("delegation_requested"):

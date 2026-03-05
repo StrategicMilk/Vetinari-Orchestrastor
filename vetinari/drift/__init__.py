@@ -41,6 +41,11 @@ from .monitor import (
     get_drift_monitor, reset_drift_monitor,
 )
 
+from .goal_tracker import (
+    GoalTracker, AdherenceResult, ScopeCreepItem,
+    create_goal_tracker,
+)
+
 __all__ = [
     # contract registry
     "ContractRegistry", "ContractDriftError",
@@ -54,4 +59,7 @@ __all__ = [
     # monitor
     "DriftMonitor", "DriftReport",
     "get_drift_monitor", "reset_drift_monitor",
+    # goal tracker
+    "GoalTracker", "AdherenceResult", "ScopeCreepItem",
+    "create_goal_tracker",
 ]
