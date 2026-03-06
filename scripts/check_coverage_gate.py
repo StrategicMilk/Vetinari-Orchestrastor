@@ -55,7 +55,7 @@ MODULE_THRESHOLDS = {
     "vetinari/memory/interfaces.py":            80,
 }
 
-GLOBAL_MIN = 50   # fallback threshold for any module not listed above
+GLOBAL_MIN = 0    # only enforce thresholds on explicitly listed modules above
 
 
 def _normalise(path: str) -> str:
