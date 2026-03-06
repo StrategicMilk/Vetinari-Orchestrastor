@@ -405,6 +405,118 @@ class VerificationPipeline:
         }
 
 
+class QualityGateVerifier(Verifier):
+    """Verifier that wraps QualityGateRunner for integration with VerificationPipeline.
+
+    This bridges the quality gate system (Task 26) with the existing
+    VerificationPipeline infrastructure. It runs all configured gates for a
+    given pipeline stage and converts GateCheckResults into VerificationResults.
+
+    Usage::
+
+        pipeline = VerificationPipeline(VerificationLevel.STANDARD)
+        pipeline.add_verifier(QualityGateVerifier(stage="post_execution"))
+        results = pipeline.verify(code_string)
+    """
+
+    def __init__(self, stage: str = "post_execution", custom_gates: Optional[Dict] = None):
+        """Initialize the QualityGateVerifier.
+
+        Args:
+            stage: Pipeline stage to run gates for (e.g. "post_execution").
+            custom_gates: Optional custom gate configuration dict.
+        """
+        super().__init__(f"quality_gate_{stage}")
+        self._stage = stage
+        from vetinari.validation.quality_gates import QualityGateRunner, GateResult
+        self._runner = QualityGateRunner(custom_gates=custom_gates)
+
+    def verify(self, content: Any) -> VerificationResult:
+        """Run quality gate checks on the provided content.
+
+        Args:
+            content: Code string or dict of artifacts to verify.
+                     If a string is provided, it is treated as code.
+                     If a dict is provided, it is passed directly as artifacts.
+
+        Returns:
+            VerificationResult aggregating all gate check outcomes.
+        """
+        import time
+        from vetinari.validation.quality_gates import GateResult
+
+        start = time.time()
+
+        # Build artifacts dict
+        if isinstance(content, dict):
+            artifacts = content
+        elif isinstance(content, str):
+            artifacts = {"code": content}
+        else:
+            return VerificationResult(
+                status=VerificationStatus.SKIPPED,
+                check_name=self.name,
+            )
+
+        gate_results = self._runner.run_gate(self._stage, artifacts)
+
+        if not gate_results:
+            result = VerificationResult(
+                status=VerificationStatus.SKIPPED,
+                check_name=self.name,
+            )
+            result.execution_time_ms = int((time.time() - start) * 1000)
+            return result
+
+        # Aggregate gate results into a single VerificationResult
+        issues: List[VerificationIssue] = []
+        has_failure = False
+        has_warning = False
+
+        for gr in gate_results:
+            if gr.result == GateResult.FAILED:
+                has_failure = True
+            elif gr.result == GateResult.WARNING:
+                has_warning = True
+
+            for issue in gr.issues:
+                severity = issue.get("severity", "info")
+                # Normalise severity to the VerificationIssue vocabulary
+                if severity in ("critical", "high"):
+                    severity = "error"
+                elif severity in ("medium", "low"):
+                    severity = "warning"
+                issues.append(VerificationIssue(
+                    severity=severity,
+                    category=issue.get("category", gr.mode.value),
+                    message=issue.get("message", ""),
+                    location=issue.get("location"),
+                    suggestion=None,
+                ))
+
+            for suggestion in gr.suggestions:
+                issues.append(VerificationIssue(
+                    severity="info",
+                    category="suggestion",
+                    message=suggestion,
+                ))
+
+        if has_failure:
+            status = VerificationStatus.FAILED
+        elif has_warning:
+            status = VerificationStatus.WARNING
+        else:
+            status = VerificationStatus.PASSED
+
+        result = VerificationResult(
+            status=status,
+            check_name=self.name,
+            issues=issues,
+        )
+        result.execution_time_ms = int((time.time() - start) * 1000)
+        return result
+
+
 # Global verifier instance
 _verifier_pipeline: Optional[VerificationPipeline] = None
 

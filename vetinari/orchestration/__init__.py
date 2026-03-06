@@ -20,6 +20,9 @@ from .milestones import (
     MilestoneGranularity, MilestoneAction, MilestoneReached,
     MilestoneApproval, MilestonePolicy, MilestoneManager,
 )
+from .architect_executor import (
+    ArchitectExecutorPipeline, ArchitectPlan, PipelineConfig,
+)
 
 __all__ = [
     "AgentGraph", "ExecutionPlan", "ExecutionStrategy", "TaskNode", "get_agent_graph",
@@ -28,4 +31,5 @@ __all__ = [
     "ExecutionGraph", "PlanGenerator", "DurableExecutionEngine",
     "MilestoneGranularity", "MilestoneAction", "MilestoneReached",
     "MilestoneApproval", "MilestonePolicy", "MilestoneManager",
+    "ArchitectExecutorPipeline", "ArchitectPlan", "PipelineConfig",
 ]

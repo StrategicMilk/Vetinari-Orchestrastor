@@ -488,6 +488,82 @@ def cmd_interactive(args) -> int:
             logger.debug("Interactive execution error", exc_info=True)
 
 
+def cmd_benchmark(args) -> int:
+    """Run benchmark suites."""
+    from vetinari.benchmarks.runner import get_default_runner
+    import tempfile, os
+
+    db_path = os.path.join(tempfile.gettempdir(), "vetinari_benchmarks.db")
+    runner = get_default_runner(db_path=db_path)
+
+    action = getattr(args, "action", "list")
+
+    if action == "list":
+        suites = runner.list_suites()
+        if not suites:
+            print("No benchmark suites registered.")
+            return 0
+        print(f"{'Name':<20} {'Layer':<15} {'Tier':<10} {'Description'}")
+        print("-" * 70)
+        for s in suites:
+            print(f"{s['name']:<20} {s['layer']:<15} {s['tier']:<10} {s['description']}")
+        return 0
+
+    elif action == "run":
+        suite_name = getattr(args, "suite", None)
+        if not suite_name:
+            print("Usage: vetinari benchmark run <suite> [--limit N] [--trials K]")
+            return 1
+        limit = getattr(args, "limit", None)
+        trials = getattr(args, "trials", 1)
+        print(f"Running benchmark: {suite_name} (limit={limit}, trials={trials})")
+        try:
+            report = runner.run_suite(suite_name, limit=limit, trials=trials)
+            summary = report.summary_dict()
+            print(f"\nResults for {suite_name}:")
+            print(f"  Run ID:     {summary['run_id']}")
+            print(f"  Total:      {summary['total']}")
+            print(f"  Passed:     {summary['passed']}")
+            print(f"  pass@1:     {summary['pass@1']:.2%}")
+            print(f"  pass^k:     {summary['pass^k']:.2%}")
+            print(f"  Avg score:  {summary['avg_score']:.4f}")
+            print(f"  Avg latency: {summary['avg_latency_ms']:.1f}ms")
+            print(f"  Tokens:     {summary['total_tokens']}")
+            return 0
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    elif action == "report":
+        compare = getattr(args, "compare", None)
+        suite_name = getattr(args, "suite", None)
+        if compare == "last-2" and suite_name:
+            comp = runner.get_last_comparison(suite_name)
+            if comp is None:
+                print(f"Need at least 2 runs of '{suite_name}' to compare.")
+                return 1
+            print(f"Comparison: {comp.run_a} vs {comp.run_b}")
+            print(f"  Delta pass@1:   {comp.delta_pass_at_1:+.4f}")
+            print(f"  Delta score:    {comp.delta_avg_score:+.4f}")
+            print(f"  Delta latency:  {comp.delta_avg_latency_ms:+.1f}ms")
+            if comp.regressions:
+                print(f"  Regressions:    {', '.join(comp.regressions)}")
+            if comp.improvements:
+                print(f"  Improvements:   {', '.join(comp.improvements)}")
+        else:
+            runs = runner.list_runs(suite_name=suite_name, limit=10)
+            if not runs:
+                print("No benchmark runs found.")
+                return 0
+            print(f"{'Run ID':<30} {'Suite':<20} {'Pass@1':<10} {'Score':<10}")
+            print("-" * 70)
+            for r in runs:
+                print(f"{r['run_id']:<30} {r['suite_name']:<20} {r.get('pass_at_1', 0):<10.4f} {r.get('avg_score', 0):<10.4f}")
+        return 0
+
+    return 0
+
+
 # ============================================================
 # Main entry point
 # ============================================================
@@ -567,6 +643,20 @@ Examples:
                          help="Export dataset in the given format")
     p_train.add_argument("--stats", action="store_true", help="Show training data statistics")
 
+    # benchmark
+    p_bench = subparsers.add_parser("benchmark", help="Run benchmark suites")
+    p_bench.add_argument("action", nargs="?", default="list",
+                         choices=["run", "list", "report"],
+                         help="Benchmark action (default: list)")
+    p_bench.add_argument("suite", nargs="?", default=None,
+                         help="Benchmark suite name (for run/report)")
+    p_bench.add_argument("--limit", type=int, default=None,
+                         help="Max cases to run")
+    p_bench.add_argument("--trials", type=int, default=1,
+                         help="Trials per case for pass^k (default: 1)")
+    p_bench.add_argument("--compare", default=None,
+                         help="Compare mode: 'last-2' or 'RUN_A:RUN_B'")
+
     args = parser.parse_args()
 
     # Default command: start (interactive)
@@ -592,6 +682,7 @@ Examples:
         "review": cmd_review,
         "interactive": cmd_interactive,
         "train": cmd_train,
+        "benchmark": cmd_benchmark,
     }
 
     handler = dispatch.get(args.command)

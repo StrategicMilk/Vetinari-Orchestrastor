@@ -15,6 +15,9 @@ from vetinari.orchestration.types import TaskStatus, PlanStatus, TaskNode
 from vetinari.orchestration.execution_graph import ExecutionGraph
 from vetinari.orchestration.plan_generator import PlanGenerator
 from vetinari.orchestration.durable_engine import DurableExecutionEngine
+from vetinari.orchestration.architect_executor import (
+    ArchitectExecutorPipeline, ArchitectPlan, PipelineConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,62 @@ class TwoLayerOrchestrator:
         self.agent_context = context
         # Re-initialize any cached agents
         self._agents.clear()
+
+    # ------------------------------------------------------------------
+    # Architect-Executor 2-stage pipeline support
+    # ------------------------------------------------------------------
+
+    def _get_architect_pipeline(self) -> Optional[ArchitectExecutorPipeline]:
+        """Get the architect-executor pipeline if configured and enabled."""
+        ae_config = self.agent_context.get("architect_executor", {})
+        if not ae_config.get("enabled", False):
+            return None
+        return ArchitectExecutorPipeline(
+            architect_model=ae_config.get("architect_model"),
+            executor_model=ae_config.get("executor_model"),
+            config=ae_config,
+        )
+
+    def generate_and_execute_architect(
+        self,
+        goal: str,
+        context: Dict[str, Any] = None,
+        executor_fn: Callable = None,
+    ) -> Dict[str, Any]:
+        """
+        Run the 2-stage architect-executor pipeline.
+
+        Falls back to the standard generate_and_execute if the architect
+        pipeline is not enabled or fails (when fallback_to_single is True).
+
+        Args:
+            goal: The goal to achieve.
+            context: Additional context (files, tech_stack, etc.).
+            executor_fn: Optional custom executor function.
+
+        Returns:
+            Dict with plan, results, and success flag.
+        """
+        context = context or {}
+        pipeline = self._get_architect_pipeline()
+
+        if pipeline is None:
+            logger.info("[Architect] Pipeline not enabled, using standard pipeline")
+            return self.generate_and_execute(goal=goal, context=context, task_handler=executor_fn)
+
+        try:
+            result = pipeline.run(goal=goal, context=context, executor_fn=executor_fn)
+            if result.get("skipped"):
+                logger.info("[Architect] Pipeline disabled at runtime, falling back")
+                return self.generate_and_execute(goal=goal, context=context, task_handler=executor_fn)
+            return result
+        except Exception as e:
+            logger.warning(f"[Architect] Pipeline failed: {e}")
+            ae_config = self.agent_context.get("architect_executor", {})
+            if ae_config.get("fallback_to_single", True):
+                logger.info("[Architect] Falling back to standard pipeline")
+                return self.generate_and_execute(goal=goal, context=context, task_handler=executor_fn)
+            raise
 
     # Complete mapping from agent type string to (module, getter_function)
     _AGENT_MODULE_MAP = {
