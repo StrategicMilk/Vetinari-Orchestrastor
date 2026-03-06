@@ -14,7 +14,7 @@ class CostPlannerSkill(Tool):
         metadata = ToolMetadata(
             name="cost_planner",
             description="Analyze and optimize model selection costs, generate cost forecasts, and track budget",
-            category=ToolCategory.ANALYSIS,
+            category=ToolCategory.SEARCH_ANALYSIS,
             parameters=[
                 ToolParameter("task_description", "str", "Task or project to cost-plan", required=True),
                 ToolParameter("budget_usd", "float", "Budget limit in USD", required=False),

@@ -45,9 +45,9 @@ vetinari = "vetinari.cli:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "unit: fast unit tests",
-    "integration: tests requiring external services",
-    "slow: long-running tests",
+    "unit: fast unit tests (no external services)",
+    "integration: tests requiring external services (LM Studio, web)",
+    "slow: long-running tests (benchmarks, full pipeline)",
 ]
 
 [tool.setuptools.packages.find]

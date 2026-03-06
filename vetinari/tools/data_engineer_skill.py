@@ -16,7 +16,7 @@ class DataEngineerSkill(Tool):
         metadata = ToolMetadata(
             name="data_engineer",
             description="Design and implement data pipelines, schemas, ETL workflows, and database migrations",
-            category=ToolCategory.IMPLEMENTATION,
+            category=ToolCategory.CODE_EXECUTION,
             parameters=[
                 ToolParameter("task", "str", "Data engineering task description", required=True),
                 ToolParameter("data_source", "str", "Source data system or format", required=False),

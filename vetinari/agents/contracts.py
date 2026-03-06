@@ -31,6 +31,9 @@ __all__ = [
     "get_agent_spec",
     "get_all_agent_specs",
     "get_enabled_agents",
+    "AGENT_CAPABILITIES",
+    "get_agents_for_expertise",
+    "get_agents_for_phase",
 ]
 
 
@@ -143,6 +146,9 @@ class AgentSpec:
     enabled: bool = True
     system_prompt: str = ""
     version: str = "1.0.0"
+    expertise_areas: List[str] = field(default_factory=list)  # e.g., ["code", "testing", "security"]
+    can_delegate_to: List[str] = field(default_factory=list)  # agent type names this agent can delegate to
+    phase_affinity: str = ""  # "analysis", "implementation", "quality", "devops", "documentation"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -453,6 +459,28 @@ class VerificationResult:
             "suggestions": self.suggestions,
             "score": self.score
         }
+
+
+AGENT_CAPABILITIES: Dict[str, Dict[str, Any]] = {
+    "PLANNER": {"expertise": ["planning", "decomposition", "user_interaction", "context_management"], "phase": "analysis"},
+    "RESEARCHER": {"expertise": ["search", "exploration", "synthesis", "library_lookup"], "phase": "analysis"},
+    "ARCHITECT": {"expertise": ["architecture", "risk_assessment", "cost_analysis", "tradeoff"], "phase": "analysis"},
+    "BUILDER": {"expertise": ["code", "ui", "data", "devops", "implementation"], "phase": "implementation"},
+    "TESTER": {"expertise": ["testing", "security", "evaluation", "quality"], "phase": "quality"},
+    "DOCUMENTER": {"expertise": ["documentation", "git", "technical_writing"], "phase": "documentation"},
+    "RESILIENCE": {"expertise": ["error_recovery", "image_generation", "resilience"], "phase": "implementation"},
+    "META": {"expertise": ["improvement", "experimentation", "metrics"], "phase": "analysis"},
+}
+
+
+def get_agents_for_expertise(expertise: str) -> List[str]:
+    """Return agent types that have the given expertise area."""
+    return [agent for agent, caps in AGENT_CAPABILITIES.items() if expertise in caps["expertise"]]
+
+
+def get_agents_for_phase(phase: str) -> List[str]:
+    """Return agent types with affinity for the given phase."""
+    return [agent for agent, caps in AGENT_CAPABILITIES.items() if caps["phase"] == phase]
 
 
 # Registry of all available agents
