@@ -23,6 +23,26 @@ logger = logging.getLogger(__name__)
 _resolved_model_cache: Dict[str, str] = {}
 
 
+def get_lmstudio_headers(host: Optional[str] = None) -> Dict[str, str]:
+    """Return HTTP headers (including auth) for LM Studio requests.
+
+    Reads ``LM_STUDIO_API_TOKEN`` from the environment (loaded from ``.env``
+    at package import time via ``vetinari.__init__._load_env_file``).
+
+    Usage::
+
+        from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers
+        headers = get_lmstudio_headers()
+        requests.post(url, json=payload, headers=headers)
+    """
+    import os as _os
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    token = _os.environ.get("LM_STUDIO_API_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
     """Resolve 'default' or empty model_id to an actual loaded LM Studio model.
 
@@ -89,7 +109,7 @@ def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
 def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
     """Try to discover a loaded model from an LM Studio endpoint."""
     try:
-        resp = requests.get(f"{host}{endpoint}", timeout=5)
+        resp = requests.get(f"{host}{endpoint}", timeout=5, headers=get_lmstudio_headers())
         if resp.status_code != 200:
             return None
         data = resp.json()
@@ -137,6 +157,7 @@ def _probe_model_via_chat(host: str) -> Optional[str]:
                 "max_tokens": 1,
                 "temperature": 0,
             },
+            headers=get_lmstudio_headers(),
             timeout=10,
         )
         if resp.status_code == 200:

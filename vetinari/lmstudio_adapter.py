@@ -19,6 +19,9 @@ class LMStudioAdapter:
             stacklevel=2,
         )
         host = host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        # Auto-read API token from environment when not explicitly provided
+        if api_token is None:
+            api_token = os.environ.get("LM_STUDIO_API_TOKEN", "")
         config = ProviderConfig(
             name="lmstudio",
             provider_type=ProviderType.LM_STUDIO,

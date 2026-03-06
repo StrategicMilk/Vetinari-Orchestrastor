@@ -39,6 +39,9 @@ class Orchestrator:
         # Resolve host from env if not provided
         if host is None:
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        # Auto-read API token from environment when not explicitly provided
+        if api_token is None:
+            api_token = os.environ.get("LM_STUDIO_API_TOKEN", "")
 
         # Make manifest_path absolute if it's relative
         manifest_path_obj = Path(manifest_path)

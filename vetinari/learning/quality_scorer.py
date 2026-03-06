@@ -236,7 +236,7 @@ class QualityScorer:
             judge_model = self._pick_judge_model(model_id)
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
-            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model
+            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
             judge_model = resolve_lmstudio_model(judge_model, host)
             import requests as _req
             resp = _req.post(
@@ -250,6 +250,7 @@ class QualityScorer:
                     "max_tokens": 600,
                     "temperature": 0.1,
                 },
+                headers=get_lmstudio_headers(),
                 timeout=60,
             )
             if resp.status_code != 200:
