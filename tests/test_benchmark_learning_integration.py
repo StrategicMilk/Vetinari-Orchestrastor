@@ -774,10 +774,16 @@ class TestPromptEvolverBenchmarkValidation:
         mock_result.cases_run = 0  # No cases for this agent
         mock_suite.return_value.run_agent.return_value = mock_result
 
+        import vetinari.benchmarks as _bm
         with patch.dict("sys.modules", {"vetinari.benchmarks.suite": mock_suite}):
-            with patch("vetinari.benchmarks.suite.BenchmarkSuite", mock_suite, create=True):
-                result = evolver._validate_variant_with_benchmark(variant)
-                assert result is True
+            _bm.suite = mock_suite  # Python 3.9/3.10 need attribute on parent
+            try:
+                with patch("vetinari.benchmarks.suite.BenchmarkSuite", mock_suite, create=True):
+                    result = evolver._validate_variant_with_benchmark(variant)
+                    assert result is True
+            finally:
+                if hasattr(_bm, "suite"):
+                    del _bm.suite
 
     def test_validate_variant_fails_below_threshold(self):
         """Validation should fail when benchmark pass rate < threshold."""
