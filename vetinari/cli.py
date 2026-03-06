@@ -10,6 +10,7 @@ Single entry point for all Vetinari operations:
   vetinari health    -- Health check all providers
   vetinari upgrade   -- Check for model upgrades
   vetinari review    -- Run the self-improvement agent
+  vetinari watch     -- Watch files for changes and @vetinari directives
   vetinari interactive -- Enter REPL mode
 
 Global flags:
@@ -488,6 +489,57 @@ def cmd_interactive(args) -> int:
             logger.debug("Interactive execution error", exc_info=True)
 
 
+def cmd_watch(args) -> int:
+    """Watch files for changes and @vetinari directives."""
+    _setup_logging(args.verbose)
+
+    watch_dir = getattr(args, "dir", ".") or "."
+    interval = getattr(args, "interval", 2.0) or 2.0
+
+    print(f"[Vetinari] Watch mode: monitoring {os.path.abspath(watch_dir)}")
+    print(f"[Vetinari] Poll interval: {interval}s")
+    print("[Vetinari] Press Ctrl+C to stop")
+
+    try:
+        from vetinari.watch import WatchConfig, WatchMode
+
+        config = WatchConfig(watch_dir=watch_dir, poll_interval=interval)
+        wm = WatchMode(config)
+        wm.start()
+
+        while wm.is_running:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n[Vetinari] Watch mode stopped.")
+    except Exception as e:
+        print(f"[Vetinari] Watch error: {e}")
+        logger.exception("Watch mode failed")
+        return 1
+
+    return 0
+
+
+def cmd_switch_model(args) -> int:
+    """Switch to a different model mid-session."""
+    _setup_logging(args.verbose)
+
+    from vetinari.model_switching import get_model_switcher
+    switcher = get_model_switcher()
+
+    model_id = args.model_id
+    reason = getattr(args, "reason", "manual")
+
+    try:
+        switch = switcher.switch(model_id, reason=reason)
+        print(f"[Vetinari] Model switched: {switch.from_model} -> {switch.to_model}")
+        print(f"  Reason:  {switch.reason}")
+        print(f"  Context: {'preserved' if switch.context_preserved else 'reset'}")
+        return 0
+    except RuntimeError as e:
+        print(f"[Vetinari] Switch failed: {e}")
+        return 1
+
+
 def cmd_benchmark(args) -> int:
     """Run benchmark suites."""
     from vetinari.benchmarks.runner import get_default_runner
@@ -628,6 +680,12 @@ Examples:
     # review
     subparsers.add_parser("review", help="Run self-improvement agent review")
 
+    # watch
+    p_watch = subparsers.add_parser("watch", help="Watch files for changes and @vetinari directives")
+    p_watch.add_argument("dir", nargs="?", default=".", help="Directory to watch (default: current)")
+    p_watch.add_argument("--interval", type=float, default=2.0,
+                         help="Poll interval in seconds (default: 2.0)")
+
     # interactive
     subparsers.add_parser("interactive", help="Enter interactive REPL mode")
 
@@ -657,6 +715,12 @@ Examples:
     p_bench.add_argument("--compare", default=None,
                          help="Compare mode: 'last-2' or 'RUN_A:RUN_B'")
 
+    # switch-model
+    p_switch = subparsers.add_parser("switch-model", help="Switch to a different model mid-session")
+    p_switch.add_argument("model_id", help="Model ID to switch to")
+    p_switch.add_argument("--reason", default="manual",
+                          help="Reason for switch (manual, fallback, context_limit, cost)")
+
     args = parser.parse_args()
 
     # Default command: start (interactive)
@@ -681,8 +745,10 @@ Examples:
         "upgrade": cmd_upgrade,
         "review": cmd_review,
         "interactive": cmd_interactive,
+        "watch": cmd_watch,
         "train": cmd_train,
         "benchmark": cmd_benchmark,
+        "switch-model": cmd_switch_model,
     }
 
     handler = dispatch.get(args.command)

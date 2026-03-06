@@ -14,3 +14,4 @@ from vetinari.web.preferences import preferences_bp  # noqa: F401
 from vetinari.web.variant_system import VariantLevel, VariantManager  # noqa: F401
 from vetinari.web.learning_api import learning_bp  # noqa: F401
 from vetinari.web.analytics_api import analytics_bp  # noqa: F401
+from vetinari.web.log_stream import log_stream_bp  # noqa: F401

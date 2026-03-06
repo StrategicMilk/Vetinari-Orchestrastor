@@ -36,6 +36,7 @@ Usage
 import json
 import logging
 import os
+import queue
 import threading
 import time
 import uuid
@@ -341,6 +342,123 @@ class DatadogBackend(BackendBase):
 
 
 # ---------------------------------------------------------------------------
+# SSE (Server-Sent Events) backend
+# ---------------------------------------------------------------------------
+
+class SSEBackend(BackendBase):
+    """Server-Sent Events backend for real-time log streaming.
+
+    Maintains a list of connected client queues and fans out each ingested
+    batch to every subscriber.  New clients receive a configurable number of
+    recent log records from an internal ring buffer so they can render
+    immediate history.
+
+    Usage::
+
+        backend = get_sse_backend()
+        q = queue.Queue(maxsize=1000)
+        backend.add_client(q)
+        # … consume items from *q* in an SSE generator …
+        backend.remove_client(q)
+    """
+
+    name = "sse"
+
+    def __init__(self, max_clients: int = 50, buffer_size: int = 100) -> None:
+        self._clients: List[queue.Queue] = []
+        self._lock = threading.Lock()
+        self._max_clients = max_clients
+        self._buffer: List[str] = []  # Recent JSON strings for new clients
+        self._buffer_size = buffer_size
+
+    # -- client lifecycle ---------------------------------------------------
+
+    def add_client(self, q: queue.Queue) -> None:
+        """Register a new subscriber queue.
+
+        Raises ``RuntimeError`` if the maximum number of concurrent clients
+        has already been reached.
+        """
+        with self._lock:
+            if len(self._clients) >= self._max_clients:
+                raise RuntimeError("Max SSE clients reached")
+            self._clients.append(q)
+            # Replay buffered recent logs so the new client has context
+            for record_json in self._buffer:
+                q.put(record_json)
+
+    def remove_client(self, q: queue.Queue) -> None:
+        """Unregister a subscriber queue."""
+        with self._lock:
+            if q in self._clients:
+                self._clients.remove(q)
+
+    # -- BackendBase implementation -----------------------------------------
+
+    def send(self, records: List[LogRecord]) -> bool:
+        """Fan out *records* to all connected client queues.
+
+        Clients whose queues are full are silently removed (dead-client
+        cleanup) to avoid blocking the ingestion path.
+        """
+        with self._lock:
+            for rec in records:
+                json_data = rec.to_json()
+                # Maintain ring buffer
+                self._buffer.append(json_data)
+                if len(self._buffer) > self._buffer_size:
+                    self._buffer = self._buffer[-self._buffer_size:]
+                # Fan out to live clients
+                dead_clients: List[queue.Queue] = []
+                for client_q in self._clients:
+                    try:
+                        client_q.put_nowait(json_data)
+                    except queue.Full:
+                        dead_clients.append(client_q)
+                for dc in dead_clients:
+                    self._clients.remove(dc)
+        return True
+
+    # -- introspection ------------------------------------------------------
+
+    @property
+    def client_count(self) -> int:
+        """Number of currently connected subscribers."""
+        with self._lock:
+            return len(self._clients)
+
+    def get_buffer(self) -> List[str]:
+        """Return a copy of the recent-log ring buffer."""
+        with self._lock:
+            return list(self._buffer)
+
+
+# ---------------------------------------------------------------------------
+# SSE backend singleton
+# ---------------------------------------------------------------------------
+
+_sse_backend: Optional[SSEBackend] = None
+_sse_backend_lock = threading.Lock()
+
+
+def get_sse_backend() -> SSEBackend:
+    """Return the global SSEBackend singleton (created on first call)."""
+    global _sse_backend
+    if _sse_backend is None:
+        with _sse_backend_lock:
+            if _sse_backend is None:
+                _sse_backend = SSEBackend()
+    return _sse_backend
+
+
+def reset_sse_backend() -> None:
+    """Destroy the SSEBackend singleton (for tests / clean shutdown)."""
+    global _sse_backend
+    with _sse_backend_lock:
+        _sse_backend = None
+
+
+# ---------------------------------------------------------------------------
 # Backend registry
 # ---------------------------------------------------------------------------
 
@@ -349,6 +467,7 @@ _BACKEND_CLASSES: Dict[str, type] = {
     "elasticsearch": ElasticsearchBackend,
     "splunk":        SplunkBackend,
     "datadog":       DatadogBackend,
+    "sse":           SSEBackend,
 }
 
 

@@ -706,6 +706,13 @@ try:
 except Exception as e:
     logger.warning(f"Analytics API blueprint not available: {e}")
 
+try:
+    from vetinari.web.log_stream import log_stream_bp
+    app.register_blueprint(log_stream_bp)
+    logger.info("Log stream SSE blueprint registered")
+except Exception as e:
+    logger.warning(f"Log stream SSE blueprint not available: {e}")
+
 # Register Plan Mode API endpoints
 try:
     from vetinari.plan_api import register_plan_api

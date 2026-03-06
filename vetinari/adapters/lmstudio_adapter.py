@@ -46,6 +46,46 @@ class LMStudioProviderAdapter(ProviderAdapter):
             del self.session.headers["Authorization"]
 
     # ------------------------------------------------------------------
+    # Model ID resolution
+    # ------------------------------------------------------------------
+
+    def _resolve_model_id(self, model_id: str) -> str:
+        """Resolve 'default' or empty model_id to an actual loaded model.
+
+        LM Studio does not recognize 'default' as a model name.  When a
+        caller passes ``"default"`` (or an empty string) we query the
+        ``/v1/models`` endpoint and return the first loaded model's id.
+        If the query fails we return the original value unchanged so that
+        the request still goes through (LM Studio may route it anyway if
+        only one model is loaded).
+        """
+        if model_id and model_id != "default":
+            return model_id
+
+        try:
+            resp = self.session.get(
+                f"{self.endpoint}/v1/models", timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                models_list = []
+                if isinstance(data, dict):
+                    models_list = data.get("data", data.get("models", []))
+                elif isinstance(data, list):
+                    models_list = data
+
+                if models_list and isinstance(models_list, list):
+                    first = models_list[0]
+                    resolved = first.get("id", "") if isinstance(first, dict) else str(first)
+                    if resolved:
+                        logger.debug(f"[LMStudio] Resolved 'default' → '{resolved}'")
+                        return resolved
+        except Exception:
+            pass
+
+        return model_id or "default"
+
+    # ------------------------------------------------------------------
     # Low-level HTTP helpers
     # ------------------------------------------------------------------
 
@@ -264,10 +304,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
     def infer(self, request: InferenceRequest) -> InferenceResponse:
         """Run inference using LM Studio."""
         start_time = time.time()
+        resolved_model = self._resolve_model_id(request.model_id)
 
         try:
             payload = {
-                "model": request.model_id,
+                "model": resolved_model,
                 "messages": [
                     {"role": "system", "content": request.system_prompt or ""},
                     {"role": "user", "content": request.prompt}
@@ -347,9 +388,10 @@ class LMStudioProviderAdapter(ProviderAdapter):
             {"output": str, "latency_ms": int, "tokens_used": int,
              "status": str, "error": str|None}
         """
+        resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
         payload = {
-            "model": model_id,
+            "model": resolved_model,
             "messages": [
                 {"role": "system", "content": system_prompt or ""},
                 {"role": "user", "content": input_text},
@@ -381,9 +423,10 @@ class LMStudioProviderAdapter(ProviderAdapter):
             for chunk in adapter.chat_stream(model, sys_prompt, user_text):
                 print(chunk, end="", flush=True)
         """
+        resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
         payload = {
-            "model": model_id,
+            "model": resolved_model,
             "messages": [
                 {"role": "system", "content": system_prompt or ""},
                 {"role": "user", "content": input_text},

@@ -69,8 +69,11 @@ from .log_aggregator import (
     ElasticsearchBackend,
     SplunkBackend,
     DatadogBackend,
+    SSEBackend,
     get_log_aggregator,
     reset_log_aggregator,
+    get_sse_backend,
+    reset_sse_backend,
 )
 
 try:
@@ -98,8 +101,11 @@ try:
         "ElasticsearchBackend",
         "SplunkBackend",
         "DatadogBackend",
+        "SSEBackend",
         "get_log_aggregator",
         "reset_log_aggregator",
+        "get_sse_backend",
+        "reset_sse_backend",
         "create_app",
         "run_server",
     ]
@@ -128,8 +134,11 @@ except ImportError:
         "ElasticsearchBackend",
         "SplunkBackend",
         "DatadogBackend",
+        "SSEBackend",
         "get_log_aggregator",
         "reset_log_aggregator",
+        "get_sse_backend",
+        "reset_sse_backend",
     ]
 
 __version__ = "1.0.0"
