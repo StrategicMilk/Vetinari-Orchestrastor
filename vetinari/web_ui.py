@@ -684,10 +684,27 @@ def api_swap_model():
 from vetinari.web.projects_bp import projects_bp
 from vetinari.web.plans_bp import plans_bp
 from vetinari.web.admin_bp import admin_bp
+from vetinari.web.preferences import preferences_bp
 
 app.register_blueprint(projects_bp)
 app.register_blueprint(plans_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(preferences_bp)
+
+# Phase 8: Learning & Analytics API blueprints
+try:
+    from vetinari.web.learning_api import learning_bp
+    app.register_blueprint(learning_bp)
+    logger.info("Learning API blueprint registered")
+except Exception as e:
+    logger.warning(f"Learning API blueprint not available: {e}")
+
+try:
+    from vetinari.web.analytics_api import analytics_bp
+    app.register_blueprint(analytics_bp)
+    logger.info("Analytics API blueprint registered")
+except Exception as e:
+    logger.warning(f"Analytics API blueprint not available: {e}")
 
 # Register Plan Mode API endpoints
 try:

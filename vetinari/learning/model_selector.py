@@ -146,6 +146,48 @@ class ThompsonSamplingSelector:
         arm.update(quality_score, success)
         self._save_state()
 
+    # Benchmark results are 3x more reliable than single-task outcomes
+    BENCHMARK_WEIGHT_MULTIPLIER = 3
+
+    def update_from_benchmark(
+        self,
+        model_id: str,
+        pass_rate: float,
+        n_trials: int,
+        task_type: str = "general",
+    ) -> None:
+        """
+        Update Thompson Sampling arms from benchmark results.
+
+        Benchmark results are weighted 3x (BENCHMARK_WEIGHT_MULTIPLIER) because
+        they are more reliable than single-task outcomes -- they aggregate over
+        many standardised test cases.
+
+        Args:
+            model_id: The model that was benchmarked.
+            pass_rate: Fraction of benchmark cases passed (0.0-1.0).
+            n_trials: Number of benchmark trials run.
+            task_type: Task type the benchmark covers.
+        """
+        arm = self._get_or_create_arm(model_id, task_type)
+        w = self.BENCHMARK_WEIGHT_MULTIPLIER
+
+        successes = pass_rate * n_trials
+        failures = n_trials - successes
+
+        arm.alpha += successes * w
+        arm.beta += failures * w
+        arm.total_pulls += n_trials
+        arm.last_updated = datetime.now().isoformat()
+
+        logger.info(
+            f"[Thompson] Benchmark update for {model_id}/{task_type}: "
+            f"pass_rate={pass_rate:.3f}, n_trials={n_trials}, "
+            f"weighted_successes={successes * w:.1f}, weighted_failures={failures * w:.1f}, "
+            f"new_mean={arm.mean:.3f}"
+        )
+        self._save_state()
+
     def get_rankings(self, task_type: str) -> List[Tuple[str, float]]:
         """Get model rankings for a task type (by expected value)."""
         arms = [(k.split(":")[0], arm.mean)

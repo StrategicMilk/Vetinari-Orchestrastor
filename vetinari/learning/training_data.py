@@ -81,6 +81,9 @@ class TrainingRecord:
     tokens_used: int = 0
     success: bool = True
     vram_used_gb: float = 0.0
+    benchmark_suite: str = ""             # Benchmark suite name (e.g. "toolbench", "swe-bench")
+    benchmark_pass: bool = False          # Whether the output passed benchmark validation
+    benchmark_score: float = 0.0          # Benchmark score 0.0-1.0 (pass_rate or avg_score)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,8 +151,17 @@ class TrainingDataCollector:
         tokens_used: int = 0,
         success: bool = True,
         metadata: Optional[Dict[str, Any]] = None,
+        benchmark_suite: str = "",
+        benchmark_pass: bool = False,
+        benchmark_score: float = 0.0,
     ) -> None:
-        """Record a task execution (non-blocking; queued for background write)."""
+        """Record a task execution (non-blocking; queued for background write).
+
+        Args:
+            benchmark_suite: Name of the benchmark suite that validated this output.
+            benchmark_pass: Whether the output passed benchmark validation.
+            benchmark_score: Benchmark score 0.0-1.0 (pass_rate or avg_score).
+        """
         # Snapshot VRAM usage if available
         vram_used = 0.0
         try:
@@ -174,6 +186,9 @@ class TrainingDataCollector:
             tokens_used=tokens_used,
             success=success,
             vram_used_gb=round(vram_used, 2),
+            benchmark_suite=benchmark_suite,
+            benchmark_pass=benchmark_pass,
+            benchmark_score=round(benchmark_score, 4),
             metadata=metadata or {},
         )
         try:
