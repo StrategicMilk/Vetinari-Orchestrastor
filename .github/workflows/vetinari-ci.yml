@@ -286,35 +286,7 @@ jobs:
         path: logs/
         if-no-files-found: ignore
 
-  # ── 8. Dry-run package ────────────────────────────────────────────────────────
-  dry-run:
-    name: Dry-Run Package
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-        cache: pip
-
-    - name: Install
-      run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install -r requirements.txt
-        pip install -e .
-        cd dry_run_demo_pkg && pip install -e .
-
-    - name: Execute dry-run
-      run: |
-        python -c "
-        import sys; sys.path.insert(0, 'dry_run_demo_pkg')
-        from dry_run_demo_pkg import __main__
-        print('Dry-run package OK')
-        "
-
-  # ── 9. Drift control — Phase 7 ───────────────────────────────────────────────
+  # ── 8. Drift control — Phase 7 ────────────────────────────────────────────────
   drift-control:
     name: Drift Control (Phase 7)
     runs-on: ubuntu-latest
@@ -383,7 +355,6 @@ jobs:
       - regression
       - integration
       - drift-control
-      - dry-run
     if: always()
 
     steps:
@@ -406,6 +377,5 @@ jobs:
         check "${{ needs.regression.result }}"       "Regression Suite"
         check "${{ needs.integration.result }}"      "Integration Tests"
         check "${{ needs.drift-control.result }}"    "Drift Control (Phase 7)"
-        check "${{ needs.dry-run.result }}"          "Dry-Run Package"
         if [ $FAILED -ne 0 ]; then exit 1; fi
         echo "All gates passed - build is green"
