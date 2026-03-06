@@ -19,15 +19,21 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+# Module-level cache: avoids hitting /v1/models on every single request.
+_resolved_model_cache: Dict[str, str] = {}
+
+
 def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
     """Resolve 'default' or empty model_id to an actual loaded LM Studio model.
 
     Resolution order:
       1. If model_id is a real name (not 'default'/empty), return as-is.
       2. Check ``VETINARI_DEFAULT_MODEL`` env var.
-      3. Query ``/v1/models`` for loaded models.
-      4. Try ``/api/v0/models`` (older LM Studio versions).
-      5. Fall back to ``"default"``.
+      3. Return cached result if available.
+      4. Query ``/v1/models`` for loaded models.
+      5. Try ``/api/v0/models`` (older LM Studio versions).
+      6. Probe via a minimal chat completion (response reveals model name).
+      7. Fall back to empty string ``""`` (LM Studio routes to loaded model).
 
     Usage::
 
@@ -39,30 +45,45 @@ def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
     if model_id and model_id != "default":
         return model_id
 
-    # Check env var override first — most reliable when LM Studio's
-    # /v1/models endpoint doesn't return expected data
+    # Check env var override first
     env_model = _os.environ.get("VETINARI_DEFAULT_MODEL", "")
     if env_model:
-        logger.debug(f"[LMStudio] Using VETINARI_DEFAULT_MODEL='{env_model}'")
         return env_model
 
     _host = host or _os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
 
+    # Return cached result if we already resolved for this host
+    if _host in _resolved_model_cache:
+        return _resolved_model_cache[_host]
+
     # Try /v1/models (OpenAI-compatible)
     resolved = _try_discover_model(_host, "/v1/models")
     if resolved:
+        _resolved_model_cache[_host] = resolved
         return resolved
 
     # Try /api/v0/models (older LM Studio)
     resolved = _try_discover_model(_host, "/api/v0/models")
     if resolved:
+        _resolved_model_cache[_host] = resolved
         return resolved
 
-    logger.warning(
-        "[LMStudio] Could not resolve model name. Set VETINARI_DEFAULT_MODEL "
-        "env var to your loaded model's ID (e.g. 'qwen2.5-coder-7b-instruct')."
+    # Probe: send a minimal chat completion and read the model name
+    # from the response (LM Studio echoes the actual model in the response)
+    resolved = _probe_model_via_chat(_host)
+    if resolved:
+        _resolved_model_cache[_host] = resolved
+        return resolved
+
+    # Ultimate fallback: empty string — LM Studio routes to the loaded
+    # model when model name is empty, unlike "default" which it rejects.
+    logger.info(
+        "[LMStudio] Could not discover model name. Using empty string "
+        "(LM Studio will route to loaded model). Set VETINARI_DEFAULT_MODEL "
+        "env var for explicit control."
     )
-    return model_id or "default"
+    _resolved_model_cache[_host] = ""
+    return ""
 
 
 def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
@@ -96,6 +117,34 @@ def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
             if resolved:
                 logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
                 return resolved
+    except Exception:
+        pass
+    return None
+
+
+def _probe_model_via_chat(host: str) -> Optional[str]:
+    """Discover the model name by making a minimal chat completion request.
+
+    LM Studio echoes the actual model name in the response ``"model"`` field,
+    even when the request sends an empty or placeholder model name.
+    """
+    try:
+        resp = requests.post(
+            f"{host}/v1/chat/completions",
+            json={
+                "model": "",
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+                "temperature": 0,
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            model_name = data.get("model", "")
+            if model_name and model_name not in ("", "default"):
+                logger.info(f"[LMStudio] Discovered model via probe: '{model_name}'")
+                return model_name
     except Exception:
         pass
     return None
