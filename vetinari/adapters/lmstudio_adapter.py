@@ -19,6 +19,88 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
+    """Resolve 'default' or empty model_id to an actual loaded LM Studio model.
+
+    Resolution order:
+      1. If model_id is a real name (not 'default'/empty), return as-is.
+      2. Check ``VETINARI_DEFAULT_MODEL`` env var.
+      3. Query ``/v1/models`` for loaded models.
+      4. Try ``/api/v0/models`` (older LM Studio versions).
+      5. Fall back to ``"default"``.
+
+    Usage::
+
+        from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model
+        real_model = resolve_lmstudio_model(model_id)
+    """
+    import os as _os
+
+    if model_id and model_id != "default":
+        return model_id
+
+    # Check env var override first — most reliable when LM Studio's
+    # /v1/models endpoint doesn't return expected data
+    env_model = _os.environ.get("VETINARI_DEFAULT_MODEL", "")
+    if env_model:
+        logger.debug(f"[LMStudio] Using VETINARI_DEFAULT_MODEL='{env_model}'")
+        return env_model
+
+    _host = host or _os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+
+    # Try /v1/models (OpenAI-compatible)
+    resolved = _try_discover_model(_host, "/v1/models")
+    if resolved:
+        return resolved
+
+    # Try /api/v0/models (older LM Studio)
+    resolved = _try_discover_model(_host, "/api/v0/models")
+    if resolved:
+        return resolved
+
+    logger.warning(
+        "[LMStudio] Could not resolve model name. Set VETINARI_DEFAULT_MODEL "
+        "env var to your loaded model's ID (e.g. 'qwen2.5-coder-7b-instruct')."
+    )
+    return model_id or "default"
+
+
+def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
+    """Try to discover a loaded model from an LM Studio endpoint."""
+    try:
+        resp = requests.get(f"{host}{endpoint}", timeout=5)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+
+        # Handle various response formats
+        models_list: list = []
+        if isinstance(data, dict):
+            # Standard: {"data": [{"id": "..."}]}
+            models_list = data.get("data", data.get("models", []))
+            # Some versions return {"id": "..."} directly
+            if not models_list and "id" in data:
+                resolved = data["id"]
+                if resolved and isinstance(resolved, str):
+                    logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
+                    return resolved
+        elif isinstance(data, list):
+            models_list = data
+
+        if models_list and isinstance(models_list, list):
+            first = models_list[0]
+            if isinstance(first, dict):
+                resolved = first.get("id", first.get("name", first.get("model", "")))
+            else:
+                resolved = str(first)
+            if resolved:
+                logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
+                return resolved
+    except Exception:
+        pass
+    return None
+
+
 class LMStudioProviderAdapter(ProviderAdapter):
     """Adapter for LM Studio local inference."""
 
@@ -50,40 +132,8 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # ------------------------------------------------------------------
 
     def _resolve_model_id(self, model_id: str) -> str:
-        """Resolve 'default' or empty model_id to an actual loaded model.
-
-        LM Studio does not recognize 'default' as a model name.  When a
-        caller passes ``"default"`` (or an empty string) we query the
-        ``/v1/models`` endpoint and return the first loaded model's id.
-        If the query fails we return the original value unchanged so that
-        the request still goes through (LM Studio may route it anyway if
-        only one model is loaded).
-        """
-        if model_id and model_id != "default":
-            return model_id
-
-        try:
-            resp = self.session.get(
-                f"{self.endpoint}/v1/models", timeout=5,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                models_list = []
-                if isinstance(data, dict):
-                    models_list = data.get("data", data.get("models", []))
-                elif isinstance(data, list):
-                    models_list = data
-
-                if models_list and isinstance(models_list, list):
-                    first = models_list[0]
-                    resolved = first.get("id", "") if isinstance(first, dict) else str(first)
-                    if resolved:
-                        logger.debug(f"[LMStudio] Resolved 'default' → '{resolved}'")
-                        return resolved
-        except Exception:
-            pass
-
-        return model_id or "default"
+        """Resolve 'default' or empty model_id via the standalone utility."""
+        return resolve_lmstudio_model(model_id, self.endpoint)
 
     # ------------------------------------------------------------------
     # Low-level HTTP helpers

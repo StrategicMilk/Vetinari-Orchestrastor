@@ -213,11 +213,13 @@ class LocalPreprocessor:
             )
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model
+            resolved_model = resolve_lmstudio_model(local_model, host)
             import requests
             resp = requests.post(
                 f"{host}/v1/chat/completions",
                 json={
-                    "model": local_model,
+                    "model": resolved_model,
                     "messages": [
                         {"role": "system", "content": "You are a context compression specialist. Compress text while preserving all technically critical information."},
                         {"role": "user", "content": prompt},

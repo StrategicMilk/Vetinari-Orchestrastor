@@ -236,6 +236,8 @@ class QualityScorer:
             judge_model = self._pick_judge_model(model_id)
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model
+            judge_model = resolve_lmstudio_model(judge_model, host)
             import requests as _req
             resp = _req.post(
                 f"{host}/v1/chat/completions",
