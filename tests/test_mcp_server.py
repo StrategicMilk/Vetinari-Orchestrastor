@@ -308,3 +308,112 @@ class TestGetMCPServer:
         a = get_mcp_server()
         b = get_mcp_server()
         assert a is b
+
+
+# ---------------------------------------------------------------------------
+# Error / edge-case tests
+# ---------------------------------------------------------------------------
+
+class TestMCPToolParameterEdgeCases:
+    def test_param_with_none_default(self):
+        p = MCPToolParameter("opt", "string", "Optional", required=False, default=None)
+        assert p.default is None
+        assert p.required is False
+
+    def test_param_empty_name(self):
+        p = MCPToolParameter("", "string", "No name")
+        assert p.name == ""
+
+    def test_param_empty_description(self):
+        p = MCPToolParameter("x", "integer", "")
+        assert p.description == ""
+
+
+class TestMCPToolRegistryErrors:
+    def test_invoke_with_none_arguments_raises_or_errors(self):
+        """Invoking with None arguments should return an error dict or raise."""
+        reg = MCPToolRegistry()
+
+        def handler(x):
+            return {"x": x}
+
+        reg.register(MCPTool(name="t", description="T", handler=handler))
+        # None is passed as the arguments mapping; handler(**None) raises TypeError
+        result = reg.invoke("t", None)
+        assert "error" in result
+
+    def test_invoke_handler_wrong_args(self):
+        """Handler called with wrong keyword args returns error."""
+        def handler(required_arg):
+            return {"ok": required_arg}
+
+        reg = MCPToolRegistry()
+        reg.register(MCPTool(name="strict", description="Needs required_arg", handler=handler))
+        result = reg.invoke("strict", {"wrong_key": 1})
+        assert "error" in result
+
+    def test_register_overwrites_existing_tool(self):
+        """Re-registering a tool with same name replaces the previous one."""
+        reg = MCPToolRegistry()
+        reg.register(MCPTool(name="dup", description="First"))
+        reg.register(MCPTool(name="dup", description="Second"))
+        tool = reg.get("dup")
+        assert tool.description == "Second"
+
+    def test_invoke_empty_tool_name(self):
+        reg = MCPToolRegistry()
+        result = reg.invoke("", {})
+        assert "error" in result
+        assert "Unknown tool" in result["error"]
+
+
+class TestMCPServerHandleMessageErrors:
+    def test_missing_method_key_returns_error(self):
+        """Message with no 'method' key is treated as empty method -> unknown method."""
+        server = MCPServer()
+        resp = server.handle_message({"jsonrpc": "2.0", "id": 99, "params": {}})
+        assert "error" in resp
+        assert resp["error"]["code"] == -32601
+
+    def test_malformed_tools_call_no_name(self):
+        """tools/call with no 'name' param invokes empty-string tool -> error."""
+        server = MCPServer()
+        resp = server.handle_message({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {"arguments": {}},
+        })
+        content = resp["result"]["content"]
+        assert resp["result"]["isError"] is True
+        data = json.loads(content[0]["text"])
+        assert "error" in data
+
+    def test_tools_call_missing_arguments_defaults_to_empty(self):
+        """tools/call with no 'arguments' key should not crash."""
+        server = MCPServer()
+        resp = server.handle_message({
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {"name": "vetinari_plan", "arguments": {"goal": "x"}},
+        })
+        assert "result" in resp
+
+    def test_unknown_method_contains_method_name_in_message(self):
+        server = MCPServer()
+        resp = server.handle_message({
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "no/such/thing",
+            "params": {},
+        })
+        assert "error" in resp
+        assert "no/such/thing" in resp["error"]["message"]
+
+    def test_handle_message_with_none_id(self):
+        """Message with id=None should still produce a response."""
+        server = MCPServer()
+        resp = server.handle_message({"jsonrpc": "2.0", "id": None, "method": "ping", "params": {}})
+        assert resp["id"] is None
+        assert resp["result"] == {}

@@ -176,5 +176,92 @@ class TestPlanApprovalRequest(unittest.TestCase):
         self.assertEqual(req.reason, "Too risky")
 
 
+class TestPlanEdgeCases(unittest.TestCase):
+    def test_empty_goal_plan(self):
+        """Plan with empty goal string is valid but goal is empty."""
+        p = Plan(goal="")
+        self.assertEqual(p.goal, "")
+        self.assertEqual(p.status, PlanStatus.DRAFT)
+
+    def test_plan_from_dict_invalid_status_raises(self):
+        """from_dict with an unrecognised status string should raise ValueError."""
+        p = Plan(goal="test")
+        d = p.to_dict()
+        d["status"] = "not_a_real_status"
+        with self.assertRaises(ValueError):
+            Plan.from_dict(d)
+
+    def test_plan_from_dict_invalid_risk_level_raises(self):
+        """from_dict with an unrecognised risk_level should raise ValueError."""
+        p = Plan(goal="test")
+        d = p.to_dict()
+        d["risk_level"] = "extreme"
+        with self.assertRaises(ValueError):
+            Plan.from_dict(d)
+
+    def test_plan_calculate_risk_score_no_subtasks(self):
+        """Risk score on a plan with no subtasks should be 0.0."""
+        p = Plan(goal="empty plan")
+        score = p.calculate_risk_score()
+        self.assertEqual(score, 0.0)
+
+    def test_get_subtask_returns_none_for_missing_id(self):
+        p = Plan(goal="goal")
+        result = p.get_subtask("nonexistent_id")
+        self.assertIsNone(result)
+
+
+class TestSubtaskEdgeCases(unittest.TestCase):
+    def test_from_dict_invalid_status_raises(self):
+        s = Subtask(description="test")
+        d = s.to_dict()
+        d["status"] = "invalid_status"
+        with self.assertRaises(ValueError):
+            Subtask.from_dict(d)
+
+    def test_from_dict_invalid_domain_raises(self):
+        s = Subtask(description="test")
+        d = s.to_dict()
+        d["domain"] = "not_a_domain"
+        with self.assertRaises(ValueError):
+            Subtask.from_dict(d)
+
+    def test_subtask_none_description_allowed(self):
+        """Subtask description defaults to empty string, not None."""
+        s = Subtask()
+        self.assertEqual(s.description, "")
+
+    def test_subtask_negative_depth(self):
+        """Subtask allows negative depth (no validation guard)."""
+        s = Subtask(depth=-1)
+        self.assertEqual(s.depth, -1)
+
+
+class TestPlanCandidateEdgeCases(unittest.TestCase):
+    def test_from_dict_invalid_risk_level_raises(self):
+        pc = PlanCandidate(justification="j", risk_score=0.1)
+        d = pc.to_dict()
+        d["risk_level"] = "unknown_level"
+        with self.assertRaises(ValueError):
+            PlanCandidate.from_dict(d)
+
+    def test_zero_risk_score(self):
+        pc = PlanCandidate(justification="safe", risk_score=0.0)
+        self.assertEqual(pc.risk_score, 0.0)
+
+
+class TestDefinitionOfDoneEdgeCases(unittest.TestCase):
+    def test_empty_criteria_list(self):
+        """DefinitionOfDone with explicit empty criteria list is valid."""
+        dod = DefinitionOfDone(criteria=[])
+        self.assertEqual(dod.criteria, [])
+
+    def test_single_criterion(self):
+        """DefinitionOfDone with one criterion stores it correctly."""
+        dod = DefinitionOfDone(criteria=["all tests pass"])
+        self.assertEqual(len(dod.criteria), 1)
+        self.assertEqual(dod.criteria[0], "all tests pass")
+
+
 if __name__ == "__main__":
     unittest.main()

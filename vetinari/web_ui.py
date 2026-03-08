@@ -715,14 +715,16 @@ def api_swap_model():
 # ---------------------------------------------------------------------------
 # Register Flask Blueprints
 # ---------------------------------------------------------------------------
-from vetinari.web.projects_bp import projects_bp
+from vetinari.web.projects_bp import projects_bp, task_exec_bp
 from vetinari.web.plans_bp import plans_bp
-from vetinari.web.admin_bp import admin_bp
+from vetinari.web.admin_bp import admin_bp, system_mgmt_bp
 from vetinari.web.preferences import preferences_bp
 
 app.register_blueprint(projects_bp)
+app.register_blueprint(task_exec_bp)
 app.register_blueprint(plans_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(system_mgmt_bp)
 app.register_blueprint(preferences_bp)
 
 # Phase 8: Learning & Analytics API blueprints
