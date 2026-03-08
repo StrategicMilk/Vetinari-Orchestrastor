@@ -54,6 +54,13 @@ class MemoryStore:
     """
     
     def __init__(self, db_path: str = PLAN_MEMORY_DB_PATH, use_json_fallback: bool = False):
+        import warnings
+        warnings.warn(
+            "MemoryStore is deprecated. Use DualMemoryStore instead: "
+            "from vetinari.memory import get_dual_memory_store",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.db_path = db_path
         self.use_json_fallback = use_json_fallback
         self._conn = None
@@ -123,10 +130,10 @@ class MemoryStore:
             """)
             
             self._conn.commit()
-            logger.info(f"Memory store initialized at {self.db_path}")
+            logger.info("Memory store initialized at %s", self.db_path)
             
         except sqlite3.Error as e:
-            logger.warning(f"SQLite initialization failed: {e}. Falling back to JSON.")
+            logger.warning("SQLite initialization failed: %s. Falling back to JSON.", e)
             self._conn = None
             self._init_json_store()
     
@@ -142,7 +149,7 @@ class MemoryStore:
         else:
             with open(self._json_path, 'r') as f:
                 self._json_data = json.load(f)
-        logger.info(f"JSON fallback memory store initialized at {self._json_path}")
+        logger.info("JSON fallback memory store initialized at %s", self._json_path)
     
     def _save_json(self):
         with open(self._json_path, 'w') as f:
@@ -176,7 +183,7 @@ class MemoryStore:
             self._conn.commit()
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to write plan: {e}")
+            logger.error("Failed to write plan: %s", e)
             return False
     
     def _write_plan_json(self, plan_data: Dict[str, Any]) -> bool:
@@ -219,7 +226,7 @@ class MemoryStore:
             self._conn.commit()
             return True
         except sqlite3.Error as e:
-            logger.error(f"Failed to write subtask: {e}")
+            logger.error("Failed to write subtask: %s", e)
             return False
     
     def _write_subtask_json(self, subtask_data: Dict[str, Any]) -> bool:
@@ -264,7 +271,7 @@ class MemoryStore:
             return [dict(row) for row in rows]
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to query plans: {e}")
+            logger.error("Failed to query plans: %s", e)
             return []
     
     def _query_plan_json(self, plan_id: Optional[str], 
@@ -317,7 +324,7 @@ class MemoryStore:
             return [dict(row) for row in rows]
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to query subtasks: {e}")
+            logger.error("Failed to query subtasks: %s", e)
             return []
     
     def _query_subtasks_json(self, plan_id: Optional[str],
@@ -348,7 +355,7 @@ class MemoryStore:
             row = cursor.fetchone()
             return dict(row) if row else None
         except sqlite3.Error as e:
-            logger.debug(f"get_model_performance failed: {e}")
+            logger.debug("get_model_performance failed: %s", e)
             return None
 
     def update_subtask_quality(
@@ -374,7 +381,7 @@ class MemoryStore:
             self._conn.commit()
             return True
         except sqlite3.Error as e:
-            logger.debug(f"update_subtask_quality failed: {e}")
+            logger.debug("update_subtask_quality failed: %s", e)
             return False
 
     def update_model_performance(
@@ -436,7 +443,7 @@ class MemoryStore:
             return True
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to update model performance: {e}")
+            logger.error("Failed to update model performance: %s", e)
             return False
     
     def _update_model_perf_json(self, model_id: str, task_type: str,
@@ -481,11 +488,11 @@ class MemoryStore:
                 cursor.execute("DELETE FROM PlanHistory WHERE plan_id = ?", (plan_id,))
             
             self._conn.commit()
-            logger.info(f"Pruned {len(old_plans)} old plans")
+            logger.info("Pruned %d old plans", len(old_plans))
             return len(old_plans)
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to prune old plans: {e}")
+            logger.error("Failed to prune old plans: %s", e)
             return 0
     
     def _prune_old_json(self, retention_days: int) -> int:
@@ -542,7 +549,7 @@ class MemoryStore:
             }
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to get memory stats: {e}")
+            logger.error("Failed to get memory stats: %s", e)
             return {}
 
 

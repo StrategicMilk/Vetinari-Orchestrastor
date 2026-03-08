@@ -248,6 +248,85 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=32768,  # needs large context to consolidate memories
         latency_preference="any",
     ),
+
+    # ── Image Generator: vision output, image synthesis
+    AgentType.IMAGE_GENERATOR: AffinityProfile(
+        agent_type=AgentType.IMAGE_GENERATOR,
+        required_capabilities=["vision"],
+        preferred_capabilities=["reasoning"],
+        min_context_window=4096,
+        requires_vision=True,
+        latency_preference="any",
+        fallback_agents=[AgentType.UI_PLANNER],
+    ),
+
+    # ── Ponder: deep reflective reasoning, self-evaluation
+    AgentType.PONDER: AffinityProfile(
+        agent_type=AgentType.PONDER,
+        required_capabilities=["reasoning"],
+        preferred_capabilities=["analysis"],
+        min_context_window=16384,
+        latency_preference="any",
+        prefers_uncensored=True,
+    ),
+
+    # ── Orchestrator (consolidated): top-level coordination, task routing
+    AgentType.ORCHESTRATOR: AffinityProfile(
+        agent_type=AgentType.ORCHESTRATOR,
+        required_capabilities=["reasoning"],
+        preferred_capabilities=["analysis", "coding"],
+        min_context_window=32768,
+        latency_preference="medium",
+        prefers_uncensored=True,
+    ),
+
+    # ── Consolidated Researcher: deep multi-source research with synthesis
+    AgentType.CONSOLIDATED_RESEARCHER: AffinityProfile(
+        agent_type=AgentType.CONSOLIDATED_RESEARCHER,
+        required_capabilities=["reasoning"],
+        preferred_capabilities=["analysis"],
+        min_context_window=32768,
+        latency_preference="any",
+        prefers_uncensored=True,
+    ),
+
+    # ── Consolidated Oracle: architecture + system design decisions
+    AgentType.CONSOLIDATED_ORACLE: AffinityProfile(
+        agent_type=AgentType.CONSOLIDATED_ORACLE,
+        required_capabilities=["reasoning"],
+        preferred_capabilities=["analysis", "coding"],
+        min_context_window=32768,
+        latency_preference="medium",
+        prefers_uncensored=True,
+    ),
+
+    # ── Architect (consolidated): system boundaries, interface design
+    AgentType.ARCHITECT: AffinityProfile(
+        agent_type=AgentType.ARCHITECT,
+        required_capabilities=["reasoning"],
+        preferred_capabilities=["analysis", "coding"],
+        min_context_window=32768,
+        latency_preference="medium",
+        prefers_uncensored=True,
+    ),
+
+    # ── Quality (consolidated): review, test, security — low temperature for precision
+    AgentType.QUALITY: AffinityProfile(
+        agent_type=AgentType.QUALITY,
+        required_capabilities=["coding"],
+        preferred_capabilities=["reasoning", "analysis"],
+        min_context_window=16384,
+        latency_preference="medium",
+    ),
+
+    # ── Operations (consolidated): devops, scheduling, monitoring
+    AgentType.OPERATIONS: AffinityProfile(
+        agent_type=AgentType.OPERATIONS,
+        required_capabilities=["coding"],
+        preferred_capabilities=["reasoning"],
+        min_context_window=8192,
+        latency_preference="medium",
+    ),
 }
 
 

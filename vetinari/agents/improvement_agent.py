@@ -148,7 +148,7 @@ Output must be actionable: what to change, why, expected impact, and risk level.
                 metrics["avg_quality"] = sum(s.overall_score for s in history) / len(history)
                 metrics["quality_samples"] = len(history)
         except Exception:
-            pass
+            logger.debug("Failed to collect quality scoring history", exc_info=True)
 
         # Telemetry
         try:
@@ -164,7 +164,7 @@ Output must be actionable: what to change, why, expected impact, and risk level.
             if tel_data:
                 metrics["telemetry"] = tel_data
         except Exception:
-            pass
+            logger.debug("Failed to collect telemetry metrics", exc_info=True)
 
         return metrics
 
@@ -227,7 +227,7 @@ Output must be actionable: what to change, why, expected impact, and risk level.
                     "parameters": {"parameter": action.parameter, "value": action.new_value},
                 })
         except Exception as e:
-            logger.debug(f"AutoTuner cycle failed: {e}")
+            logger.debug("AutoTuner cycle failed: %s", e)
 
         # 5. LLM-generated improvements if metrics show issues
         if len(recommendations) > 0 or avg_quality < 0.65:
@@ -269,7 +269,7 @@ Focus on actionable, specific improvements based on the data."""
             if result and isinstance(result, list):
                 return result[:3]
         except Exception as e:
-            logger.debug(f"LLM recommendations failed: {e}")
+            logger.debug("LLM recommendations failed: %s", e)
         return []
 
     def _apply_safe_changes(self, recommendations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -285,7 +285,7 @@ Focus on actionable, specific improvements based on the data."""
                     self._apply_model_routing_change(params)
                     applied.append(rec)
             except Exception as e:
-                logger.debug(f"Failed to auto-apply recommendation: {e}")
+                logger.debug("Failed to auto-apply recommendation: %s", e)
         return applied
 
     def _apply_model_routing_change(self, params: Dict[str, Any]) -> None:
@@ -294,14 +294,14 @@ Focus on actionable, specific improvements based on the data."""
             from vetinari.dynamic_model_router import get_model_router
             router = get_model_router()
             model_id = params.get("model_id")
-            if model_id and hasattr(router, "_performance_cache"):
+            if model_id and hasattr(router, "get_performance_cache"):
                 key = f"{model_id}:{params.get('task_type', 'general')}"
-                cache = router._performance_cache.get(key, {})
+                cache = router.get_performance_cache(key)
                 # Reduce success_rate to lower routing probability
                 cache["success_rate"] = max(0.1, cache.get("success_rate", 0.5) * 0.8)
-                router._performance_cache[key] = cache
+                router.update_performance_cache(key, cache)
         except Exception as e:
-            logger.debug(f"Model routing change failed: {e}")
+            logger.debug("Model routing change failed: %s", e)
 
     def _summarize_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Create a human-readable metrics summary."""

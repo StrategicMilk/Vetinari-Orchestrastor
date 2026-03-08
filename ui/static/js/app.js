@@ -694,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = e.target.value;
             currentSystemPrompt = e.target.value;
         } else {
-            input.value = 'You are a helpful coding assistant.';
+            input.value = 'You are Vetinari, an AI orchestration assistant. Provide structured, actionable responses with clear reasoning.';
             currentSystemPrompt = '';
         }
     });
@@ -707,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = prompt('Enter a name for this system prompt preset:');
         if (!name) return;
         
-        const content = document.getElementById('systemPromptInput')?.value || 'You are a helpful coding assistant.';
+        const content = document.getElementById('systemPromptInput')?.value || 'You are Vetinari, an AI orchestration assistant. Provide structured, actionable responses with clear reasoning.';
         
         try {
             const res = await fetch('/api/system-prompts', {

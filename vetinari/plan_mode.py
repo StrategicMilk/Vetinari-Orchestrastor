@@ -449,19 +449,34 @@ class PlanModeEngine:
     
     def generate_plan(self, request: PlanGenerationRequest) -> Plan:
         """Generate a plan from a goal.
-        
+
         This creates multiple plan candidates, evaluates them, and returns
         a Plan object ready for approval or execution.
         """
-        logger.info(f"Generating plan for goal: {request.goal[:100]}...")
-        
+        logger.info("Generating plan for goal: %s...", request.goal[:100])
+
+        # Phase 5: Consult WorkflowLearner for recommendations before planning
+        workflow_hints = {}
+        try:
+            from vetinari.learning.workflow_learner import get_workflow_learner
+            workflow_hints = get_workflow_learner().get_recommendations(request.goal)
+            if workflow_hints.get("confidence", 0) > 0.5:
+                logger.info(
+                    "WorkflowLearner recommends domain=%s, depth=%s, agents=%s",
+                    workflow_hints.get("domain"),
+                    workflow_hints.get("recommended_depth"),
+                    workflow_hints.get("preferred_agents"),
+                )
+        except Exception as e:
+            logger.debug("WorkflowLearner not available: %s", e)
+
         plan = Plan(
             goal=request.goal,
             constraints=request.constraints,
             dry_run=request.dry_run,
             plan_candidates=[]
         )
-        
+
         domain = request.domain_hint or self._infer_domain(request.goal)
         
         candidates = self._generate_candidates(
@@ -501,14 +516,14 @@ class PlanModeEngine:
                 explain_agent = get_explain_agent()
                 explanation = explain_agent.explain_plan(plan)
                 plan.plan_explanation_json = json.dumps(explanation.to_dict())
-                logger.info(f"Generated explanation for plan {plan.plan_id}")
+                logger.info("Generated explanation for plan %s", plan.plan_id)
             except Exception as e:
-                logger.warning(f"Failed to generate explanation: {e}")
+                logger.warning("Failed to generate explanation: %s", e)
         
         self._persist_plan(plan)
         
-        logger.info(f"Plan generated: {plan.plan_id}, risk_score={plan.risk_score:.2f}, "
-                   f"subtasks={len(plan.subtasks)}, auto_approved={plan.auto_approved}")
+        logger.info("Plan generated: %s, risk_score=%.2f, subtasks=%s, auto_approved=%s",
+                   plan.plan_id, plan.risk_score, len(plan.subtasks), plan.auto_approved)
         
         return plan
     
@@ -637,8 +652,8 @@ class PlanModeEngine:
         
         self._persist_plan(plan)
         
-        logger.info(f"Plan {plan.plan_id} {'approved' if request.approved else 'rejected'} "
-                   f"by {request.approver}")
+        logger.info("Plan %s %s by %s",
+                   plan.plan_id, 'approved' if request.approved else 'rejected', request.approver)
         
         return plan
     
@@ -749,7 +764,7 @@ class PlanModeEngine:
                 )
                 
                 store.remember(entry)
-                logger.info(f"Logged approval decision for {subtask_id}: {'approved' if approved else 'rejected'}")
+                logger.info("Logged approval decision for %s: %s", subtask_id, 'approved' if approved else 'rejected')
                 return True
             else:
                 logger.warning("Dual memory not available, approval not logged")
@@ -757,7 +772,7 @@ class PlanModeEngine:
 
                 
         except Exception as e:
-            logger.error(f"Failed to log approval decision: {e}")
+            logger.error("Failed to log approval decision: %s", e)
             return False
     
     def auto_approve_if_low_risk(self, plan: Plan, subtask: Subtask) -> bool:
@@ -837,7 +852,7 @@ class PlanModeEngine:
                 )
                 store.remember(entry)
             except Exception as mem_err:
-                logger.warning(f"Failed to log coding artifact to memory: {mem_err}")
+                logger.warning("Failed to log coding artifact to memory: %s", mem_err)
             
             return {
                 "success": True,
@@ -846,13 +861,13 @@ class PlanModeEngine:
             }
             
         except ImportError as e:
-            logger.error(f"Coding agent not available: {e}")
+            logger.error("Coding agent not available: %s", e)
             return {
                 "success": False,
                 "error": f"Coding agent not available: {e}"
             }
         except Exception as e:
-            logger.error(f"Coding task execution failed: {e}")
+            logger.error("Coding task execution failed: %s", e)
             return {
                 "success": False,
                 "error": str(e)
@@ -868,7 +883,7 @@ class PlanModeEngine:
             results.append(result)
             
             if not result.get("success", False):
-                logger.warning(f"Subtask {subtask.subtask_id} failed, continuing...")
+                logger.warning("Subtask %s failed, continuing...", subtask.subtask_id)
         
         return results
 

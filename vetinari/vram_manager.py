@@ -129,7 +129,7 @@ class VRAMManager:
                 if hw.get("max_cpu_offload_gb"):
                     self._cpu_offload_gb = float(hw["max_cpu_offload_gb"])
         except Exception as e:
-            logger.debug(f"[VRAMManager] Could not load hardware config: {e}")
+            logger.debug("[VRAMManager] Could not load hardware config: %s", e)
 
     # ------------------------------------------------------------------
     # Real-time VRAM reading
@@ -151,7 +151,7 @@ class VRAMManager:
             self._last_snapshot = snap
             return snap
         except Exception as e:
-            logger.debug(f"[VRAMManager] pynvml snapshot failed: {e}")
+            logger.debug("[VRAMManager] pynvml snapshot failed: %s", e)
             return None
 
     def get_free_vram_gb(self) -> float:
@@ -198,7 +198,7 @@ class VRAMManager:
                             last_used=time.time(),
                         )
         except Exception as e:
-            logger.debug(f"[VRAMManager] refresh() failed: {e}")
+            logger.debug("[VRAMManager] refresh() failed: %s", e)
 
     def mark_used(self, model_id: str) -> None:
         """Update last-used timestamp for a model (call before inference)."""
@@ -233,7 +233,7 @@ class VRAMManager:
             if info:
                 return float(info.memory_requirements_gb)
         except Exception:
-            pass
+            logger.debug("Failed to get VRAM requirement from model registry for %s", model_id, exc_info=True)
         from vetinari.utils import estimate_model_memory_gb
         return float(estimate_model_memory_gb(model_id))
 
@@ -254,8 +254,9 @@ class VRAMManager:
 
         if cpu_portion <= cpu_free:
             logger.debug(
-                f"[VRAMManager] {model_id} needs CPU offload: "
-                f"{gpu_portion:.1f} GB GPU + {cpu_portion:.1f} GB RAM"
+                "[VRAMManager] %s needs CPU offload: "
+                "%.1f GB GPU + %.1f GB RAM",
+                model_id, gpu_portion, cpu_portion
             )
             return True
 

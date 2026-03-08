@@ -89,7 +89,7 @@ class ContextManagerAgent(BaseAgent):
             self.complete_task(task, agent_result)
             return agent_result
         except Exception as exc:
-            logger.error(f"[ContextManagerAgent] execute() failed: {exc}")
+            logger.error("[ContextManagerAgent] execute() failed: %s", exc)
             return AgentResult(
                 task_id=task.task_id,
                 agent_type=self._agent_type,
@@ -344,7 +344,7 @@ Return ONLY valid JSON."""
                     elif isinstance(r, dict):
                         entries.append(r)
         except Exception as e:
-            logger.debug(f"[ContextManager] Could not load memory entries: {e}")
+            logger.debug("[ContextManager] Could not load memory entries: %s", e)
 
         # Also try shared memory
         try:
@@ -356,7 +356,7 @@ Return ONLY valid JSON."""
                 elif isinstance(e, dict):
                     entries.append(e)
         except Exception:
-            pass
+            logger.debug("Failed to load entries from shared_memory", exc_info=True)
 
         return entries
 
@@ -375,7 +375,7 @@ Return ONLY valid JSON."""
                     tags=["consolidated", "session_summary"],
                 )
         except Exception as e:
-            logger.debug(f"[ContextManager] Could not persist consolidation: {e}")
+            logger.debug("[ContextManager] Could not persist consolidation: %s", e)
 
     def _fallback_consolidation(
         self, task: AgentTask, entries: List

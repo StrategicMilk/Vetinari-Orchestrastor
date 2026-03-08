@@ -11,12 +11,12 @@ from vetinari.plan_types import (
 
 class TestEnums(unittest.TestCase):
     def test_plan_status_values(self):
-        self.assertEqual(PlanStatus.DRAFT, "draft")
-        self.assertEqual(PlanStatus.APPROVED, "approved")
+        self.assertEqual(PlanStatus.DRAFT.value, "draft")
+        self.assertEqual(PlanStatus.APPROVED.value, "approved")
         self.assertIn(PlanStatus.FAILED, list(PlanStatus))
 
     def test_subtask_status_values(self):
-        self.assertEqual(SubtaskStatus.PENDING, "pending")
+        self.assertEqual(SubtaskStatus.PENDING.value, "pending")
         self.assertIn(SubtaskStatus.COMPLETED, list(SubtaskStatus))
 
     def test_task_domain_values(self):

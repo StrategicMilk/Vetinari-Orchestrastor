@@ -47,29 +47,40 @@ Rules:
 6. Define a rollback trigger if critical dependencies fail
 7. Prefer parallelism: tasks that don't depend on each other should run in parallel
 8. Minimum viable plan: 3 tasks. Maximum: 20 tasks per top-level goal.
+9. Prefer consolidated agent types when available (see Affinity Table below)
 
-Available agents and their roles:
-- EXPLORER: Code/doc discovery, codebase analysis, web research for patterns
-- ORACLE: Architecture guidance, risk assessment, design decisions
-- LIBRARIAN: API/library research, documentation lookup, license review
-- RESEARCHER: Multi-source web research, feasibility analysis, competitor analysis
-- EVALUATOR: Quality review, output verification, standards enforcement
-- SYNTHESIZER: Merges multi-agent outputs into coherent final artifact
-- BUILDER: Code scaffolding, implementation, boilerplate, feature coding
-- UI_PLANNER: UI/UX design, frontend specifications, accessibility
-- SECURITY_AUDITOR: Vulnerability scanning, compliance, secret detection
-- DATA_ENGINEER: Database schemas, data pipelines, migrations, ETL
-- DOCUMENTATION_AGENT: README, API docs, user guides, changelogs
-- COST_PLANNER: Budget optimization, model selection, token efficiency
-- TEST_AUTOMATION: Test generation, coverage analysis, test execution
-- EXPERIMENTATION_MANAGER: A/B test design, metrics tracking, versioning
-- IMPROVEMENT: Meta-analysis of system performance, recommendations
-- USER_INTERACTION: Gather clarification, handle ambiguous requirements
-- DEVOPS: CI/CD pipelines, Docker, IaC, deployment strategies
-- VERSION_CONTROL: Git strategy, branching, commit messages, PR templates
-- ERROR_RECOVERY: Root cause analysis, retry strategies, circuit breaking
-- CONTEXT_MANAGER: Long-term context management, session summarization
-- IMAGE_GENERATOR: Logo/icon/asset creation via Stable Diffusion
+Consolidated agents (preferred — use these when possible):
+- PLANNER: Goal decomposition, task scheduling, dependency mapping, specification
+- ORCHESTRATOR: User interaction, Socratic clarification, system monitoring, memory
+- RESEARCHER: Code discovery, API/library lookup, domain research, lateral thinking
+  (replaces EXPLORER, LIBRARIAN, legacy RESEARCHER)
+- ORACLE: Architecture decisions, risk assessment, ontological analysis, contrarian review
+  (replaces legacy ORACLE, PONDER)
+- BUILDER: Code implementation, scaffolding, refactoring, test writing
+- ARCHITECT: UI/UX design, database schemas, DevOps pipelines, git workflow
+  (replaces UI_PLANNER, DATA_ENGINEER, DEVOPS, VERSION_CONTROL)
+- QUALITY: Code review, test generation, security audit, simplification
+  (replaces EVALUATOR, SECURITY_AUDITOR, TEST_AUTOMATION)
+- OPERATIONS: Documentation, creative writing, cost analysis, experiments,
+  error recovery, synthesis, image generation
+  (replaces SYNTHESIZER, DOCUMENTATION_AGENT, COST_PLANNER,
+  EXPERIMENTATION_MANAGER, IMPROVEMENT, ERROR_RECOVERY, IMAGE_GENERATOR)
+
+Legacy agents (still available for backward compatibility):
+- EXPLORER, LIBRARIAN, ORACLE, PONDER, UI_PLANNER, DATA_ENGINEER, DEVOPS,
+  VERSION_CONTROL, EVALUATOR, SECURITY_AUDITOR, TEST_AUTOMATION, SYNTHESIZER,
+  DOCUMENTATION_AGENT, COST_PLANNER, EXPERIMENTATION_MANAGER, IMPROVEMENT,
+  ERROR_RECOVERY, CONTEXT_MANAGER, IMAGE_GENERATOR, USER_INTERACTION
+
+Affinity Table — task type to preferred agent:
+  code/implement/build/scaffold/refactor → BUILDER
+  research/explore/discover/lookup/api   → RESEARCHER
+  review/test/security/audit/quality     → QUALITY
+  plan/decompose/schedule/specify        → PLANNER
+  design/ui/database/devops/git          → ARCHITECT
+  architecture/risk/decision/contrarian  → ORACLE
+  document/write/summarize/cost/recover  → OPERATIONS
+  clarify/interact/monitor/consolidate   → ORCHESTRATOR
 
 Output format: valid JSON array of task objects."""
     
@@ -179,25 +190,23 @@ Output format: valid JSON array of task objects."""
         """
         plan = Plan.create_new(goal)
 
-        # Step 1: Check if the goal is too vague using LLM (or simple heuristics)
-        vague_check_prompt = (
-            f"User goal: \"{goal}\"\n\n"
-            "Is this goal specific enough to begin work on, or does it need clarification?\n"
-            "Reply with JSON: {\"is_clear\": true/false, \"clarification_needed\": \"question if not clear\"}"
-        )
-        vague_result = self._infer_json(vague_check_prompt, expect_json=True)
-        if vague_result and not vague_result.get("is_clear", True):
-            plan.needs_context = True
-            plan.follow_up_question = vague_result.get(
-                "clarification_needed",
-                "Could you provide more details about what you want to build?"
-            )
-            return plan
+        # Step 1: Heuristic vagueness check (fast, no LLM call needed)
+        vague_indicators = [
+            "something", "stuff", "things", "create something", "make it work",
+            "fix it", "do something", "help me", "build something",
+        ]
+        goal_lower = goal.lower().strip()
+        goal_words = goal_lower.split()
 
-        # Simple heuristic fallback for vagueness check
-        vague_indicators = ["something", "stuff", "things", "create something"]
-        goal_words = goal.lower().split()
-        if len(goal_words) < 4 and any(vague in goal.lower() for vague in vague_indicators):
+        is_vague = False
+        if len(goal_words) < 3:
+            is_vague = True
+        elif len(goal_words) < 5 and any(v in goal_lower for v in vague_indicators):
+            is_vague = True
+        elif not any(c.isalnum() for c in goal):
+            is_vague = True
+
+        if is_vague:
             plan.needs_context = True
             plan.follow_up_question = "Could you provide more details about what you want to build?"
             return plan
@@ -217,9 +226,14 @@ Output format: valid JSON array of task objects."""
 
     def _decompose_goal_llm(self, goal: str, context: Dict[str, Any]) -> List[Task]:
         """Use LLM to intelligently decompose a goal into ordered tasks."""
+        # Consolidated agents (preferred) + legacy for backward compat
         available_agents = [
-            "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER", "EVALUATOR",
-            "SYNTHESIZER", "BUILDER", "UI_PLANNER", "SECURITY_AUDITOR",
+            # Consolidated (preferred)
+            "PLANNER", "ORCHESTRATOR", "RESEARCHER", "ORACLE",
+            "BUILDER", "ARCHITECT", "QUALITY", "OPERATIONS",
+            # Legacy (still accepted)
+            "EXPLORER", "LIBRARIAN", "EVALUATOR",
+            "SYNTHESIZER", "UI_PLANNER", "SECURITY_AUDITOR",
             "DATA_ENGINEER", "DOCUMENTATION_AGENT", "COST_PLANNER",
             "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER", "DEVOPS",
             "VERSION_CONTROL", "ERROR_RECOVERY", "IMAGE_GENERATOR",

@@ -1,6 +1,7 @@
 """Cohere provider adapter."""
 
 import logging
+import os
 import requests
 import time
 from typing import Dict, List, Any, Optional
@@ -15,6 +16,46 @@ logger = logging.getLogger(__name__)
 class CohereProviderAdapter(ProviderAdapter):
     """Adapter for Cohere API (Command, Generate, etc.)."""
 
+    # Hardcoded fallback model list — used when config/provider_models.yaml is unavailable
+    _HARDCODED_MODELS = [
+        {
+            "id": "command-r-plus",
+            "name": "Command R Plus",
+            "context_len": 128000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1500,
+            "cost_per_1k_tokens": 0.003,
+            "capabilities": ["code_gen", "chat", "retrieval"],
+        },
+        {
+            "id": "command-r",
+            "name": "Command R",
+            "context_len": 128000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1000,
+            "cost_per_1k_tokens": 0.0005,
+            "capabilities": ["code_gen", "chat", "retrieval"],
+        },
+        {
+            "id": "command",
+            "name": "Command",
+            "context_len": 4096,
+            "memory_gb": 8,
+            "latency_estimate_ms": 800,
+            "cost_per_1k_tokens": 0.0001,
+            "capabilities": ["code_gen", "chat"],
+        },
+        {
+            "id": "command-nightly",
+            "name": "Command Nightly",
+            "context_len": 4096,
+            "memory_gb": 8,
+            "latency_estimate_ms": 800,
+            "cost_per_1k_tokens": 0.0001,
+            "capabilities": ["code_gen", "chat"],
+        },
+    ]
+
     def __init__(self, config: ProviderConfig):
         """Initialize Cohere adapter."""
         if config.provider_type != ProviderType.COHERE:
@@ -25,48 +66,28 @@ class CohereProviderAdapter(ProviderAdapter):
         if not self.api_key:
             raise ValueError("Cohere adapter requires api_key in config")
 
+    def _load_model_definitions(self) -> List[Dict[str, Any]]:
+        """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
+        try:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                '..', 'config', 'provider_models.yaml'
+            )
+            import yaml
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            provider_models = config.get('providers', {}).get('cohere', {}).get('models', [])
+            if provider_models:
+                return provider_models
+        except Exception:
+            logger.debug("Config file not available, using hardcoded models")
+        return self._HARDCODED_MODELS
+
     def discover_models(self) -> List[ModelInfo]:
         """Discover available models from Cohere."""
         try:
-            # Cohere models are hardcoded (they don't have a discovery endpoint)
-            models_data = [
-                {
-                    "id": "command-r-plus",
-                    "name": "Command R Plus",
-                    "context_len": 128000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1500,
-                    "cost_per_1k_tokens": 0.003,
-                    "capabilities": ["code_gen", "chat", "retrieval"],
-                },
-                {
-                    "id": "command-r",
-                    "name": "Command R",
-                    "context_len": 128000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1000,
-                    "cost_per_1k_tokens": 0.0005,
-                    "capabilities": ["code_gen", "chat", "retrieval"],
-                },
-                {
-                    "id": "command",
-                    "name": "Command",
-                    "context_len": 4096,
-                    "memory_gb": 8,
-                    "latency_estimate_ms": 800,
-                    "cost_per_1k_tokens": 0.0001,
-                    "capabilities": ["code_gen", "chat"],
-                },
-                {
-                    "id": "command-nightly",
-                    "name": "Command Nightly",
-                    "context_len": 4096,
-                    "memory_gb": 8,
-                    "latency_estimate_ms": 800,
-                    "cost_per_1k_tokens": 0.0001,
-                    "capabilities": ["code_gen", "chat"],
-                },
-            ]
+            # Load model list from config file (falls back to hardcoded if unavailable)
+            models_data = self._load_model_definitions()
             
             discovered = []
             for m in models_data:
@@ -86,11 +107,11 @@ class CohereProviderAdapter(ProviderAdapter):
                 discovered.append(model_info)
             
             self.models = discovered
-            logger.info(f"[Cohere] Discovered {len(discovered)} models")
+            logger.info("[Cohere] Discovered %s models", len(discovered))
             return discovered
 
         except Exception as e:
-            logger.error(f"[Cohere] Model discovery failed: {e}")
+            logger.error("[Cohere] Model discovery failed: %s", e)
             return []
 
     def health_check(self) -> Dict[str, Any]:
@@ -185,17 +206,19 @@ class CohereProviderAdapter(ProviderAdapter):
             output_tokens = billed.get("output_tokens", 0)
             tokens_used = input_tokens + output_tokens
 
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output=output,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
                 status="ok",
             )
+            self._record_telemetry(request, resp)
+            return resp
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[Cohere] Inference failed: {e}")
+            logger.error("[Cohere] Inference failed: %s", e)
             return InferenceResponse(
                 model_id=request.model_id,
                 output="",

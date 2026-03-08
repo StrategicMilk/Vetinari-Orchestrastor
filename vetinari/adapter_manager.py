@@ -117,7 +117,7 @@ class AdapterManager:
         if instance_name not in self._provider_fallback_order:
             self._provider_fallback_order.append(instance_name)
         
-        logger.info(f"Registered provider: {instance_name} ({config.provider_type.value})")
+        logger.info("Registered provider: %s (%s)", instance_name, config.provider_type.value)
         return adapter
     
     def get_provider(self, instance_name: str) -> Optional[ProviderAdapter]:
@@ -170,10 +170,10 @@ class AdapterManager:
                     self._metrics[instance_name].last_health_check = datetime.now()
                 
                 self._last_health_check[instance_name] = datetime.now()
-                logger.info(f"Health check {instance_name}: {status_str}")
+                logger.info("Health check %s: %s", instance_name, status_str)
                 return {instance_name: health}
             except Exception as e:
-                logger.error(f"Health check failed for {instance_name}: {e}")
+                logger.error("Health check failed for %s: %s", instance_name, e)
                 if instance_name in self._metrics:
                     self._metrics[instance_name].health_status = ProviderHealthStatus.UNHEALTHY
                 return {instance_name: {"healthy": False, "reason": str(e)}}
@@ -201,10 +201,10 @@ class AdapterManager:
             
             try:
                 models = adapter.discover_models()
-                logger.info(f"Discovered {len(models)} models from {instance_name}")
+                logger.info("Discovered %s models from %s", len(models), instance_name)
                 return {instance_name: models}
             except Exception as e:
-                logger.error(f"Model discovery failed for {instance_name}: {e}")
+                logger.error("Model discovery failed for %s: %s", instance_name, e)
                 return {instance_name: []}
         
         # Discover from all providers
@@ -245,11 +245,12 @@ class AdapterManager:
                         
                         if best_model:
                             logger.info(
-                                f"Selected {best_model.id} from preferred provider {preferred_provider}"
+                                "Selected %s from preferred provider %s",
+                                best_model.id, preferred_provider
                             )
                             return preferred_provider, best_model
                 except Exception as e:
-                    logger.warning(f"Preferred provider {preferred_provider} failed: {e}")
+                    logger.warning("Preferred provider %s failed: %s", preferred_provider, e)
         
         # Fall back to best model across all providers
         adapter, model = self.registry.find_best_model(task_requirements)
@@ -261,7 +262,7 @@ class AdapterManager:
                     break
             
             if provider_name and model:
-                logger.info(f"Selected {model.id} from provider {provider_name}")
+                logger.info("Selected %s from provider %s", model.id, provider_name)
                 return provider_name, model
         
         logger.warning("Could not select a provider for the task")
@@ -314,7 +315,7 @@ class AdapterManager:
                 continue
             
             try:
-                logger.info(f"Attempting inference with {prov_name}")
+                logger.info("Attempting inference with %s", prov_name)
                 response = adapter.infer(request)
                 
                 # Update metrics
@@ -332,7 +333,7 @@ class AdapterManager:
                     last_error = response.error
                     continue
             except Exception as e:
-                logger.error(f"Inference failed with {prov_name}: {e}")
+                logger.error("Inference failed with %s: %s", prov_name, e)
                 last_error = str(e)
                 if not fallback_on_error:
                     break
@@ -351,7 +352,7 @@ class AdapterManager:
     def set_fallback_order(self, provider_names: List[str]) -> None:
         """Set the fallback order for providers."""
         self._provider_fallback_order = provider_names
-        logger.info(f"Set provider fallback order: {provider_names}")
+        logger.info("Set provider fallback order: %s", provider_names)
     
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status of all providers."""

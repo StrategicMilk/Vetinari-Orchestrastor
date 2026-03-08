@@ -198,7 +198,7 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
                 } if arms else {}
             }
         except Exception:
-            pass
+            logger.debug("Failed to collect ThompsonSampling model performance data", exc_info=True)
 
         # Quality scores
         try:
@@ -219,7 +219,7 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
                     ],
                 }
         except Exception:
-            pass
+            logger.debug("Failed to collect quality score history", exc_info=True)
 
         # Workflow patterns
         try:
@@ -230,7 +230,7 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
             if patterns:
                 data["workflow_patterns"] = patterns
         except Exception:
-            pass
+            logger.debug("Failed to collect workflow patterns", exc_info=True)
 
         # Telemetry
         try:
@@ -244,7 +244,7 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
             if tel_data:
                 data["telemetry"] = tel_data
         except Exception:
-            pass
+            logger.debug("Failed to collect telemetry data", exc_info=True)
 
         return data
 
@@ -317,7 +317,7 @@ Use "source": "estimated" for projected or hypothetical values. Never fabricate 
                 "version_control": {"note": "Use git to tag experiment versions"},
                 "dependencies": [
                     {"package": "vetinari", "version": "0.2.0"},
-                    {"package": "duckduckgo-search", "version": ">=4.0.0"},
+                    {"package": "ddgs", "version": ">=6.0.0"},
                 ],
                 "data_checksum": None,
                 "instructions": [

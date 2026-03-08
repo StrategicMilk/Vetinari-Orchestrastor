@@ -50,7 +50,7 @@ class AdapterRegistry:
         """Register a new adapter class for a provider type."""
         with _registry_lock:
             cls._adapter_classes[provider_type] = adapter_class
-        logger.info(f"[AdapterRegistry] Registered {adapter_class.__name__} for {provider_type.value}")
+        logger.info("[AdapterRegistry] Registered %s for %s", adapter_class.__name__, provider_type.value)
 
     @classmethod
     def create_adapter(cls, config: ProviderConfig, instance_name: Optional[str] = None) -> ProviderAdapter:
@@ -77,7 +77,7 @@ class AdapterRegistry:
         if instance_name:
             with _registry_lock:
                 cls._instances[instance_name] = instance
-            logger.info(f"[AdapterRegistry] Created adapter instance '{instance_name}' ({adapter_class.__name__})")
+            logger.info("[AdapterRegistry] Created adapter instance '%s' (%s)", instance_name, adapter_class.__name__)
 
         return instance
 
@@ -107,9 +107,9 @@ class AdapterRegistry:
             try:
                 models = adapter.discover_models()
                 results[name] = models
-                logger.info(f"[AdapterRegistry] {name}: discovered {len(models)} models")
+                logger.info("[AdapterRegistry] %s: discovered %s models", name, len(models))
             except Exception as e:
-                logger.error(f"[AdapterRegistry] {name}: discovery failed: {e}")
+                logger.error("[AdapterRegistry] %s: discovery failed: %s", name, e)
                 results[name] = []
         return results
 
@@ -124,9 +124,9 @@ class AdapterRegistry:
                 health = adapter.health_check()
                 results[name] = health
                 status = "healthy" if health.get("healthy") else "unhealthy"
-                logger.info(f"[AdapterRegistry] {name}: {status}")
+                logger.info("[AdapterRegistry] %s: %s", name, status)
             except Exception as e:
-                logger.error(f"[AdapterRegistry] {name}: health check failed: {e}")
+                logger.error("[AdapterRegistry] %s: health check failed: %s", name, e)
                 results[name] = {"healthy": False, "reason": str(e), "timestamp": None}
         return results
 
@@ -145,7 +145,7 @@ class AdapterRegistry:
                     best_score = score
                     best_adapter = adapter
                     best_model = model
-                    logger.debug(f"[AdapterRegistry] New best: {model.id} ({name}) score={score:.2f}")
+                    logger.debug("[AdapterRegistry] New best: %s (%s) score=%.2f", model.id, name, score)
         return best_adapter, best_model
 
     @classmethod

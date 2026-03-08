@@ -129,7 +129,7 @@ class SelfRefinementLoop:
             critique = self._critique(task_description, current_output, task_type, model_id)
 
             if not critique or "no improvements needed" in critique.lower():
-                logger.debug(f"[SelfRefinement] Round {round_num}: no improvements needed")
+                logger.debug("[SelfRefinement] Round %s: no improvements needed", round_num)
                 break
 
             critique_summary = critique[:300]
@@ -138,7 +138,7 @@ class SelfRefinementLoop:
                 task_description, current_output, critique, task_type, model_id
             )
             if not revised or revised == current_output:
-                logger.debug(f"[SelfRefinement] Round {round_num}: revision unchanged, stopping")
+                logger.debug("[SelfRefinement] Round %s: revision unchanged, stopping", round_num)
                 break
 
             current_output = revised
@@ -191,7 +191,7 @@ class SelfRefinementLoop:
                 temperature=0.2,
             )
         except Exception as e:
-            logger.debug(f"[SelfRefinement] Critique failed: {e}")
+            logger.debug("[SelfRefinement] Critique failed: %s", e)
             return None
 
     def _revise(
@@ -219,7 +219,7 @@ class SelfRefinementLoop:
                 temperature=0.1,
             )
         except Exception as e:
-            logger.debug(f"[SelfRefinement] Revise failed: {e}")
+            logger.debug("[SelfRefinement] Revise failed: %s", e)
             return None
 
     def _call_llm(

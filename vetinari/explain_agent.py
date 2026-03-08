@@ -173,7 +173,7 @@ class ExplainAgent:
             logger.debug("Explainability disabled, returning empty explanation")
             return PlanExplanation(plan_id=plan.plan_id)
         
-        logger.info(f"Generating explanation for plan: {plan.plan_id}")
+        logger.info("Generating explanation for plan: %s", plan.plan_id)
         
         explanation = PlanExplanation(
             plan_id=plan.plan_id,
@@ -269,7 +269,7 @@ class ExplainAgent:
             logger.debug("Explainability disabled, returning empty subtask explanation")
             return SubtaskExplanation(subtask_id=subtask.subtask_id)
         
-        logger.info(f"Generating explanation for subtask: {subtask.subtask_id}")
+        logger.info("Generating explanation for subtask: %s", subtask.subtask_id)
         
         explanation = SubtaskExplanation(
             subtask_id=subtask.subtask_id,

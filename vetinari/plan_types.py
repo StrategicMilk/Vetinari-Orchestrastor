@@ -5,23 +5,7 @@ from enum import Enum
 import uuid
 import json
 
-
-class PlanStatus(str, Enum):
-    DRAFT = "draft"
-    APPROVED = "approved"
-    EXECUTING = "executing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    REJECTED = "rejected"
-    CANCELLED = "cancelled"
-
-
-class SubtaskStatus(str, Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
+from vetinari.types import PlanStatus, SubtaskStatus  # canonical source
 
 
 class TaskDomain(str, Enum):

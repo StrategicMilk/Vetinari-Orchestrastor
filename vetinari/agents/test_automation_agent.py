@@ -442,7 +442,7 @@ def test_{safe_name}_invalid_input():
                 fpath = base / fname
                 fpath.write_text(content, encoding="utf-8")
                 written.append(str(fpath))
-                logger.info(f"[TestAutomationAgent] Wrote {fpath}")
+                logger.info("[TestAutomationAgent] Wrote %s", fpath)
         return written
 
 

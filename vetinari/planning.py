@@ -1,19 +1,31 @@
+"""
+Planning module — LEGACY wave-based plan management.
+
+.. deprecated::
+    This module is deprecated. Use ``vetinari.plan_mode.PlanModeEngine``
+    for plan generation and ``vetinari.orchestration`` for execution.
+"""
 import json
+import logging
 import uuid
+import warnings
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 
+from vetinari.types import PlanStatus, TaskStatus, AgentType  # canonical source
 
-class PlanStatus(Enum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+warnings.warn(
+    "vetinari.planning is deprecated. Its wave-based plan management "
+    "will be migrated into vetinari.orchestration in a future release. "
+    "Use vetinari.plan_mode.PlanModeEngine for plan generation.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class WaveStatus(Enum):
@@ -22,27 +34,6 @@ class WaveStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     BLOCKED = "blocked"
-
-
-class TaskStatus(Enum):
-    PENDING = "pending"
-    ASSIGNED = "assigned"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
-
-
-class AgentType(Enum):
-    EXPLORER = "explorer"
-    LIBRARIAN = "librarian"
-    ORACLE = "oracle"
-    UI_PLANNER = "ui_planner"
-    BUILDER = "builder"
-    RESEARCHER = "researcher"
-    EVALUATOR = "evaluator"
-    SYNTHESIZER = "synthesizer"
-    PONDER = "ponder"
 
 
 @dataclass
@@ -280,7 +271,7 @@ class PlanManager:
     _instance = None
 
     @classmethod
-    def get_instance(cls, storage_path: str = None):
+    def get_instance(cls, storage_path: str = None) -> "PlanManager":
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -302,7 +293,7 @@ class PlanManager:
                     plan = Plan.from_dict(data)
                     self.plans[plan.plan_id] = plan
             except Exception as e:
-                print(f"Error loading plan {file}: {e}")
+                logger.error("Error loading plan %s: %s", file, e)
 
     def _save_plan(self, plan: Plan):
         file_path = self.storage_path / f"{plan.plan_id}.json"

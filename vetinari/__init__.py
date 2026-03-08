@@ -1,6 +1,6 @@
 """Vetinari package - Comprehensive AI Orchestration System."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     # Core
@@ -19,7 +19,6 @@ __all__ = [
     "two_layer_orchestration",
     "enhanced_memory",
     "code_sandbox",
-    "integrated_agent",
     "tool_interface",
     "token_optimizer",
 ]

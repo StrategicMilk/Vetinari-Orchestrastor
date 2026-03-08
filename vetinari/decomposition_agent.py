@@ -57,7 +57,7 @@ class DecompositionAgent:
                 "knobs": RECURSION_KNOBS,
             }
         except Exception as e:
-            logger.error(f"DecompositionAgent.decompose_from_prompt failed: {e}")
+            logger.error("DecompositionAgent.decompose_from_prompt failed: %s", e)
             return {"status": "error", "error": str(e)}
 
 

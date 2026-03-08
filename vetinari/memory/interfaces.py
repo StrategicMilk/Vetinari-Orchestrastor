@@ -11,29 +11,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from enum import Enum
 import uuid
 import json
 import hashlib
 
+from vetinari.types import MemoryType as MemoryEntryType  # canonical — MemoryType is the superset
+
 logger = logging.getLogger(__name__)
-
-
-class MemoryEntryType(str, Enum):
-    """Types of memory entries."""
-    INTENT = "intent"
-    DISCOVERY = "discovery"
-    DECISION = "decision"
-    PROBLEM = "problem"
-    SOLUTION = "solution"
-    PATTERN = "pattern"
-    WARNING = "warning"
-    SUCCESS = "success"
-    REFACTOR = "refactor"
-    BUGFIX = "bugfix"
-    FEATURE = "feature"
-    APPROVAL = "approval"
-    CONFIG = "config"
 
 
 @dataclass

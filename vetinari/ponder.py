@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 POLICY_SENSITIVE_KEYWORDS = [
@@ -48,7 +51,7 @@ class PonderEngine:
             "memory": 0.20,
             "heuristic": 0.20
         }
-        self.policy_penalty = -100.0
+        self.policy_penalty = -1.0
 
     def _load_templates(self) -> List[Dict]:
         template_dir = Path(__file__).parent.parent / "templates" / self.template_version
@@ -267,7 +270,7 @@ def get_available_models() -> List[Dict]:
             for m in models
         ]
     except Exception as e:
-        print(f"Error getting models: {e}")
+        logger.error("Error getting models: %s", e)
         return _get_fallback_models()
 
 
@@ -318,7 +321,7 @@ def get_cloud_models() -> List[Dict]:
         pool = ModelPool(config)
         return pool.get_cloud_models()
     except Exception as e:
-        print(f"Error getting cloud models: {e}")
+        logger.error("Error getting cloud models: %s", e)
         return []
 
 
@@ -346,7 +349,7 @@ def _get_model_search_candidates(task_description: str, models: List[Dict]) -> D
         
         return relevance
     except Exception as e:
-        print(f"Error getting model search candidates: {e}")
+        logger.error("Error getting model search candidates: %s", e)
         return {}
 
 

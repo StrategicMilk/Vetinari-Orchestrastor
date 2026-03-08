@@ -13,7 +13,7 @@ Tests cover:
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from vetinari.tools.builder_skill import (
+from vetinari.skills.builder import (
     BuilderSkillTool,
     BuilderCapability,
     ThinkingMode,
@@ -173,7 +173,7 @@ class TestBuilderSkillToolExecution:
         
         assert result.success is True
         assert "Test Writing" in result.output["explanation"]
-        assert result.output["tests_added"] == 5
+        assert result.output["tests_added"] == 6
     
     def test_test_writing_without_context(self):
         """Test test writing fails without code context."""

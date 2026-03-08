@@ -584,3 +584,87 @@ class LogRecord:
     logger_name: Optional[str]
     extra:       Dict[str, Any]
 ```
+
+---
+
+## Analytics Endpoints (Phase 5)
+
+### GET /api/v1/analytics/cost
+
+Returns cost attribution report. Optional query params: `agent`, `task_id`, `since` (unix timestamp).
+
+**Response 200:**
+```json
+{ "total_requests": 42, "total_tokens": 12500, "total_cost_usd": 0.0125, "by_agent": {}, "by_model": {} }
+```
+
+### GET /api/v1/analytics/cost/top
+
+Returns top agents and models by cost. Optional query param: `n` (default 5).
+
+**Response 200:**
+```json
+{ "top_agents": [{"agent": "builder", "cost_usd": 0.005}], "top_models": [{"model": "qwen-32b", "cost_usd": 0.008}] }
+```
+
+### GET /api/v1/analytics/sla
+
+Returns all SLA compliance reports.
+
+**Response 200:**
+```json
+{ "count": 4, "reports": [{"slo": {"name": "latency-p95", ...}, "compliance_pct": 98.5, "is_compliant": true, ...}] }
+```
+
+### GET /api/v1/analytics/sla/\<name\>
+
+Returns a single SLO compliance report. Returns 404 if SLO not found.
+
+### GET /api/v1/analytics/anomalies
+
+Returns recent anomaly detections. Optional query param: `metric`.
+
+**Response 200:**
+```json
+{ "count": 2, "anomalies": [{"metric": "adapter.latency", "value": 5000, "method": "z_score", "score": 3.2, ...}] }
+```
+
+### GET /api/v1/analytics/forecast
+
+Returns forecast for a metric. Query params: `metric` (default "adapter.latency"), `horizon` (default 5), `method` (default "linear_trend").
+
+**Response 200:**
+```json
+{ "metric": "adapter.latency", "method": "linear_trend", "horizon": 5, "predictions": [...], "confidence_lo": [...], "confidence_hi": [...], "trend_slope": 0.5, "rmse": 12.3 }
+```
+
+### GET /api/v1/analytics/autotuner
+
+Returns AutoTuner configuration and action history.
+
+**Response 200:**
+```json
+{ "config": {"max_concurrent": 3, ...}, "history": [] }
+```
+
+---
+
+## Inference Config Endpoints (Phase 5)
+
+### GET /api/v1/config/inference-profiles
+
+Returns all loaded task inference profiles and config stats.
+
+**Response 200:**
+```json
+{ "profiles": {"coding": {"temperature": 0.15, ...}, ...}, "stats": {"loaded": true, "profile_count": 51} }
+```
+
+### GET /api/v1/config/inference-profiles/effective
+
+Returns effective params for a task type + model combination. Query params: `task_type` (default "general"), `model_id` (default "").
+
+**Response 200:**
+```json
+{ "task_type": "coding", "model_id": "qwen2.5-coder-7b", "params": {"temperature": 0.0, "top_p": 0.89, "top_k": 35, "max_tokens": 4096} }
+```

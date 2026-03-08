@@ -29,6 +29,7 @@ Usage:
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import logging
 import os
@@ -75,8 +76,14 @@ TASK_PROFILES: Dict[str, Tuple[int, float, bool]] = {
     "general": (2048, 0.3, False),
 }
 
-# Rough character-to-token ratio (4 chars ≈ 1 token for English text)
-_CHARS_PER_TOKEN = 4
+# Per-content-type character-to-token ratios
+# Code ≈ 3 chars/token (operators, short names), text ≈ 5 chars/token
+_CHARS_PER_TOKEN_BY_TYPE: Dict[str, int] = {
+    "code": 3,
+    "text": 5,
+    "mixed": 4,
+}
+_CHARS_PER_TOKEN = 4  # default fallback for callers that don't specify type
 
 # Maximum prompt character length before triggering local summarisation
 _COMPRESS_THRESHOLD_CHARS = 6000  # ~1500 tokens
@@ -160,7 +167,7 @@ class LocalPreprocessor:
                     self._local_model = models[0].get("id", "")
                     return self._local_model
         except Exception:
-            pass
+            logger.debug("Failed to discover local model for token optimization", exc_info=True)
         return None
 
     def compress_context(
@@ -170,7 +177,7 @@ class LocalPreprocessor:
         compression_goal: str = "key_facts",
     ) -> Tuple[str, float]:
         """
-        Compress verbose context using a local LLM.
+        Compress verbose context using heuristic extraction first, LLM as fallback.
 
         Args:
             context: The verbose context to compress.
@@ -192,6 +199,32 @@ class LocalPreprocessor:
             ratio = len(cached) / max(len(context), 1)
             return cached, ratio
 
+        # --- Heuristic compression (no LLM needed) ---
+        if compression_goal == "code_only":
+            compressed = self._extract_code_signatures(context)
+            if compressed and len(compressed) < len(context) * 0.8:
+                ratio = len(compressed) / max(len(context), 1)
+                self._cache[cache_key] = compressed
+                logger.info(
+                    "[LocalPreprocessor] Heuristic code extraction: %s -> %s chars "
+                    "(%.0f%%)",
+                    len(context), len(compressed), ratio * 100
+                )
+                return compressed, ratio
+
+        if compression_goal == "key_facts":
+            compressed = self._extract_key_lines(context)
+            if compressed and len(compressed) < len(context) * 0.7:
+                ratio = len(compressed) / max(len(context), 1)
+                self._cache[cache_key] = compressed
+                logger.info(
+                    "[LocalPreprocessor] Heuristic key-facts extraction: %s -> %s chars "
+                    "(%.0f%%)",
+                    len(context), len(compressed), ratio * 100
+                )
+                return compressed, ratio
+
+        # --- LLM compression fallback ---
         local_model = self._get_local_model()
         if not local_model:
             # No local model — fall back to truncation
@@ -233,14 +266,270 @@ class LocalPreprocessor:
                 ratio = len(compressed) / max(len(context), 1)
                 self._cache[cache_key] = compressed
                 logger.info(
-                    f"[LocalPreprocessor] Compressed {len(context)} -> {len(compressed)} chars "
-                    f"({ratio*100:.0f}%) for task: {task_description[:40]}"
+                    "[LocalPreprocessor] Compressed %s -> %s chars "
+                    "(%.0f%%) for task: %s",
+                    len(context), len(compressed), ratio * 100, task_description[:40]
                 )
                 return compressed, ratio
         except Exception as e:
-            logger.debug(f"[LocalPreprocessor] Compression failed: {e}")
+            logger.debug("[LocalPreprocessor] Compression failed: %s", e)
 
         return self._truncate(context), len(context[:_CONTEXT_WINDOW_CHARS]) / max(len(context), 1)
+
+    def _extract_code_signatures_ast(self, code: str) -> str:
+        """
+        Extract code structure using ast.parse() for accurate Python parsing.
+
+        Extracts:
+        - Import statements
+        - Class definitions with base classes
+        - Function/method signatures with parameters and return annotations
+        - Docstrings for modules, classes, and functions
+        - Module-level UPPER_CASE constants
+
+        Returns a compact structural representation of the code.
+        Falls back to the regex method (via exception) if parsing fails.
+        """
+        tree = ast.parse(code)
+        lines: List[str] = []
+
+        def _annotation_str(node: ast.expr) -> str:
+            """Convert an annotation AST node to a source string."""
+            return ast.unparse(node)
+
+        def _default_str(node: ast.expr) -> str:
+            """Convert a default-value AST node to a short source string."""
+            return ast.unparse(node)
+
+        def _get_docstring(node: ast.AST) -> Optional[str]:
+            """Return the docstring of a function/class/module node, or None."""
+            body = getattr(node, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+                return body[0].value.value
+            return None
+
+        def _format_arg(arg: ast.arg) -> str:
+            if arg.annotation:
+                return f"{arg.arg}: {_annotation_str(arg.annotation)}"
+            return arg.arg
+
+        def _format_arguments(args: ast.arguments) -> str:
+            parts: List[str] = []
+            # positional-only args (Python 3.8+)
+            for i, arg in enumerate(args.posonlyargs):
+                n_defaults = len(args.posonlyargs) - len(args.defaults)
+                default_idx = i - n_defaults
+                if default_idx >= 0:
+                    parts.append(f"{_format_arg(arg)} = {_default_str(args.defaults[default_idx])}")
+                else:
+                    parts.append(_format_arg(arg))
+            if args.posonlyargs:
+                parts.append("/")
+            # regular args
+            n_pos = len(args.posonlyargs)
+            n_reg = len(args.args)
+            n_defaults = len(args.defaults)
+            for i, arg in enumerate(args.args):
+                default_idx = n_pos + i - (n_reg + n_pos - n_defaults)
+                if default_idx >= 0:
+                    parts.append(f"{_format_arg(arg)} = {_default_str(args.defaults[default_idx])}")
+                else:
+                    parts.append(_format_arg(arg))
+            if args.vararg:
+                parts.append(f"*{_format_arg(args.vararg)}")
+            elif args.kwonlyargs:
+                parts.append("*")
+            for i, arg in enumerate(args.kwonlyargs):
+                kw_default = args.kw_defaults[i]
+                if kw_default is not None:
+                    parts.append(f"{_format_arg(arg)} = {_default_str(kw_default)}")
+                else:
+                    parts.append(_format_arg(arg))
+            if args.kwarg:
+                parts.append(f"**{_format_arg(args.kwarg)}")
+            return ", ".join(parts)
+
+        def _emit_func(node: ast.FunctionDef | ast.AsyncFunctionDef, indent: str) -> None:
+            # decorators
+            for dec in node.decorator_list:
+                lines.append(f"{indent}@{ast.unparse(dec)}")
+            # signature
+            prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+            sig = f"{indent}{prefix} {node.name}({_format_arguments(node.args)})"
+            if node.returns:
+                sig += f" -> {_annotation_str(node.returns)}"
+            sig += ":"
+            lines.append(sig)
+            # docstring
+            doc = _get_docstring(node)
+            if doc:
+                short_doc = doc.strip().split("\n")[0]
+                lines.append(f'{indent}    """{short_doc}"""')
+            else:
+                lines.append(f"{indent}    ...")
+            lines.append("")
+
+        def _emit_class(node: ast.ClassDef, indent: str) -> None:
+            # decorators
+            for dec in node.decorator_list:
+                lines.append(f"{indent}@{ast.unparse(dec)}")
+            # class line with bases
+            bases = [ast.unparse(b) for b in node.bases]
+            keywords = [f"{kw.arg}={ast.unparse(kw.value)}" for kw in node.keywords]
+            all_bases = bases + keywords
+            if all_bases:
+                lines.append(f"{indent}class {node.name}({', '.join(all_bases)}):")
+            else:
+                lines.append(f"{indent}class {node.name}:")
+            # docstring
+            doc = _get_docstring(node)
+            if doc:
+                short_doc = doc.strip().split("\n")[0]
+                lines.append(f'{indent}    """{short_doc}"""')
+                lines.append("")
+            # methods and nested classes
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    _emit_func(child, indent + "    ")
+                elif isinstance(child, ast.ClassDef):
+                    _emit_class(child, indent + "    ")
+            lines.append("")
+
+        # Module docstring
+        mod_doc = _get_docstring(tree)
+        if mod_doc:
+            short_doc = mod_doc.strip().split("\n")[0]
+            lines.append(f'"""{short_doc}"""')
+            lines.append("")
+
+        # Top-level nodes
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                lines.append(ast.unparse(node))
+            elif isinstance(node, ast.ClassDef):
+                lines.append("")
+                _emit_class(node, "")
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                lines.append("")
+                _emit_func(node, "")
+            elif isinstance(node, ast.Assign):
+                # Module-level UPPER_CASE constants
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == target.id.upper() and target.id.replace("_", "").isalpha() or (isinstance(target, ast.Name) and re.match(r'^[A-Z][A-Z_0-9]*$', target.id)):
+                        lines.append(f"{target.id} = {ast.unparse(node.value)}")
+            elif isinstance(node, ast.AnnAssign):
+                # Module-level annotated constants (e.g. MAX: int = 5)
+                if isinstance(node.target, ast.Name) and re.match(r'^[A-Z][A-Z_0-9]*$', node.target.id):
+                    ann = f": {_annotation_str(node.annotation)}"
+                    val = f" = {ast.unparse(node.value)}" if node.value else ""
+                    lines.append(f"{node.target.id}{ann}{val}")
+
+        return "\n".join(lines).strip()
+
+    def _extract_code_signatures(self, context: str) -> str:
+        """
+        Extract function/class definitions and docstrings from code.
+
+        Tries AST-based extraction first (accurate for Python).
+        Falls back to regex-based extraction for non-Python content or
+        code with syntax errors.
+        """
+        try:
+            result = self._extract_code_signatures_ast(context)
+            if result:
+                return result
+        except Exception:
+            logger.debug("AST extraction failed, falling back to regex")
+
+        # Regex fallback (handles non-Python code and syntax errors)
+        import re as _re
+        lines = context.split("\n")
+        extracted = []
+        in_docstring = False
+        docstring_delim = None
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+
+            # Capture class/function definitions
+            if _re.match(r"^(class |def |async def )", stripped):
+                extracted.append(line)
+                # Grab the docstring if next line has one
+                continue
+
+            # Capture decorators
+            if stripped.startswith("@"):
+                extracted.append(line)
+                continue
+
+            # Capture import lines
+            if stripped.startswith(("import ", "from ")):
+                extracted.append(line)
+                continue
+
+            # Capture docstrings (triple-quoted)
+            if in_docstring:
+                extracted.append(line)
+                if docstring_delim and docstring_delim in stripped:
+                    in_docstring = False
+                continue
+
+            if stripped.startswith(('"""', "'''")):
+                in_docstring = True
+                docstring_delim = stripped[:3]
+                extracted.append(line)
+                if stripped.count(docstring_delim) >= 2:
+                    in_docstring = False
+                continue
+
+            # Capture type annotations and constants
+            if _re.match(r"^[A-Z_][A-Z_0-9]*\s*[:=]", stripped):
+                extracted.append(line)
+                continue
+
+        return "\n".join(extracted) if extracted else ""
+
+    def _extract_key_lines(self, context: str) -> str:
+        """Extract key factual lines: headers, bullet points, definitions, URLs."""
+        import re as _re
+        lines = context.split("\n")
+        key_lines = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            # Headers (markdown or comment headers)
+            if stripped.startswith(("#", "##", "###", "//", "/*", "* ")):
+                key_lines.append(line)
+                continue
+
+            # Bullet points and numbered items
+            if _re.match(r"^[-*•]\s+|^\d+[.)]\s+", stripped):
+                key_lines.append(line)
+                continue
+
+            # Lines with key-value patterns (config, API, constraints)
+            if _re.match(r"^\w[\w_]*\s*[:=]", stripped):
+                key_lines.append(line)
+                continue
+
+            # Lines containing URLs
+            if "http://" in stripped or "https://" in stripped:
+                key_lines.append(line)
+                continue
+
+            # Lines with key terms (error, warning, constraint, require, must, endpoint)
+            if _re.search(
+                r"\b(error|warning|constraint|require[ds]?|must|endpoint|api|url|port|host|timeout|limit)\b",
+                stripped,
+                _re.IGNORECASE,
+            ):
+                key_lines.append(line)
+                continue
+
+        return "\n".join(key_lines) if key_lines else ""
 
     def _truncate(self, context: str) -> str:
         """Simple truncation fallback."""
@@ -380,8 +669,10 @@ class TokenOptimizer:
             "is_cloud_model": is_cloud_model,
         }
 
-        # Budget check
-        estimated_input_tokens = (len(prompt) + len(context)) // _CHARS_PER_TOKEN
+        # Budget check — use content-type-aware char/token ratio
+        content_type = "code" if task_type in ("coding", "code_gen", "builder", "testing", "test_automation") else "text" if task_type in ("documentation", "documentation_agent", "research", "researcher") else "mixed"
+        chars_per_tok = _CHARS_PER_TOKEN_BY_TYPE.get(content_type, _CHARS_PER_TOKEN)
+        estimated_input_tokens = (len(prompt) + len(context)) // chars_per_tok
         estimated_total = estimated_input_tokens + max_tokens
         budget_ok = True
 
@@ -392,8 +683,9 @@ class TokenOptimizer:
             meta["budget_ok"] = budget_ok
             if not budget_ok:
                 logger.warning(
-                    f"[TokenOptimizer] Task {task_id} would exceed budget "
-                    f"(estimated {estimated_total} tokens, remaining {active_budget.remaining})"
+                    "[TokenOptimizer] Task %s would exceed budget "
+                    "(estimated %s tokens, remaining %s)",
+                    task_id, estimated_total, active_budget.remaining
                 )
 
         # Cloud preprocessing: compress context before expensive cloud calls

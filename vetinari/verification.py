@@ -142,7 +142,7 @@ class CodeSyntaxVerifier(Verifier):
         
         try:
             ast.parse(cleaned)
-            logger.info(f"Code syntax validation passed")
+            logger.info("Code syntax validation passed")
         except SyntaxError as e:
             result.status = VerificationStatus.FAILED
             result.issues.append(
@@ -378,7 +378,7 @@ class VerificationPipeline:
             try:
                 results[verifier.name] = verifier.verify(content)
             except Exception as e:
-                logger.error(f"Error in verifier {verifier.name}: {e}")
+                logger.error("Error in verifier %s: %s", verifier.name, e)
                 results[verifier.name] = VerificationResult(
                     status=VerificationStatus.SKIPPED,
                     check_name=verifier.name,

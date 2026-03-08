@@ -7,8 +7,22 @@ These tests demonstrate the completion of Phase 1 requirements:
 - Dependency validation and result aggregation
 """
 
+import sys
 import unittest
 from typing import Dict
+
+# Remove incomplete stubs left by earlier test files so real modules load
+for _stubname in (
+    "vetinari.agents.contracts",
+    "vetinari.orchestration",
+    "vetinari.orchestration.agent_graph",
+    "vetinari.orchestration.two_layer",
+    "vetinari.orchestration.plan_generator",
+    "vetinari.orchestration.durable_execution",
+    "vetinari.orchestration.execution_graph",
+    "vetinari.orchestration.types",
+):
+    sys.modules.pop(_stubname, None)
 
 from vetinari.agents.contracts import (
     AgentType,

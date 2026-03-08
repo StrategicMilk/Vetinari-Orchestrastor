@@ -43,7 +43,7 @@ class Credential:
         try:
             due = datetime.fromisoformat(self.next_rotation_due)
             return datetime.now() >= due
-        except:
+        except (ValueError, TypeError):
             return True
 
 
@@ -64,7 +64,7 @@ class CredentialVault:
             try:
                 self._fernet = Fernet(self._key)
             except Exception as e:
-                logger.warning(f"Failed to initialize Fernet: {e}")
+                logger.warning("Failed to initialize Fernet: %s", e)
         
         self._credentials: Dict[str, Credential] = {}
         self._load()
@@ -78,7 +78,7 @@ class CredentialVault:
             try:
                 return key_file.read_bytes()
             except Exception:
-                pass
+                logger.debug("Failed to read encryption key file", exc_info=True)
         
         try:
             key = Fernet.generate_key()
@@ -86,10 +86,10 @@ class CredentialVault:
             try:
                 os.chmod(str(key_file), 0o600)
             except Exception:
-                pass  # May fail on Windows
+                logger.debug("chmod on key file failed (expected on Windows)", exc_info=True)
             return key
         except Exception as e:
-            logger.warning(f"Failed to generate encryption key: {e}")
+            logger.warning("Failed to generate encryption key: %s", e)
             return None
     
     def _load(self):
@@ -112,7 +112,7 @@ class CredentialVault:
                         self._credentials[source_type] = Credential(**cred_data)
                     return
                 except Exception as e:
-                    logger.warning(f"Failed to decrypt credentials: {e}")
+                    logger.warning("Failed to decrypt credentials: %s", e)
             
             # Fallback: try to load as plain JSON (for migration)
             try:
@@ -120,9 +120,9 @@ class CredentialVault:
                 for source_type, cred_data in data.items():
                     self._credentials[source_type] = Credential(**cred_data)
             except Exception:
-                pass
+                logger.debug("Failed to load credentials as plain JSON fallback", exc_info=True)
         except Exception as e:
-            logger.warning(f"Could not load credentials: {e}")
+            logger.warning("Could not load credentials: %s", e)
     
     def _save(self):
         data = {k: asdict(v) for k, v in self._credentials.items()}
@@ -135,7 +135,7 @@ class CredentialVault:
                 with open(self.credentials_file, 'wb') as f:
                     f.write(encrypted)
             except Exception as e:
-                logger.warning(f"Encryption failed, falling back to plain JSON: {e}")
+                logger.warning("Encryption failed, falling back to plain JSON: %s", e)
                 # Fallback to plain JSON
                 with open(self.credentials_file, 'w') as f:
                     f.write(json_str)
@@ -172,7 +172,7 @@ class CredentialVault:
         
         self._credentials[source_type] = credential
         self._save()
-        logger.info(f"Credential set for {source_type}")
+        logger.info("Credential set for %s", source_type)
     
     def remove_credential(self, source_type: str):
         if source_type in self._credentials:
@@ -191,7 +191,7 @@ class CredentialVault:
         cred.next_rotation_due = due.isoformat()
         
         self._save()
-        logger.info(f"Credential rotated for {source_type}")
+        logger.info("Credential rotated for %s", source_type)
         return True
     
     def list_credentials(self) -> Dict[str, Dict]:

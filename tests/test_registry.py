@@ -11,9 +11,14 @@ Tests cover:
 - Validation
 """
 
+import sys
 import pytest
 import json
 from pathlib import Path
+
+# Remove incomplete stubs left by earlier test files so real modules load
+for _stubname in ("vetinari.registry", "vetinari.skills.skill_registry"):
+    sys.modules.pop(_stubname, None)
 
 from vetinari import registry as registry_module
 from vetinari.registry import SkillRegistry

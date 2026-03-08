@@ -82,7 +82,7 @@ class VersionControlAgent(BaseAgent):
             self.complete_task(task, agent_result)
             return agent_result
         except Exception as exc:
-            logger.error(f"[VersionControlAgent] execute() failed: {exc}")
+            logger.error("[VersionControlAgent] execute() failed: %s", exc)
             return AgentResult(
                 success=False,
                 output={},
@@ -128,7 +128,7 @@ class VersionControlAgent(BaseAgent):
                     f"- [{r['title']}]: {r['snippet']}" for r in results[:3]
                 )
         except Exception:
-            pass
+            logger.debug("Failed to search for git best practices", exc_info=True)
 
         prompt = f"""You are a version control expert. Analyse the following request and provide structured guidance.
 

@@ -70,6 +70,17 @@ except ImportError:
     ContextManagerAgent = None
     get_context_manager_agent = None
 
+# --- Consolidated agents (Phase 3: 22→8) ---
+from .multi_mode_agent import MultiModeAgent
+from .consolidated import (
+    OrchestratorAgent, get_orchestrator_agent,
+    ConsolidatedResearcherAgent, get_consolidated_researcher_agent,
+    ConsolidatedOracleAgent, get_consolidated_oracle_agent,
+    ArchitectAgent, get_architect_agent,
+    QualityAgent, get_quality_agent,
+    OperationsAgent, get_operations_agent,
+)
+
 # Legacy coding bridge support
 from .coding_bridge import (
     CodingBridge,
@@ -152,6 +163,21 @@ __all__ = [
     "ExperimentationManagerAgent",
     "get_experimentation_manager_agent",
     
+    # Consolidated agents (Phase 3)
+    "MultiModeAgent",
+    "OrchestratorAgent",
+    "get_orchestrator_agent",
+    "ConsolidatedResearcherAgent",
+    "get_consolidated_researcher_agent",
+    "ConsolidatedOracleAgent",
+    "get_consolidated_oracle_agent",
+    "ArchitectAgent",
+    "get_architect_agent",
+    "QualityAgent",
+    "get_quality_agent",
+    "OperationsAgent",
+    "get_operations_agent",
+
     # Legacy coding bridge support
     "CodingBridge",
     "CodingTask",

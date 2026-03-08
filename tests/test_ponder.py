@@ -34,7 +34,7 @@ class TestPonderEngine:
         assert engine.weights["context"] == 0.20
         assert engine.weights["memory"] == 0.20
         assert engine.weights["heuristic"] == 0.20
-        assert engine.policy_penalty == -100.0
+        assert engine.policy_penalty == -1.0
     
     def test_task_capability_requirements_code(self):
         """Should detect code-related requirements"""
@@ -129,7 +129,7 @@ class TestPonderEngine:
         model = {"id": "regular-model", "tags": ["general"]}
         
         penalty = engine._check_policy_sensitivity(model, reqs)
-        assert penalty == -100.0
+        assert penalty == -1.0
         
         # Non-sensitive task
         reqs = {"policy_sensitive": False}

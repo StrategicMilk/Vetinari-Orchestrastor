@@ -174,7 +174,7 @@ class WebSearchTool:
         # Setup backend
         self._setup_backend()
         
-        logger.info(f"WebSearchTool initialized with backend: {self.backend_name}")
+        logger.info("WebSearchTool initialized with backend: %s", self.backend_name)
     
     def _setup_backend(self):
         """Setup the search backend."""
@@ -191,7 +191,7 @@ class WebSearchTool:
         elif self.backend_name == SearchBackend.SEARXNG.value:
             self._search_func = self._search_searxng
         else:
-            logger.warning(f"Unknown backend {self.backend_name}, using DuckDuckGo")
+            logger.warning("Unknown backend %s, using DuckDuckGo", self.backend_name)
             self._search_func = self._search_duckduckgo
     
     def search(self, 
@@ -218,7 +218,7 @@ class WebSearchTool:
         if cache_key in self._cache:
             cached_time, cached_response = self._cache[cache_key]
             if time.time() - cached_time < self.cache_ttl:
-                logger.debug(f"Cache hit for query: {query}")
+                logger.debug("Cache hit for query: %s", query)
                 return cached_response
         
         # Rate limiting
@@ -228,7 +228,7 @@ class WebSearchTool:
         try:
             results = self._search_func(query, max_results, language, time_range)
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error("Search failed: %s", e)
             results = []
         
         # Build response
@@ -260,7 +260,7 @@ class WebSearchTool:
             time_since_last = now - self._request_times[-1]
             if time_since_last < self._min_request_interval:
                 sleep_time = self._min_request_interval - time_since_last
-                logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s")
+                logger.debug("Rate limiting: sleeping %.2fs", sleep_time)
                 time.sleep(sleep_time)
         
         self._request_times.append(now)
@@ -269,7 +269,10 @@ class WebSearchTool:
                            language: str, time_range: str) -> List[SearchResult]:
         """Search using DuckDuckGo (via ddg library or HTTP)."""
         try:
-            from duckduckgo_search import DDGS
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
             
             results = []
             with DDGS() as ddgs:
@@ -284,10 +287,10 @@ class WebSearchTool:
                     ))
             return results
         except ImportError:
-            logger.warning("duckduckgo_search not installed, trying alternative method")
+            logger.warning("ddgs/duckduckgo_search not installed, trying alternative method")
             return self._search_duckduckgo_http(query, max_results, language)
         except Exception as e:
-            logger.error(f"DuckDuckGo search failed: {e}")
+            logger.error("DuckDuckGo search failed: %s", e)
             return []
     
     def _search_duckduckgo_http(self, query: str, max_results: int,
@@ -320,7 +323,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"DuckDuckGo HTTP search failed: {e}")
+            logger.error("DuckDuckGo HTTP search failed: %s", e)
             return []
     
     def _search_serpapi(self, query: str, max_results: int,
@@ -360,7 +363,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"SerpAPI search failed: {e}")
+            logger.error("SerpAPI search failed: %s", e)
             return []
     
     def _search_tavily(self, query: str, max_results: int,
@@ -403,7 +406,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"Tavily search failed: {e}")
+            logger.error("Tavily search failed: %s", e)
             return []
     
     def _search_wikipedia(self, query: str, max_results: int,
@@ -441,7 +444,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"Wikipedia search failed: {e}")
+            logger.error("Wikipedia search failed: %s", e)
             return []
     
     def _search_arxiv(self, query: str, max_results: int,
@@ -487,7 +490,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"arXiv search failed: {e}")
+            logger.error("arXiv search failed: %s", e)
             return []
     
     def _search_searxng(self, query: str, max_results: int,
@@ -525,7 +528,7 @@ class WebSearchTool:
             
             return results
         except Exception as e:
-            logger.error(f"SearxNG search failed: {e}")
+            logger.error("SearxNG search failed: %s", e)
             return []
     
     def search_multiple_queries(self, queries: List[str], 
@@ -542,7 +545,7 @@ class WebSearchTool:
                 response = self.search(query, max_results=max_results_per_query)
                 all_responses.append(response)
             except Exception as e:
-                logger.error(f"Query '{query}' failed: {e}")
+                logger.error("Query '%s' failed: %s", query, e)
         
         return all_responses
     
@@ -646,7 +649,7 @@ class WebSearchTool:
                     "timestamp": datetime.now().isoformat(),
                 })
             except Exception as e:
-                logger.warning(f"Backend {backend} failed for query '{query}': {e}")
+                logger.warning("Backend %s failed for query '%s': %s", backend, query, e)
         self.backend_name = original_backend
 
         # Sort by credibility, then trim

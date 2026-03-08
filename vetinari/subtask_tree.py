@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -6,14 +7,9 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 
+from vetinari.types import SubtaskStatus  # canonical enum from types.py
 
-class SubtaskStatus(Enum):
-    PENDING = "pending"
-    ASSIGNED = "assigned"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    BLOCKED = "blocked"
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -119,7 +115,7 @@ class SubtaskTree:
     _instance = None
 
     @classmethod
-    def get_instance(cls, storage_path: str = None):
+    def get_instance(cls, storage_path: str = None) -> "SubtaskTree":
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -144,7 +140,7 @@ class SubtaskTree:
                         subtask = Subtask.from_dict(st_data)
                         self.trees[plan_id][subtask.subtask_id] = subtask
             except Exception as e:
-                print(f"Error loading subtask tree {file}: {e}")
+                logger.error("Error loading subtask tree %s: %s", file, e)
 
     def _save_tree(self, plan_id: str):
         file_path = self.storage_path / f"{plan_id}.json"

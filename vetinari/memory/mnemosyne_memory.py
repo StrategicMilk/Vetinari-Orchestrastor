@@ -37,9 +37,9 @@ class MnemosyneMemoryStore(IMemoryStore):
             try:
                 with open(self.data_file, 'r') as f:
                     self._data = json.load(f)
-                logger.info(f"MnemosyneMemoryStore loaded {len(self._data.get('memories', []))} entries")
+                logger.info("MnemosyneMemoryStore loaded %s entries", len(self._data.get('memories', [])))
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to load memory data: {e}, starting fresh")
+                logger.warning("Failed to load memory data: %s, starting fresh", e)
                 self._data = {"memories": [], "metadata": {}}
         else:
             self._data = {"memories": [], "metadata": {}}
@@ -90,7 +90,7 @@ class MnemosyneMemoryStore(IMemoryStore):
         self._data["memories"] = memories
         self._save()
         
-        logger.debug(f"MnemosyneMemoryStore: stored entry {entry.id}")
+        logger.debug("MnemosyneMemoryStore: stored entry %s", entry.id)
         return entry.id
     
     def search(self, query: str, agent: Optional[str] = None,
@@ -163,7 +163,7 @@ class MnemosyneMemoryStore(IMemoryStore):
         with open(path, 'w') as f:
             json.dump(export_data, f, indent=2, default=str)
         
-        logger.info(f"MnemosyneMemoryStore: exported {len(self._data.get('memories', []))} entries to {path}")
+        logger.info("MnemosyneMemoryStore: exported %s entries to %s", len(self._data.get('memories', [])), path)
         return True
     
     def forget(self, entry_id: str, reason: str) -> bool:
@@ -175,7 +175,7 @@ class MnemosyneMemoryStore(IMemoryStore):
                 memory["forgotten"] = True
                 memory["forgotten_reason"] = reason
                 self._save()
-                logger.debug(f"MnemosyneMemoryStore: marked entry {entry_id} as forgotten")
+                logger.debug("MnemosyneMemoryStore: marked entry %s as forgotten", entry_id)
                 return True
         
         return False
@@ -199,7 +199,7 @@ class MnemosyneMemoryStore(IMemoryStore):
         self._data["memories"] = memories
         self._save()
         
-        logger.info(f"MnemosyneMemoryStore: compacted, removed {deleted} entries")
+        logger.info("MnemosyneMemoryStore: compacted, removed %d entries", deleted)
         return deleted
     
     def stats(self) -> MemoryStats:

@@ -1,10 +1,52 @@
 import logging
 import os
 import re
+import threading
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Type, TypeVar
 
 import yaml
+
+T = TypeVar("T")
+
+
+# ---------------------------------------------------------------------------
+# Singleton helper — replaces 18+ copy-pasted _instance patterns
+# ---------------------------------------------------------------------------
+
+
+class SingletonMeta(type):
+    """Thread-safe singleton metaclass.
+
+    Usage::
+
+        class MyService(metaclass=SingletonMeta):
+            def __init__(self, config=None):
+                self.config = config or {}
+
+        # First call creates the instance; subsequent calls return same object.
+        svc = MyService(config={"key": "value"})
+        assert MyService() is svc  # True
+
+        # Reset for testing:
+        MyService.reset_instance()
+    """
+
+    _instances: Dict[type, Any] = {}
+    _lock = threading.Lock()
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            with cls._lock:
+                if cls not in cls._instances:
+                    instance = super().__call__(*args, **kwargs)
+                    cls._instances[cls] = instance
+        return cls._instances[cls]
+
+    def reset_instance(cls) -> None:
+        """Remove the cached singleton instance (useful for tests)."""
+        with cls._lock:
+            cls._instances.pop(cls, None)
 
 
 def setup_logging(level=logging.INFO, log_dir="logs"):
@@ -78,3 +120,55 @@ def estimate_model_memory_gb(model_id: str) -> int:
         return 2
 
     return 4  # conservative default for unknown sizes
+
+
+# ---------------------------------------------------------------------------
+# RFC 9457 Problem Details for HTTP APIs
+# ---------------------------------------------------------------------------
+
+
+def error_response(
+    message: str,
+    status: int = 400,
+    detail: str = None,
+    instance: str = None,
+) -> tuple:
+    """Create an RFC 9457-compliant error response for Flask.
+
+    Args:
+        message: Short human-readable summary (becomes 'title').
+        status: HTTP status code.
+        detail: Longer explanation (optional).
+        instance: URI reference for the specific occurrence (optional).
+
+    Returns:
+        Tuple of (response_dict, status_code) suitable for Flask return.
+    """
+    body = {
+        "type": "about:blank",
+        "title": message,
+        "status": status,
+    }
+    if detail:
+        body["detail"] = detail
+    if instance:
+        body["instance"] = instance
+    return body, status
+
+
+def validate_required_fields(data: dict, fields: list) -> str | None:
+    """Validate that all required fields are present in a request dict.
+
+    Args:
+        data: The request data dictionary.
+        fields: List of required field names.
+
+    Returns:
+        Error message string if validation fails, None if all fields present.
+    """
+    if not data:
+        return "Request body is required"
+    missing = [f for f in fields if f not in data or data[f] is None]
+    if missing:
+        return f"Missing required fields: {', '.join(missing)}"
+    return None

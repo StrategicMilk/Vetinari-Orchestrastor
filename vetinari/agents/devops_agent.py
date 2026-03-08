@@ -110,7 +110,7 @@ Required output (JSON):
                 if results:
                     devops_context = "\n".join([r.get("snippet", "") for r in results[:2]])
             except Exception:
-                pass
+                logger.debug("Failed to search for DevOps best practices", exc_info=True)
 
             prompt = (
                 f"Design a complete DevOps setup for this project:\n{project_desc}\n\n"

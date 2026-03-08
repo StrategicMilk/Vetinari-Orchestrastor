@@ -20,6 +20,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 import random
+import threading
+
+from vetinari.types import ModelProvider  # canonical enum from types.py
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +42,13 @@ class TaskType(Enum):
     SUMMARIZATION = "summarization"
     TRANSLATION = "translation"
     GENERAL = "general"
-
-
-class ModelProvider(Enum):
-    """Model provider types."""
-    LOCAL = "local"  # LM Studio, Ollama, etc.
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE = "google"
-    HUGGINGFACE = "huggingface"
-    REPLICATE = "replicate"
-    OTHER = "other"
+    # Phase 7 additions
+    CREATIVE_WRITING = "creative_writing"
+    SECURITY_AUDIT = "security_audit"
+    DEVOPS = "devops"
+    IMAGE_GENERATION = "image_generation"
+    COST_ANALYSIS = "cost_analysis"
+    SPECIFICATION = "specification"
 
 
 @dataclass
@@ -136,6 +135,13 @@ class ModelCapabilities:
             TaskType.SUMMARIZATION: 0.6 * int(self.summarization) + 0.4 * int(self.chat),
             TaskType.TRANSLATION: 0.5 * int(self.chat) + 0.3 * int(self.creative) + 0.2 * int(self.reasoning),
             TaskType.GENERAL: 0.4 * int(self.chat) + 0.3 * int(self.code_gen) + 0.3 * int(self.reasoning),
+            # Phase 7 additions
+            TaskType.CREATIVE_WRITING: 0.6 * int(self.creative) + 0.3 * int(self.chat) + 0.1 * int(self.reasoning),
+            TaskType.SECURITY_AUDIT: 0.5 * int(self.code_gen) + 0.3 * int(self.reasoning) + 0.2 * int(self.analysis),
+            TaskType.DEVOPS: 0.4 * int(self.code_gen) + 0.3 * int(self.reasoning) + 0.3 * int(self.docs),
+            TaskType.IMAGE_GENERATION: 0.5 * int(self.creative) + 0.3 * int(self.chat) + 0.2 * int(self.reasoning),
+            TaskType.COST_ANALYSIS: 0.4 * int(self.analysis) + 0.3 * int(self.math) + 0.3 * int(self.reasoning),
+            TaskType.SPECIFICATION: 0.4 * int(self.reasoning) + 0.3 * int(self.docs) + 0.3 * int(self.analysis),
         }
         return scores.get(task_type, 0.5)
 
@@ -283,23 +289,34 @@ class DynamicModelRouter:
         
         # Selection history
         self._selection_history: List[Dict[str, Any]] = []
-        
+        self._lock = threading.Lock()
+
         # Callbacks
         self._health_check_callback: Optional[Callable] = None
         
-        logger.info(f"DynamicModelRouter initialized (prefer_local={prefer_local})")
+        logger.info("DynamicModelRouter initialized (prefer_local=%s)", prefer_local)
     
+    def get_performance_cache(self, cache_key: str) -> Dict[str, Any]:
+        """Thread-safe read from performance cache."""
+        with self._lock:
+            return self._performance_cache.get(cache_key, {}).copy()
+
+    def update_performance_cache(self, cache_key: str, data: Dict[str, Any]) -> None:
+        """Thread-safe update to performance cache."""
+        with self._lock:
+            self._performance_cache[cache_key] = data
+
     def register_model(self, model: ModelInfo):
         """Register a model in the router."""
         self.models[model.id] = model
-        logger.debug(f"Registered model: {model.id}")
+        logger.debug("Registered model: %s", model.id)
     
     def register_models_from_pool(self, models: List[Dict]):
         """Register models from a model pool (list of dicts)."""
         for m in models:
             model_info = ModelInfo.from_dict(m)
             self.register_model(model_info)
-        logger.info(f"Registered {len(models)} models from pool")
+        logger.info("Registered %s models from pool", len(models))
     
     def set_health_check_callback(self, callback: Callable):
         """Set a callback for health checking models."""
@@ -326,13 +343,14 @@ class DynamicModelRouter:
         model.total_uses = total
         model.last_checked = datetime.now().isoformat()
         
-        # Store in cache
+        # Store in cache (thread-safe)
         cache_key = f"{model_id}:{task_type.value if task_type else 'general'}"
-        self._performance_cache[cache_key] = {
-            "latency_ms": latency_ms,
-            "success": success,
-            "timestamp": time.time()
-        }
+        with self._lock:
+            self._performance_cache[cache_key] = {
+                "latency_ms": latency_ms,
+                "success": success,
+                "timestamp": time.time()
+            }
     
     def select_model(self, 
                     task_type: TaskType,
@@ -459,7 +477,7 @@ class DynamicModelRouter:
             perf_score = model.success_rate * (1.0 - min(model.avg_latency_ms / 60000, 1.0))
             score += 0.20 * perf_score
         else:
-            score += 0.10  # Neutral for unknown performance
+            score += 0.15  # Slightly optimistic prior for new models (exploration bonus)
 
         # Thompson Sampling bonus (up to +0.10) - uses learned exploration/exploitation data
         try:
@@ -467,13 +485,14 @@ class DynamicModelRouter:
             ts = get_thompson_selector()
             task_type_str = task_type.value if hasattr(task_type, "value") else str(task_type)
             arm = ts._arms.get(f"{model.id}:{task_type_str}")
-            if arm is not None and (arm.alpha + arm.beta) > 2:
+            if arm is not None and (arm.alpha + arm.beta) >= 2:
                 # Use the arm's mean as a quality signal (0-1 range)
+                # Beta(1,1) prior mean=0.5 gives new arms a fair exploration bonus
                 ts_bonus = arm.mean * 0.10
                 score += ts_bonus
         except Exception:
-            pass
-        
+            logger.debug("Failed to compute Thompson Sampling bonus for model %s", model.id, exc_info=True)
+
         # Provider preference (10%)
         if self.prefer_local:
             if model.provider == ModelProvider.LOCAL:
@@ -573,7 +592,7 @@ class DynamicModelRouter:
             try:
                 return self._health_check_callback(model_id)
             except Exception as e:
-                logger.error(f"Health check failed for {model_id}: {e}")
+                logger.error("Health check failed for %s: %s", model_id, e)
         
         # Basic checks
         if model.avg_latency_ms > self.max_latency_ms * 2:
@@ -622,10 +641,28 @@ def init_model_router(prefer_local: bool = True, **kwargs) -> DynamicModelRouter
 
 # Helper function to infer task type from description
 def infer_task_type(description: str) -> TaskType:
-    """Infer task type from description."""
+    """Infer task type from description using keyword matching.
+
+    Order matters — more specific categories are checked before general ones
+    so that "security audit" matches SECURITY_AUDIT, not just ANALYSIS.
+    """
     desc_lower = description.lower()
-    
-    if any(kw in desc_lower for kw in ["plan", "strategy", "workflow", "design", "architect"]):
+
+    # Phase 7: check specific categories first (before general ones)
+    if any(kw in desc_lower for kw in ["security", "audit", "vulnerability", "pentest", "cve", "owasp"]):
+        return TaskType.SECURITY_AUDIT
+    elif any(kw in desc_lower for kw in ["deploy", "ci/cd", "docker", "kubernetes", "pipeline", "devops", "terraform"]):
+        return TaskType.DEVOPS
+    elif any(kw in desc_lower for kw in ["logo", "icon", "mockup", "diagram", "image", "illustration"]):
+        return TaskType.IMAGE_GENERATION
+    elif any(kw in desc_lower for kw in ["cost", "budget", "pricing", "expense", "billing"]):
+        return TaskType.COST_ANALYSIS
+    elif any(kw in desc_lower for kw in ["specification", "spec", "requirements", "acceptance criteria"]):
+        return TaskType.SPECIFICATION
+    elif any(kw in desc_lower for kw in ["story", "poem", "fiction", "narrative", "campaign", "creative writ"]):
+        return TaskType.CREATIVE_WRITING
+    # Original categories
+    elif any(kw in desc_lower for kw in ["plan", "strategy", "workflow", "design", "architect"]):
         return TaskType.PLANNING
     elif any(kw in desc_lower for kw in ["analyze", "analysis", "research", "investigate"]):
         return TaskType.ANALYSIS
@@ -633,15 +670,15 @@ def infer_task_type(description: str) -> TaskType:
         return TaskType.CODING
     elif any(kw in desc_lower for kw in ["review", "refactor", "improve", "optimize"]):
         return TaskType.CODE_REVIEW
-    elif any(kw in desc_lower for kw in ["test", "testing", "spec", "assert"]):
+    elif any(kw in desc_lower for kw in ["test", "testing", "assert"]):
         return TaskType.TESTING
     elif any(kw in desc_lower for kw in ["document", "readme", "docs", "comment", "explain"]):
         return TaskType.DOCUMENTATION
     elif any(kw in desc_lower for kw in ["reason", "logic", "solve", "problem", "math"]):
         return TaskType.REASONING
-    elif any(kw in desc_lower for kw in ["story", "poem", "creative", "write", "article"]):
+    elif any(kw in desc_lower for kw in ["creative", "write", "article"]):
         return TaskType.CREATIVE
-    elif any(kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl"]):
+    elif any(kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl", "database", "schema", "sql"]):
         return TaskType.DATA_PROCESSING
     elif any(kw in desc_lower for kw in ["search", "find", "look", "query", "web"]):
         return TaskType.WEB_SEARCH

@@ -8,11 +8,16 @@ Tests the complete workflow:
 - Plan mode with approval gating and risk scoring
 """
 
+import sys
 import unittest
 import json
 import tempfile
 import os
 from pathlib import Path
+
+# Remove incomplete stubs left by earlier test files so real modules load
+for _stubname in ("vetinari.structured_logging", "vetinari.security"):
+    sys.modules.pop(_stubname, None)
 
 from vetinari.structured_logging import (
     configure_logging, CorrelationContext, get_trace_id, get_span_id, 

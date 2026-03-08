@@ -4,7 +4,7 @@ Unit tests for UI Planner Skill Tool
 
 import pytest
 from unittest.mock import Mock
-from vetinari.tools.ui_planner_skill import UIPlannerSkillTool, UIPlannerCapability, ThinkingMode
+from vetinari.skills.ui_planner import UIPlannerSkillTool, UIPlannerCapability, ThinkingMode
 from vetinari.execution_context import ExecutionMode
 
 

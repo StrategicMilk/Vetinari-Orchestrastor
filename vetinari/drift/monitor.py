@@ -216,18 +216,18 @@ class DriftMonitor:
             from vetinari.plan_types import Plan
             samples["Plan"] = Plan(goal="sample plan")
         except Exception:
-            pass
+            logger.debug("Failed to build sample Plan object for schema validation", exc_info=True)
         try:
             from vetinari.plan_types import Subtask
             samples["Subtask"] = Subtask(description="sample subtask",
                                           plan_id="p1")
         except Exception:
-            pass
+            logger.debug("Failed to build sample Subtask object for schema validation", exc_info=True)
         try:
             from vetinari.dashboard.log_aggregator import LogRecord
             samples["LogRecord"] = LogRecord(message="sample", level="INFO")
         except Exception:
-            pass
+            logger.debug("Failed to build sample LogRecord object for schema validation", exc_info=True)
         return samples
 
     def run_full_audit(

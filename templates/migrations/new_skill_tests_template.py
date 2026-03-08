@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 from vetinari.skills.my_skill import (
     MySkill, MySkillInput, MySkillOutput, MySkillCapability,
 )
-from vetinari.tools.my_skill import MySkillTool
+from vetinari.skills.my_skill import MySkillTool
 
 
 class TestMySkillInput(unittest.TestCase):

@@ -5,7 +5,7 @@ Unit tests for the Librarian Skill Tool
 import pytest
 from unittest.mock import Mock
 
-from vetinari.tools.librarian_skill import (
+from vetinari.skills.librarian import (
     LibrarianSkillTool,
     LibrarianCapability,
     ThinkingMode,

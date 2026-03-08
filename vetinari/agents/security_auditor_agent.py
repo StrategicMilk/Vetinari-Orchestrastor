@@ -6,6 +6,7 @@ vulnerability detection (heuristic + LLM), and generates actionable
 remediation guidance based on actual artifacts.
 """
 
+import ast
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -65,7 +66,7 @@ Required output (JSON):
       "title": "...",
       "description": "...",
       "location": "file:line or component",
-      "cwe": "CWE-XXX",
+      "cwe": "CWE-79 (use real CWE IDs: 79=XSS, 89=SQLi, 22=PathTraversal, 78=OSCmd, 502=Deserialization, 798=HardcodedCreds, 327=BrokenCrypto, 306=MissingAuth)",
       "evidence": "the actual code snippet",
       "remediation": "specific fix with code example"
     }
@@ -130,7 +131,7 @@ Security scoring:
                 if search_results:
                     vuln_context = "\n".join([r.get("snippet", "") for r in search_results[:2]])
             except Exception:
-                pass
+                logger.debug("Failed to search for OWASP vulnerability patterns", exc_info=True)
 
             # Build prompt with actual code content
             code_excerpt = code_content[:3000] if len(code_content) > 3000 else code_content
@@ -236,7 +237,12 @@ Security scoring:
         return "\n\n".join(parts)
 
     def _run_heuristic_checks(self, code: str) -> List[Dict[str, Any]]:
-        """Run pattern-based heuristic checks against code content."""
+        """Run pattern-based heuristic checks against code content.
+
+        Combines regex heuristics with AST-based static analysis (Python only).
+        AST findings are merged alongside regex findings; duplicates at the same
+        line are deduplicated by (pattern, line).
+        """
         issues = []
         for i, (pattern, severity, title) in enumerate(_HEURISTIC_CHECKS, 1):
             matches = list(re.finditer(pattern, code))
@@ -254,7 +260,158 @@ Security scoring:
                         "remediation": "Review and remediate this security pattern",
                     }
                 )
+
+        # Merge in AST-based findings, deduplicating by (title, location).
+        seen = {(i.get("title", ""), i.get("location", "")) for i in issues}
+        for ast_finding in self._ast_security_scan(code):
+            key = (ast_finding["detail"], f"line {ast_finding['line']}")
+            if key not in seen:
+                seen.add(key)
+                issues.append(
+                    {
+                        "id": f"AST-{len(issues):03d}",
+                        "severity": ast_finding["severity"],
+                        "category": "ast_analysis",
+                        "title": ast_finding["detail"],
+                        "description": ast_finding["detail"],
+                        "location": f"line {ast_finding['line']}",
+                        "evidence": ast_finding.get("evidence", "")[:80],
+                        "remediation": "Review and remediate this security pattern",
+                    }
+                )
         return issues
+
+    def _ast_security_scan(self, code: str) -> List[Dict[str, Any]]:
+        """Parse Python code with ast.parse() and walk the AST for security issues.
+
+        Returns a list of findings:
+            [{"pattern": str, "severity": str, "line": int, "detail": str, "evidence": str}]
+
+        Falls back gracefully to an empty list when the code cannot be parsed
+        (e.g. non-Python content).
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return []
+        except Exception:
+            logger.debug("ast.parse() failed — skipping AST security scan", exc_info=True)
+            return []
+
+        findings: List[Dict[str, Any]] = []
+
+        # Dangerous modules whose mere import is noteworthy.
+        _DANGEROUS_IMPORTS = {"os", "subprocess", "shutil", "ctypes", "importlib"}
+
+        # Dangerous bare function-call names mapped to (pattern_key, severity, detail).
+        _DANGEROUS_CALLS = {
+            "eval": ("eval_call", "critical", "eval() call detected"),
+            "exec": ("exec_call", "critical", "exec() call detected"),
+            "__import__": ("dynamic_import", "high", "__import__() dynamic import detected"),
+        }
+
+        for node in ast.walk(tree):
+            # --- Import statements -----------------------------------------------
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        mod_root = alias.name.split(".")[0]
+                        if mod_root in _DANGEROUS_IMPORTS:
+                            findings.append(
+                                {
+                                    "pattern": f"import_{mod_root}",
+                                    "severity": "medium",
+                                    "line": node.lineno,
+                                    "detail": f"Import of potentially dangerous module '{mod_root}'",
+                                    "evidence": f"import {alias.name}",
+                                }
+                            )
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    mod_root = node.module.split(".")[0]
+                    if mod_root in _DANGEROUS_IMPORTS:
+                        findings.append(
+                            {
+                                "pattern": f"import_{mod_root}",
+                                "severity": "medium",
+                                "line": node.lineno,
+                                "detail": f"Import of potentially dangerous module '{mod_root}'",
+                                "evidence": f"from {node.module} import ...",
+                            }
+                        )
+
+            # --- Function calls --------------------------------------------------
+            elif isinstance(node, ast.Call):
+                func = node.func
+
+                # Simple calls: eval(...), exec(...), __import__(...)
+                if isinstance(func, ast.Name) and func.id in _DANGEROUS_CALLS:
+                    pattern_key, severity, detail = _DANGEROUS_CALLS[func.id]
+                    findings.append(
+                        {
+                            "pattern": pattern_key,
+                            "severity": severity,
+                            "line": node.lineno,
+                            "detail": detail,
+                            "evidence": f"{func.id}(...)",
+                        }
+                    )
+
+                # Attribute calls: subprocess.*, os.system/popen, pickle.loads/load
+                elif isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+                    obj_name = func.value.id
+                    method = func.attr
+
+                    if obj_name == "subprocess" and method in (
+                        "call", "Popen", "run", "check_call",
+                        "check_output", "getoutput", "getstatusoutput",
+                    ):
+                        findings.append(
+                            {
+                                "pattern": "subprocess_call",
+                                "severity": "high",
+                                "line": node.lineno,
+                                "detail": f"subprocess.{method}() usage detected",
+                                "evidence": f"subprocess.{method}(...)",
+                            }
+                        )
+                    elif obj_name == "os" and method in ("system", "popen", "execv", "execve"):
+                        findings.append(
+                            {
+                                "pattern": "os_system_call",
+                                "severity": "high",
+                                "line": node.lineno,
+                                "detail": f"os.{method}() OS command execution detected",
+                                "evidence": f"os.{method}(...)",
+                            }
+                        )
+                    elif obj_name == "pickle" and method in ("loads", "load"):
+                        findings.append(
+                            {
+                                "pattern": "pickle_deserialise",
+                                "severity": "high",
+                                "line": node.lineno,
+                                "detail": f"pickle.{method}() unsafe deserialisation detected",
+                                "evidence": f"pickle.{method}(...)",
+                            }
+                        )
+
+            # --- Dangerous dunder attribute access -------------------------------
+            elif isinstance(node, ast.Attribute):
+                if node.attr in (
+                    "__class__", "__bases__", "__subclasses__",
+                    "__globals__", "__builtins__",
+                ):
+                    findings.append(
+                        {
+                            "pattern": "dunder_attr_access",
+                            "severity": "medium",
+                            "line": node.lineno,
+                            "detail": f"Potentially dangerous attribute access: .{node.attr}",
+                            "evidence": f"...{node.attr}",
+                        }
+                    )
+
+        return findings
 
     def _compute_verdict(self, issues: List[Dict]) -> str:
         severities = {i.get("severity", "info") for i in issues}

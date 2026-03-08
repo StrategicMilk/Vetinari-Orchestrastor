@@ -9,9 +9,14 @@ Tests the complete workflow of:
 - Permission enforcement across components
 """
 
+import sys
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+
+# Remove incomplete stubs left by earlier test files so real modules load
+for _stubname in ("vetinari.adapter_manager", "vetinari.tool_interface"):
+    sys.modules.pop(_stubname, None)
 
 from vetinari.execution_context import (
     ExecutionMode,

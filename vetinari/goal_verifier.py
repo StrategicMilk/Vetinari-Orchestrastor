@@ -239,7 +239,7 @@ class GoalVerifier:
                         if feat_data.get("evidence"):
                             existing.evidence = feat_data["evidence"]
         except Exception as e:
-            logger.warning(f"LLM evaluation failed in goal verifier: {e}")
+            logger.warning("LLM evaluation failed in goal verifier: %s", e)
             report.quality_score = 0.7  # Default passing score
 
         # 6. Run security check
@@ -248,8 +248,8 @@ class GoalVerifier:
                 self._security_check(final_output, task_outputs)
             )
         except Exception as e:
-            logger.warning(f"Security check failed: {e}")
-            report.security_passed = True  # Don't block on security check failure
+            logger.error("Security check failed — treating as unsafe: %s", e)
+            report.security_passed = False  # Fail-closed: don't pass on security check failure
 
         # 7. Calculate overall compliance
         report.missing_features = [
@@ -276,10 +276,9 @@ class GoalVerifier:
         )
 
         logger.info(
-            f"Goal verification for {project_id}: "
-            f"score={report.compliance_score:.2f}, "
-            f"compliant={report.fully_compliant}, "
-            f"missing={len(report.missing_features)}"
+            "Goal verification for %s: score=%.2f, compliant=%s, missing=%s",
+            project_id, report.compliance_score, report.fully_compliant,
+            len(report.missing_features)
         )
         return report
 
@@ -419,7 +418,7 @@ For each required feature, check if it's implemented. Return JSON:
                 return result.output
 
         except Exception as e:
-            logger.debug(f"LLM evaluation in goal verifier failed: {e}")
+            logger.debug("LLM evaluation in goal verifier failed: %s", e)
         return None
 
     def _security_check(
@@ -451,7 +450,7 @@ For each required feature, check if it's implemented. Return JSON:
                 critical = [f for f in findings if f.get("severity") in ("critical", "high")]
                 return len(critical) == 0, findings, score
         except Exception as e:
-            logger.debug(f"Security check failed: {e}")
+            logger.debug("Security check failed: %s", e)
 
         return True, [], 1.0
 

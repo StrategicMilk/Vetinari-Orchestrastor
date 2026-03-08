@@ -13,7 +13,7 @@ Tests cover:
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from vetinari.tools.explorer_skill import (
+from vetinari.skills.explorer import (
     ExplorerSkillTool,
     ExplorerCapability,
     ThinkingMode,

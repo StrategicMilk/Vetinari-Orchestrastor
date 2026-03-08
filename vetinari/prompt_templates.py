@@ -219,7 +219,7 @@ def get_prompt(prompt_type: str, **kwargs) -> str:
         try:
             return template.format(**kwargs)
         except KeyError as e:
-            logger.warning(f"Missing prompt variable: {e}")
+            logger.warning("Missing prompt variable: %s", e)
             return template
     
     return template

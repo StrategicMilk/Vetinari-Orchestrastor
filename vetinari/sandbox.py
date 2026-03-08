@@ -245,7 +245,7 @@ class ExternalPluginSandbox:
                         with open(manifest_file) as f:
                             data = yaml.safe_load(f)
                             manifests.append(data)
-                    except:
+                    except (yaml.YAMLError, OSError):
                         pass
         return manifests
 
@@ -309,7 +309,7 @@ class SandboxManager:
     _instance = None
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> "SandboxManager":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance

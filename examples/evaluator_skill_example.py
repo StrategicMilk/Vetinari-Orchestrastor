@@ -11,7 +11,7 @@ Demonstrates all capabilities of the evaluator skill tool including:
 - Best practices checking
 """
 
-from vetinari.tools.evaluator_skill import (
+from vetinari.skills.evaluator import (
     EvaluatorSkillTool,
     EvaluatorCapability,
     ThinkingMode,

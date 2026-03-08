@@ -193,7 +193,7 @@ class ModelRegistry:
             from vetinari.utils import load_yaml
             cfg = load_yaml(str(self._config_path))
         except Exception as e:
-            logger.warning(f"[ModelRegistry] Failed to load models.yaml: {e}")
+            logger.warning("[ModelRegistry] Failed to load models.yaml: %s", e)
             return
 
         all_model_configs = cfg.get("models", []) + cfg.get("cloud_models", [])
@@ -219,7 +219,7 @@ class ModelRegistry:
             )
             self._models[mid] = info
 
-        logger.debug(f"[ModelRegistry] Loaded {len(self._models)} models from config")
+        logger.debug("[ModelRegistry] Loaded %s models from config", len(self._models))
 
     # ------------------------------------------------------------------
     # LM Studio discovery
@@ -249,14 +249,14 @@ class ModelRegistry:
                 headers=self._build_auth_headers(),
             )
             if resp.status_code != 200:
-                logger.debug(f"[ModelRegistry] /v1/models returned {resp.status_code}")
+                logger.debug("[ModelRegistry] /v1/models returned %s", resp.status_code)
                 return
             data = resp.json()
             raw_models = data.get("data", data) if isinstance(data, dict) else data
             if not isinstance(raw_models, list):
                 return
         except Exception as e:
-            logger.debug(f"[ModelRegistry] LM Studio discovery failed: {e}")
+            logger.debug("[ModelRegistry] LM Studio discovery failed: %s", e)
             return
 
         # Mark all previously-loaded lmstudio models as unloaded
@@ -300,8 +300,8 @@ class ModelRegistry:
                 )
 
         logger.debug(
-            f"[ModelRegistry] Refreshed: {len(loaded_ids)} loaded in LM Studio, "
-            f"{len(self._models)} total in registry"
+            "[ModelRegistry] Refreshed: %s loaded in LM Studio, %s total in registry",
+            len(loaded_ids), len(self._models)
         )
 
     # ------------------------------------------------------------------

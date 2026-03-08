@@ -1,6 +1,7 @@
 """Google Gemini provider adapter."""
 
 import logging
+import os
 import requests
 import time
 from typing import Dict, List, Any, Optional
@@ -15,6 +16,50 @@ logger = logging.getLogger(__name__)
 class GeminiProviderAdapter(ProviderAdapter):
     """Adapter for Google Gemini API."""
 
+    # Hardcoded fallback model list — used when config/provider_models.yaml is unavailable
+    _HARDCODED_MODELS = [
+        {
+            "id": "gemini-2.0-flash",
+            "name": "Gemini 2.0 Flash",
+            "context_len": 1000000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 800,
+            "cost_per_1k_tokens": 0.00007,
+            "free_tier": True,
+            "capabilities": ["code_gen", "chat", "reasoning", "vision"],
+        },
+        {
+            "id": "gemini-1.5-pro",
+            "name": "Gemini 1.5 Pro",
+            "context_len": 2000000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1200,
+            "cost_per_1k_tokens": 0.00125,
+            "free_tier": True,
+            "capabilities": ["code_gen", "chat", "reasoning", "vision"],
+        },
+        {
+            "id": "gemini-1.5-flash",
+            "name": "Gemini 1.5 Flash",
+            "context_len": 1000000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 600,
+            "cost_per_1k_tokens": 0.000075,
+            "free_tier": True,
+            "capabilities": ["code_gen", "chat", "vision"],
+        },
+        {
+            "id": "gemini-1.0-pro",
+            "name": "Gemini 1.0 Pro",
+            "context_len": 32000,
+            "memory_gb": 16,
+            "latency_estimate_ms": 1000,
+            "cost_per_1k_tokens": 0.0005,
+            "free_tier": True,
+            "capabilities": ["code_gen", "chat"],
+        },
+    ]
+
     def __init__(self, config: ProviderConfig):
         """Initialize Gemini adapter."""
         if config.provider_type != ProviderType.GEMINI:
@@ -25,52 +70,28 @@ class GeminiProviderAdapter(ProviderAdapter):
         if not self.api_key:
             raise ValueError("Gemini adapter requires api_key in config")
 
+    def _load_model_definitions(self) -> List[Dict[str, Any]]:
+        """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
+        try:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                '..', 'config', 'provider_models.yaml'
+            )
+            import yaml
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            provider_models = config.get('providers', {}).get('google', {}).get('models', [])
+            if provider_models:
+                return provider_models
+        except Exception:
+            logger.debug("Config file not available, using hardcoded models")
+        return self._HARDCODED_MODELS
+
     def discover_models(self) -> List[ModelInfo]:
         """Discover available models from Google Gemini."""
         try:
-            # Google Gemini models
-            models_data = [
-                {
-                    "id": "gemini-2.0-flash",
-                    "name": "Gemini 2.0 Flash",
-                    "context_len": 1000000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 800,
-                    "cost_per_1k_tokens": 0.00007,
-                    "free_tier": True,
-                    "capabilities": ["code_gen", "chat", "reasoning", "vision"],
-                },
-                {
-                    "id": "gemini-1.5-pro",
-                    "name": "Gemini 1.5 Pro",
-                    "context_len": 2000000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1200,
-                    "cost_per_1k_tokens": 0.00125,
-                    "free_tier": True,
-                    "capabilities": ["code_gen", "chat", "reasoning", "vision"],
-                },
-                {
-                    "id": "gemini-1.5-flash",
-                    "name": "Gemini 1.5 Flash",
-                    "context_len": 1000000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 600,
-                    "cost_per_1k_tokens": 0.000075,
-                    "free_tier": True,
-                    "capabilities": ["code_gen", "chat", "vision"],
-                },
-                {
-                    "id": "gemini-1.0-pro",
-                    "name": "Gemini 1.0 Pro",
-                    "context_len": 32000,
-                    "memory_gb": 16,
-                    "latency_estimate_ms": 1000,
-                    "cost_per_1k_tokens": 0.0005,
-                    "free_tier": True,
-                    "capabilities": ["code_gen", "chat"],
-                },
-            ]
+            # Load model list from config file (falls back to hardcoded if unavailable)
+            models_data = self._load_model_definitions()
             
             discovered = []
             for m in models_data:
@@ -91,11 +112,11 @@ class GeminiProviderAdapter(ProviderAdapter):
                 discovered.append(model_info)
             
             self.models = discovered
-            logger.info(f"[Gemini] Discovered {len(discovered)} models")
+            logger.info("[Gemini] Discovered %s models", len(discovered))
             return discovered
 
         except Exception as e:
-            logger.error(f"[Gemini] Model discovery failed: {e}")
+            logger.error("[Gemini] Model discovery failed: %s", e)
             return []
 
     def health_check(self) -> Dict[str, Any]:
@@ -183,17 +204,19 @@ class GeminiProviderAdapter(ProviderAdapter):
             if "usageMetadata" in data:
                 tokens_used = data["usageMetadata"].get("totalTokenCount", 0)
 
-            return InferenceResponse(
+            resp = InferenceResponse(
                 model_id=request.model_id,
                 output=output,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
                 status="ok",
             )
+            self._record_telemetry(request, resp)
+            return resp
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[Gemini] Inference failed: {e}")
+            logger.error("[Gemini] Inference failed: %s", e)
             return InferenceResponse(
                 model_id=request.model_id,
                 output="",

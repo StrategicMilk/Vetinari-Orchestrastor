@@ -307,7 +307,7 @@ class BenchmarkSuite:
             }
 
         except Exception as e:
-            logger.debug(f"[Benchmark] Case {case.case_id} failed: {e}")
+            logger.debug("[Benchmark] Case %s failed: %s", case.case_id, e)
             return 0.0, {"case_id": case.case_id, "score": 0.0, "error": str(e)[:200]}
 
     # ------------------------------------------------------------------
@@ -361,7 +361,7 @@ class BenchmarkSuite:
             with open(_RESULTS_PATH, "a") as f:
                 f.write(json.dumps(dataclasses.asdict(result)) + "\n")
         except Exception as e:
-            logger.debug(f"[Benchmark] Persist failed: {e}")
+            logger.debug("[Benchmark] Persist failed: %s", e)
 
     def _load_historical(self) -> Dict[str, float]:
         """Load per-agent average scores from historical results."""
@@ -387,5 +387,5 @@ def run_benchmark(agent_types: Optional[List[str]] = None) -> List[BenchmarkResu
     suite.print_report(results)
     regressions = suite.check_regression(results)
     if regressions:
-        logger.warning(f"[Benchmark] REGRESSIONS DETECTED:\n" + "\n".join(regressions))
+        logger.warning("[Benchmark] REGRESSIONS DETECTED:\n%s", "\n".join(regressions))
     return results

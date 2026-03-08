@@ -227,7 +227,7 @@ Only flag as ambiguous if critical information is missing. Don't ask about nice-
             if isinstance(result, str):
                 return [result] * len(questions)
         except Exception as e:
-            logger.warning(f"Interaction callback failed: {e}")
+            logger.warning("Interaction callback failed: %s", e)
         return ["(callback error)"] * len(questions)
 
     def ask_for_more_context(self, goal: str, specific_need: str) -> str:

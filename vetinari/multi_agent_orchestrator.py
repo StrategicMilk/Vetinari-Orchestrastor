@@ -71,7 +71,7 @@ class MultiAgentOrchestrator:
             for a in AgentType
         }
         self._initialized = True
-        logger.info(f"MultiAgentOrchestrator initialized with {len(self.agents)} agents")
+        logger.info("MultiAgentOrchestrator initialized with %s agents", len(self.agents))
 
     def get_agent_status(self) -> List[Dict[str, Any]]:
         """Return status for all agents."""
@@ -82,7 +82,7 @@ class MultiAgentOrchestrator:
     def dispatch_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatch a task to the appropriate agent via TwoLayerOrchestrator."""
         try:
-            from vetinari.two_layer_orchestration import TwoLayerOrchestrator
+            from vetinari.orchestration.two_layer import TwoLayerOrchestrator
             orch = TwoLayerOrchestrator()
             results = orch.generate_and_execute(
                 goal=task.get("description", ""),
@@ -90,5 +90,5 @@ class MultiAgentOrchestrator:
             )
             return {"status": "dispatched", "results": results}
         except Exception as e:
-            logger.error(f"Task dispatch failed: {e}")
+            logger.error("Task dispatch failed: %s", e)
             return {"status": "error", "error": str(e)}
