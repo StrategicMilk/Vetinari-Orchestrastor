@@ -74,6 +74,22 @@ class SynthesizerSkillTool(Tool):
         )
         super().__init__(metadata)
 
+    def _try_llm_generate(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Attempt LLM-based synthesis via BaseAgent._infer_json().
+
+        Returns parsed JSON on success, None on failure.
+        """
+        try:
+            from vetinari.agents.base_agent import BaseAgent
+            agent = BaseAgent.__new__(BaseAgent)
+            if hasattr(agent, '_infer_json'):
+                result = agent._infer_json(prompt, fallback=None)
+                if result and isinstance(result, dict):
+                    return result
+        except Exception as e:
+            logger.debug(f"LLM inference attempt failed: {e}")
+        return None
+
     def execute(self, **kwargs) -> ToolResult:
         try:
             cap_str = kwargs.get("capability")
@@ -120,33 +136,60 @@ class SynthesizerSkillTool(Tool):
             return self._present(req, exec_mode)
         return SynthesisResult(success=False, summary="Unknown capability")
 
+    def _llm_synthesize(self, req: SynthesisRequest, capability_label: str) -> SynthesisResult:
+        """Common LLM-based synthesis for all capabilities."""
+        prompt = (
+            f"You are a synthesis engine. Perform the following and return JSON with keys: "
+            f"summary (string), insights (list of strings), report (string or null).\n\n"
+            f"Capability: {capability_label}\n"
+            f"Content to synthesize:\n{req.content}\n"
+        )
+        if req.context:
+            prompt += f"Context: {req.context}\n"
+        prompt += f"Thinking depth: {req.thinking_mode.value}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return SynthesisResult(
+                success=True,
+                summary=llm_result.get("summary"),
+                insights=llm_result.get("insights", []),
+                report=llm_result.get("report"),
+            )
+
+        return SynthesisResult(
+            success=False,
+            summary="LLM inference unavailable",
+            insights=[],
+            report=None,
+        )
+
     def _combine_results(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would combine results")
-        return SynthesisResult(success=True, summary=f"Combined results from: {req.content[:50]}...", insights=["Insight 1 from combination", "Insight 2 from combination"])
+        return self._llm_synthesize(req, "result_combination")
 
     def _summarize(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would summarize content")
-        return SynthesisResult(success=True, summary=f"Summary of: {req.content[:30]}...", insights=["Key point 1", "Key point 2"])
+        return self._llm_synthesize(req, "summarization")
 
     def _generate_report(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would generate report")
-        report = f"# Report\n\n## Summary\n{req.content[:50]}...\n\n## Details\nDetailed findings here."
-        return SynthesisResult(success=True, summary="Report generated", report=report)
+        return self._llm_synthesize(req, "report_generation")
 
     def _extract_insights(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would extract insights")
-        return SynthesisResult(success=True, insights=["Critical insight 1", "Actionable insight 2", "Strategic insight 3"])
+        return self._llm_synthesize(req, "insight_extraction")
 
     def _consolidate(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would consolidate information")
-        return SynthesisResult(success=True, summary="Information consolidated", insights=["Consolidated point 1", "Consolidated point 2"])
+        return self._llm_synthesize(req, "consolidation")
 
     def _present(self, req: SynthesisRequest, exec_mode: ExecutionMode) -> SynthesisResult:
         if exec_mode == ExecutionMode.PLANNING:
             return SynthesisResult(success=True, summary="Planning: Would prepare presentation")
-        return SynthesisResult(success=True, summary="Presentation prepared", report="## Presentation\n- Slide 1\n- Slide 2\n- Slide 3")
+        return self._llm_synthesize(req, "presentation")

@@ -68,6 +68,7 @@ class VerificationReport:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VerificationReport":
+        data = dict(data)  # Avoid mutating caller's dictionary
         issues_data = data.pop("issues", [])
         data.pop("critical_count", None)
         data.pop("unresolved_count", None)
@@ -378,11 +379,11 @@ class RefinementLoop:
     @staticmethod
     def _default_refine(result: Any, issues: List[VerificationIssue], **kwargs) -> Any:
         """Default no-op refinement (pass-through). Replace with real agent call."""
-        logger.debug("Default refinement pass-through: %d issues", len(issues))
+        logger.warning("Default refinement pass-through: %d issues", len(issues))
         return result
 
     @staticmethod
     def _default_verify(result: Any) -> VerificationReport:
         """Default no-op verification. Replace with real verifier."""
-        logger.debug("Default verification pass-through")
-        return VerificationReport(passed=True, quality_score=0.8, summary="Default pass-through")
+        logger.warning("Default verification pass-through")
+        return VerificationReport(passed=False, quality_score=0.0, summary="No verifier configured — verification skipped")

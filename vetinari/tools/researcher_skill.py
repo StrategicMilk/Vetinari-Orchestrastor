@@ -78,6 +78,22 @@ class ResearcherSkillTool(Tool):
         )
         super().__init__(metadata)
 
+    def _try_llm_generate(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Attempt LLM-based research via BaseAgent._infer_json().
+
+        Returns parsed JSON on success, None on failure.
+        """
+        try:
+            from vetinari.agents.base_agent import BaseAgent
+            agent = BaseAgent.__new__(BaseAgent)
+            if hasattr(agent, '_infer_json'):
+                result = agent._infer_json(prompt, fallback=None)
+                if result and isinstance(result, dict):
+                    return result
+        except Exception as e:
+            logger.debug(f"LLM inference attempt failed: {e}")
+        return None
+
     def execute(self, **kwargs) -> ToolResult:
         try:
             cap_str = kwargs.get("capability")
@@ -130,33 +146,65 @@ class ResearcherSkillTool(Tool):
             return self._data_collection(req, exec_mode)
         return ResearchResult(success=False, summary="Unknown capability")
 
+    def _llm_research(self, req: ResearchRequest, capability_label: str) -> ResearchResult:
+        """Common LLM-based research for all capabilities."""
+        prompt = (
+            f"You are a research analyst. Perform the following and return JSON with keys: "
+            f"findings (list of strings), summary (string), sources (list of strings), "
+            f"confidence (string: low/medium/high).\n\n"
+            f"Capability: {capability_label}\n"
+            f"Topic: {req.topic}\n"
+        )
+        if req.context:
+            prompt += f"Context: {req.context}\n"
+        if req.criteria:
+            prompt += f"Criteria: {', '.join(req.criteria)}\n"
+        prompt += f"Thinking depth: {req.thinking_mode.value}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ResearchResult(
+                success=True,
+                findings=llm_result.get("findings", []),
+                summary=llm_result.get("summary"),
+                sources=llm_result.get("sources", []),
+                confidence=llm_result.get("confidence", "low"),
+            )
+
+        return ResearchResult(
+            success=False,
+            findings=[],
+            summary="LLM inference unavailable",
+            sources=[],
+            confidence="low",
+        )
+
     def _deep_dive(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would conduct deep dive research")
-        return ResearchResult(success=True, findings=[f"Finding 1 for {req.topic}", f"Finding 2 for {req.topic}"], summary=f"Deep dive research on {req.topic}", sources=[], confidence="low")
+        return self._llm_research(req, "deep_dive")
 
     def _source_verification(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would verify sources")
-        return ResearchResult(success=True, findings=["source_verification: not_verified", "No live source verification performed"], summary=f"Source verification requested for {req.topic} but no live verification was performed", sources=[], confidence="low")
+        return self._llm_research(req, "source_verification")
 
     def _comparative_analysis(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would perform comparative analysis")
-        criteria = req.criteria if req.criteria else ["Performance", "Cost", "Features"]
-        return ResearchResult(success=True, findings=[f"Analysis of {req.topic} against criteria: {', '.join(criteria)}"], summary=f"Comparative analysis for {req.topic}", sources=[], confidence="low")
+        return self._llm_research(req, "comparative_analysis")
 
     def _fact_finding(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would gather facts")
-        return ResearchResult(success=True, findings=[f"Fact 1 about {req.topic}", f"Fact 2 about {req.topic}"], summary=f"Fact-finding for {req.topic}", confidence="high")
+        return self._llm_research(req, "fact_finding")
 
     def _comprehensive_report(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would generate comprehensive report")
-        return ResearchResult(success=True, findings=[f"Comprehensive finding 1 for {req.topic}", f"Comprehensive finding 2 for {req.topic}", f"Comprehensive finding 3 for {req.topic}"], summary=f"Comprehensive report on {req.topic} (source_verification: not_verified)", sources=[], confidence="low")
+        return self._llm_research(req, "comprehensive_report")
 
     def _data_collection(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would collect data")
-        return ResearchResult(success=True, findings=[f"Data point 1 for {req.topic}", f"Data point 2 for {req.topic}"], summary=f"Data collection for {req.topic}")
+        return self._llm_research(req, "data_collection")

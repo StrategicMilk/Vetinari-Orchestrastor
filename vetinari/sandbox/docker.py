@@ -3,12 +3,17 @@
 Consolidated from code_sandbox.py.
 """
 
+import json
 import logging
 import os
+import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -16,6 +21,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Compiled pattern for detecting shell metacharacters in commands
+_SHELL_METACHARACTERS = re.compile(r'[;|&`$()]')
 
 # ---------------------------------------------------------------------------
 # Subprocess-based sandbox (consolidated from code_sandbox.py)

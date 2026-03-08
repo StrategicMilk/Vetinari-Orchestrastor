@@ -74,6 +74,22 @@ class UIPlannerSkillTool(Tool):
         )
         super().__init__(metadata)
 
+    def _try_llm_generate(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Attempt LLM-based UI design via BaseAgent._infer_json().
+
+        Returns parsed JSON on success, None on failure.
+        """
+        try:
+            from vetinari.agents.base_agent import BaseAgent
+            agent = BaseAgent.__new__(BaseAgent)
+            if hasattr(agent, '_infer_json'):
+                result = agent._infer_json(prompt, fallback=None)
+                if result and isinstance(result, dict):
+                    return result
+        except Exception as e:
+            logger.debug(f"LLM inference attempt failed: {e}")
+        return None
+
     def execute(self, **kwargs) -> ToolResult:
         try:
             cap_str = kwargs.get("capability")
@@ -120,38 +136,60 @@ class UIPlannerSkillTool(Tool):
             return self._visual_polish(req, exec_mode)
         return UIResult(success=False, summary="Unknown capability")
 
+    def _llm_ui_design(self, req: UIRequest, capability_label: str) -> UIResult:
+        """Common LLM-based UI design for all capabilities."""
+        prompt = (
+            f"You are a frontend CSS designer. Generate CSS and return JSON with keys: "
+            f"css_code (string), summary (string), notes (list of strings).\n\n"
+            f"Capability: {capability_label}\n"
+            f"Element: {req.element}\n"
+        )
+        if req.context:
+            prompt += f"Context: {req.context}\n"
+        prompt += f"Design depth: {req.thinking_mode.value}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return UIResult(
+                success=True,
+                css_code=llm_result.get("css_code"),
+                summary=llm_result.get("summary"),
+                notes=llm_result.get("notes", []),
+            )
+
+        return UIResult(
+            success=False,
+            css_code=None,
+            summary="LLM inference unavailable",
+            notes=[],
+        )
+
     def _css_design(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would design CSS")
-        css = f".{req.element} {{\n  display: block;\n  padding: 16px;\n  margin: 8px;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"CSS designed for {req.element}", notes=["Use semantic class names", "Consider responsive breakpoints"])
+        return self._llm_ui_design(req, "css_design")
 
     def _responsive_layout(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would create responsive layout")
-        css = f".{req.element} {{\n  display: flex;\n  flex-direction: column;\n}}\n@media (min-width: 768px) {{\n  .{req.element} {{\n    flex-direction: row;\n  }}\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Responsive layout for {req.element}")
+        return self._llm_ui_design(req, "responsive_layout")
 
     def _animation(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would add animations")
-        css = f"@keyframes fadeIn {{\n  from {{ opacity: 0; }}\n  to {{ opacity: 1; }}\n}}\n.{req.element} {{\n  animation: fadeIn 0.3s ease-in-out;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Animation added to {req.element}", notes=["Consider prefers-reduced-motion", "Test on various browsers"])
+        return self._llm_ui_design(req, "animation")
 
     def _accessibility(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would ensure accessibility")
-        css = f".{req.element}:focus-visible {{\n  outline: 2px solid #0066cc;\n  outline-offset: 2px;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Accessibility improvements for {req.element}", notes=["WCAG 2.1 AA compliant", "Test with screen reader"])
+        return self._llm_ui_design(req, "accessibility")
 
     def _design_systems(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would create design system")
-        css = f":root {{\n  --primary-color: #0066cc;\n  --spacing-unit: 8px;\n  --border-radius: 4px;\n}}"
-        return UIResult(success=True, css_code=css, summary="Design tokens defined", notes=["Use CSS custom properties", "Maintain consistency"])
+        return self._llm_ui_design(req, "design_systems")
 
     def _visual_polish(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would add visual polish")
-        css = f".{req.element} {{\n  box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n  border-radius: 8px;\n  transition: transform 0.2s ease;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Visual polish applied to {req.element}", notes=["Add subtle shadows", "Consider hover effects"])
+        return self._llm_ui_design(req, "visual_polish")

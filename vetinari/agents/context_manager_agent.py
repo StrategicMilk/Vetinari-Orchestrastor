@@ -72,13 +72,12 @@ class ContextManagerAgent(BaseAgent):
         ]
 
     def execute(self, task: AgentTask) -> AgentResult:
-        self.validate_task(task)
+        if not self.validate_task(task):
+            return AgentResult(success=False, output=None, errors=[f"Invalid task for {self._agent_type.value}"])
         self.prepare_task(task)
         try:
             result = self._manage_context(task)
             agent_result = AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=True,
                 output=result,
                 metadata={
@@ -91,11 +90,9 @@ class ContextManagerAgent(BaseAgent):
         except Exception as exc:
             logger.error(f"[ContextManagerAgent] execute() failed: {exc}")
             return AgentResult(
-                task_id=task.task_id,
-                agent_type=self._agent_type,
                 success=False,
                 output={},
-                error=str(exc),
+                errors=[str(exc)],
             )
 
     def verify(self, output: Any) -> VerificationResult:

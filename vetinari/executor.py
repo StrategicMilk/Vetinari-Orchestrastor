@@ -128,26 +128,27 @@ class TaskExecutor:
         # Run verification pipeline if available
         verification_result = None
         try:
-            from vetinari.verification import get_verifier_pipeline
+            from vetinari.validation.verification import get_verifier_pipeline, VerificationStatus
             pipeline = get_verifier_pipeline()
             vr_dict = pipeline.verify(output_text)
-            # pipeline.verify() returns Dict[str, VerificationResult] - aggregate results
-            if isinstance(vr_dict, dict):
-                all_passed = all(getattr(v, "passed", True) for v in vr_dict.values())
-                avg_score = (
-                    sum(getattr(v, "score", 1.0) for v in vr_dict.values()) / len(vr_dict)
-                    if vr_dict else 1.0
+            # pipeline.verify() returns Dict[str, VerificationResult]
+            if isinstance(vr_dict, dict) and vr_dict:
+                all_passed = all(
+                    v.status == VerificationStatus.PASSED for v in vr_dict.values()
                 )
+                # Compute score from issue counts: 1.0 = no issues, lower with more errors
+                total_checks = len(vr_dict)
+                scores = []
                 all_issues = []
                 for v in vr_dict.values():
-                    all_issues.extend(getattr(v, "issues", []))
+                    issue_total = v.error_count + v.warning_count + v.info_count
+                    score = 1.0 - (v.error_count / max(issue_total, 1)) if issue_total > 0 else 1.0
+                    scores.append(score)
+                    all_issues.extend(v.issues)
+                avg_score = sum(scores) / total_checks
                 verification_result = {"passed": all_passed, "score": avg_score, "issues": all_issues}
                 if not all_passed:
                     logger.warning(f"Verification failed for task {task_id}: {all_issues}")
-            else:
-                # Single result (legacy path)
-                verification_result = {"passed": getattr(vr_dict, "passed", True),
-                                       "score": getattr(vr_dict, "score", 1.0)}
         except Exception as e:
             logger.debug(f"Verification pipeline skipped: {e}")
 

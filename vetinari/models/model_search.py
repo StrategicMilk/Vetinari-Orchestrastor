@@ -115,7 +115,7 @@ class ModelSearchEngine:
     }
     
     def __init__(self, cache_dir: str = None):
-        self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / ".lmstudio" / "projects" / "Vetinari" / "model_cache"
+        self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / ".vetinari" / "model_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
@@ -346,7 +346,7 @@ class ModelSearchEngine:
                     id=f"github/{org}/{repo.split('/')[-1]}",
                     name=repo.split("/")[-1],
                     source_type="github",
-                    metrics={"repo": repo, "stars": 5000, "score_source": gh_scores["score_source"]},
+                    metrics={"repo": repo, "stars": 0, "score_source": gh_scores["score_source"]},
                     memory_gb=mem,
                     context_len=4096,
                     version="latest",
@@ -378,7 +378,7 @@ class ModelSearchEngine:
             logger.debug("Claude API key not configured")
             return candidates
         
-        cache_file = self.cache_dir / f"claude_{hash(query)}.json"
+        cache_file = self.cache_dir / f"claude_{hashlib.sha256(query.encode()).hexdigest()[:16]}.json"
         
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
@@ -439,7 +439,7 @@ class ModelSearchEngine:
             logger.debug("Gemini API key not configured")
             return candidates
         
-        cache_file = self.cache_dir / f"gemini_{hash(query)}.json"
+        cache_file = self.cache_dir / f"gemini_{hashlib.sha256(query.encode()).hexdigest()[:16]}.json"
         
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
@@ -506,31 +506,8 @@ class ModelSearchEngine:
         return candidates
     
     def _get_reddit_recommendations(self, query: str) -> List[Dict]:
-        keywords = self._extract_keywords(query)
-        
-        recommendations = []
-        
-        if any(kw in query.lower() for kw in ["code", "programming", "coding", "developer"]):
-            recommendations.extend([
-                {"model_id": "qwen2.5-coder", "model_name": "Qwen2.5-Coder", "subreddit": "r/LocalLLaMA", "votes": 150, "sentiment": 0.85, "memory_gb": 4, "context_len": 8192, "url": "https://reddit.com/r/LocalLLaMA"},
-                {"model_id": "codellama", "model_name": "CodeLlama", "subreddit": "r/LocalLLaMA", "votes": 120, "sentiment": 0.75, "memory_gb": 8, "context_len": 16384, "url": "https://reddit.com/r/LocalLLaMA"},
-                {"model_id": "deepseek-coder", "model_name": "DeepSeek Coder", "subreddit": "r/LocalLLaMA", "votes": 95, "sentiment": 0.8, "memory_gb": 4, "context_len": 8192, "url": "https://reddit.com/r/LocalLLaMA"},
-            ])
-        
-        if any(kw in query.lower() for kw in ["general", "chat", "conversation"]):
-            recommendations.extend([
-                {"model_id": "llama-3", "model_name": "Llama 3", "subreddit": "r/LocalLLaMA", "votes": 200, "sentiment": 0.9, "memory_gb": 8, "context_len": 8192, "url": "https://reddit.com/r/LocalLLaMA"},
-                {"model_id": "mistral", "model_name": "Mistral", "subreddit": "r/LocalLLaMA", "votes": 180, "sentiment": 0.85, "memory_gb": 4, "context_len": 8192, "url": "https://reddit.com/r/LocalLLaMA"},
-                {"model_id": "qwen2.5", "model_name": "Qwen2.5", "subreddit": "r/LocalLLaMA", "votes": 160, "sentiment": 0.88, "memory_gb": 4, "context_len": 8192, "url": "https://reddit.com/r/LocalLLaMA"},
-            ])
-        
-        if any(kw in query.lower() for kw in ["reasoning", "think", "analysis"]):
-            recommendations.extend([
-                {"model_id": "qwen3-thinking", "model_name": "Qwen3 (Thinking)", "subreddit": "r/LocalLLaMA", "votes": 140, "sentiment": 0.82, "memory_gb": 8, "context_len": 32768, "url": "https://reddit.com/r/LocalLLaMA"},
-                {"model_id": "deepseek-llm", "model_name": "DeepSeek LLM", "subreddit": "r/LocalLLaMA", "votes": 100, "sentiment": 0.75, "memory_gb": 8, "context_len": 16384, "url": "https://reddit.com/r/LocalLLaMA"},
-            ])
-        
-        return recommendations[:5]
+        logger.info("Reddit recommendation source not implemented, skipping")
+        return []
     
     def _extract_keywords(self, text: str) -> List[str]:
         keywords = []

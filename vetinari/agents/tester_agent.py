@@ -105,7 +105,8 @@ Output must include: test_cases or security_findings or evaluation_score dependi
             output = {
                 "test_cases": [{"name": "test_basic", "type": "unit", "description": f"Basic test for {goal}"}],
                 "security_findings": [],
-                "evaluation_score": 0.7,
+                "evaluation_score": 0.0,
+                "fallback": True,
             }
         return AgentResult(success=True, output=output, metadata={"mode": "default"})
 

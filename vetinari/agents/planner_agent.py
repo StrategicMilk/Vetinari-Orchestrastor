@@ -1,16 +1,17 @@
-"""
-Vetinari Planner Agent
+"""Vetinari Planner Agent — consolidated from User Interaction + Context Manager.
 
 The Planner is the central orchestration agent that generates dynamic plans
-from goals and coordinates all other agents.
+from goals, manages user interaction, and coordinates context across agents.
 """
 
 import json
+import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
 from vetinari.agents.contracts import (
+    AGENT_REGISTRY,
     AgentResult,
     AgentSpec,
     AgentTask,
@@ -19,25 +20,35 @@ from vetinari.agents.contracts import (
     Task,
     TaskStatus,
     VerificationResult,
-    get_enabled_agents
+    get_enabled_agents,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PlannerAgent(BaseAgent):
-    """Planner agent - central orchestration and dynamic plan generation."""
-    
+    """Planner agent — central orchestration, plan generation, user interaction, and context management.
+
+    Absorbs:
+        - UserInteractionAgent: clarification questions, user preference elicitation, feedback collection
+        - ContextManagerAgent: context window tracking, compression, cross-agent context sharing
+    """
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.PLANNER, config)
         self._max_depth = self._config.get("max_depth", 14)
         self._min_tasks = self._config.get("min_tasks", 5)
         self._max_tasks = self._config.get("max_tasks", 15)
-        
+
     def get_system_prompt(self) -> str:
         agent_descriptions = self._get_dynamic_agent_list()
         return f"""You are Vetinari's Planning Master. You receive a user goal and a context.
 Your job is to produce a complete, versioned Plan (DAG) that assigns tasks to the
 appropriate agents, defines dependencies, estimates effort, and flags any context
 needs or follow-up questions.
+
+You also handle user interaction (clarification, preference gathering, feedback)
+and context management (context window tracking, compression, cross-agent sharing).
 
 Rules:
 1. Output strictly valid JSON matching the Plan schema
@@ -64,16 +75,11 @@ Output format: valid JSON array of task objects."""
                 lines.append(f"- {spec.agent_type.value}: {spec.description}")
             return "\n".join(lines)
         except Exception:
-            # Fallback to hardcoded list if registry unavailable
-            return """Available agents and their roles:
-- EXPLORER: Code/doc discovery, codebase analysis
-- RESEARCHER: Multi-source research, feasibility analysis
-- BUILDER: Code scaffolding, implementation, feature coding
-- TESTER: Test generation, security auditing, quality evaluation
-- ARCHITECT: Architecture guidance, risk assessment, cost planning
-- DOCUMENTER: Documentation, version control, changelogs
-- RESILIENCE: Error recovery, retry strategies, image generation
-- META: Meta-analysis, experimentation management, improvement suggestions"""
+            # Fallback: build from AGENT_REGISTRY directly
+            agent_lines = []
+            for spec in AGENT_REGISTRY.values():
+                agent_lines.append(f"- {spec.agent_type.value}: {', '.join(spec.expertise_areas[:3])}")
+            return "Available agents:\n" + "\n".join(agent_lines)
     
     def get_capabilities(self) -> List[str]:
         return [
@@ -81,58 +87,80 @@ Output format: valid JSON array of task objects."""
             "task_decomposition",
             "dependency_mapping",
             "resource_estimation",
-            "risk_assessment"
+            "risk_assessment",
+            # From UserInteractionAgent
+            "clarification_questions",
+            "user_preference_elicitation",
+            "feedback_collection",
+            # From ContextManagerAgent
+            "context_tracking",
+            "context_compression",
+            "cross_agent_context_sharing",
         ]
-    
+
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the planning task.
-        
-        Args:
-            task: The task containing the goal to plan for
-            
-        Returns:
-            AgentResult containing the generated Plan
-        """
+        """Execute task, delegating to user interaction or context manager based on keywords."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
                 output=None,
                 errors=[f"Invalid task for {self._agent_type.value}"]
             )
-        
+
         task = self.prepare_task(task)
-        
+        desc = (task.description or "").lower()
+
         try:
-            goal = task.prompt or task.description
-            context = task.context or {}
-            
-            # Create the plan
-            plan = self._generate_plan(goal, context)
-            
-            # Complete the task
-            task = self.complete_task(task, AgentResult(
-                success=True,
-                output=plan.to_dict(),
-                metadata={"plan_id": plan.plan_id, "task_count": len(plan.tasks)}
-            ))
-            
-            return AgentResult(
-                success=True,
-                output=plan.to_dict(),
-                metadata={
-                    "plan_id": plan.plan_id,
-                    "task_count": len(plan.tasks),
-                    "goal": goal
-                }
-            )
-            
+            if any(kw in desc for kw in ("clarify", "ask user", "user preference", "feedback", "user interaction", "elicit", "confirm with user")):
+                result = self._delegate_to_user_interaction(task)
+            elif any(kw in desc for kw in ("context window", "compress context", "context sharing", "context manager", "token budget", "context limit")):
+                result = self._delegate_to_context_manager(task)
+            else:
+                result = self._execute_planning(task)
+
+            self.complete_task(task, result)
+            return result
+
         except Exception as e:
-            self._log("error", f"Planning failed: {str(e)}")
+            self._log("error", f"PlannerAgent execution failed: {str(e)}")
             return AgentResult(
                 success=False,
                 output=None,
                 errors=[str(e)]
             )
+
+    def _delegate_to_user_interaction(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.user_interaction_agent import UserInteractionAgent
+        agent = UserInteractionAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _delegate_to_context_manager(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.context_manager_agent import ContextManagerAgent
+        agent = ContextManagerAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _execute_planning(self, task: AgentTask) -> AgentResult:
+        """Execute plan generation (original PlannerAgent logic)."""
+        goal = task.prompt or task.description
+        context = task.context or {}
+
+        plan = self._generate_plan(goal, context)
+
+        return AgentResult(
+            success=True,
+            output=plan.to_dict(),
+            metadata={
+                "plan_id": plan.plan_id,
+                "task_count": len(plan.tasks),
+                "goal": goal
+            }
+        )
     
     def verify(self, output: Any) -> VerificationResult:
         """Verify the plan meets quality standards.

@@ -60,7 +60,7 @@ def api_project_stream(project_id):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": request.host_url.rstrip("/") if request.host_url else "http://localhost:5000",
         },
     )
 
@@ -301,7 +301,7 @@ Implement this task. Output the code as code blocks with filenames."""
                             "output_length": len(task_output),
                         })
 
-                    results_text = "Tasks completed! Here are the results:\n\n" + "="*50 + "\n\n".join(task_outputs_text)
+                    results_text = "Tasks completed! Here are the results:\n\n" + "="*50 + "\n\n" + "\n\n".join(task_outputs_text)
                     conversation.append({"role": "assistant", "content": results_text})
 
                     with open(conv_file, 'w', encoding='utf-8') as f:
@@ -408,7 +408,8 @@ Implement this task. Output the code as code blocks with filenames."""
         })
 
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        logger.error(f"Request failed: {traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -440,11 +441,13 @@ def api_project_message(project_id):
                 conversation = json.load(f)
 
         config_file = project_dir / 'project.yaml'
-        model = "qwen2.5-0.5b-instruct"
+        model = None
         if config_file.exists():
             with open(config_file, 'r', encoding='utf-8') as f:
                 proj_cfg = yaml.safe_load(f) or {}
-            model = proj_cfg.get("active_model_id") or proj_cfg.get("model") or model
+            model = proj_cfg.get("active_model_id") or proj_cfg.get("model") or None
+        if not model:
+            return jsonify({"error": "No model configured for this project"}), 400
 
         conversation.append({"role": "user", "content": message})
 
@@ -467,7 +470,8 @@ def api_project_message(project_id):
             "conversation_length": len(conversation)
         })
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        logger.error(f"Request failed: {traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -770,7 +774,8 @@ def api_project_assemble(project_id):
             "task_count": len(task_entries)
         })
     except Exception as e:
-        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+        logger.error(f"Request failed: {traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -853,13 +858,12 @@ def api_task_override(project_id, task_id):
 
 @task_exec_bp.route('/api/project/<project_id>/refresh-models', methods=['POST'])
 def api_refresh_models(project_id):
+    """Refresh the model cache for a project by re-running model search."""
     try:
-        from vetinari.live_model_search import LiveModelSearchAdapter  # noqa: F401
-
-        return jsonify({
-            "status": "ok",
-            "message": "Model cache refreshed (live search enabled)"
-        })
+        from vetinari.models.model_search import ModelSearch
+        searcher = ModelSearch()
+        searcher.refresh_all_caches()
+        return jsonify({"status": "refreshed", "message": "Model cache cleared. Next search will fetch fresh results."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

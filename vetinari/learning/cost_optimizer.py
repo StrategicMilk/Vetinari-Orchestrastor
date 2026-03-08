@@ -65,7 +65,8 @@ class CostOptimizer:
         Returns:
             The selected model ID.
         """
-        min_quality = min_quality or self.DEFAULT_MIN_QUALITY
+        if min_quality is None:
+            min_quality = self.DEFAULT_MIN_QUALITY
         efficiencies = self._get_efficiencies(task_type, candidate_models)
 
         # Filter by quality threshold
@@ -96,7 +97,7 @@ class CostOptimizer:
 
         for model_id in models:
             cost = 0.0
-            quality = 0.7  # Prior
+            quality = 0.5  # Uninformative prior
 
             # Get cost from analytics
             if tracker:
@@ -117,7 +118,10 @@ class CostOptimizer:
             except Exception:
                 pass
 
-            qpd = quality / max(cost, 0.001)  # Avoid division by zero
+            if cost <= 0.0:
+                qpd = quality * 10.0  # Free models get 10x quality, not infinite
+            else:
+                qpd = quality / max(cost, 0.01)
             efficiencies.append(CostEfficiency(
                 model_id=model_id,
                 task_type=task_type,

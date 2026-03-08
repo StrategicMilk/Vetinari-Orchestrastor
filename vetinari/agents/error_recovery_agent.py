@@ -132,7 +132,8 @@ class ErrorRecoveryAgent(BaseAgent):
         ]
 
     def execute(self, task: AgentTask) -> AgentResult:
-        self.validate_task(task)
+        if not self.validate_task(task):
+            return AgentResult(success=False, output=None, errors=[f"Invalid task for {self._agent_type.value}"])
         self.prepare_task(task)
         try:
             result = self._analyse_and_recover(task)

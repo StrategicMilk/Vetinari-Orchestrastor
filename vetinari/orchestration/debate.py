@@ -292,7 +292,7 @@ class DebateProtocol:
                     voter_id=aid,
                     voter_type=self._agent_type(agent),
                     position=position,
-                    weight=quality,
+                    weight=quality if quality is not None else 1.0,
                     reasoning=response[:500],
                 ))
             except Exception as exc:
@@ -371,8 +371,8 @@ class DebateProtocol:
         """Estimate agent quality weight based on argument consistency."""
         agent_args = [a for a in arguments if a.agent_id == agent_id]
         if not agent_args:
-            return 0.5
-        avg_conf = sum(a.confidence for a in agent_args) / len(agent_args)
+            return None
+        avg_conf = sum(a.confidence for a in agent_args if a.confidence is not None) / max(sum(1 for a in agent_args if a.confidence is not None), 1)
         return max(0.1, min(1.0, avg_conf))
 
     def _agent_id(self, agent: Any) -> str:
@@ -453,7 +453,7 @@ class ConsensusProtocol:
             )
             try:
                 response = self._call_agent(agent, prompt)
-                confidence = DebateProtocol._default_extract_confidence(response)
+                confidence = self._extract_confidence(response)
                 positions[aid] = AgentPosition(
                     agent_id=aid,
                     agent_type=self._agent_type(agent),
@@ -489,7 +489,7 @@ class ConsensusProtocol:
                 )
                 try:
                     response = self._call_agent(agent, prompt)
-                    confidence = DebateProtocol._default_extract_confidence(response)
+                    confidence = self._extract_confidence(response)
                     old_pos = positions.get(aid)
                     revised = old_pos is not None and abs(confidence - old_pos.confidence) > 0.1
                     positions[aid] = AgentPosition(
@@ -574,10 +574,6 @@ class ConsensusProtocol:
         return type(agent).__name__
 
 
-# Helper so ConsensusProtocol can reuse confidence extraction
-DebateProtocol._default_extract_confidence = staticmethod(
-    lambda response: DebateProtocol(agent_caller=lambda a, p: "")._extract_confidence(response)
-)
 
 
 def select_protocol(task_type: str) -> str:

@@ -116,8 +116,8 @@ if _env_file.exists():
                 _k, _v = _k.strip(), _v.strip()
                 if _k and _v and _k not in os.environ:
                     os.environ[_k] = _v
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to load .env: %s", e)
 
 # ---------------------------------------------------------------------------
 # Runtime configuration

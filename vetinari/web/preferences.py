@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -160,7 +159,12 @@ def update_preferences():
     """Update user preferences with partial data."""
     mgr = get_preferences_manager()
     updates = request.get_json(silent=True) or {}
-    prefs = mgr.update(updates)
+    if not isinstance(updates, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+    # Only accept keys that exist in the UserPreferences dataclass
+    allowed_keys = set(UserPreferences.__dataclass_fields__.keys())
+    filtered = {k: v for k, v in updates.items() if k in allowed_keys}
+    prefs = mgr.update(filtered)
     return jsonify(asdict(prefs))
 
 
@@ -204,6 +208,20 @@ def update_sampling_overrides():
     mgr = get_preferences_manager()
     prefs = mgr.load()
     updates = request.get_json(silent=True) or {}
+    if not isinstance(updates, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+    # Validate sampling override keys must be prefixed with task: or model:
+    allowed_params = {"temperature", "top_p", "top_k", "min_p", "repeat_penalty",
+                      "presence_penalty", "frequency_penalty", "seed", "max_tokens"}
+    for key, value in updates.items():
+        if not (key.startswith("task:") or key.startswith("model:")):
+            return jsonify({"error": f"Invalid key '{key}': must start with 'task:' or 'model:'"}), 400
+        if value is not None and not isinstance(value, dict):
+            return jsonify({"error": f"Value for '{key}' must be a JSON object or null"}), 400
+        if isinstance(value, dict):
+            invalid_params = set(value.keys()) - allowed_params
+            if invalid_params:
+                return jsonify({"error": f"Invalid sampling params: {invalid_params}"}), 400
     for key, value in updates.items():
         if value is None:
             prefs.sampling_overrides.pop(key, None)

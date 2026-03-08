@@ -319,7 +319,7 @@ def sample_{safe_name}_data():
                     "name": test_name,
                     "feature": feature,
                     "module_under_test": safe_name,
-                    "test_count": len(test_cases) + 3,
+                    "test_count": max(len(test_cases) * 2, 3),
                     "test_categories": ["unit"],
                 }
             )

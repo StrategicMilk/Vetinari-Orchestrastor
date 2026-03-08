@@ -388,7 +388,7 @@ class EvaluatorSkillTool(Tool):
             quality_score=quality_score,
             summary=f"Code review completed. Found {len(issues)} issue(s) in {code_lines} lines.",
             recommendations=recommendations,
-            test_coverage=75.0 if request.thinking_mode.value != "low" else None,
+            test_coverage=None,
         )
     
     def _assess_quality(
@@ -538,7 +538,7 @@ class EvaluatorSkillTool(Tool):
             quality_score=QualityScore.B,
             summary=f"Test strategy created with {len(recommendations)} recommendations.",
             recommendations=recommendations,
-            test_coverage=80.0,
+            test_coverage=None,
         )
     
     def _review_performance(

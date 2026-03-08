@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-import random
+
 
 logger = logging.getLogger(__name__)
 
@@ -532,8 +532,7 @@ class DynamicModelRouter:
     # ------------------------------------------------------------------
 
     _CACHE_PATH = os.path.join(
-        os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-        ".vetinari", "router_performance.json"
+        os.path.expanduser("~"), ".vetinari", "router_performance.json"
     )
 
     def _save_cache(self) -> None:

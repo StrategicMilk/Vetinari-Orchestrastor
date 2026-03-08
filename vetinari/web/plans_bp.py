@@ -4,7 +4,6 @@ Extracted from vetinari/web_ui.py. All plan management, subtask tree,
 decomposition lab, assignment pass, and template versioning endpoints live here.
 """
 
-import os
 import json
 import logging
 from pathlib import Path
@@ -47,8 +46,11 @@ def api_plan_create():
 def api_plans_list():
     from vetinari.planning import plan_manager
     status = request.args.get('status')
-    limit = int(request.args.get('limit', 50))
-    offset = int(request.args.get('offset', 0))
+    try:
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid 'limit' or 'offset' parameter"}), 400
 
     plans = plan_manager.list_plans(status=status, limit=limit, offset=offset)
 
@@ -217,8 +219,11 @@ def api_decomposition_decompose():
 
     task_prompt = data.get('task_prompt', '')
     parent_task_id = data.get('parent_task_id', 'root')
-    depth = int(data.get('depth', 0))
-    max_depth = int(data.get('max_depth', 14))
+    try:
+        depth = int(data.get('depth', 0))
+        max_depth = int(data.get('max_depth', 14))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid 'depth' or 'max_depth' parameter"}), 400
     plan_id = data.get('plan_id', 'default')
 
     if max_depth < 12:
@@ -552,8 +557,7 @@ def api_migrate_templates(plan_id):
             "recommendation": recommendation
         })
     else:
-        plan.template_version = target_version
-        plan_manager._save_plan(plan)
+        plan_manager.update_plan(plan_id, {"template_version": target_version})
 
         return jsonify({
             "plan_id": plan_id,

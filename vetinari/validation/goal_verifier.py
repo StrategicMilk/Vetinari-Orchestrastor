@@ -74,6 +74,7 @@ class GoalVerificationReport:
     # Metadata
     evaluator_verdict: str = "inconclusive"
     model_used: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def get_corrective_tasks(self) -> List[Dict[str, Any]]:
         """Generate corrective tasks for all identified gaps."""
@@ -147,6 +148,7 @@ class GoalVerificationReport:
             "corrective_suggestions": self.corrective_suggestions,
             "evaluator_verdict": self.evaluator_verdict,
             "model_used": self.model_used,
+            "metadata": self.metadata,
         }
 
 
@@ -241,10 +243,8 @@ class GoalVerifier:
         except Exception as e:
             logger.warning(f"LLM evaluation failed in goal verifier: {e}")
             report.quality_score = 0.0  # Fail-safe: no score when evaluation fails
-            report.metadata = getattr(report, 'metadata', {})
-            if not isinstance(report.metadata, dict):
-                report.metadata = {}
             report.metadata["evaluation_failed"] = True
+            report.metadata["evaluation_error"] = str(e)
 
         # 6. Run security check
         try:

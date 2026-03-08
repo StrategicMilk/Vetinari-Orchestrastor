@@ -9,7 +9,7 @@ import os
 
 from flask import Blueprint, jsonify, request
 
-from vetinari.constants import SD_WEBUI_HOST as _SD_WEBUI_HOST
+
 from vetinari.web.shared import PROJECT_ROOT, current_config, get_orchestrator, _is_admin_user, validate_json_request
 
 logger = logging.getLogger(__name__)

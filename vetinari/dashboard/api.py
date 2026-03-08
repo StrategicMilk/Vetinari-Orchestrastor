@@ -21,11 +21,10 @@ Usage:
     timeseries = api.get_timeseries_data('latency', timerange='24h')
 """
 
-import json
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from collections import defaultdict
 import threading
 

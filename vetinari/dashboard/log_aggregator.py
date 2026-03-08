@@ -39,10 +39,9 @@ import os
 import queue
 import threading
 import time
-import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -517,7 +516,7 @@ class LogAggregator:
         Add and configure a named backend.
 
         Args:
-            name: One of ``file``, ``elasticsearch``, ``splunk``, ``datadog``.
+            name: One of ``file``, ``elasticsearch``, ``splunk``, ``datadog``, ``sse``.
             **kwargs: Backend-specific configuration (see each class's
                       ``configure()`` docstring).
 

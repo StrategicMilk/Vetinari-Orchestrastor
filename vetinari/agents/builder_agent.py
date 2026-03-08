@@ -1,8 +1,7 @@
-"""
-Vetinari Builder Agent
+"""Vetinari Builder Agent — consolidated from UI Planner + Data Engineer + DevOps.
 
 The Builder agent is responsible for code scaffolding, boilerplate generation,
-test scaffolding, and writing generated files to disk.
+test scaffolding, UI/UX design, data pipeline engineering, and DevOps/CI-CD.
 """
 
 import ast
@@ -26,26 +25,32 @@ logger = logging.getLogger(__name__)
 
 
 class BuilderAgent(BaseAgent):
-    """Builder agent - code scaffolding, boilerplate, and test scaffolding."""
-    
+    """Builder agent — code scaffolding, UI/UX, data engineering, and DevOps.
+
+    Absorbs:
+        - UIPlannerAgent: UI/UX design, front-end patterns, responsive layouts, accessibility
+        - DataEngineerAgent: data pipelines, schemas, migrations, ETL, SQL
+        - DevOpsAgent: CI/CD pipelines, containerisation, deployment, monitoring
+    """
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.BUILDER, config)
         self._language = self._config.get("language", "python")
-        
-    def get_system_prompt(self) -> str:
-        return """You are Vetinari's Builder. Generate scaffolding for features from a provided spec. 
-Produce boilerplate code with tests and CI hints, plus a minimal README and usage instructions.
 
-You must:
-1. Generate clean, well-structured scaffold code
-2. Include comprehensive unit tests
-3. Provide CI/CD configuration hints
-4. Create a README with usage instructions
-5. Add configuration file templates
-6. Include error handling patterns
+    def get_system_prompt(self) -> str:
+        return """You are Vetinari's Builder. You combine code scaffolding with UI/UX design,
+data engineering, and DevOps capabilities for end-to-end implementation.
+
+Your responsibilities:
+1. Generate clean, well-structured scaffold code with tests
+2. Design accessible, responsive UI components and interaction flows
+3. Build data pipelines, schemas, migrations, and ETL processes
+4. Configure CI/CD pipelines, Docker containers, and deployment automation
+5. Provide CI/CD configuration hints and infrastructure-as-code
+6. Include error handling patterns and monitoring setup
 
 Output format must include scaffold_code, tests, artifacts (readme, config), and implementation_notes."""
-    
+
     def get_capabilities(self) -> List[str]:
         return [
             "code_scaffolding",
@@ -53,62 +58,111 @@ Output format must include scaffold_code, tests, artifacts (readme, config), and
             "boilerplate_creation",
             "project_structure",
             "configuration_templates",
-            "documentation_generation"
+            "documentation_generation",
+            # From UIPlannerAgent
+            "ui_design",
+            "responsive_layout",
+            "accessibility",
+            "css_generation",
+            "component_architecture",
+            # From DataEngineerAgent
+            "data_pipelines",
+            "schema_design",
+            "etl",
+            "sql_generation",
+            "data_validation",
+            # From DevOpsAgent
+            "ci_cd_pipelines",
+            "containerisation",
+            "deployment_automation",
+            "monitoring_setup",
         ]
-    
+
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the build scaffolding task.
-        
-        Args:
-            task: The task containing the specification
-            
-        Returns:
-            AgentResult containing the scaffolded code
-        """
+        """Execute task, delegating to UI planner, data engineer, or devops based on keywords."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
                 output=None,
                 errors=[f"Invalid task for {self._agent_type.value}"]
             )
-        
+
         task = self.prepare_task(task)
-        
+        desc = (task.description or "").lower()
+
         try:
-            spec = task.context.get("spec", task.description)
-            feature_name = task.context.get("feature_name", "feature")
-            output_dir = task.context.get("output_dir", "")
+            if any(kw in desc for kw in ("ui", "ux", "frontend", "front-end", "css", "responsive", "layout", "component", "interface design", "mockup", "wireframe", "accessibility")):
+                result = self._delegate_to_ui_planner(task)
+            elif any(kw in desc for kw in ("data pipeline", "etl", "schema", "migration", "sql", "database design", "data model", "warehouse", "data layer")):
+                result = self._delegate_to_data_engineer(task)
+            elif any(kw in desc for kw in ("devops", "ci/cd", "cicd", "docker", "kubernetes", "deploy", "container", "terraform", "ansible", "monitoring", "infrastructure")):
+                result = self._delegate_to_devops(task)
+            else:
+                result = self._execute_build(task)
 
-            # Generate scaffold using LLM
-            scaffold = self._generate_scaffold(spec, feature_name)
-
-            # Write files to disk if output_dir is specified or auto-detect project root
-            written_files: List[str] = []
-            if output_dir or task.context.get("write_files", False):
-                written_files = self._write_scaffold_to_disk(scaffold, output_dir or ".")
-
-            # Run syntax check on generated code
-            syntax_errors = self._check_syntax(scaffold.get("scaffold_code", ""))
-
-            return AgentResult(
-                success=True,
-                output=scaffold,
-                metadata={
-                    "feature_name": feature_name,
-                    "files_generated": len(scaffold.get("artifacts", [])),
-                    "test_count": len(scaffold.get("tests", [])),
-                    "written_files": written_files,
-                    "syntax_errors": syntax_errors,
-                },
-            )
+            self.complete_task(task, result)
+            return result
 
         except Exception as e:
-            self._log("error", f"Scaffolding generation failed: {str(e)}")
+            self._log("error", f"BuilderAgent execution failed: {str(e)}")
             return AgentResult(
                 success=False,
                 output=None,
                 errors=[str(e)],
             )
+
+    def _delegate_to_ui_planner(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.ui_planner_agent import UIPlannerAgent
+        agent = UIPlannerAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _delegate_to_data_engineer(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.data_engineer_agent import DataEngineerAgent
+        agent = DataEngineerAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _delegate_to_devops(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.devops_agent import DevOpsAgent
+        agent = DevOpsAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _execute_build(self, task: AgentTask) -> AgentResult:
+        """Execute code scaffolding (original BuilderAgent logic)."""
+        spec = task.context.get("spec", task.description)
+        feature_name = task.context.get("feature_name", "feature")
+        output_dir = task.context.get("output_dir", "")
+
+        # Generate scaffold using LLM
+        scaffold = self._generate_scaffold(spec, feature_name)
+
+        # Write files to disk if output_dir is specified or auto-detect project root
+        written_files: List[str] = []
+        if output_dir or task.context.get("write_files", False):
+            written_files = self._write_scaffold_to_disk(scaffold, output_dir or ".")
+
+        # Run syntax check on generated code
+        syntax_errors = self._check_syntax(scaffold.get("scaffold_code", ""))
+
+        return AgentResult(
+            success=True,
+            output=scaffold,
+            metadata={
+                "feature_name": feature_name,
+                "files_generated": len(scaffold.get("artifacts", [])),
+                "test_count": len(scaffold.get("tests", [])),
+                "written_files": written_files,
+                "syntax_errors": syntax_errors,
+            },
+        )
     
     def verify(self, output: Any) -> VerificationResult:
         """Verify the scaffold output meets quality standards.

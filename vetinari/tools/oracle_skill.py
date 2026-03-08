@@ -76,6 +76,22 @@ class OracleSkillTool(Tool):
         )
         super().__init__(metadata)
 
+    def _try_llm_generate(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Attempt LLM-based analysis via BaseAgent._infer_json().
+
+        Returns parsed JSON on success, None on failure.
+        """
+        try:
+            from vetinari.agents.base_agent import BaseAgent
+            agent = BaseAgent.__new__(BaseAgent)
+            if hasattr(agent, '_infer_json'):
+                result = agent._infer_json(prompt, fallback=None)
+                if result and isinstance(result, dict):
+                    return result
+        except Exception as e:
+            logger.debug(f"LLM inference attempt failed: {e}")
+        return None
+
     def execute(self, **kwargs) -> ToolResult:
         try:
             cap_str = kwargs.get("capability")
@@ -123,33 +139,61 @@ class OracleSkillTool(Tool):
             return self._technical_guidance(req, exec_mode)
         return OracleResult(success=False, recommendation="Unknown capability")
 
+    def _llm_oracle(self, req: OracleRequest, capability_label: str) -> OracleResult:
+        """Common LLM-based oracle analysis for all capabilities."""
+        prompt = (
+            f"You are a technical oracle. Analyze the following and return JSON with keys: "
+            f"recommendation (string), analysis (string), pros_cons (dict of lists).\n\n"
+            f"Capability: {capability_label}\n"
+            f"Question: {req.question}\n"
+        )
+        if req.context:
+            prompt += f"Context: {req.context}\n"
+        if req.options:
+            prompt += f"Options to evaluate: {', '.join(req.options)}\n"
+        prompt += f"Thinking depth: {req.thinking_mode.value}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return OracleResult(
+                success=True,
+                recommendation=llm_result.get("recommendation"),
+                analysis=llm_result.get("analysis"),
+                pros_cons=llm_result.get("pros_cons", {}),
+            )
+
+        return OracleResult(
+            success=False,
+            recommendation="LLM inference unavailable",
+            analysis=None,
+        )
+
     def _analyze_architecture(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would analyze architecture")
-        return OracleResult(success=True, recommendation=f"Recommended: Modular monolith for '{req.question}'", analysis="Analysis based on provided context", pros_cons={"Pros": ["Scalable", "Maintainable"], "Cons": ["Initial complexity"]})
+        return self._llm_oracle(req, "architecture_analysis")
 
     def _evaluate_tradeoffs(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would evaluate trade-offs")
-        opts = req.options if req.options else ["Option A", "Option B"]
-        return OracleResult(success=True, recommendation=f"Recommend {opts[0]}", analysis="Trade-off analysis complete", pros_cons={opts[0]: ["Benefit 1"], opts[1]: ["Benefit 1", "Drawback 1"]})
+        return self._llm_oracle(req, "trade_off_evaluation")
 
     def _debugging_strategy(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would develop debugging strategy")
-        return OracleResult(success=True, recommendation="Check logs, enable debugging, use breakpoints", analysis=f"Debugging strategy for: {req.question}")
+        return self._llm_oracle(req, "debugging_strategy")
 
     def _code_review(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would review code")
-        return OracleResult(success=True, recommendation="Code looks good", analysis="Review complete")
+        return self._llm_oracle(req, "code_review")
 
     def _suggest_pattern(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would suggest patterns")
-        return OracleResult(success=True, recommendation="Suggest: Repository Pattern", analysis="Based on the question")
+        return self._llm_oracle(req, "pattern_suggestion")
 
     def _technical_guidance(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would provide guidance")
-        return OracleResult(success=True, recommendation="Guidance provided", analysis=f"Guidance for: {req.question}")
+        return self._llm_oracle(req, "technical_guidance")

@@ -1,10 +1,10 @@
-"""
-Vetinari Researcher Agent
+"""Vetinari Researcher Agent — consolidated from Explorer + Librarian + Synthesizer.
 
 The Researcher agent is responsible for domain research, feasibility analysis,
-and competitive analysis.
+competitive analysis, code exploration, library lookup, and multi-source synthesis.
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from vetinari.agents.base_agent import BaseAgent
@@ -15,28 +15,36 @@ from vetinari.agents.contracts import (
     VerificationResult
 )
 
+logger = logging.getLogger(__name__)
+
 
 class ResearcherAgent(BaseAgent):
-    """Researcher agent - domain research, feasibility analysis, competitive analysis."""
-    
+    """Researcher agent — domain research, code exploration, library lookup, and synthesis.
+
+    Absorbs:
+        - ExplorerAgent: code/document/class discovery, pattern extraction, symbol lookup
+        - LibrarianAgent: literature/library research, API/docs lookup, best practices
+        - SynthesizerAgent: multi-source synthesis, artifact fusion, report generation
+    """
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.RESEARCHER, config)
         self._max_competitors = self._config.get("max_competitors", 5)
-        
-    def get_system_prompt(self) -> str:
-        return """You are Vetinari's Researcher. Perform domain analysis, feasibility assessments, 
-and competitor comparisons. Deliver structured findings and recommendations that inform plan tasks.
 
-You must:
-1. Analyze the domain comprehensively
-2. Assess technical and business feasibility
-3. Identify and compare competitors
-4. Provide evidence-based recommendations
-5. Highlight potential risks and opportunities
-6. Organize findings by research area
+    def get_system_prompt(self) -> str:
+        return """You are Vetinari's Researcher. You combine domain research, codebase exploration,
+library/API documentation lookup, and multi-source synthesis into a single unified capability.
+
+Your responsibilities:
+1. Analyze domains comprehensively with feasibility assessments
+2. Explore codebases — locate files, symbols, patterns, and dependencies
+3. Look up library documentation, API references, and best practices
+4. Synthesize findings from multiple sources into coherent reports
+5. Identify and compare competitors and alternatives
+6. Provide evidence-based recommendations with confidence levels
 
 Output format must include findings by area, feasibility score, competitor analysis, and recommendations."""
-    
+
     def get_capabilities(self) -> List[str]:
         return [
             "domain_analysis",
@@ -44,46 +52,47 @@ Output format must include findings by area, feasibility score, competitor analy
             "competitor_analysis",
             "market_research",
             "technology_scouting",
-            "risk_identification"
+            "risk_identification",
+            # From ExplorerAgent
+            "code_navigation",
+            "symbol_lookup",
+            "pattern_matching",
+            "project_mapping",
+            # From LibrarianAgent
+            "api_reference",
+            "library_research",
+            "best_practices",
+            # From SynthesizerAgent
+            "multi_source_synthesis",
+            "report_generation",
+            "conflict_resolution",
         ]
-    
+
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the research task.
-        
-        Args:
-            task: The task containing the research topic
-            
-        Returns:
-            AgentResult containing the research findings
-        """
+        """Execute task, delegating to explorer, librarian, or synthesizer based on keywords."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
                 output=None,
                 errors=[f"Invalid task for {self._agent_type.value}"]
             )
-        
+
         task = self.prepare_task(task)
-        
+        desc = (task.description or "").lower()
+
         try:
-            domain_topic = task.context.get("domain_topic", task.description)
-            questions = task.context.get("questions", [])
-            
-            # Perform domain research (simulated - in production would use actual research)
-            findings = self._perform_research(domain_topic, questions)
-            
-            result = AgentResult(
-                success=True,
-                output=findings,
-                metadata={
-                    "domain": domain_topic,
-                    "questions_answered": len(questions),
-                    "areas_covered": len(findings.get("findings", []))
-                }
-            )
+            if any(kw in desc for kw in ("explore", "codebase", "symbol", "navigate", "find file", "class discovery", "pattern", "grep", "search code", "project map")):
+                result = self._delegate_to_explorer(task)
+            elif any(kw in desc for kw in ("library", "api doc", "reference", "best practice", "documentation lookup", "package", "import")):
+                result = self._delegate_to_librarian(task)
+            elif any(kw in desc for kw in ("synthesize", "combine", "fuse", "merge results", "consolidate", "summarize multiple", "report from")):
+                result = self._delegate_to_synthesizer(task)
+            else:
+                result = self._execute_research(task)
+
             self.complete_task(task, result)
             return result
-            
+
         except Exception as e:
             self._log("error", f"Research failed: {str(e)}")
             return AgentResult(
@@ -91,6 +100,47 @@ Output format must include findings by area, feasibility score, competitor analy
                 output=None,
                 errors=[str(e)]
             )
+
+    def _delegate_to_explorer(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.explorer_agent import ExplorerAgent
+        agent = ExplorerAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _delegate_to_librarian(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.librarian_agent import LibrarianAgent
+        agent = LibrarianAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _delegate_to_synthesizer(self, task: AgentTask) -> AgentResult:
+        from vetinari.agents.synthesizer_agent import SynthesizerAgent
+        agent = SynthesizerAgent(self._config)
+        agent._adapter_manager = self._adapter_manager
+        agent._web_search = self._web_search
+        agent._initialized = self._initialized
+        return agent.execute(task)
+
+    def _execute_research(self, task: AgentTask) -> AgentResult:
+        """Execute domain research (original ResearcherAgent logic)."""
+        domain_topic = task.context.get("domain_topic", task.description)
+        questions = task.context.get("questions", [])
+
+        findings = self._perform_research(domain_topic, questions)
+
+        return AgentResult(
+            success=True,
+            output=findings,
+            metadata={
+                "domain": domain_topic,
+                "questions_answered": len(questions),
+                "areas_covered": len(findings.get("findings", []))
+            }
+        )
     
     def verify(self, output: Any) -> VerificationResult:
         """Verify the research findings meet quality standards.
@@ -229,7 +279,7 @@ Base all findings strictly on the search results. Do not hallucinate. If informa
         return {
             "domain": domain_topic,
             "findings": findings,
-            "feasibility_score": 0.7 if all_results else 0.5,
+            "feasibility_score": min(0.9, 0.3 + 0.1 * len(all_results)),
             "feasibility_assessment": f"Based on {len(all_results)} sources found for {domain_topic}",
             "competitor_analysis": competitors,
             "recommendations": [

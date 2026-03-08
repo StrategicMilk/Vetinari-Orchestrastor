@@ -46,7 +46,7 @@ Output must include: architecture_vision, risks, recommended_guidelines, cost_an
         ]
 
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute task, delegating to OracleAgent or CostPlannerAgent based on keywords."""
+        """Execute task, delegating to OracleAgent, CostPlannerAgent, or suggestions based on keywords."""
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
@@ -58,12 +58,13 @@ Output must include: architecture_vision, risks, recommended_guidelines, cost_an
         desc = (task.description or "").lower()
 
         try:
-            if any(kw in desc for kw in ("suggest", "improve", "enhancement", "recommendation", "creative")):
-                result = self._generate_suggestions(task)
+            # Oracle first — architecture, design, risk, recommendations
+            if any(kw in desc for kw in ("architect", "design", "risk", "debug", "trade-off", "tradeoff", "structure", "pattern", "guideline", "recommendation")):
+                result = self._delegate_to_oracle(task)
             elif any(kw in desc for kw in ("cost", "price", "budget", "model select", "token", "efficiency", "cheap", "expensive")):
                 result = self._delegate_to_cost_planner(task)
-            elif any(kw in desc for kw in ("architect", "design", "risk", "debug", "trade-off", "tradeoff", "structure", "pattern", "guideline")):
-                result = self._delegate_to_oracle(task)
+            elif any(kw in desc for kw in ("suggest", "improve", "enhancement", "creative")):
+                result = self._generate_suggestions(task)
             else:
                 result = self._execute_default(task)
 

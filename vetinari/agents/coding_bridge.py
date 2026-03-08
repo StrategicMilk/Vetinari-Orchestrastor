@@ -199,15 +199,11 @@ class CodingBridge:
             return self._generate_scaffold(task)
 
         return CodingResult(
-            success=True,
+            success=False,
             task_id=task.task_id,
-            output_files=[task.output_path] if task.output_path else [],
-            logs=f"Task {task.task_id} submitted to coding agent",
-            metadata={
-                "task_type": task.task_type.value,
-                "language": task.language,
-                "endpoint": self.endpoint,
-            },
+            output_files=[],
+            logs=f"Task type {task.task_type.value} not yet implemented locally",
+            metadata={"task_type": task.task_type.value},
         )
 
     def _generate_scaffold(self, task: CodingTask) -> CodingResult:

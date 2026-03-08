@@ -116,7 +116,7 @@ class TestExplorerSkillToolExecution:
         
         assert result.success is True
         assert result.output is not None
-        assert "Grep Search" in result.output.get("results", [{}])[0] if result.output.get("results") else True
+        assert result.output["capability"] == "grep_search"
     
     def test_grep_search_planning_mode(self):
         """Test grep search in PLANNING mode."""

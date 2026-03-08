@@ -358,6 +358,68 @@ class ExplorerSkillTool(Tool):
                 warnings=[f"Unknown capability: {capability.value}"],
             )
     
+    def _try_grep_search(
+        self,
+        request: ExplorationRequest,
+    ) -> ExplorationResult:
+        """Attempt real grep search via GrepContext backend."""
+        try:
+            from vetinari.search.grep_context import get_grep_context
+            import os
+            import time
+
+            grep = get_grep_context()
+            root = os.getcwd()
+
+            # Collect files to search
+            target_extensions = set(request.file_extensions) if request.file_extensions else {
+                '.py', '.js', '.ts', '.tsx', '.jsx'
+            }
+            file_paths = []
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames[:] = [d for d in dirnames if not d.startswith('.') and d not in ('venv', 'node_modules', '__pycache__')]
+                for fn in filenames:
+                    from pathlib import Path as _Path
+                    if _Path(fn).suffix.lower() in target_extensions:
+                        file_paths.append(os.path.join(dirpath, fn))
+                        if len(file_paths) >= 500:
+                            break
+                if len(file_paths) >= 500:
+                    break
+
+            start = time.time()
+            matches = grep.extract_patterns(
+                file_paths,
+                [request.query],
+                context_lines=request.context_lines,
+                max_matches=request.max_results,
+            )
+            elapsed_ms = int((time.time() - start) * 1000)
+
+            results = [
+                SearchResult(
+                    file_path=m.file_path,
+                    line_number=m.line_number,
+                    line_content=m.line_content,
+                    before_context=m.context_before,
+                    after_context=m.context_after,
+                )
+                for m in matches
+            ]
+
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=request.capability.value,
+                results=results,
+                total_found=len(results),
+                files_searched=len(file_paths),
+                execution_time_ms=elapsed_ms,
+            )
+        except Exception as e:
+            logger.debug(f"Grep search backend failed: {e}")
+            return None
+
     def _grep_search(
         self,
         request: ExplorationRequest,
@@ -365,38 +427,28 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Perform grep-based text search."""
         logger.info(f"Grep search: {request.query}")
-        
-        explanation = (
-            f"Grep Search\n"
-            f"Query: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
-        if request.file_extensions:
-            explanation += f"File types: {', '.join(request.file_extensions)}\n"
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would search for the pattern in codebase.\n"
-            explanation += f"Thinking mode: {request.thinking_mode.value}\n"
-        else:
-            explanation += (
-                f"\nSearch Strategy:\n"
-                f"1. Parse query: {request.query}\n"
-                f"2. Build search pattern (strategy: {request.search_strategy.value})\n"
-                f"3. Execute search across files\n"
-                f"4. Gather context ({request.context_lines} lines before/after)\n"
-                f"5. Rank results by relevance\n"
-                f"6. Return top {request.max_results} results\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.GREP_SEARCH.value,
+                warnings=["Planning mode: search not executed"],
             )
-        
+
+        result = self._try_grep_search(request)
+        if result is not None:
+            return result
+
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.GREP_SEARCH.value,
             total_found=0,
             files_searched=0,
+            warnings=["Search backend unavailable; no results returned"],
         )
-    
+
     def _file_discovery(
         self,
         request: ExplorationRequest,
@@ -404,35 +456,65 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Discover files matching pattern."""
         logger.info(f"File discovery: {request.query}")
-        
-        explanation = (
-            f"File Discovery\n"
-            f"Pattern: {request.query}\n"
-        )
-        
-        if request.file_extensions:
-            explanation += f"Extensions: {', '.join(request.file_extensions)}\n"
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find files matching the pattern.\n"
-        else:
-            explanation += (
-                f"\nDiscovery Process:\n"
-                f"1. Parse glob pattern: {request.query}\n"
-                f"2. Traverse directories (respecting .gitignore)\n"
-                f"3. Match against pattern\n"
-                f"4. Filter by extensions if provided\n"
-                f"5. Return file list with metadata\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.FILE_DISCOVERY.value,
+                warnings=["Planning mode: discovery not executed"],
             )
-        
-        return ExplorationResult(
-            success=True,
-            query=request.query,
-            capability=ExplorerCapability.FILE_DISCOVERY.value,
-            total_found=0,
-            files_searched=0,
-        )
-    
+
+        try:
+            import os
+            import fnmatch
+            import time
+
+            root = os.getcwd()
+            target_extensions = set(request.file_extensions) if request.file_extensions else None
+            start = time.time()
+            found_files = []
+
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames[:] = [d for d in dirnames if not d.startswith('.') and d not in ('venv', 'node_modules', '__pycache__')]
+                for fn in filenames:
+                    if target_extensions:
+                        from pathlib import Path as _Path
+                        if _Path(fn).suffix.lower() not in target_extensions:
+                            continue
+                    if fnmatch.fnmatch(fn, request.query) or request.query.lower() in fn.lower():
+                        filepath = os.path.join(dirpath, fn)
+                        found_files.append(SearchResult(
+                            file_path=filepath,
+                            line_number=0,
+                            line_content=fn,
+                        ))
+                        if len(found_files) >= request.max_results:
+                            break
+                if len(found_files) >= request.max_results:
+                    break
+
+            elapsed_ms = int((time.time() - start) * 1000)
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.FILE_DISCOVERY.value,
+                results=found_files,
+                total_found=len(found_files),
+                files_searched=0,
+                execution_time_ms=elapsed_ms,
+            )
+        except Exception as e:
+            logger.debug(f"File discovery failed: {e}")
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.FILE_DISCOVERY.value,
+                total_found=0,
+                files_searched=0,
+                warnings=[f"File discovery failed: {e}"],
+            )
+
     def _pattern_matching(
         self,
         request: ExplorationRequest,
@@ -440,33 +522,30 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Match patterns in code."""
         logger.info(f"Pattern matching: {request.query}")
-        
-        explanation = (
-            f"Pattern Matching\n"
-            f"Pattern: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find all pattern matches.\n"
-        else:
-            explanation += (
-                f"\nMatching Process:\n"
-                f"1. Compile pattern (strategy: {request.search_strategy.value})\n"
-                f"2. Search across codebase\n"
-                f"3. Collect all matches with line info\n"
-                f"4. Group by file\n"
-                f"5. Provide context around matches\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.PATTERN_MATCHING.value,
+                warnings=["Planning mode: matching not executed"],
             )
-        
+
+        # Reuse grep search for pattern matching
+        result = self._try_grep_search(request)
+        if result is not None:
+            result.capability = ExplorerCapability.PATTERN_MATCHING.value
+            return result
+
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.PATTERN_MATCHING.value,
             total_found=0,
             files_searched=0,
+            warnings=["Search backend unavailable; no results returned"],
         )
-    
+
     def _symbol_lookup(
         self,
         request: ExplorationRequest,
@@ -474,33 +553,36 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Look up function, class, or variable symbols."""
         logger.info(f"Symbol lookup: {request.query}")
-        
-        explanation = (
-            f"Symbol Lookup\n"
-            f"Symbol: {request.query}\n"
-        )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would find symbol definitions and usages.\n"
-        else:
-            explanation += (
-                f"\nLookup Process:\n"
-                f"1. Parse symbol name: {request.query}\n"
-                f"2. Search for definitions (functions, classes, variables)\n"
-                f"3. Find all usages/references\n"
-                f"4. Trace dependencies\n"
-                f"5. Return definition + usage locations\n"
-                f"6. Include signatures and type info\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.SYMBOL_LOOKUP.value,
+                warnings=["Planning mode: lookup not executed"],
             )
-        
+
+        # Use grep to find definitions matching the symbol name
+        import copy
+        symbol_request = copy.copy(request)
+        symbol_request.query = rf"(def|class|function|const|let|var)\s+{request.query}\b"
+        symbol_request.search_strategy = SearchStrategy.REGEX
+
+        result = self._try_grep_search(symbol_request)
+        if result is not None:
+            result.capability = ExplorerCapability.SYMBOL_LOOKUP.value
+            result.query = request.query
+            return result
+
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.SYMBOL_LOOKUP.value,
             total_found=0,
             files_searched=0,
+            warnings=["Search backend unavailable; no results returned"],
         )
-    
+
     def _import_analysis(
         self,
         request: ExplorationRequest,
@@ -508,34 +590,36 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Analyze imports and dependencies."""
         logger.info(f"Import analysis: {request.query}")
-        
-        explanation = (
-            f"Import Analysis\n"
-            f"Target: {request.query}\n"
-        )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would analyze import dependencies.\n"
-        else:
-            explanation += (
-                f"\nAnalysis Process:\n"
-                f"1. Find file/module: {request.query}\n"
-                f"2. Parse import statements\n"
-                f"3. Trace what it imports from\n"
-                f"4. Trace what imports it\n"
-                f"5. Build dependency graph\n"
-                f"6. Identify circular dependencies\n"
-                f"7. Show import relationships\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.IMPORT_ANALYSIS.value,
+                warnings=["Planning mode: analysis not executed"],
             )
-        
+
+        # Search for import statements referencing the query
+        import copy
+        import_request = copy.copy(request)
+        import_request.query = rf"(import|from)\s+.*{request.query}"
+        import_request.search_strategy = SearchStrategy.REGEX
+
+        result = self._try_grep_search(import_request)
+        if result is not None:
+            result.capability = ExplorerCapability.IMPORT_ANALYSIS.value
+            result.query = request.query
+            return result
+
         return ExplorationResult(
             success=True,
             query=request.query,
             capability=ExplorerCapability.IMPORT_ANALYSIS.value,
             total_found=0,
             files_searched=0,
+            warnings=["Search backend unavailable; no results returned"],
         )
-    
+
     def _project_mapping(
         self,
         request: ExplorationRequest,
@@ -543,39 +627,71 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Map project structure and architecture."""
         logger.info(f"Project mapping: {request.query}")
-        
-        explanation = (
-            f"Project Mapping\n"
-            f"Focus: {request.query}\n"
-        )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
-            explanation += "\nPlanning mode: Would map project structure.\n"
-        else:
-            approach = "Quick scan" if request.thinking_mode == ThinkingMode.LOW else \
-                       "Comprehensive map" if request.thinking_mode == ThinkingMode.MEDIUM else \
-                       "Deep analysis" if request.thinking_mode == ThinkingMode.HIGH else \
-                       "Full AST traversal"
-            
-            explanation += (
-                f"\nMapping Process ({approach}):\n"
-                f"1. Detect project type\n"
-                f"2. Identify entry points\n"
-                f"3. Map directory structure\n"
-                f"4. Find key files (config, setup, main)\n"
-                f"5. Trace major dependencies\n"
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.PROJECT_MAPPING.value,
+                warnings=["Planning mode: mapping not executed"],
             )
-            
-            if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
-                explanation += "6. Build architecture diagram\n"
-                explanation += "7. Identify design patterns\n"
-                explanation += "8. Analyze import relationships\n"
-        
-        return ExplorationResult(
-            success=True,
-            query=request.query,
-            capability=ExplorerCapability.PROJECT_MAPPING.value,
-            project_type="Unknown",
-            total_found=0,
-            files_searched=0,
-        )
+
+        try:
+            import os
+            import time
+
+            root = os.getcwd()
+            start = time.time()
+            project_type = None
+
+            # Detect project type by key files
+            type_indicators = {
+                "package.json": "Node.js",
+                "setup.py": "Python",
+                "pyproject.toml": "Python",
+                "Cargo.toml": "Rust",
+                "go.mod": "Go",
+                "pom.xml": "Java/Maven",
+                "build.gradle": "Java/Gradle",
+            }
+            for indicator, ptype in type_indicators.items():
+                if os.path.exists(os.path.join(root, indicator)):
+                    project_type = ptype
+                    break
+
+            # Collect key files
+            key_files = []
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames[:] = [d for d in dirnames if not d.startswith('.') and d not in ('venv', 'node_modules', '__pycache__')]
+                for fn in filenames:
+                    if fn in type_indicators or fn in ('README.md', 'Makefile', 'Dockerfile', '.gitignore'):
+                        key_files.append(SearchResult(
+                            file_path=os.path.join(dirpath, fn),
+                            line_number=0,
+                            line_content=fn,
+                        ))
+                if len(key_files) >= request.max_results:
+                    break
+
+            elapsed_ms = int((time.time() - start) * 1000)
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.PROJECT_MAPPING.value,
+                results=key_files,
+                total_found=len(key_files),
+                files_searched=0,
+                execution_time_ms=elapsed_ms,
+                project_type=project_type,
+            )
+        except Exception as e:
+            logger.debug(f"Project mapping failed: {e}")
+            return ExplorationResult(
+                success=True,
+                query=request.query,
+                capability=ExplorerCapability.PROJECT_MAPPING.value,
+                project_type=None,
+                total_found=0,
+                files_searched=0,
+                warnings=[f"Project mapping failed: {e}"],
+            )

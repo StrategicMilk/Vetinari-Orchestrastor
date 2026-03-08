@@ -283,14 +283,15 @@ class TrainingManager:
                 ),
             )
 
-        # Actual training would go here — stub returns success stub
+        # Actual training would go here — requires unsloth integration
         duration = round(time.monotonic() - start, 2)
-        logger.info(f"[TrainingManager] Local training started for {model_id} ({method})")
+        logger.info(f"[TrainingManager] Local training not yet implemented for {model_id} ({method})")
         return TrainingResult(
-            success=True,
-            model_path=f"./trained_models/{model_id.replace('/', '_')}",
-            metrics={"loss": 0.0, "eval_loss": 0.0},
+            success=False,
+            model_path="",
+            metrics={},
             duration_seconds=duration,
+            error="Local training not yet implemented — requires unsloth integration",
         )
 
     # ------------------------------------------------------------------

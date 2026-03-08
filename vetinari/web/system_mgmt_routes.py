@@ -12,7 +12,7 @@ import uuid
 from flask import Blueprint, jsonify, request
 
 from vetinari.constants import SD_WEBUI_HOST as _SD_WEBUI_HOST
-from vetinari.web.shared import current_config, _is_admin_user, validate_json_request
+from vetinari.web.shared import current_config, _is_admin_user, require_admin_token, validate_json_request
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +168,7 @@ def api_decisions_submit():
 # ============ SANDBOX ENDPOINTS ============
 
 @system_mgmt_bp.route('/api/sandbox/execute', methods=['POST'])
+@require_admin_token
 def api_sandbox_execute():
     try:
         from vetinari.sandbox import sandbox_manager
@@ -198,10 +199,14 @@ def api_sandbox_status():
 
 
 @system_mgmt_bp.route('/api/sandbox/audit', methods=['GET'])
+@require_admin_token
 def api_sandbox_audit():
     try:
         from vetinari.sandbox import sandbox_manager
-        limit = int(request.args.get('limit', 100))
+        try:
+            limit = int(request.args.get('limit', 100))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid 'limit' parameter"}), 400
         audit = sandbox_manager.get_audit_log(limit)
         return jsonify({"audit_entries": audit, "total": len(audit)})
     except Exception as e:
@@ -216,7 +221,10 @@ def api_code_search():
     try:
         from vetinari.code_search import code_search_registry
         query = request.args.get('q', '')
-        limit = int(request.args.get('limit', 10))
+        try:
+            limit = int(request.args.get('limit', 10))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid 'limit' parameter"}), 400
         language = request.args.get('language')
         backend = request.args.get('backend', 'cocoindex')
 
@@ -291,7 +299,10 @@ def api_adr_list():
         from vetinari.adr import adr_system
         status = request.args.get('status')
         category = request.args.get('category')
-        limit = int(request.args.get('limit', 50))
+        try:
+            limit = int(request.args.get('limit', 50))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid 'limit' parameter"}), 400
         adrs = adr_system.list_adrs(status=status, category=category, limit=limit)
         return jsonify({"adrs": [a.to_dict() for a in adrs], "total": len(adrs)})
     except Exception as e:
@@ -374,7 +385,10 @@ def api_adr_propose():
         if err:
             return err
         context = data.get('context', '')
-        num_options = int(data.get('num_options', 3))
+        try:
+            num_options = int(data.get('num_options', 3))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid 'num_options' parameter"}), 400
         proposal = adr_system.generate_proposal(context, num_options)
         return jsonify({
             "question": proposal.question,
@@ -523,6 +537,7 @@ def api_training_export():
 
 
 @system_mgmt_bp.route('/api/training/start', methods=['POST'])
+@require_admin_token
 def api_training_start():
     """Start a training run (async)."""
     try:
