@@ -1,0 +1,194 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "vetinari"
+dynamic = ["version"]
+description = "Comprehensive AI Orchestration System with multi-agent assembly-line execution, token optimization, and local-cloud hybrid inference"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Vetinari" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "requests>=2.28.0",
+    "pyyaml>=6.0",
+    "flask>=2.0.0",
+    "apscheduler>=3.10.0",
+    "ddgs>=6.0.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+cloud = [
+    "anthropic>=0.20.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.4.0",
+    "cohere>=5.0.0",
+]
+crypto = ["cryptography>=41.0.0"]
+search = [
+    "ddgs>=6.0.0",
+    "tavily-python>=0.3.0",
+]
+ml = ["numpy>=1.24.0"]
+guardrails = ["nemoguardrails>=0.20.0"]
+training = [
+    "sentence-transformers>=2.2",
+    "faiss-cpu>=1.7",
+    "scipy>=1.10",
+    "tiktoken>=0.5",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pre-commit>=3.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+]
+all = [
+    "vetinari[cloud,crypto,search,ml,guardrails,dev]",
+]
+
+[project.scripts]
+vetinari = "vetinari.cli:main"
+
+[project.urls]
+Repository = "https://github.com/vetinari-ai/vetinari"
+
+# ---------------------------------------------------------------------------
+# Tool Configuration
+# ---------------------------------------------------------------------------
+
+[tool.setuptools.dynamic]
+version = { attr = "vetinari.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["vetinari*"]
+exclude = ["tests*", "outputs*", "projects*", "examples*"]
+
+[tool.setuptools.package-data]
+vetinari = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# Ruff — fast Python linter & formatter (replaces flake8 + isort + black)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["vetinari"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade (modern syntax)
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function call in argument defaults
+    "B905",   # zip strict (not always needed)
+    "SIM108", # ternary operator (readability preference)
+    "RUF012", # mutable class variables (dataclass pattern)
+    "UP007",  # Use X | Y for union types - defer until full migration
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vetinari"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-x",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring LM Studio",
+    "security: marks security-related tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false          # too strict for existing codebase
+check_untyped_defs = true
+ignore_missing_imports = true          # many optional deps
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = "vetinari.adapters.*"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "vetinari.analytics.*"
+disallow_untyped_defs = true
+
+# ---------------------------------------------------------------------------
+# Bandit (security linter)
+# ---------------------------------------------------------------------------
+
+[tool.bandit]
+exclude_dirs = ["tests", "outputs", "projects", "examples"]
+skips = ["B101"]  # assert used intentionally in non-test code
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["vetinari"]
+omit = [
+    "vetinari/__pycache__/*",
+    "vetinari/training/*",
+    "vetinari/benchmarks/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+show_missing = true

@@ -140,7 +140,7 @@ Required output (JSON):
                 if search_results:
                     opt_context = "\n".join([r.get("snippet", "") for r in search_results[:2]])
             except Exception:
-                pass
+                logger.debug("Failed to search for LLM cost optimisation strategies", exc_info=True)
 
             prompt = (
                 f"Analyse LLM costs for this project: {plan_outputs}\n\n"
@@ -217,7 +217,7 @@ Required output (JSON):
             if stats:
                 usage["cost_tracker"] = stats
         except Exception:
-            pass
+            logger.debug("Failed to collect cost tracker stats", exc_info=True)
 
         # Try ThompsonSampling for model performance data
         try:
@@ -228,7 +228,7 @@ Required output (JSON):
             if rankings:
                 usage["model_rankings"] = rankings
         except Exception:
-            pass
+            logger.debug("Failed to collect ThompsonSampling model rankings", exc_info=True)
 
         # Try TelemetryCollector
         try:
@@ -243,7 +243,7 @@ Required output (JSON):
             if metrics:
                 usage["telemetry"] = metrics
         except Exception:
-            pass
+            logger.debug("Failed to collect telemetry metrics for cost analysis", exc_info=True)
 
         return usage
 

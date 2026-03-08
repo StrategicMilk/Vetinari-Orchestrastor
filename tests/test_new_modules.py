@@ -49,11 +49,11 @@ class TestCanonicalTypes:
 
     def test_agent_type_includes_image_generator(self):
         from vetinari.types import AgentType
-        assert AgentType.IMAGE_GENERATOR.value == "image_generator"
+        assert AgentType.IMAGE_GENERATOR.value == "IMAGE_GENERATOR"
 
-    def test_agent_type_all_22(self):
+    def test_agent_type_all_29(self):
         from vetinari.types import AgentType
-        assert len(list(AgentType)) == 22  # 21 original + IMAGE_GENERATOR
+        assert len(list(AgentType)) == 29  # 23 original + 6 consolidated (Phase 3)
 
     def test_model_provider_values(self):
         from vetinari.types import ModelProvider
@@ -575,17 +575,17 @@ class TestPlannerAgentVerification:
 class TestTwoLayerOrchestrationFixes:
     def test_max_concurrent_enforced(self):
         """max_concurrent should cap thread pool size."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
+        from vetinari.types import TaskStatus
         engine = DurableExecutionEngine(max_concurrent=2)
         assert engine.max_concurrent == 2
 
     def test_transitive_cancellation(self):
         """Failed task A should cancel B (depends on A) and C (depends on B)."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
+        from vetinari.types import TaskStatus
         engine = DurableExecutionEngine()
 
         graph = ExecutionGraph(plan_id="test_trans", goal="Test transitive cancellation")
@@ -604,14 +604,15 @@ class TestTwoLayerOrchestrationFixes:
 
     def test_event_history_grows(self):
         """Events should be appended to history."""
-        from vetinari.two_layer_orchestration import DurableExecutionEngine
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
         engine = DurableExecutionEngine()
         engine._emit_event("test_event", "task_1", {"key": "value"})
         assert len(engine._event_history) >= 1
         assert engine._event_history[-1].event_type == "test_event"
 
     def test_task_node_serialization(self):
-        from vetinari.two_layer_orchestration import TaskNode, TaskStatus
+        from vetinari.orchestration.execution_graph import TaskNode
+        from vetinari.types import TaskStatus
         node = TaskNode(
             id="t1",
             description="Test task",

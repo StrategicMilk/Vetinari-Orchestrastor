@@ -35,11 +35,14 @@ logs/
 
 # Runtime data (generated at run-time, not source-controlled)
 vetinari_memory.db
+vetinari_episodes.db
+vetinari_quality_scores.db
 vetinari_checkpoints/
 model_cache/
 .vetinari/
 outputs/
 projects/
+training_data.jsonl
 
 # IDE
 .vscode/

@@ -163,7 +163,7 @@ class TelemetryCollector:
             else:
                 metrics.failed_requests += 1
             
-            logger.debug(f"Recorded adapter latency: {key} = {latency_ms}ms (success={success})")
+            logger.debug("Recorded adapter latency: %s = %sms (success=%s)", key, latency_ms, success)
     
     def get_adapter_metrics(self, provider: Optional[str] = None) -> Dict[str, AdapterMetrics]:
         """Get adapter metrics, optionally filtered by provider."""
@@ -181,7 +181,7 @@ class TelemetryCollector:
                 metrics = self.memory_metrics[backend]
                 metrics.total_writes += 1
                 metrics.write_latency_ms.append(latency_ms)
-                logger.debug(f"Recorded memory write: {backend} = {latency_ms}ms")
+                logger.debug("Recorded memory write: %s = %sms", backend, latency_ms)
     
     def record_memory_read(self, backend: str, latency_ms: float):
         """Record memory read operation."""
@@ -190,7 +190,7 @@ class TelemetryCollector:
                 metrics = self.memory_metrics[backend]
                 metrics.total_reads += 1
                 metrics.read_latency_ms.append(latency_ms)
-                logger.debug(f"Recorded memory read: {backend} = {latency_ms}ms")
+                logger.debug("Recorded memory read: %s = %sms", backend, latency_ms)
     
     def record_memory_search(self, backend: str, latency_ms: float):
         """Record memory search operation."""
@@ -199,7 +199,7 @@ class TelemetryCollector:
                 metrics = self.memory_metrics[backend]
                 metrics.total_searches += 1
                 metrics.search_latency_ms.append(latency_ms)
-                logger.debug(f"Recorded memory search: {backend} = {latency_ms}ms")
+                logger.debug("Recorded memory search: %s = %sms", backend, latency_ms)
     
     def record_dedup_hit(self, backend: str):
         """Record successful content deduplication."""
@@ -218,7 +218,7 @@ class TelemetryCollector:
         with self._lock:
             if backend in self.memory_metrics:
                 self.memory_metrics[backend].sync_failures += 1
-                logger.warning(f"Memory sync failure recorded for {backend}")
+                logger.warning("Memory sync failure recorded for %s", backend)
     
     def get_memory_metrics(self, backend: Optional[str] = None) -> Dict[str, MemoryMetrics]:
         """Get memory metrics, optionally filtered by backend."""
@@ -257,7 +257,7 @@ class TelemetryCollector:
             self.plan_metrics.update_average_risk_score()
             self.plan_metrics.update_average_approval_time()
             
-            logger.debug(f"Recorded plan decision: {decision} (risk={risk_score})")
+            logger.debug("Recorded plan decision: %s (risk=%s)", decision, risk_score)
     
     def get_plan_metrics(self) -> PlanMetrics:
         """Get plan mode metrics."""
@@ -320,10 +320,10 @@ class TelemetryCollector:
                 with open(path, 'w') as f:
                     json.dump(export_data, f, indent=2)
                 
-                logger.info(f"Telemetry exported to {path}")
+                logger.info("Telemetry exported to %s", path)
                 return True
         except Exception as e:
-            logger.error(f"Failed to export telemetry: {e}")
+            logger.error("Failed to export telemetry: %s", e)
             return False
     
     def export_prometheus(self, path: str) -> bool:
@@ -361,10 +361,10 @@ class TelemetryCollector:
                 with open(path, 'w') as f:
                     f.write('\n'.join(lines))
                 
-                logger.info(f"Prometheus metrics exported to {path}")
+                logger.info("Prometheus metrics exported to %s", path)
                 return True
         except Exception as e:
-            logger.error(f"Failed to export Prometheus metrics: {e}")
+            logger.error("Failed to export Prometheus metrics: %s", e)
             return False
     
     def reset(self):

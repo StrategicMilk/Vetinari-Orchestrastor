@@ -228,7 +228,7 @@ Requirements:
             code_path = base / f"{safe_name}.py"
             code_path.write_text(code, encoding="utf-8")
             written.append(str(code_path))
-            logger.info(f"[BuilderAgent] Wrote {code_path}")
+            logger.info("[BuilderAgent] Wrote %s", code_path)
 
         # Write test files
         for test in scaffold.get("tests", []):
@@ -238,7 +238,7 @@ Requirements:
                 test_path = base / fname
                 test_path.write_text(content, encoding="utf-8")
                 written.append(str(test_path))
-                logger.info(f"[BuilderAgent] Wrote {test_path}")
+                logger.info("[BuilderAgent] Wrote %s", test_path)
 
         # Write artifact files (README, config, etc.)
         for artifact in scaffold.get("artifacts", []):
@@ -248,7 +248,7 @@ Requirements:
                 artifact_path = base / fname
                 artifact_path.write_text(content, encoding="utf-8")
                 written.append(str(artifact_path))
-                logger.info(f"[BuilderAgent] Wrote {artifact_path}")
+                logger.info("[BuilderAgent] Wrote %s", artifact_path)
 
         return written
 
@@ -326,7 +326,7 @@ Requirements:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                logger.debug("Failed to remove temporary file %s", tmp_path, exc_info=True)
 
 
 # Singleton instance

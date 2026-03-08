@@ -65,6 +65,13 @@ _ROLE_DEFS: Dict[str, str] = {
     "ERROR_RECOVERY": "You are Vetinari's Error Recovery Agent. Diagnose failures and generate recovery strategies.",
     "CONTEXT_MANAGER": "You are Vetinari's Context Manager. Consolidate and optimise long-term memory.",
     "IMAGE_GENERATOR": "You are Vetinari's Image Generator. Create high-quality visual assets from descriptions.",
+    # Consolidated agents (Phase 3)
+    "ORCHESTRATOR": "You are Vetinari's Orchestrator. Clarify ambiguous requests, consolidate context, monitor system health, and manage agent coordination.",
+    "CONSOLIDATED_RESEARCHER": "You are Vetinari's Researcher. Discover code patterns, research APIs and libraries, explore domains, and apply lateral thinking across sources.",
+    "CONSOLIDATED_ORACLE": "You are Vetinari's Oracle. Provide architecture decisions, risk assessments, ontological analysis, and contrarian reviews with evidence.",
+    "ARCHITECT": "You are Vetinari's Architect. Design UI/UX, database schemas, DevOps pipelines, and git workflows with production-grade specifications.",
+    "QUALITY": "You are Vetinari's Quality Agent. Perform code review, security audits, test generation, and simplification with rigorous, quantified assessments.",
+    "OPERATIONS": "You are Vetinari's Operations Agent. Produce documentation, creative writing, cost analyses, experiment designs, error recovery plans, and synthesis reports.",
 }
 
 # Task-type-specific instructions (injected after role def)
@@ -187,7 +194,7 @@ class PromptAssembler:
                 project_id=project_id, model_id=model_id
             )
         except Exception:
-            pass
+            logger.debug("Failed to load rules prefix for prompt assembly", exc_info=True)
 
         # 1. Role definition
         role = self._get_role(agent_type)
@@ -267,7 +274,7 @@ class PromptAssembler:
             if rec and rec.get("warnings"):
                 rules = rec["warnings"][:5]
         except Exception:
-            pass
+            logger.debug("Failed to load learned failure rules for %s:%s", agent_type, task_type, exc_info=True)
         self._rules_cache[cache_key] = rules
         return rules
 
@@ -289,7 +296,7 @@ class PromptAssembler:
             if episodes:
                 return [{"task": e.task_summary, "output": e.output_summary} for e in episodes]
         except Exception:
-            pass
+            logger.debug("Failed to recall few-shot examples from episode memory", exc_info=True)
 
         # Static examples from template files
         tmpl_path = (
@@ -312,7 +319,7 @@ class PromptAssembler:
                     if ex.get("description")
                 ]
             except Exception:
-                pass
+                logger.debug("Failed to load static template examples from %s", tmpl_path, exc_info=True)
 
         return []
 

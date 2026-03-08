@@ -1,6 +1,10 @@
 """
 Tool Registry Integration for Vetinari
 
+.. deprecated::
+    This module is deprecated. Use ``vetinari.tool_interface.get_tool_registry()``
+    directly instead.
+
 Registers all tools in the tool registry including:
 - Web Search Tool
 - Code Sandbox
@@ -10,6 +14,7 @@ Registers all tools in the tool registry including:
 """
 
 import logging
+import warnings
 from typing import Dict, Any, List, Optional
 
 from vetinari.tool_interface import (
@@ -22,6 +27,13 @@ from vetinari.tool_interface import (
 )
 
 from vetinari.execution_context import ToolPermission, ExecutionMode
+
+warnings.warn(
+    "vetinari.tools.tool_registry_integration is deprecated. "
+    "Use vetinari.tool_interface.get_tool_registry() directly instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -480,7 +492,7 @@ class GeneratePlanToolWrapper(Tool):
     
     def _get_orchestrator(self):
         if self._orchestrator is None:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             self._orchestrator = get_two_layer_orchestrator()
         return self._orchestrator
     
@@ -523,9 +535,9 @@ def register_all_tools():
     for tool in tools:
         try:
             registry.register(tool)
-            logger.info(f"Registered tool: {tool.metadata.name}")
+            logger.info("Registered tool: %s", tool.metadata.name)
         except Exception as e:
-            logger.error(f"Failed to register tool {tool.metadata.name}: {e}")
+            logger.error("Failed to register tool %s: %s", tool.metadata.name, e)
     
     return len(tools)
 
@@ -535,16 +547,16 @@ def _auto_register():
     """Auto-register tools when module is imported."""
     try:
         count = register_all_tools()
-        logger.info(f"Auto-registered {count} tools")
+        logger.info("Auto-registered %s tools", count)
     except Exception as e:
-        logger.warning(f"Auto-registration failed: {e}")
+        logger.warning("Auto-registration failed: %s", e)
 
 
 # Try to auto-register
 try:
     _auto_register()
 except Exception:
-    pass  # Silently fail if imports don't work
+    pass  # Auto-registration skipped — tool registry imports not available
 
 
 if __name__ == "__main__":

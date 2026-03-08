@@ -1,8 +1,13 @@
+import re
 from setuptools import setup, find_packages
+
+# Single source of truth for version — read from vetinari/__init__.py
+with open("vetinari/__init__.py") as f:
+    _version = re.search(r'__version__\s*=\s*"([^"]+)"', f.read()).group(1)
 
 setup(
     name="vetinari",
-    version="0.2.1",
+    version=_version,
     packages=find_packages(),
     description="Comprehensive AI Orchestration System with multi-agent assembly-line execution, token optimization, and local-cloud hybrid inference",
     long_description=open("README.md", encoding="utf-8").read() if __import__("os").path.exists("README.md") else "",
@@ -12,7 +17,7 @@ setup(
         "requests>=2.28.0",
         "pyyaml>=6.0",
         "flask>=2.0.0",
-        "duckduckgo-search>=4.0.0",
+        "ddgs>=6.0.0",
         "apscheduler>=3.10.0",
     ],
     extras_require={
@@ -26,7 +31,7 @@ setup(
             "cryptography>=41.0.0",
         ],
         "search": [
-            "duckduckgo-search>=4.0.0",
+            "ddgs>=6.0.0",
             "tavily-python>=0.3.0",
         ],
         "ml": [

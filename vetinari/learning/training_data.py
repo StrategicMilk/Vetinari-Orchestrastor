@@ -156,7 +156,7 @@ class TrainingDataCollector:
             from vetinari.vram_manager import get_vram_manager
             vram_used = get_vram_manager().get_used_vram_gb()
         except Exception:
-            pass
+            logger.debug("Failed to snapshot VRAM usage for training record", exc_info=True)
 
         import uuid
         rec = TrainingRecord(
@@ -195,7 +195,7 @@ class TrainingDataCollector:
             except queue.Empty:
                 continue
             except Exception as e:
-                logger.debug(f"[TrainingDataCollector] Write error: {e}")
+                logger.debug("[TrainingDataCollector] Write error: %s", e)
 
     def _append(self, rec: TrainingRecord) -> None:
         """Append a record to the JSONL file (thread-safe)."""
@@ -206,7 +206,7 @@ class TrainingDataCollector:
                     f.write(json.dumps(rec.to_dict(), ensure_ascii=False) + "\n")
                 self._record_count += 1
             except Exception as e:
-                logger.debug(f"[TrainingDataCollector] Append failed: {e}")
+                logger.debug("[TrainingDataCollector] Append failed: %s", e)
 
     def flush(self) -> None:
         """Wait for the queue to drain."""

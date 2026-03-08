@@ -64,11 +64,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
                 discovered.append(model_info)
 
             self.models = discovered
-            logger.info(f"[LMStudio] Discovered {len(discovered)} models")
+            logger.info("[LMStudio] Discovered %s models", len(discovered))
             return discovered
 
         except Exception as e:
-            logger.error(f"[LMStudio] Model discovery failed: {e}")
+            logger.error("[LMStudio] Model discovery failed: %s", e)
             return []
 
     def health_check(self) -> Dict[str, Any]:
@@ -144,7 +144,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[LMStudio] Inference failed: {e}")
+            logger.error("[LMStudio] Inference failed: %s", e)
             resp = InferenceResponse(
                 model_id=request.model_id,
                 output="",

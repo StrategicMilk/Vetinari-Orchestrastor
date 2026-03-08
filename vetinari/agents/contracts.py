@@ -12,49 +12,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
-
-class AgentType(Enum):
-    """Enumeration of all Vetinari agents."""
-    PLANNER = "PLANNER"
-    EXPLORER = "EXPLORER"
-    LIBRARIAN = "LIBRARIAN"
-    ORACLE = "ORACLE"
-    RESEARCHER = "RESEARCHER"
-    EVALUATOR = "EVALUATOR"
-    SYNTHESIZER = "SYNTHESIZER"
-    BUILDER = "BUILDER"
-    UI_PLANNER = "UI_PLANNER"
-    SECURITY_AUDITOR = "SECURITY_AUDITOR"
-    DATA_ENGINEER = "DATA_ENGINEER"
-    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"
-    COST_PLANNER = "COST_PLANNER"
-    TEST_AUTOMATION = "TEST_AUTOMATION"
-    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"
-    IMPROVEMENT = "IMPROVEMENT"
-    USER_INTERACTION = "USER_INTERACTION"
-    DEVOPS = "DEVOPS"
-    VERSION_CONTROL = "VERSION_CONTROL"
-    ERROR_RECOVERY = "ERROR_RECOVERY"
-    CONTEXT_MANAGER = "CONTEXT_MANAGER"
-    IMAGE_GENERATOR = "IMAGE_GENERATOR"
-
-
-class TaskStatus(Enum):
-    """Status of a task in the orchestration."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    WAITING = "waiting"
-
-
-class ExecutionMode(Enum):
-    """Execution mode for agents."""
-    PLANNING = "planning"
-    EXECUTION = "execution"
+from vetinari.types import AgentType, TaskStatus, ExecutionMode  # canonical source
 
 
 @dataclass
@@ -432,6 +392,56 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         agent_type=AgentType.IMAGE_GENERATOR,
         name="Image Generator",
         description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.PONDER: AgentSpec(
+        agent_type=AgentType.PONDER,
+        name="Ponder",
+        description="Reflective reasoning and deep deliberation on complex decisions",
+        default_model="qwen2.5-72b",
+        thinking_variant="xhigh"
+    ),
+    # --- Consolidated agent types (Phase 3) ---
+    AgentType.ORCHESTRATOR: AgentSpec(
+        agent_type=AgentType.ORCHESTRATOR,
+        name="Orchestrator",
+        description="User interaction, clarification, context management, memory consolidation",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.CONSOLIDATED_RESEARCHER: AgentSpec(
+        agent_type=AgentType.CONSOLIDATED_RESEARCHER,
+        name="Researcher",
+        description="Code discovery, domain research, API/library lookup, lateral thinking",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.CONSOLIDATED_ORACLE: AgentSpec(
+        agent_type=AgentType.CONSOLIDATED_ORACLE,
+        name="Oracle",
+        description="Architecture decisions, risk assessment, ontological analysis, contrarian review",
+        default_model="qwen3-30b-a3b",
+        thinking_variant="xhigh"
+    ),
+    AgentType.ARCHITECT: AgentSpec(
+        agent_type=AgentType.ARCHITECT,
+        name="Architect",
+        description="UI/UX design, database schema, DevOps pipelines, git workflow",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.QUALITY: AgentSpec(
+        agent_type=AgentType.QUALITY,
+        name="Quality",
+        description="Code review, security audit, test generation, simplification",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="high"
+    ),
+    AgentType.OPERATIONS: AgentSpec(
+        agent_type=AgentType.OPERATIONS,
+        name="Operations",
+        description="Documentation, cost analysis, experiments, error recovery, synthesis, image generation",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
     ),

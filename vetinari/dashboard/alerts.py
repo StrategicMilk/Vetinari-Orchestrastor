@@ -15,8 +15,8 @@ Supported metric keys (dot-notation):
 
 Alert channels:
     log      - emit via Python logging (default)
-    email    - placeholder dispatcher
-    webhook  - placeholder dispatcher
+    email    - SMTP email (configure via VETINARI_SMTP_* env vars)
+    webhook  - HTTP POST (configure via VETINARI_WEBHOOK_URL env var)
 
 Usage:
     from vetinari.dashboard.alerts import get_alert_engine, AlertThreshold, AlertCondition, AlertSeverity
@@ -34,11 +34,16 @@ Usage:
 """
 
 import logging
+import os
+import smtplib
 import threading
 import time
 from dataclasses import dataclass, field
+from email.mime.text import MIMEText
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
+
+import requests
 
 from vetinari.dashboard.api import DashboardAPI, MetricsSnapshot, get_dashboard_api
 
@@ -149,19 +154,88 @@ def _dispatch_log(alert: AlertRecord) -> None:
 
 
 def _dispatch_email(alert: AlertRecord) -> None:
-    """Placeholder — integrate with an email backend here."""
-    logger.info(
-        "EMAIL (placeholder): would send alert '%s' to email channel",
-        alert.threshold.name,
+    """Send alert via SMTP email. Configure with VETINARI_SMTP_* env vars."""
+    smtp_host = os.environ.get("VETINARI_SMTP_HOST")
+    smtp_port = int(os.environ.get("VETINARI_SMTP_PORT", "587"))
+    from_addr = os.environ.get("VETINARI_ALERT_FROM")
+    to_addr = os.environ.get("VETINARI_ALERT_TO")
+
+    if not smtp_host or not from_addr or not to_addr:
+        logger.info(
+            "EMAIL: skipping alert '%s' — VETINARI_SMTP_HOST, VETINARI_ALERT_FROM, "
+            "and VETINARI_ALERT_TO must all be set",
+            alert.threshold.name,
+        )
+        return
+
+    subject = (
+        f"[Vetinari Alert] [{alert.threshold.severity.value.upper()}] "
+        f"{alert.threshold.name}"
     )
+    body = (
+        f"Alert: {alert.threshold.name}\n"
+        f"Severity: {alert.threshold.severity.value.upper()}\n"
+        f"Metric: {alert.threshold.metric_key}\n"
+        f"Current value: {alert.current_value:.4g}\n"
+        f"Threshold ({alert.threshold.condition.value}): {alert.threshold.threshold_value:.4g}\n"
+        f"Triggered at: {alert.trigger_time}\n"
+    )
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            smtp_user = os.environ.get("VETINARI_SMTP_USER")
+            smtp_pass = os.environ.get("VETINARI_SMTP_PASS")
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.sendmail(from_addr, [to_addr], msg.as_string())
+        logger.info("EMAIL: sent alert '%s' to %s", alert.threshold.name, to_addr)
+    except Exception as exc:
+        logger.error("EMAIL: failed to send alert '%s': %s", alert.threshold.name, exc)
 
 
 def _dispatch_webhook(alert: AlertRecord) -> None:
-    """Placeholder — integrate with an HTTP webhook here."""
-    logger.info(
-        "WEBHOOK (placeholder): would POST alert '%s' to webhook channel",
-        alert.threshold.name,
-    )
+    """POST alert details as JSON. Configure with VETINARI_WEBHOOK_URL env var."""
+    url = os.environ.get("VETINARI_WEBHOOK_URL")
+    if not url:
+        logger.info(
+            "WEBHOOK: skipping alert '%s' — VETINARI_WEBHOOK_URL not set",
+            alert.threshold.name,
+        )
+        return
+
+    payload = {
+        "name": alert.threshold.name,
+        "metric": alert.threshold.metric_key,
+        "value": alert.current_value,
+        "threshold": alert.threshold.threshold_value,
+        "severity": alert.threshold.severity.value,
+        "timestamp": alert.trigger_time,
+    }
+
+    try:
+        response = requests.post(url, json=payload, timeout=5)
+        response.raise_for_status()
+        logger.info(
+            "WEBHOOK: posted alert '%s' to %s (status %s)",
+            alert.threshold.name,
+            url,
+            response.status_code,
+        )
+    except Exception as exc:
+        logger.error(
+            "WEBHOOK: failed to post alert '%s' to %s: %s",
+            alert.threshold.name,
+            url,
+            exc,
+        )
 
 
 DISPATCHERS: Dict[str, Callable[[AlertRecord], None]] = {

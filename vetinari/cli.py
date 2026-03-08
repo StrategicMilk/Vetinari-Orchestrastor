@@ -52,7 +52,7 @@ def _load_config(config_path: str) -> dict:
         pkg_root = Path(__file__).resolve().parents[1]
         p = pkg_root / config_path
     if not p.exists():
-        logger.warning(f"Config file not found: {config_path}, using defaults")
+        logger.warning("Config file not found: %s, using defaults", config_path)
         return {"project_name": "vetinari", "tasks": []}
     with open(p, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
@@ -89,14 +89,14 @@ def cmd_run(args) -> int:
         # High-level goal → assembly-line pipeline
         print(f"[Vetinari] Running goal: {args.goal[:80]}")
         try:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             orch = get_two_layer_orchestrator()
             # Wire agent context if orchestrator is available
             try:
                 base_orch = _build_orchestrator(args.config, host, args.mode)
                 orch.set_agent_context(base_orch._agent_context)
             except Exception:
-                pass
+                logger.debug("Could not wire agent context from base orchestrator", exc_info=True)
             results = orch.generate_and_execute(
                 goal=args.goal,
                 constraints={"mode": args.mode},
@@ -133,7 +133,7 @@ def cmd_serve(args) -> int:
     _setup_logging(args.verbose)
     host = _get_host(args.host)
     port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
-    web_host = args.web_host or "0.0.0.0"
+    web_host = args.web_host or "127.0.0.1"
 
     print(f"[Vetinari] Starting web dashboard on {web_host}:{port}")
     print(f"[Vetinari] Dashboard URL: http://localhost:{port}")
@@ -169,7 +169,7 @@ def cmd_start(args) -> int:
             app.config["VETINARI_HOST"] = host
 
             def _run_dashboard():
-                app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+                app.run(host=web_host, port=port, debug=False, use_reloader=False)
 
             t = threading.Thread(target=_run_dashboard, daemon=True)
             t.start()
@@ -193,7 +193,7 @@ def cmd_start(args) -> int:
                 get_auto_tuner().run_cycle()
                 logger.debug("[AutoTuner] Periodic cycle complete")
             except Exception as _at_err:
-                logger.debug(f"[AutoTuner] Cycle error (non-fatal): {_at_err}")
+                logger.debug("[AutoTuner] Cycle error (non-fatal): %s", _at_err)
 
     _tuner_thread = threading.Thread(target=_auto_tuner_loop, daemon=True, name="auto-tuner")
     _tuner_thread.start()
@@ -297,7 +297,7 @@ def _health_check_quiet(host: str) -> None:
             status = "OK" if info.get("healthy") else "FAIL"
             print(f"  {name:20s}: {status}")
     except Exception:
-        pass
+        logger.debug("Adapter manager health check unavailable", exc_info=True)
 
 
 def cmd_upgrade(args) -> int:
@@ -328,7 +328,7 @@ def cmd_review(args) -> int:
             from vetinari.adapter_manager import get_adapter_manager
             agent.initialize({"adapter_manager": get_adapter_manager()})
         except Exception:
-            pass
+            logger.debug("Could not initialize improvement agent with adapter manager", exc_info=True)
 
         task = AgentTask(
             task_id="review-cli",
@@ -362,13 +362,13 @@ def cmd_interactive(args) -> int:
     print("-" * 50)
 
     try:
-        from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+        from vetinari.orchestration.two_layer import get_two_layer_orchestrator
         orch = get_two_layer_orchestrator()
         try:
             base_orch = _build_orchestrator(args.config, host, args.mode)
             orch.set_agent_context(base_orch._agent_context)
         except Exception:
-            pass
+            logger.debug("Could not wire agent context from base orchestrator", exc_info=True)
     except Exception:
         orch = None
 
@@ -416,7 +416,7 @@ def cmd_interactive(args) -> int:
 # Main entry point
 # ============================================================
 
-def main():
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="vetinari",
@@ -454,7 +454,7 @@ Examples:
     # serve
     p_serve = subparsers.add_parser("serve", help="Start the web dashboard")
     p_serve.add_argument("--port", type=int, default=None, help="Web server port (default 5000)")
-    p_serve.add_argument("--web-host", default="0.0.0.0", help="Web server bind address")
+    p_serve.add_argument("--web-host", default="127.0.0.1", help="Web server bind address")
     p_serve.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
 
     # start

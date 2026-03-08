@@ -73,10 +73,10 @@ class OcMemoryStore(IMemoryStore):
             """)
             
             self._conn.commit()
-            logger.info(f"OcMemoryStore initialized at {self.db_path}")
+            logger.info("OcMemoryStore initialized at %s", self.db_path)
             
         except sqlite3.Error as e:
-            logger.error(f"Failed to initialize OcMemoryStore: {e}")
+            logger.error("Failed to initialize OcMemoryStore: %s", e)
             raise
     
     def remember(self, entry: MemoryEntry) -> str:
@@ -105,7 +105,7 @@ class OcMemoryStore(IMemoryStore):
         ))
         self._conn.commit()
         
-        logger.debug(f"OcMemoryStore: stored entry {entry.id}")
+        logger.debug("OcMemoryStore: stored entry %s", entry.id)
         return entry.id
     
     def search(self, query: str, agent: Optional[str] = None,
@@ -184,7 +184,7 @@ class OcMemoryStore(IMemoryStore):
         with open(path, 'w') as f:
             json.dump({"memories": memories, "exported_at": datetime.now().isoformat()}, f, indent=2)
         
-        logger.info(f"OcMemoryStore: exported {len(memories)} entries to {path}")
+        logger.info("OcMemoryStore: exported %d entries to %s", len(memories), path)
         return True
     
     def forget(self, entry_id: str, reason: str) -> bool:
@@ -195,7 +195,7 @@ class OcMemoryStore(IMemoryStore):
         """, (entry_id,))
         self._conn.commit()
         
-        logger.debug(f"OcMemoryStore: marked entry {entry_id} as forgotten")
+        logger.debug("OcMemoryStore: marked entry %s as forgotten", entry_id)
         return cursor.rowcount > 0
     
     def compact(self, max_age_days: Optional[int] = None) -> int:
@@ -215,7 +215,7 @@ class OcMemoryStore(IMemoryStore):
         
         self._conn.commit()
         
-        logger.info(f"OcMemoryStore: compacted, removed {deleted} entries")
+        logger.info("OcMemoryStore: compacted, removed %d entries", deleted)
         return deleted
     
     def stats(self) -> MemoryStats:

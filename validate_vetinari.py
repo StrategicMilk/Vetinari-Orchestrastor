@@ -57,14 +57,14 @@ check("Learning subsystem imports", test_learning_imports)
 # 3. Tool imports
 def test_tool_imports():
     from vetinari.tools.web_search_tool import WebSearchTool, get_search_tool
-    from vetinari.tools.builder_skill import BuilderSkillTool  # class is BuilderSkillTool
-    from vetinari.tools.evaluator_skill import EvaluatorSkillTool
-    from vetinari.tools.security_auditor_skill import SecurityAuditorSkill
-    from vetinari.tools.data_engineer_skill import DataEngineerSkill
-    from vetinari.tools.documentation_skill import DocumentationSkill
-    from vetinari.tools.cost_planner_skill import CostPlannerSkill
-    from vetinari.tools.test_automation_skill import TestAutomationSkill
-    from vetinari.tools.experimentation_manager_skill import ExperimentationManagerSkill
+    from vetinari.skills.builder import BuilderSkillTool  # class is BuilderSkillTool
+    from vetinari.skills.evaluator import EvaluatorSkillTool
+    from vetinari.skills.security_auditor import SecurityAuditorSkill
+    from vetinari.skills.data_engineer import DataEngineerSkill
+    from vetinari.skills.documentation import DocumentationSkill
+    from vetinari.skills.cost_planner import CostPlannerSkill
+    from vetinari.skills.test_automation import TestAutomationSkill
+    from vetinari.skills.experimentation_manager import ExperimentationManagerSkill
 
 check("Tool skill imports", test_tool_imports)
 
@@ -79,7 +79,7 @@ check("CLI import", test_cli)
 
 # 5. Two-layer orchestration
 def test_orchestration():
-    from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+    from vetinari.orchestration.two_layer import get_two_layer_orchestrator
     orch = get_two_layer_orchestrator()
     graph = orch.generate_plan_only("Build a Python test project")
     assert len(graph.nodes) >= 2, f"Expected 2+ tasks, got {len(graph.nodes)}"

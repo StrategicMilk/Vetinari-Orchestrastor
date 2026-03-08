@@ -23,7 +23,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from vetinari.tools.builder_skill import BuilderSkillTool, BuilderCapability, ThinkingMode
+from vetinari.skills.builder import BuilderSkillTool, BuilderCapability, ThinkingMode
 from vetinari.execution_context import ExecutionMode, ExecutionContext, get_context_manager
 
 

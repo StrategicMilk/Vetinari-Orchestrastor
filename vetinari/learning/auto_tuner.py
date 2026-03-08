@@ -75,7 +75,7 @@ class AutoTuner:
         applied.extend(self._tune_from_costs())
 
         if applied:
-            logger.info(f"[AutoTuner] Applied {len(applied)} tuning actions")
+            logger.info("[AutoTuner] Applied %s tuning actions", len(applied))
         return applied
 
     def _tune_from_sla(self) -> List[TuningAction]:
@@ -115,7 +115,7 @@ class AutoTuner:
                                              auto=True)
                         actions.append(action)
         except Exception as e:
-            logger.debug(f"SLA tuning failed: {e}")
+            logger.debug("SLA tuning failed: %s", e)
         return actions
 
     def _tune_from_anomalies(self) -> List[TuningAction]:
@@ -151,7 +151,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Anomaly tuning failed: {e}")
+            logger.debug("Anomaly tuning failed: %s", e)
         return actions
 
     def _tune_from_costs(self) -> List[TuningAction]:
@@ -171,7 +171,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Cost tuning failed: {e}")
+            logger.debug("Cost tuning failed: %s", e)
         return actions
 
     def _apply(self, trigger: str, parameter: str, old_val: Any, new_val: Any,
@@ -192,9 +192,9 @@ class AutoTuner:
         self._actions.append(action)
 
         if auto:
-            logger.info(f"[AutoTuner] {parameter}: {old_val} → {new_val} ({rationale})")
+            logger.info("[AutoTuner] %s: %s → %s (%s)", parameter, old_val, new_val, rationale)
         else:
-            logger.warning(f"[AutoTuner] MANUAL ACTION NEEDED: {parameter}: {old_val} → {new_val} ({rationale})")
+            logger.warning("[AutoTuner] MANUAL ACTION NEEDED: %s: %s → %s (%s)", parameter, old_val, new_val, rationale)
 
         # Log to memory as a DECISION entry
         try:
@@ -210,7 +210,7 @@ class AutoTuner:
                 provenance="auto_tuner",
             ))
         except Exception:
-            pass
+            logger.debug("Failed to persist auto-tuner decision for %s", parameter, exc_info=True)
 
         return action
 

@@ -148,7 +148,7 @@ class ErrorRecoveryAgent(BaseAgent):
             self.complete_task(task, agent_result)
             return agent_result
         except Exception as exc:
-            logger.error(f"[ErrorRecoveryAgent] execute() failed: {exc}")
+            logger.error("[ErrorRecoveryAgent] execute() failed: %s", exc)
             return AgentResult(
                 success=False,
                 output={},
@@ -207,7 +207,7 @@ class ErrorRecoveryAgent(BaseAgent):
                         f"- {r['title']}: {r['snippet']}" for r in results[:3]
                     )
             except Exception:
-                pass
+                logger.debug("Failed to search for error recovery best practices", exc_info=True)
 
         prompt = f"""You are an error recovery expert. Analyse the following error context and produce a recovery plan.
 

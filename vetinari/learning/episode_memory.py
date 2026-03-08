@@ -202,7 +202,7 @@ class EpisodeMemory:
                     if row[1]
                 ]
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Index load failed: {e}")
+            logger.debug("[EpisodeMemory] Index load failed: %s", e)
 
     # ------------------------------------------------------------------
     # Recording
@@ -273,7 +273,7 @@ class EpisodeMemory:
                 if len(self._index) > _MAX_EPISODES:
                     self._evict()
             except Exception as e:
-                logger.debug(f"[EpisodeMemory] Record failed: {e}")
+                logger.debug("[EpisodeMemory] Record failed: %s", e)
 
         return episode_id
 
@@ -291,7 +291,7 @@ class EpisodeMemory:
             # Rebuild index
             self._load_index()
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Eviction failed: {e}")
+            logger.debug("[EpisodeMemory] Eviction failed: %s", e)
 
     # ------------------------------------------------------------------
     # Retrieval
@@ -367,7 +367,7 @@ class EpisodeMemory:
             return episodes[:k]
 
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Recall failed: {e}")
+            logger.debug("[EpisodeMemory] Recall failed: %s", e)
             return []
 
     def get_failure_patterns(self, agent_type: str, task_type: str) -> List[str]:

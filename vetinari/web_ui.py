@@ -2,11 +2,13 @@ import os
 import json
 import logging
 import yaml
+
+logger = logging.getLogger(__name__)
 import threading
 import time
 import uuid
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template_string, jsonify, request, send_from_directory
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,6 +19,14 @@ except ImportError:
 
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are Vetinari, an AI orchestration assistant. "
+    "Provide structured, actionable responses with clear reasoning. "
+    "For code: follow PEP 8, include type hints and docstrings. "
+    "For plans: break into concrete steps with dependencies. "
+    "Always return valid JSON when structured output is expected."
+)
 
 # Load .env file if present (before reading env vars)
 _env_file = PROJECT_ROOT / ".env"
@@ -30,11 +40,26 @@ if _env_file.exists():
                 if _k and _v and _k not in os.environ:
                     os.environ[_k] = _v
     except Exception:
-        pass
+        logger.debug("Failed to load .env file", exc_info=True)
 
 app = Flask(__name__,
     template_folder=str(PROJECT_ROOT / 'ui' / 'templates'),
     static_folder=str(PROJECT_ROOT / 'ui' / 'static'))
+
+# Security: Set a secret key for session signing
+# Uses environment variable or generates a random one per process
+import secrets
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+# Register modular blueprints (extracted from this file for maintainability)
+from vetinari.web.adr_routes import bp as adr_bp
+from vetinari.web.decomposition_routes import bp as decomposition_bp
+from vetinari.web.ponder_routes import bp as ponder_bp
+from vetinari.web.rules_routes import bp as rules_bp
+from vetinari.web.admin_routes import bp as admin_bp
+from vetinari.web.training_routes import bp as training_bp
+for _bp in (adr_bp, decomposition_bp, ponder_bp, rules_bp, admin_bp, training_bp):
+    app.register_blueprint(_bp)
 
 # Global state
 orchestrator = None
@@ -80,7 +105,7 @@ def _push_sse_event(project_id: str, event_type: str, data: dict) -> None:
         try:
             q.put_nowait({"event": event_type, "data": _json.dumps(data)})
         except Exception:
-            pass  # Queue full — drop event
+            pass  # Queue full — drop event (logged at trace level to avoid noise)
 
 # ---------------------------------------------------------------------------
 # Model discovery cache  (avoids blocking the UI on every request)
@@ -174,8 +199,8 @@ def trigger_light_search(project_id: str, task_description: str):
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception:
-            pass
-        
+            logger.debug("Model pool discovery unavailable for light search", exc_info=True)
+
         candidates = search_engine.search_for_task(task_description, lm_models)
         return candidates
     except Exception as e:
@@ -278,7 +303,7 @@ def api_cancel_project(project_id):
             with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(project_config, f)
     except Exception:
-        pass
+        logger.debug("Failed to update project config status to cancelled", exc_info=True)
 
     return jsonify({"status": "cancelled" if cancelled else "not_found", "project_id": project_id})
 
@@ -302,7 +327,7 @@ def api_token_stats():
             if summary:
                 stats.update(summary)
     except Exception:
-        pass
+        logger.debug("Failed to collect telemetry summary for token stats", exc_info=True)
     try:
         from vetinari.analytics.cost import get_cost_tracker
         cost_summary = get_cost_tracker().get_summary()
@@ -310,7 +335,7 @@ def api_token_stats():
             stats["total_cost_usd"] = cost_summary.get("total_cost_usd", 0.0)
             stats["by_model"] = cost_summary.get("by_model", {})
     except Exception:
-        pass
+        logger.debug("Failed to collect cost tracker summary for token stats", exc_info=True)
     return jsonify(stats)
 
 
@@ -356,9 +381,9 @@ def api_global_search():
                                 "preview": content[:150],
                             })
                     except Exception:
-                        pass
+                        logger.debug("Failed to read output file during search", exc_info=True)
             except Exception:
-                pass
+                logger.debug("Failed to search project directory", exc_info=True)
 
     return jsonify({"results": results[:20], "query": query, "total": len(results)})
 
@@ -496,14 +521,26 @@ def api_run_prompt():
     data = request.json
     prompt = data.get('prompt', '')
     model = data.get('model', '')
-    system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
+    system_prompt = data.get('system_prompt', DEFAULT_SYSTEM_PROMPT)
     
     if not prompt:
         return jsonify({"error": "prompt is required"}), 400
-    
+
+    # Guardrails: check user input at trust boundary (Step 21)
+    try:
+        from vetinari.safety.guardrails import get_guardrails
+        gr_result = get_guardrails().check_input(prompt)
+        if not gr_result.allowed:
+            return jsonify({
+                "error": "Input blocked by safety guardrails",
+                "violations": [v.to_dict() for v in gr_result.violations],
+            }), 400
+    except Exception as e:
+        logger.warning("Guardrails check failed (non-blocking): %s", e)
+
     try:
         orb = get_orchestrator()
-        
+
         # Use the model if specified, otherwise use first available
         if not model:
             if orb.model_pool.models:
@@ -514,16 +551,27 @@ def api_run_prompt():
         # Run the prompt directly using the adapter
         result = orb.adapter.chat(model, system_prompt, prompt)
         
+        output_text = result.get('output', '')
+
+        # Guardrails: check output at trust boundary (Step 21)
+        try:
+            from vetinari.safety.guardrails import get_guardrails
+            gr_out = get_guardrails().check_output(output_text)
+            if not gr_out.allowed:
+                output_text = gr_out.content  # filtered content
+        except Exception as e:
+            logger.warning("Guardrails check failed (non-blocking): %s", e)
+
         # Save output
         task_id = "custom_" + uuid.uuid4().hex[:12]
         output_path = PROJECT_ROOT / 'outputs' / task_id
         output_path.mkdir(parents=True, exist_ok=True)
-        (output_path / 'output.txt').write_text(result.get('output', ''), encoding='utf-8')
-        
+        (output_path / 'output.txt').write_text(output_text, encoding='utf-8')
+
         return jsonify({
             "status": "completed",
             "task_id": task_id,
-            "response": result.get('output', ''),
+            "response": output_text,
             "model": model,
             "latency_ms": result.get('latency_ms', 0)
         })
@@ -535,7 +583,7 @@ def api_run_prompt():
 def api_create_plan():
     data = request.json
     goal = data.get('goal', '')
-    system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
+    system_prompt = data.get('system_prompt', DEFAULT_SYSTEM_PROMPT)
     
     if not goal:
         return jsonify({"error": "goal is required"}), 400
@@ -576,7 +624,7 @@ def api_new_project():
     data = request.json
     goal = data.get('goal', '')
     model = data.get('model', '')
-    system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
+    system_prompt = data.get('system_prompt', DEFAULT_SYSTEM_PROMPT)
     auto_run = data.get('auto_run', True)
     project_name = data.get('project_name', '')
     project_rules = data.get('project_rules', '')
@@ -689,9 +737,9 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
             # Send the user's actual goal to the model and get its response
             result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
             model_response = result.get('output', '')
-            print(f"[Vetinari] Model response received: {len(model_response)} chars")
+            logger.info("Model response received: %d chars", len(model_response))
         except Exception as e:
-            print(f"Error getting model response: {e}")
+            logger.error("Error getting model response: %s", e)
             model_response = ""
         
         # Build the conversation with model's actual response
@@ -1111,7 +1159,7 @@ def api_project_message(project_id):
         context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation])
         
         # Get AI response
-        system_prompt = "You are a helpful coding assistant. Provide detailed, practical code solutions."
+        system_prompt = DEFAULT_SYSTEM_PROMPT
         result = orb.adapter.chat(model, system_prompt, context)
         response = result.get('output', '')
         
@@ -2117,7 +2165,7 @@ def _project_external_model_enabled(project_dir) -> bool:
                 cfg = yaml.safe_load(f) or {}
             return cfg.get("enable_external_model_discovery", ENABLE_EXTERNAL_DISCOVERY)
     except Exception:
-        pass
+        logger.debug("Failed to read external model discovery setting from project config", exc_info=True)
     return ENABLE_EXTERNAL_DISCOVERY
 
 
@@ -2205,115 +2253,7 @@ def api_refresh_models(project_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/admin/credentials', methods=['GET'])
-def api_admin_list_credentials():
-    if not _is_admin_user():
-        return jsonify({"error": "Admin privileges required"}), 403
-    try:
-        from vetinari.credentials import credential_manager
-        
-        credentials = credential_manager.list()
-        health = credential_manager.health()
-        
-        return jsonify({
-            "status": "ok",
-            "credentials": credentials,
-            "health": health
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/admin/credentials/<source_type>', methods=['POST'])
-def api_admin_set_credential(source_type):
-    if not _is_admin_user():
-        return jsonify({"error": "Admin privileges required"}), 403
-    try:
-        from vetinari.credentials import credential_manager
-        
-        data = request.json or {}
-        token = data.get('token', '')
-        credential_type = data.get('credential_type', 'bearer')
-        rotation_days = data.get('rotation_days', 30)
-        note = data.get('note', '')
-        
-        if not token:
-            return jsonify({"error": "Token is required"}), 400
-        
-        credential_manager.set_credential(
-            source_type=source_type,
-            token=token,
-            credential_type=credential_type,
-            rotation_days=rotation_days,
-            note=note
-        )
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Credential set for {source_type}"
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/admin/credentials/<source_type>/rotate', methods=['POST'])
-def api_admin_rotate_credential(source_type):
-    if not _is_admin_user():
-        return jsonify({"error": "Admin privileges required"}), 403
-    try:
-        from vetinari.credentials import credential_manager
-        
-        data = request.json or {}
-        new_token = data.get('token', '')
-        
-        if not new_token:
-            return jsonify({"error": "New token is required"}), 400
-        
-        success = credential_manager.rotate(source_type, new_token)
-        
-        if success:
-            return jsonify({
-                "status": "ok",
-                "message": f"Credential rotated for {source_type}"
-            })
-        else:
-            return jsonify({"error": "Credential not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/admin/credentials/<source_type>', methods=['DELETE'])
-def api_admin_delete_credential(source_type):
-    if not _is_admin_user():
-        return jsonify({"error": "Admin privileges required"}), 403
-    try:
-        from vetinari.credentials import credential_manager
-        
-        credential_manager.vault.remove_credential(source_type)
-        
-        return jsonify({
-            "status": "ok",
-            "message": f"Credential removed for {source_type}"
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/admin/credentials/health', methods=['GET'])
-def api_admin_credentials_health():
-    if not _is_admin_user():
-        return jsonify({"error": "Admin privileges required"}), 403
-    try:
-        from vetinari.credentials import credential_manager
-        
-        health = credential_manager.health()
-        
-        return jsonify({
-            "status": "ok",
-            "health": health
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/admin/permissions', methods=['GET'])
-def api_admin_permissions():
-    return jsonify({"admin": _is_admin_user()}), 200
+# Admin and credentials routes moved to vetinari/web/admin_routes.py
 
 # Agent orchestration endpoints
 @app.route('/api/agents/status', methods=['GET'])
@@ -2715,39 +2655,48 @@ def api_models_reload():
 
 @app.route('/api/sandbox/execute', methods=['POST'])
 def api_sandbox_execute():
+    # C2 security fix: require admin/localhost for code execution
+    if not _is_admin_user():
+        return jsonify({"error": "Unauthorized: sandbox execution requires admin access"}), 403
     try:
         from vetinari.sandbox import sandbox_manager
         data = request.json
-        
+
         result = sandbox_manager.execute(
             code=data.get('code', ''),
             sandbox_type=data.get('sandbox_type', 'in_process'),
             timeout=data.get('timeout', 30),
             context=data.get('context')
         )
-        
+
         return jsonify(result.to_dict())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/sandbox/status', methods=['GET'])
 def api_sandbox_status():
+    # C2 security fix: require admin/localhost for sandbox status
+    if not _is_admin_user():
+        return jsonify({"error": "Unauthorized: sandbox access requires admin access"}), 403
     try:
         from vetinari.sandbox import sandbox_manager
         status = sandbox_manager.get_status()
-        
+
         return jsonify(status)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/sandbox/audit', methods=['GET'])
 def api_sandbox_audit():
+    # C2 security fix: require admin/localhost for audit log
+    if not _is_admin_user():
+        return jsonify({"error": "Unauthorized: sandbox access requires admin access"}), 403
     try:
         from vetinari.sandbox import sandbox_manager
         limit = int(request.args.get('limit', 100))
-        
+
         audit = sandbox_manager.get_audit_log(limit)
-        
+
         return jsonify({"audit_entries": audit, "total": len(audit)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2825,329 +2774,10 @@ def api_search_status():
 
 # ============ DECOMPOSITION LAB ENDPOINTS ============
 
-@app.route('/api/decomposition/templates', methods=['GET'])
-def api_decomposition_templates():
-    try:
-        from vetinari.decomposition import decomposition_engine
-        keywords = request.args.get('keywords', '').split(',') if request.args.get('keywords') else None
-        agent_type = request.args.get('agent_type')
-        dod_level = request.args.get('dod_level')
-        
-        templates = decomposition_engine.get_templates(
-            keywords=keywords,
-            agent_type=agent_type,
-            dod_level=dod_level
-        )
-        
-        return jsonify({
-            "templates": [t.__dict__ for t in templates],
-            "total": len(templates)
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Decomposition routes moved to vetinari/web/decomposition_routes.py
 
 
-@app.route('/api/decomposition/dod-dor', methods=['GET'])
-def api_decomposition_dod_dor():
-    try:
-        from vetinari.decomposition import decomposition_engine
-        level = request.args.get('level', 'Standard')
-        
-        return jsonify({
-            "dod_criteria": decomposition_engine.get_dod_criteria(level),
-            "dor_criteria": decomposition_engine.get_dor_criteria(level),
-            "levels": ["Light", "Standard", "Hard"]
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/decomposition/decompose', methods=['POST'])
-def api_decomposition_decompose():
-    try:
-        from vetinari.decomposition import decomposition_engine
-        data = request.json
-        
-        task_prompt = data.get('task_prompt', '')
-        parent_task_id = data.get('parent_task_id', 'root')
-        depth = int(data.get('depth', 0))
-        max_depth = int(data.get('max_depth', 14))
-        plan_id = data.get('plan_id', 'default')
-        
-        if max_depth < 12:
-            max_depth = 12
-        elif max_depth > 16:
-            max_depth = 16
-        
-        subtasks = decomposition_engine.decompose_task(
-            task_prompt=task_prompt,
-            parent_task_id=parent_task_id,
-            depth=depth,
-            max_depth=max_depth,
-            plan_id=plan_id
-        )
-        
-        return jsonify({
-            "subtasks": subtasks,
-            "count": len(subtasks),
-            "depth": depth,
-            "max_depth": max_depth
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/decomposition/decompose-agent', methods=['POST'])
-def api_decomposition_decompose_agent():
-    try:
-        from vetinari.decomposition_agent import decomposition_agent
-        from vetinari.planning import plan_manager
-        data = request.json
-        
-        plan_id = data.get('plan_id')
-        prompt = data.get('prompt', '')
-        
-        if not plan_id:
-            return jsonify({"error": "plan_id required"}), 400
-        
-        plan = plan_manager.get_plan(plan_id)
-        if not plan:
-            plan = plan_manager.create_plan(
-                title=f"Plan {plan_id}",
-                prompt=prompt,
-                created_by="system"
-            )
-        
-        result = decomposition_agent.decompose_from_prompt(plan, prompt)
-        
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/decomposition/knobs', methods=['GET'])
-def api_decomposition_knobs():
-    try:
-        from vetinari.decomposition_agent import RECURSION_KNOBS, SEED_RATE, SEED_MIX, DEFAULT_MAX_DEPTH, MIN_MAX_DEPTH, MAX_MAX_DEPTH
-        
-        return jsonify({
-            "recursion_knobs": RECURSION_KNOBS,
-            "seed_mix": SEED_MIX,
-            "seed_rate": SEED_RATE,
-            "default_max_depth": DEFAULT_MAX_DEPTH,
-            "min_max_depth": MIN_MAX_DEPTH,
-            "max_max_depth": MAX_MAX_DEPTH
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/decomposition/history', methods=['GET'])
-def api_decomposition_history():
-    try:
-        from vetinari.decomposition import decomposition_engine
-        plan_id = request.args.get('plan_id')
-        
-        history = decomposition_engine.get_decomposition_history(plan_id)
-        
-        return jsonify({
-            "history": [
-                {
-                    "event_id": e.event_id,
-                    "plan_id": e.plan_id,
-                    "task_id": e.task_id,
-                    "depth": e.depth,
-                    "seeds_used": e.seeds_used,
-                    "subtasks_created": e.subtasks_created,
-                    "timestamp": e.timestamp
-                }
-                for e in history
-            ],
-            "total": len(history)
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/decomposition/seed-config', methods=['GET'])
-def api_decomposition_seed_config():
-    try:
-        from vetinari.decomposition import decomposition_engine
-        
-        return jsonify({
-            "seed_mix": decomposition_engine.SEED_MIX,
-            "seed_rate": decomposition_engine.SEED_RATE,
-            "default_max_depth": decomposition_engine.DEFAULT_MAX_DEPTH,
-            "min_max_depth": decomposition_engine.MIN_MAX_DEPTH,
-            "max_max_depth": decomposition_engine.MAX_MAX_DEPTH
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ============ ADR ENDPOINTS ============
-
-@app.route('/api/adr', methods=['GET'])
-def api_adr_list():
-    try:
-        from vetinari.adr import adr_system
-        status = request.args.get('status')
-        category = request.args.get('category')
-        limit = int(request.args.get('limit', 50))
-        
-        adrs = adr_system.list_adrs(status=status, category=category, limit=limit)
-        
-        return jsonify({
-            "adrs": [a.to_dict() for a in adrs],
-            "total": len(adrs)
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/<adr_id>', methods=['GET'])
-def api_adr_get(adr_id):
-    try:
-        from vetinari.adr import adr_system
-        adr = adr_system.get_adr(adr_id)
-        
-        if not adr:
-            return jsonify({"error": "ADR not found"}), 404
-        
-        return jsonify(adr.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr', methods=['POST'])
-def api_adr_create():
-    try:
-        from vetinari.adr import adr_system
-        data = request.json
-        
-        title = data.get('title')
-        category = data.get('category', 'architecture')
-        context = data.get('context', '')
-        decision = data.get('decision', '')
-        consequences = data.get('consequences', '')
-        
-        if not title:
-            return jsonify({"error": "title required"}), 400
-        
-        adr = adr_system.create_adr(
-            title=title,
-            category=category,
-            context=context,
-            decision=decision,
-            consequences=consequences,
-            created_by=data.get('created_by', 'user')
-        )
-        
-        return jsonify(adr.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/<adr_id>', methods=['PUT'])
-def api_adr_update(adr_id):
-    try:
-        from vetinari.adr import adr_system
-        data = request.json
-        
-        adr = adr_system.update_adr(adr_id, data)
-        
-        if not adr:
-            return jsonify({"error": "ADR not found"}), 404
-        
-        return jsonify(adr.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/<adr_id>/deprecate', methods=['POST'])
-def api_adr_deprecate(adr_id):
-    try:
-        from vetinari.adr import adr_system
-        data = request.json or {}
-        
-        replacement_id = data.get('replacement_id')
-        
-        adr = adr_system.deprecate_adr(adr_id, replacement_id)
-        
-        if not adr:
-            return jsonify({"error": "ADR not found"}), 404
-        
-        return jsonify(adr.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/propose', methods=['POST'])
-def api_adr_propose():
-    try:
-        from vetinari.adr import adr_system, ADRProposal
-        data = request.json
-        
-        context = data.get('context', '')
-        num_options = int(data.get('num_options', 3))
-        
-        proposal = adr_system.generate_proposal(context, num_options)
-        
-        return jsonify({
-            "question": proposal.question,
-            "options": proposal.options,
-            "recommended": proposal.recommended,
-            "rationale": proposal.rationale
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/propose/accept', methods=['POST'])
-def api_adr_propose_accept():
-    try:
-        from vetinari.adr import adr_system
-        data = request.json
-        
-        question = data.get('question', '')
-        options = data.get('options', [])
-        recommended = data.get('recommended', 0)
-        title = data.get('title', 'Proposed Decision')
-        category = data.get('category', 'architecture')
-        
-        from vetinari.adr import ADRProposal
-        proposal = ADRProposal(
-            question=question,
-            options=options,
-            recommended=recommended
-        )
-        
-        adr = adr_system.accept_proposal(proposal, title, category)
-        
-        return jsonify(adr.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/statistics', methods=['GET'])
-def api_adr_statistics():
-    try:
-        from vetinari.adr import adr_system
-        stats = adr_system.get_statistics()
-        return jsonify(stats)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/adr/is-high-stakes', methods=['GET'])
-def api_adr_is_high_stakes():
-    try:
-        from vetinari.adr import adr_system
-        category = request.args.get('category', 'architecture')
-        is_high_stakes = adr_system.is_high_stakes(category)
-        return jsonify({"is_high_stakes": is_high_stakes, "category": category})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# ADR routes moved to vetinari/web/adr_routes.py
 
 
 # ============ SUBTASK TREE ENDPOINTS ============
@@ -3415,174 +3045,10 @@ def api_migrate_templates(plan_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/ponder/choose-model', methods=['POST'])
-def api_ponder_choose_model():
-    try:
-        from vetinari.ponder import rank_models, get_available_models
-        
-        data = request.json or {}
-        task_description = data.get("task_description", "")
-        top_n = data.get("top_n", 3)
-        template_version = data.get("template_version", "v1")
-        
-        if not task_description:
-            return jsonify({"error": "task_description required"}), 400
-        
-        result = rank_models(task_description, top_n, template_version)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Ponder routes moved to vetinari/web/ponder_routes.py
 
 
-@app.route('/api/ponder/templates', methods=['GET'])
-def api_ponder_templates():
-    try:
-        from vetinari.ponder import PonderEngine
-        
-        version = request.args.get("version", "v1")
-        engine = PonderEngine(template_version=version)
-        templates = engine.get_template_prompts()
-        
-        return jsonify({
-            "templates": templates,
-            "total": len(templates),
-            "version": version
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/ponder/models', methods=['GET'])
-def api_ponder_models():
-    try:
-        from vetinari.ponder import get_available_models
-        
-        models = get_available_models()
-        return jsonify({
-            "models": models,
-            "total": len(models)
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/ponder/plan/<plan_id>', methods=['POST'])
-def api_ponder_run_plan(plan_id):
-    try:
-        from vetinari.ponder import ponder_project_for_plan
-        
-        result = ponder_project_for_plan(plan_id)
-        
-        if not result.get("success", False):
-            return jsonify(result), 400
-        
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/ponder/plan/<plan_id>', methods=['GET'])
-def api_ponder_get_plan(plan_id):
-    try:
-        from vetinari.ponder import get_ponder_results_for_plan
-        
-        result = get_ponder_results_for_plan(plan_id)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/ponder/health', methods=['GET'])
-def api_ponder_health():
-    try:
-        from vetinari.ponder import get_ponder_health
-        
-        health = get_ponder_health()
-        return jsonify(health)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ============ RULES CONFIGURATION ENDPOINTS ============
-
-@app.route('/api/rules', methods=['GET'])
-def api_rules_get():
-    """Get all rules configuration."""
-    try:
-        from vetinari.rules_manager import get_rules_manager
-        rm = get_rules_manager()
-        return jsonify(rm.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/rules/global', methods=['GET', 'POST'])
-def api_rules_global():
-    """Get or set global rules."""
-    try:
-        from vetinari.rules_manager import get_rules_manager
-        rm = get_rules_manager()
-        if request.method == 'POST':
-            data = request.json or {}
-            rules = data.get('rules', [])
-            if isinstance(rules, str):
-                rules = [r.strip() for r in rules.splitlines() if r.strip()]
-            rm.set_global_rules(rules)
-            return jsonify({"status": "saved", "rules": rm.get_global_rules()})
-        return jsonify({"rules": rm.get_global_rules()})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/rules/global-prompt', methods=['GET', 'POST'])
-def api_rules_global_prompt():
-    """Get or set the global system prompt override."""
-    try:
-        from vetinari.rules_manager import get_rules_manager
-        rm = get_rules_manager()
-        if request.method == 'POST':
-            data = request.json or {}
-            rm.set_global_system_prompt(data.get('prompt', ''))
-            return jsonify({"status": "saved"})
-        return jsonify({"prompt": rm.get_global_system_prompt()})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/rules/project/<project_id>', methods=['GET', 'POST'])
-def api_rules_project(project_id):
-    """Get or set rules for a specific project."""
-    try:
-        from vetinari.rules_manager import get_rules_manager
-        rm = get_rules_manager()
-        if request.method == 'POST':
-            data = request.json or {}
-            rules = data.get('rules', [])
-            if isinstance(rules, str):
-                rules = [r.strip() for r in rules.splitlines() if r.strip()]
-            rm.set_project_rules(project_id, rules)
-            return jsonify({"status": "saved", "project_id": project_id, "rules": rm.get_project_rules(project_id)})
-        return jsonify({"project_id": project_id, "rules": rm.get_project_rules(project_id)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/rules/model/<path:model_id>', methods=['GET', 'POST'])
-def api_rules_model(model_id):
-    """Get or set rules for a specific model."""
-    try:
-        from vetinari.rules_manager import get_rules_manager
-        rm = get_rules_manager()
-        if request.method == 'POST':
-            data = request.json or {}
-            rules = data.get('rules', [])
-            if isinstance(rules, str):
-                rules = [r.strip() for r in rules.splitlines() if r.strip()]
-            rm.set_model_rules(model_id, rules)
-            return jsonify({"status": "saved", "model_id": model_id, "rules": rm.get_model_rules(model_id)})
-        return jsonify({"model_id": model_id, "rules": rm.get_model_rules(model_id)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Rules configuration routes moved to vetinari/web/rules_routes.py
 
 
 # ============ GOAL VERIFICATION ENDPOINTS ============
@@ -3635,133 +3101,10 @@ def api_verify_goal(project_id):
         return jsonify({"error": str(e)}), 500
 
 
-# ============ IMAGE GENERATION ENDPOINTS ============
-
-@app.route('/api/generate-image', methods=['POST'])
-def api_generate_image():
-    """Generate an image asset via the ImageGeneratorAgent."""
-    try:
-        from vetinari.agents.image_generator_agent import get_image_generator_agent
-        from vetinari.agents.contracts import AgentTask
-        data = request.json or {}
-
-        description = data.get('description', '')
-        if not description:
-            return jsonify({"error": "description required"}), 400
-
-        agent = get_image_generator_agent({
-            "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),
-            "sd_enabled": data.get("sd_enabled", True),
-            "width": data.get("width", 512),
-            "height": data.get("height", 512),
-            "steps": data.get("steps", 20),
-        })
-
-        task = AgentTask(
-            task_id=f"img_{uuid.uuid4().hex[:8]}",
-            description=description,
-            prompt=description,
-            context=data.get("context", {}),
-        )
-
-        result = agent.execute(task)
-        return jsonify({
-            "success": result.success,
-            "output": result.output,
-            "errors": result.errors or [],
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Image generation and SD routes moved to vetinari/web/training_routes.py
 
 
-@app.route('/api/sd-status', methods=['GET'])
-def api_sd_status():
-    """Check Stable Diffusion WebUI connection status."""
-    try:
-        import requests as _req
-        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))
-        resp = _req.get(f"{host}/sdapi/v1/options", timeout=5)
-        if resp.status_code == 200:
-            return jsonify({"status": "connected", "host": host})
-        return jsonify({"status": "error", "code": resp.status_code}), 200
-    except Exception as e:
-        return jsonify({"status": "disconnected", "error": str(e)}), 200
-
-
-# ============ TRAINING ENDPOINTS ============
-
-@app.route('/api/training/stats', methods=['GET'])
-def api_training_stats():
-    """Get training data statistics."""
-    try:
-        from vetinari.learning.training_data import get_training_collector
-        collector = get_training_collector()
-        stats = collector.get_stats()
-        return jsonify(stats)
-    except Exception as e:
-        return jsonify({"error": str(e), "total_records": 0}), 200
-
-
-@app.route('/api/training/export', methods=['POST'])
-def api_training_export():
-    """Export training data for a given format."""
-    try:
-        from vetinari.learning.training_data import get_training_collector
-        data = request.json or {}
-        export_format = data.get('format', 'sft')  # sft | dpo | prompts
-        collector = get_training_collector()
-
-        if export_format == 'dpo':
-            dataset = collector.export_dpo_dataset()
-        elif export_format == 'prompts':
-            dataset = collector.export_prompt_variants()
-        else:
-            dataset = collector.export_sft_dataset()
-
-        return jsonify({
-            "format": export_format,
-            "count": len(dataset),
-            "data": dataset[:100]  # Return first 100 for preview
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/training/start', methods=['POST'])
-def api_training_start():
-    """Start a training run (async)."""
-    try:
-        from vetinari.training.pipeline import TrainingPipeline
-        data = request.json or {}
-
-        tier = data.get('tier', 'general')        # general|coding|research|review|individual
-        model_id = data.get('model_id', '')
-        min_quality = float(data.get('min_quality', 0.7))
-
-        def _run():
-            try:
-                pipeline = TrainingPipeline()
-                pipeline.run(
-                    base_model=model_id or 'qwen2.5-coder-7b',
-                    training_type=tier,
-                    min_quality_score=min_quality,
-                )
-                logger.info(f"Training run completed: tier={tier}, model={model_id}")
-            except Exception as te:
-                logger.error(f"Training run failed: {te}")
-
-        import threading as _t
-        _t.Thread(target=_run, daemon=True).start()
-
-        return jsonify({
-            "status": "started",
-            "tier": tier,
-            "model_id": model_id,
-            "message": "Training run started in background"
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+# Training, image generation, and SD routes moved to vetinari/web/training_routes.py
 
 # Register Plan Mode API endpoints
 try:
@@ -3777,5 +3120,5 @@ except Exception as e:
 if __name__ == '__main__':
     _debug = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
     _port = int(os.environ.get("VETINARI_WEB_PORT", 5000))
-    _host = os.environ.get("VETINARI_WEB_HOST", "0.0.0.0")
+    _host = os.environ.get("VETINARI_WEB_HOST", "127.0.0.1")
     app.run(host=_host, port=_port, debug=_debug)

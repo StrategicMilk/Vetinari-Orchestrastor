@@ -85,7 +85,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
                 timeout=5
             )
             return result.returncode == 0
-        except:
+        except Exception:
             return False
 
     def search(
@@ -117,7 +117,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             return self._parse_results(result.stdout)
 
         except Exception as e:
-            print(f"CocoIndex search error: {e}")
+            logger.error("CocoIndex search error: %s", e)
             return self._fallback_search(query, limit)
 
     def _parse_results(self, output: str) -> List[CodeSearchResult]:
@@ -202,7 +202,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
                     except Exception:
                         continue
         except Exception as e:
-            logger.warning(f"Fallback search error: {e}")
+            logger.warning("Fallback search error: %s", e)
 
         return results[:limit]
 
@@ -226,7 +226,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             )
             return result.returncode == 0
         except Exception as e:
-            print(f"CocoIndex index error: {e}")
+            logger.error("CocoIndex index error: %s", e)
             return False
 
     def get_status(self) -> SearchBackendStatus:
@@ -287,7 +287,7 @@ class CodeSearchRegistry:
                 'status': status.value,
                 'indexed_projects': adapter.get_indexed_projects() if status == SearchBackendStatus.AVAILABLE else []
             }
-        except:
+        except Exception:
             return {'name': name, 'status': 'error'}
 
 

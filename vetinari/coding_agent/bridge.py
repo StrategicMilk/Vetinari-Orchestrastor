@@ -13,26 +13,9 @@ import requests
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from enum import Enum
+from vetinari.types import CodingTaskType as BridgeTaskType, CodingTaskStatus as BridgeTaskStatus  # canonical enums
 
 logger = logging.getLogger(__name__)
-
-
-class BridgeTaskType(str, Enum):
-    """Task types supported by external bridge."""
-    SCAFFOLD = "scaffold"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    REFACTOR = "refactor"
-
-
-class BridgeTaskStatus(str, Enum):
-    """Status of bridge tasks."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
 
 
 @dataclass
@@ -79,7 +62,7 @@ class CodeBridge:
         self.enabled = os.environ.get("CODE_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
         self.timeout = int(os.environ.get("CODE_BRIDGE_TIMEOUT", "30"))
         
-        logger.info(f"CodeBridge initialized (enabled={self.enabled}, endpoint={self.endpoint})")
+        logger.info("CodeBridge initialized (enabled=%s, endpoint=%s)", self.enabled, self.endpoint)
     
     def is_available(self) -> bool:
         """Check if the bridge is available."""
@@ -90,7 +73,7 @@ class CodeBridge:
             response = requests.get(f"{self.endpoint}/health", timeout=5)
             return response.status_code == 200
         except Exception as e:
-            logger.warning(f"Bridge health check failed: {e}")
+            logger.warning("Bridge health check failed: %s", e)
             return False
     
     def submit_task(self, spec: BridgeTaskSpec) -> BridgeTaskResult:
@@ -105,7 +88,7 @@ class CodeBridge:
                 error="CodeBridge is not enabled"
             )
         
-        logger.info(f"Submitting task to bridge: {spec.task_id} ({spec.task_type.value})")
+        logger.info("Submitting task to bridge: %s (%s)", spec.task_id, spec.task_type.value)
         
         try:
             payload = {
@@ -143,7 +126,7 @@ class CodeBridge:
                     error=result.get("error")
                 )
             else:
-                logger.error(f"Bridge task submission failed: {response.status_code}")
+                logger.error("Bridge task submission failed: %s", response.status_code)
                 return BridgeTaskResult(
                     task_id=spec.task_id,
                     status=BridgeTaskStatus.FAILED,
@@ -152,7 +135,7 @@ class CodeBridge:
                 )
                 
         except requests.exceptions.Timeout:
-            logger.error(f"Bridge task timed out after {self.timeout}s")
+            logger.error("Bridge task timed out after %ss", self.timeout)
             return BridgeTaskResult(
                 task_id=spec.task_id,
                 status=BridgeTaskStatus.FAILED,
@@ -160,7 +143,7 @@ class CodeBridge:
                 error="Task timed out"
             )
         except Exception as e:
-            logger.error(f"Bridge task submission failed: {e}")
+            logger.error("Bridge task submission failed: %s", e)
             return BridgeTaskResult(
                 task_id=spec.task_id,
                 status=BridgeTaskStatus.FAILED,
@@ -208,7 +191,7 @@ class CodeBridge:
                 )
                 
         except Exception as e:
-            logger.error(f"Failed to get task status: {e}")
+            logger.error("Failed to get task status: %s", e)
             return BridgeTaskResult(
                 task_id=task_id,
                 status=BridgeTaskStatus.FAILED,
@@ -245,7 +228,7 @@ class CodeBridge:
             return response.status_code in (200, 204)
             
         except Exception as e:
-            logger.error(f"Failed to cancel task: {e}")
+            logger.error("Failed to cancel task: %s", e)
             return False
     
     def list_tasks(self, status: Optional[BridgeTaskStatus] = None) -> List[BridgeTaskResult]:
@@ -286,7 +269,7 @@ class CodeBridge:
                 ]
             
         except Exception as e:
-            logger.error(f"Failed to list tasks: {e}")
+            logger.error("Failed to list tasks: %s", e)
         
         return []
 

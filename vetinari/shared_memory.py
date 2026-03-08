@@ -8,30 +8,9 @@ from enum import Enum
 from pathlib import Path
 import uuid
 
-logger = logging.getLogger(__name__)
+from vetinari.types import MemoryType  # canonical enum from types.py
 
-class MemoryType(Enum):
-    INTENT = "intent"
-    DISCOVERY = "discovery"
-    DECISION = "decision"
-    PROBLEM = "problem"
-    SOLUTION = "solution"
-    PATTERN = "pattern"
-    WARNING = "warning"
-    SUCCESS = "success"
-    REFACTOR = "refactor"
-    BUGFIX = "bugfix"
-    FEATURE = "feature"
-    # Phase 1 additions
-    PLAN = "plan"
-    WAVE = "wave"
-    TASK = "task"
-    PLAN_RESULT = "plan_result"
-    WAVE_RESULT = "wave_result"
-    TASK_RESULT = "task_result"
-    MODEL_SELECTION = "model_selection"
-    SANDBOX_EVENT = "sandbox_event"
-    GOVERNANCE = "governance"
+logger = logging.getLogger(__name__)
 
 class AgentName(Enum):
     PLAN = "plan"
@@ -74,7 +53,7 @@ class SharedMemory:
     _instance = None
     
     @classmethod
-    def get_instance(cls, storage_path: str = None):
+    def get_instance(cls, storage_path: str = None) -> "SharedMemory":
         """Get or create singleton instance."""
         if cls._instance is None:
             cls._instance = cls(storage_path)
@@ -105,7 +84,7 @@ class SharedMemory:
                             e['resolved'] = False
                         self.entries.append(MemoryEntry(**e))
             except Exception as e:
-                logger.warning(f"Could not load memory: {e}")
+                logger.warning("Could not load memory: %s", e)
                 self.entries = []
 
     def _save(self):
@@ -113,7 +92,7 @@ class SharedMemory:
             with open(self.memory_file, 'w') as f:
                 json.dump([e.to_dict() for e in self.entries], f, indent=2)
         except Exception as e:
-            logger.error(f"Could not save memory: {e}")
+            logger.error("Could not save memory: %s", e)
 
     def add(
         self,
@@ -148,7 +127,7 @@ class SharedMemory:
         self.entries.append(entry)
         self._save()
         
-        logger.info(f"Memory entry added: {entry.entry_id} ({memory_type}) by {agent_name}")
+        logger.info("Memory entry added: %s (%s) by %s", entry.entry_id, memory_type, agent_name)
         
         return entry
 
@@ -231,7 +210,7 @@ class SharedMemory:
                 entry.content = f"{entry.content}\n\n[RESOLVED]: {choice}"
                 entry.tags = entry.tags + ["resolved"] if entry.tags else ["resolved"]
                 self._save()
-                logger.info(f"Decision {decision_id} resolved with: {choice}")
+                logger.info("Decision %s resolved with: %s", decision_id, choice)
                 return True
         return False
 

@@ -18,20 +18,9 @@ import logging
 from datetime import datetime
 from contextlib import contextmanager
 
+from vetinari.types import ExecutionMode  # canonical source
+
 logger = logging.getLogger(__name__)
-
-
-class ExecutionMode(Enum):
-    """
-    Execution modes available in Vetinari.
-    
-    PLANNING: Read-only mode for analysis and planning
-    EXECUTION: Full read/write mode for implementation
-    SANDBOX: Restricted mode for untrusted code
-    """
-    PLANNING = "planning"
-    EXECUTION = "execution"
-    SANDBOX = "sandbox"
 
 
 class ToolPermission(Enum):
@@ -164,7 +153,7 @@ class ExecutionContext:
             True if execution is allowed, False otherwise
         """
         if not self.policy:
-            logger.warning(f"No policy defined for mode {self.mode}")
+            logger.warning("No policy defined for mode %s", self.mode)
             return False
         return self.policy.has_permission(permission)
     
@@ -247,7 +236,7 @@ class ContextManager:
             policy=DEFAULT_POLICIES.get(mode),
         )
         self._context_stack.append(context)
-        logger.info(f"Switched to mode {mode.value}" + (f" for task {task_id}" if task_id else ""))
+        logger.info("Switched to mode %s%s", mode.value, (" for task %s" % task_id) if task_id else "")
         return context
     
     def pop_context(self) -> Optional[ExecutionContext]:
@@ -259,7 +248,7 @@ class ContextManager:
         """
         if len(self._context_stack) > 1:
             context = self._context_stack.pop()
-            logger.info(f"Popped context, returned to {self.current_mode.value}")
+            logger.info("Popped context, returned to %s", self.current_mode.value)
             return context
         return None
     

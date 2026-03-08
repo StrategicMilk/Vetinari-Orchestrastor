@@ -193,7 +193,7 @@ class Tool(ABC):
         # Validate inputs
         is_valid, error_msg = self.validate_inputs(kwargs)
         if not is_valid:
-            logger.warning(f"Input validation failed for {self.metadata.name}: {error_msg}")
+            logger.warning("Input validation failed for %s: %s", self.metadata.name, error_msg)
             return ToolResult(
                 success=False,
                 output=None,
@@ -204,7 +204,7 @@ class Tool(ABC):
         # Check permissions
         has_perms, error_msg = self.check_permissions()
         if not has_perms:
-            logger.warning(f"Permission check failed for {self.metadata.name}: {error_msg}")
+            logger.warning("Permission check failed for %s: %s", self.metadata.name, error_msg)
             return ToolResult(
                 success=False,
                 output=None,
@@ -216,7 +216,7 @@ class Tool(ABC):
         ctx = self._context_manager.current_context
         for permission in self.metadata.required_permissions:
             if ctx.requires_confirmation(permission):
-                logger.info(f"Tool '{self.metadata.name}' requires confirmation for {permission.value}")
+                logger.info("Tool '%s' requires confirmation for %s", self.metadata.name, permission.value)
                 # In a real CLI, this would prompt the user
                 # For now, we just log it
         
@@ -224,7 +224,7 @@ class Tool(ABC):
         for hook in ctx.pre_execution_hooks:
             should_proceed = hook(self.metadata.name, kwargs)
             if not should_proceed:
-                logger.info(f"Pre-execution hook blocked {self.metadata.name}")
+                logger.info("Pre-execution hook blocked %s", self.metadata.name)
                 return ToolResult(
                     success=False,
                     output=None,
@@ -234,7 +234,7 @@ class Tool(ABC):
         
         # Execute the tool
         try:
-            logger.info(f"Executing tool: {self.metadata.name}")
+            logger.info("Executing tool: %s", self.metadata.name)
             result = self.execute(**kwargs)
             result.execution_time_ms = max(1, int((time.time() - start_time) * 1000))
             
@@ -251,7 +251,7 @@ class Tool(ABC):
             
             return result
         except Exception as e:
-            logger.error(f"Error executing tool {self.metadata.name}: {str(e)}")
+            logger.error("Error executing tool %s: %s", self.metadata.name, e)
             return ToolResult(
                 success=False,
                 output=None,
@@ -295,7 +295,7 @@ class ToolRegistry:
     def register(self, tool: Tool) -> None:
         """Register a tool in the registry."""
         self._tools[tool.metadata.name] = tool
-        logger.info(f"Registered tool: {tool.metadata.name}")
+        logger.info("Registered tool: %s", tool.metadata.name)
     
     def get(self, name: str) -> Optional[Tool]:
         """Get a tool by name."""

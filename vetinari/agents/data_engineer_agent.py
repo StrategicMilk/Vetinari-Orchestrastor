@@ -133,7 +133,7 @@ Consider:
                 if search_results:
                     db_context = "\n".join([r.get("snippet", "") for r in search_results[:2]])
             except Exception:
-                pass
+                logger.debug("Failed to search for %s schema design best practices", self._db_type, exc_info=True)
 
             context_parts = [
                 f"Data requirements:\n{data_requirements}",

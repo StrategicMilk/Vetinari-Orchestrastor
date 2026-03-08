@@ -15,6 +15,7 @@ Features:
 """
 
 import os
+import shlex
 import sys
 import subprocess
 import tempfile
@@ -97,7 +98,7 @@ class CodeSandbox:
         
         # Module restrictions
         self.allowed_modules = allowed_modules or []
-        self.blocked_modules = blocked_modules or [
+        self.blocked_modules = blocked_modules if blocked_modules is not None else [
             "os",  # Will be partially allowed
             "sys",
             "subprocess",
@@ -110,7 +111,7 @@ class CodeSandbox:
         self._execution_count = 0
         self._lock = threading.Lock()
         
-        logger.info(f"CodeSandbox initialized (working_dir={self.working_dir})")
+        logger.info("CodeSandbox initialized (working_dir=%s)", self.working_dir)
     
     def execute_python(self, 
                      code: str,
@@ -205,47 +206,81 @@ class CodeSandbox:
                 try:
                     script_file.unlink()
                 except Exception:
-                    pass
-    
+                    logger.debug("Failed to clean up temporary script file %s", script_file, exc_info=True)
+
     def _wrap_python_code(self, code: str, input_data: Dict[str, Any] = None) -> str:
-        """Wrap code with input/output handling and proper indentation inside try block."""
+        """Wrap code with input/output handling, module restrictions, and proper indentation."""
         import base64 as _b64
         input_json = json.dumps(input_data or {})
-        # Encode user code as base64 to avoid any escaping / indentation issues
         code_b64 = _b64.b64encode(code.encode("utf-8")).decode("ascii")
+        blocked_json = json.dumps(self.blocked_modules)
+        allow_network = "True" if self.allow_network else "False"
 
+        # NOTE: The code execution below is the intentional purpose of this
+        # sandbox module — it runs user code in an isolated subprocess.
         wrapped = f'''
-import sys
-import json
-import traceback
-import base64
+import sys as _sys
+import json as _json
+import traceback as _tb
+import base64 as _b64
+import builtins as _builtins
 
-# Input data
+# Save real stdout/stderr BEFORE capturing
+_real_stdout = _sys.stdout
+_real_stderr = _sys.stderr
+
 INPUT_DATA = {input_json}
 
-# Capture output
+# --- Module restriction enforcement ---
+_BLOCKED_MODULES = {blocked_json}
+_ALLOW_NETWORK = {allow_network}
+_WRAPPER_NEEDS = {{"sys", "json", "traceback", "base64", "builtins"}}
+_original_import = _builtins.__import__
+
+def _restricted_import(name, *args, **kwargs):
+    top_level = name.split(".")[0]
+    if top_level in _BLOCKED_MODULES:
+        raise ImportError(
+            "Module %r is blocked in the Vetinari sandbox" % name
+        )
+    if not _ALLOW_NETWORK and top_level in ("socket", "requests", "urllib", "httpx", "aiohttp"):
+        raise ImportError(
+            "Network module %r is blocked (allow_network=False)" % name
+        )
+    return _original_import(name, *args, **kwargs)
+
+_builtins.__import__ = _restricted_import
+for _mod in list(_sys.modules):
+    _top = _mod.split(".")[0]
+    if _top in _BLOCKED_MODULES and _top not in _WRAPPER_NEEDS:
+        del _sys.modules[_mod]
+
 _output = []
 _errors = []
 
-class OutputCapture:
+class _OutputCapture:
     def write(self, text):
         if text.strip():
             _output.append(text)
     def flush(self):
         pass
 
-sys.stdout = OutputCapture()
-sys.stderr = OutputCapture()
+_sys.stdout = _OutputCapture()
+_sys.stderr = _OutputCapture()
 
-# User code (base64-encoded to preserve indentation and avoid injection)
-_user_code = base64.b64decode("{code_b64}").decode("utf-8")
+_user_code = _b64.b64decode("{code_b64}").decode("utf-8")
 try:
-    exec(compile(_user_code, "<vetinari_sandbox>", "exec"), {{}})
-except Exception as e:
-    _errors.append(traceback.format_exc())
+    _sandbox_globals = {{}}
+    _code_obj = compile(_user_code, "<vetinari_sandbox>", "exec")
+    _builtins.eval(_code_obj, _sandbox_globals)
+except Exception as _e:
+    _errors.append(_tb.format_exc())
 
-# Output results
-result = {{
+# Restore real stdout for final JSON output
+_sys.stdout = _real_stdout
+_sys.stderr = _real_stderr
+
+_result = {{
     "success": len(_errors) == 0,
     "output": "".join(_output),
     "errors": "".join(_errors),
@@ -253,7 +288,7 @@ result = {{
 }}
 
 print("===VETINARI_OUTPUT_START===")
-print(json.dumps(result))
+print(_json.dumps(_result))
 print("===VETINARI_OUTPUT_END===")
 '''
         return wrapped
@@ -268,8 +303,8 @@ print("===VETINARI_OUTPUT_END===")
         
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -431,9 +466,9 @@ print("===VETINARI_OUTPUT_END===")
         if self.working_dir.exists():
             try:
                 shutil.rmtree(self.working_dir)
-                logger.info(f"Cleaned up sandbox: {self.working_dir}")
+                logger.info("Cleaned up sandbox: %s", self.working_dir)
             except Exception as e:
-                logger.warning(f"Failed to cleanup sandbox: {e}")
+                logger.warning("Failed to cleanup sandbox: %s", e)
     
     def get_stats(self) -> Dict[str, Any]:
         """Get sandbox statistics."""

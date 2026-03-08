@@ -26,7 +26,7 @@ def require_admin_token(f):
             token = auth_header
         
         if PLAN_ADMIN_TOKEN and token != PLAN_ADMIN_TOKEN:
-            logger.warning(f"Unauthorized plan API access attempt")
+            logger.warning("Unauthorized plan API access attempt")
             return jsonify({"error": "Unauthorized", "message": "Invalid or missing admin token"}), 401
         
         return f(*args, **kwargs)
@@ -102,7 +102,7 @@ def generate_plan():
         })
     
     except Exception as e:
-        logger.error(f"Plan generation failed: {e}")
+        logger.error("Plan generation failed: %s", e)
         return jsonify({"error": "Plan generation failed", "message": str(e)}), 500
 
 
@@ -147,7 +147,7 @@ def get_plan(plan_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get plan: {e}")
+        logger.error("Failed to get plan: %s", e)
         return jsonify({"error": "Failed to get plan", "message": str(e)}), 500
 
 
@@ -224,7 +224,7 @@ def approve_plan(plan_id):
                 )
                 store.remember(approval_entry)
         except Exception as mem_err:
-            logger.warning(f"Failed to log approval to memory: {mem_err}")
+            logger.warning("Failed to log approval to memory: %s", mem_err)
         
         return jsonify({
             "success": True,
@@ -238,7 +238,7 @@ def approve_plan(plan_id):
     except ValueError as e:
         return jsonify({"error": "Plan not found", "message": str(e)}), 404
     except Exception as e:
-        logger.error(f"Failed to approve plan: {e}")
+        logger.error("Failed to approve plan: %s", e)
         return jsonify({"error": "Failed to approve plan", "message": str(e)}), 500
 
 
@@ -307,7 +307,7 @@ def approve_subtask(plan_id, subtask_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to approve subtask: {e}")
+        logger.error("Failed to approve subtask: %s", e)
         return jsonify({"error": "Failed to approve subtask", "message": str(e)}), 500
 
 
@@ -344,7 +344,7 @@ def get_plan_history(plan_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get plan history: {e}")
+        logger.error("Failed to get plan history: %s", e)
         return jsonify({"error": "Failed to get plan history", "message": str(e)}), 500
 
 
@@ -375,7 +375,7 @@ def get_all_plan_history():
         })
     
     except Exception as e:
-        logger.error(f"Failed to get plan history: {e}")
+        logger.error("Failed to get plan history: %s", e)
         return jsonify({"error": "Failed to get plan history", "message": str(e)}), 500
 
 
@@ -404,7 +404,7 @@ def get_plan_subtasks(plan_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get subtasks: {e}")
+        logger.error("Failed to get subtasks: %s", e)
         return jsonify({"error": "Failed to get subtasks", "message": str(e)}), 500
 
 
@@ -416,7 +416,7 @@ def get_plan_mode_status():
     try:
         memory = get_memory_store()
         stats = memory.get_memory_stats()
-    except:
+    except Exception:
         stats = {}
     
     return jsonify({
@@ -457,7 +457,7 @@ def get_plan_templates():
         })
     
     except Exception as e:
-        logger.error(f"Failed to get templates: {e}")
+        logger.error("Failed to get templates: %s", e)
         return jsonify({"error": "Failed to get templates", "message": str(e)}), 500
 
 
@@ -489,9 +489,9 @@ def get_plan_explanations(plan_id):
         if plan.plan_explanation_json:
             try:
                 explanation_data = json.loads(plan.plan_explanation_json)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 pass
-        
+
         if sanitized and explanation_data:
             explain_agent = get_explain_agent()
             explanation = PlanExplanation.from_dict(explanation_data)
@@ -509,7 +509,7 @@ def get_plan_explanations(plan_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get plan explanations: {e}")
+        logger.error("Failed to get plan explanations: %s", e)
         return jsonify({"error": "Failed to get explanations", "message": str(e)}), 500
 
 
@@ -533,7 +533,7 @@ def get_subtask_explanation(plan_id, subtask_id):
         if subtask.subtask_explanation_json:
             try:
                 explanation_data = json.loads(subtask.subtask_explanation_json)
-            except:
+            except (json.JSONDecodeError, TypeError):
                 pass
         
         return jsonify({
@@ -544,7 +544,7 @@ def get_subtask_explanation(plan_id, subtask_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get subtask explanation: {e}")
+        logger.error("Failed to get subtask explanation: %s", e)
         return jsonify({"error": "Failed to get subtask explanation", "message": str(e)}), 500
 
 
@@ -598,7 +598,7 @@ def create_coding_task():
         })
     
     except Exception as e:
-        logger.error(f"Failed to create coding task: {e}")
+        logger.error("Failed to create coding task: %s", e)
         return jsonify({"error": "Failed to create coding task", "message": str(e)}), 500
 
 
@@ -622,7 +622,7 @@ def get_coding_task(task_id):
         })
     
     except Exception as e:
-        logger.error(f"Failed to get coding task: {e}")
+        logger.error("Failed to get coding task: %s", e)
         return jsonify({"error": "Failed to get coding task", "message": str(e)}), 500
 
 
@@ -695,7 +695,7 @@ def create_multi_step_coding():
         })
     
     except Exception as e:
-        logger.error(f"Failed to create multi-step coding: {e}")
+        logger.error("Failed to create multi-step coding: %s", e)
         return jsonify({"error": "Failed to create multi-step coding", "message": str(e)}), 500
 
 

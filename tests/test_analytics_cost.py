@@ -85,6 +85,8 @@ class TestRecording(unittest.TestCase):
                           input_tokens=1000, output_tokens=1000)
         returned = t.record(entry)
         self.assertAlmostEqual(returned.cost_usd, 0.09)
+        self.assertGreaterEqual(returned.cost_usd, 0.0)
+        self.assertIs(returned, entry)  # record() mutates and returns the same object
 
     def test_record_preserves_explicit_cost(self):
         t = _tracker()
@@ -98,7 +100,10 @@ class TestRecording(unittest.TestCase):
         t = _tracker()
         for _ in range(5):
             t.record(CostEntry(provider="p", model="m", cost_usd=0.01))
-        self.assertEqual(t.get_stats()["total_entries"], 5)
+        stats = t.get_stats()
+        self.assertEqual(stats["total_entries"], 5)
+        self.assertIn("configured_models", stats)
+        self.assertGreater(stats["configured_models"], 0)  # at least the built-in defaults
 
 
 class TestReport(unittest.TestCase):
@@ -134,6 +139,10 @@ class TestReport(unittest.TestCase):
         self.assertIn("builder", r.by_agent)
         self.assertIn("explorer", r.by_agent)
         self.assertAlmostEqual(r.by_agent["builder"], 0.02)
+        self.assertAlmostEqual(r.by_agent["explorer"], 0.01)
+        # costs must be non-negative
+        for agent, cost in r.by_agent.items():
+            self.assertGreaterEqual(cost, 0.0)
 
     def test_by_provider(self):
         t = self._seed()
@@ -151,6 +160,10 @@ class TestReport(unittest.TestCase):
         t = self._seed()
         r = t.get_report(task_id="t2")
         self.assertEqual(r.total_requests, 1)
+        self.assertAlmostEqual(r.total_cost_usd, 0.0)  # lmstudio entry has cost_usd=0.0
+        self.assertEqual(r.total_tokens, 800 + 400)     # 800 input + 400 output
+        self.assertIn("t2", r.by_task)
+        self.assertAlmostEqual(r.by_task["t2"], 0.0)
 
     def test_filter_since(self):
         t = self._seed()
@@ -162,13 +175,34 @@ class TestReport(unittest.TestCase):
         t = self._seed()
         top = t.get_top_agents(n=2)
         self.assertLessEqual(len(top), 2)
+        self.assertEqual(len(top), 2)  # seed has exactly 2 agents: builder and explorer
         self.assertIn("agent", top[0])
         self.assertIn("cost_usd", top[0])
+        # builder has 0.02, explorer has 0.01 — builder should be first
+        self.assertEqual(top[0]["agent"], "builder")
+        self.assertAlmostEqual(top[0]["cost_usd"], 0.02)
+        self.assertEqual(top[1]["agent"], "explorer")
+        self.assertAlmostEqual(top[1]["cost_usd"], 0.01)
+        # costs must be non-negative
+        for item in top:
+            self.assertGreaterEqual(item["cost_usd"], 0.0)
 
     def test_get_top_models(self):
         t = self._seed()
         top = t.get_top_models(n=3)
         self.assertIsInstance(top, list)
+        # seed has 2 distinct provider:model combos: openai:gpt-4 and lmstudio:llama-3
+        self.assertEqual(len(top), 2)
+        self.assertIn("model", top[0])
+        self.assertIn("cost_usd", top[0])
+        # openai:gpt-4 has 0.03 total cost, lmstudio:llama-3 has 0.0
+        self.assertEqual(top[0]["model"], "openai:gpt-4")
+        self.assertAlmostEqual(top[0]["cost_usd"], 0.03)
+        self.assertEqual(top[1]["model"], "lmstudio:llama-3")
+        self.assertAlmostEqual(top[1]["cost_usd"], 0.0)
+        # all costs non-negative
+        for item in top:
+            self.assertGreaterEqual(item["cost_usd"], 0.0)
 
     def test_clear(self):
         t = self._seed()
@@ -181,6 +215,19 @@ class TestReport(unittest.TestCase):
         for k in ("total_cost_usd","total_tokens","total_requests",
                   "by_agent","by_provider","by_model","by_task","entries"):
             self.assertIn(k, d)
+        # Verify types and values are sensible
+        self.assertIsInstance(d["total_cost_usd"], float)
+        self.assertGreaterEqual(d["total_cost_usd"], 0.0)
+        self.assertIsInstance(d["total_tokens"], int)
+        self.assertGreater(d["total_tokens"], 0)
+        self.assertIsInstance(d["total_requests"], int)
+        self.assertEqual(d["total_requests"], 3)
+        self.assertIsInstance(d["by_agent"], dict)
+        self.assertIsInstance(d["by_provider"], dict)
+        self.assertIsInstance(d["by_model"], dict)
+        self.assertIsInstance(d["by_task"], dict)
+        self.assertIsInstance(d["entries"], int)
+        self.assertEqual(d["entries"], 3)
 
 
 if __name__ == "__main__":

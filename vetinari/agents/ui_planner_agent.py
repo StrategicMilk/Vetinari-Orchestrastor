@@ -127,7 +127,7 @@ Base design decisions on modern best practices (2025/2026). Consider:
                         [r.get("snippet", "") for r in search_results[:3]]
                     )
             except Exception:
-                pass
+                logger.debug("Failed to search for %s UI design best practices", self._framework, exc_info=True)
 
             context_parts = [f"Project requirements:\n{plan_or_requirements}"]
             if artifacts:

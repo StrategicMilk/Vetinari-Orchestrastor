@@ -35,7 +35,7 @@ class DualMemoryStore(IMemoryStore):
         self.primary_backend = MEMORY_PRIMARY_READ
         self.dedup_enabled = MEMORY_DEDUP_ENABLED
         
-        logger.info(f"DualMemoryStore initialized with primary={self.primary_backend}")
+        logger.info("DualMemoryStore initialized with primary=%s", self.primary_backend)
     
     def remember(self, entry: MemoryEntry) -> str:
         """Write to both backends with secret sanitization."""
@@ -50,19 +50,19 @@ class DualMemoryStore(IMemoryStore):
             oc_id = self.oc_store.remember(entry)
             entry.source_backends.append("oc")
         except Exception as e:
-            logger.warning(f"OcMemoryStore write failed: {e}")
+            logger.warning("OcMemoryStore write failed: %s", e)
         
         try:
             mnemo_id = self.mnemo_store.remember(entry)
             entry.source_backends.append("mnemosyne")
         except Exception as e:
-            logger.warning(f"MnemosyneStore write failed: {e}")
+            logger.warning("MnemosyneStore write failed: %s", e)
         
         if not entry.source_backends:
             raise RuntimeError("Both backends failed to write")
         
         primary_id = oc_id if oc_id else mnemo_id
-        logger.debug(f"DualMemoryStore: wrote entry to {entry.source_backends}")
+        logger.debug("DualMemoryStore: wrote entry to %s", entry.source_backends)
         
         return primary_id
     
@@ -96,12 +96,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_results = self.oc_store.search(query, agent, entry_types, limit)
         except Exception as e:
-            logger.warning(f"OcMemoryStore search failed: {e}")
+            logger.warning("OcMemoryStore search failed: %s", e)
         
         try:
             mnemo_results = self.mnemo_store.search(query, agent, entry_types, limit)
         except Exception as e:
-            logger.warning(f"MnemosyneStore search failed: {e}")
+            logger.warning("MnemosyneStore search failed: %s", e)
         
         all_results = oc_results + mnemo_results
         
@@ -122,12 +122,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_results = self.oc_store.timeline(agent, start_time, end_time, limit)
         except Exception as e:
-            logger.warning(f"OcMemoryStore timeline failed: {e}")
+            logger.warning("OcMemoryStore timeline failed: %s", e)
         
         try:
             mnemo_results = self.mnemo_store.timeline(agent, start_time, end_time, limit)
         except Exception as e:
-            logger.warning(f"MnemosyneStore timeline failed: {e}")
+            logger.warning("MnemosyneStore timeline failed: %s", e)
         
         all_results = oc_results + mnemo_results
         
@@ -145,12 +145,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_results = self.oc_store.ask(question, agent)
         except Exception as e:
-            logger.warning(f"OcMemoryStore ask failed: {e}")
+            logger.warning("OcMemoryStore ask failed: %s", e)
         
         try:
             mnemo_results = self.mnemo_store.ask(question, agent)
         except Exception as e:
-            logger.warning(f"MnemosyneStore ask failed: {e}")
+            logger.warning("MnemosyneStore ask failed: %s", e)
         
         all_results = oc_results + mnemo_results
         
@@ -174,12 +174,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_success = self.oc_store.export(oc_path)
         except Exception as e:
-            logger.warning(f"OcMemoryStore export failed: {e}")
+            logger.warning("OcMemoryStore export failed: %s", e)
         
         try:
             mnemo_success = self.mnemo_store.export(mnemo_path)
         except Exception as e:
-            logger.warning(f"MnemosyneStore export failed: {e}")
+            logger.warning("MnemosyneStore export failed: %s", e)
         
         combined = {
             "oc_export": oc_path if oc_success else None,
@@ -201,12 +201,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_success = self.oc_store.forget(entry_id, reason)
         except Exception as e:
-            logger.warning(f"OcMemoryStore forget failed: {e}")
+            logger.warning("OcMemoryStore forget failed: %s", e)
         
         try:
             mnemo_success = self.mnemo_store.forget(entry_id, reason)
         except Exception as e:
-            logger.warning(f"MnemosyneStore forget failed: {e}")
+            logger.warning("MnemosyneStore forget failed: %s", e)
         
         return oc_success or mnemo_success
     
@@ -218,12 +218,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_deleted = self.oc_store.compact(max_age_days)
         except Exception as e:
-            logger.warning(f"OcMemoryStore compact failed: {e}")
+            logger.warning("OcMemoryStore compact failed: %s", e)
         
         try:
             mnemo_deleted = self.mnemo_store.compact(max_age_days)
         except Exception as e:
-            logger.warning(f"MnemosyneStore compact failed: {e}")
+            logger.warning("MnemosyneStore compact failed: %s", e)
         
         return oc_deleted + mnemo_deleted
     
@@ -235,12 +235,12 @@ class DualMemoryStore(IMemoryStore):
         try:
             oc_stats = self.oc_store.stats()
         except Exception as e:
-            logger.warning(f"OcMemoryStore stats failed: {e}")
+            logger.warning("OcMemoryStore stats failed: %s", e)
         
         try:
             mnemo_stats = self.mnemo_store.stats()
         except Exception as e:
-            logger.warning(f"MnemosyneStore stats failed: {e}")
+            logger.warning("MnemosyneStore stats failed: %s", e)
         
         combined = MemoryStats(
             total_entries=oc_stats.total_entries + mnemo_stats.total_entries,
@@ -267,7 +267,7 @@ class DualMemoryStore(IMemoryStore):
                     return entry
                 return self.oc_store.get_entry(entry_id)
         except Exception as e:
-            logger.warning(f"get_entry failed: {e}")
+            logger.warning("get_entry failed: %s", e)
             return None
     
     def _merge_and_dedupe(self, entries: List[MemoryEntry], limit: int) -> List[MemoryEntry]:
@@ -325,7 +325,7 @@ class DualMemoryStore(IMemoryStore):
         try:
             self.oc_store.close()
         except Exception as e:
-            logger.warning(f"Failed to close OcMemoryStore: {e}")
+            logger.warning("Failed to close OcMemoryStore: %s", e)
         
         logger.info("DualMemoryStore closed")
 

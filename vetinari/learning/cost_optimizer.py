@@ -43,7 +43,7 @@ class CostOptimizer:
                 from vetinari.analytics.cost import get_cost_tracker
                 self._cost_tracker = get_cost_tracker()
             except Exception:
-                pass
+                logger.debug("Failed to initialize cost tracker", exc_info=True)
         return self._cost_tracker
 
     def select_cheapest_adequate(
@@ -107,7 +107,7 @@ class CostOptimizer:
                             cost = float(entry.get("cost_usd", 0.0))
                             break
                 except Exception:
-                    pass
+                    logger.debug("Failed to get cost data for model %s", model_id, exc_info=True)
 
             # Get quality from Thompson Sampling selector
             try:
@@ -115,7 +115,7 @@ class CostOptimizer:
                 arm_state = get_thompson_selector().get_arm_state(model_id, task_type)
                 quality = arm_state.get("mean", 0.7)
             except Exception:
-                pass
+                logger.debug("Failed to get Thompson Sampling quality for model %s", model_id, exc_info=True)
 
             qpd = quality / max(cost, 0.001)  # Avoid division by zero
             efficiencies.append(CostEfficiency(

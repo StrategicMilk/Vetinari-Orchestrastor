@@ -14,6 +14,7 @@ When selecting a model, we sample from each distribution and pick the highest.
 import logging
 import os
 import random
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -26,8 +27,8 @@ class BetaArm:
     """Beta distribution arm for a model+task_type pair."""
     model_id: str
     task_type: str
-    alpha: float = 1.0      # Successes (quality-weighted)
-    beta: float = 1.0       # Failures
+    alpha: float = 2.0      # Successes (quality-weighted); Beta(2,2) slightly skeptical prior
+    beta: float = 2.0       # Failures; accelerates convergence vs naive Beta(1,1)
     total_pulls: int = 0
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -60,7 +61,7 @@ class ThompsonSamplingSelector:
     Thompson Sampling model selector for exploration-exploitation balance.
 
     Automatically:
-    - Explores new/untested models (uninformed Beta(1,1) prior)
+    - Explores new/untested models (slightly skeptical Beta(2,2) prior)
     - Exploits well-performing models for their appropriate task types
     - Incorporates cost as a penalty on expected return
     - Persists arm states to survive restarts
@@ -72,6 +73,7 @@ class ThompsonSamplingSelector:
     def __init__(self):
         # Key: "model_id:task_type"
         self._arms: Dict[str, BetaArm] = {}
+        self._lock = threading.Lock()
         self._load_state()
 
     # ------------------------------------------------------------------
@@ -95,36 +97,38 @@ class ThompsonSamplingSelector:
         Returns:
             Selected model ID.
         """
-        if not candidate_models:
-            return "default"
+        with self._lock:
+            if not candidate_models:
+                return "default"
 
-        cost_per_model = cost_per_model or {}
-        max_cost = max(cost_per_model.values(), default=1.0) or 1.0
+            cost_per_model = cost_per_model or {}
+            max_cost = max(cost_per_model.values(), default=1.0) or 1.0
 
-        best_model = candidate_models[0]
-        best_score = -1.0
+            best_model = candidate_models[0]
+            best_score = -1.0
 
-        for model_id in candidate_models:
-            arm = self._get_or_create_arm(model_id, task_type)
-            sampled = arm.sample()
+            for model_id in candidate_models:
+                arm = self._get_or_create_arm(model_id, task_type)
+                sampled = arm.sample()
 
-            # Apply cost penalty: more expensive → lower adjusted score
-            cost = cost_per_model.get(model_id, 0.0)
-            cost_penalty = self.COST_WEIGHT * (cost / max_cost)
-            adjusted = sampled * (1.0 - cost_penalty)
+                # Apply cost penalty additively to preserve Thompson Sampling
+                # exploration properties (multiplicative would distort the Beta distribution)
+                cost = cost_per_model.get(model_id, max_cost * 0.5)  # default to median, not free
+                cost_penalty = self.COST_WEIGHT * (cost / max_cost)
+                adjusted = sampled - cost_penalty
 
-            logger.debug(
-                f"[Thompson] {model_id}/{task_type}: sample={sampled:.3f} "
-                f"cost_penalty={cost_penalty:.3f} adjusted={adjusted:.3f} "
-                f"(alpha={arm.alpha:.1f}, beta={arm.beta:.1f})"
-            )
+                logger.debug(
+                    f"[Thompson] {model_id}/{task_type}: sample={sampled:.3f} "
+                    f"cost_penalty={cost_penalty:.3f} adjusted={adjusted:.3f} "
+                    f"(alpha={arm.alpha:.1f}, beta={arm.beta:.1f})"
+                )
 
-            if adjusted > best_score:
-                best_score = adjusted
-                best_model = model_id
+                if adjusted > best_score:
+                    best_score = adjusted
+                    best_model = model_id
 
-        logger.info(f"[Thompson] Selected {best_model} for {task_type} (score={best_score:.3f})")
-        return best_model
+            logger.info("[Thompson] Selected %s for %s (score=%.3f)", best_model, task_type, best_score)
+            return best_model
 
     def update(
         self,
@@ -142,9 +146,10 @@ class ThompsonSamplingSelector:
             quality_score: Observed quality score 0.0-1.0.
             success: Whether the task succeeded.
         """
-        arm = self._get_or_create_arm(model_id, task_type)
-        arm.update(quality_score, success)
-        self._save_state()
+        with self._lock:
+            arm = self._get_or_create_arm(model_id, task_type)
+            arm.update(quality_score, success)
+            self._save_state()
 
     def get_rankings(self, task_type: str) -> List[Tuple[str, float]]:
         """Get model rankings for a task type (by expected value)."""
@@ -197,9 +202,9 @@ class ThompsonSamplingSelector:
                     data = json.load(f)
                 for key, d in data.items():
                     self._arms[key] = BetaArm(**d)
-                logger.debug(f"[Thompson] Loaded {len(self._arms)} arm states")
+                logger.debug("[Thompson] Loaded %s arm states", len(self._arms))
         except Exception as e:
-            logger.debug(f"[Thompson] Could not load state: {e}")
+            logger.debug("[Thompson] Could not load state: %s", e)
 
     def _save_state(self) -> None:
         """Persist arm states for continuity across restarts."""
@@ -212,7 +217,7 @@ class ThompsonSamplingSelector:
             with open(state_file, "w") as f:
                 json.dump({k: asdict(v) for k, v in self._arms.items()}, f, indent=2)
         except Exception as e:
-            logger.debug(f"[Thompson] Could not save state: {e}")
+            logger.debug("[Thompson] Could not save state: %s", e)
 
 
 # Singleton

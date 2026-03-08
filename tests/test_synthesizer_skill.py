@@ -4,7 +4,7 @@ Unit tests for Synthesizer Skill Tool
 
 import pytest
 from unittest.mock import Mock
-from vetinari.tools.synthesizer_skill import SynthesizerSkillTool, SynthesizerCapability, ThinkingMode
+from vetinari.skills.synthesizer import SynthesizerSkillTool, SynthesizerCapability, ThinkingMode
 from vetinari.execution_context import ExecutionMode
 
 

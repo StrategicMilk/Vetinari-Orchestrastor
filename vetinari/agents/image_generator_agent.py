@@ -150,7 +150,7 @@ Output format:
                     generated_images = self._generate_via_sd(image_spec)
                 except Exception as e:
                     sd_error = str(e)
-                    logger.warning(f"SD generation failed: {e}")
+                    logger.warning("SD generation failed: %s", e)
 
             # Step 3: If SD failed/unavailable, generate SVG fallback
             if not generated_images:
@@ -187,7 +187,7 @@ Output format:
             return result_obj
 
         except Exception as e:
-            logger.error(f"ImageGeneratorAgent.execute failed: {e}")
+            logger.error("ImageGeneratorAgent.execute failed: %s", e)
             return AgentResult(success=False, output=None, errors=[str(e)])
 
     def verify(self, output: Any) -> VerificationResult:
@@ -327,7 +327,7 @@ Respond with valid JSON only."""
                 "description": spec.get("description", ""),
                 "prompt": spec.get("sd_prompt", ""),
             })
-            logger.info(f"Generated image: {out_path}")
+            logger.info("Generated image: %s", out_path)
 
         return images
 
@@ -382,7 +382,7 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
         out_path = self._output_dir / filename
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(svg_code)
-        logger.info(f"Generated SVG: {out_path}")
+        logger.info("Generated SVG: %s", out_path)
         return out_path
 
 

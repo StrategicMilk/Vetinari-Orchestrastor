@@ -1,6 +1,23 @@
+"""
+Planning Engine — LEGACY module for model-selection-aware task generation.
+
+.. deprecated::
+    This module will be merged into plan_mode.py in a future release.
+    New code should use ``vetinari.plan_mode.PlanModeEngine`` where possible.
+"""
+
 import json
 import logging
+import warnings
 from typing import List, Dict, Any, Optional
+
+warnings.warn(
+    "vetinari.planning_engine is deprecated and will be merged into "
+    "vetinari.plan_mode in a future release. Use "
+    "vetinari.plan_mode.PlanModeEngine instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)

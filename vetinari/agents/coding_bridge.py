@@ -15,29 +15,9 @@ import json
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from vetinari.types import CodingTaskType, CodingTaskStatus  # canonical enums
 
 logger = logging.getLogger(__name__)
-
-
-class CodingTaskType(str, Enum):
-    """Types of coding tasks."""
-    SCAFFOLD = "scaffold"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REFACTOR = "refactor"
-    REVIEW = "review"
-    FIX = "fix"
-    DOCUMENT = "document"
-
-
-class CodingTaskStatus(str, Enum):
-    """Status of coding tasks."""
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -83,7 +63,7 @@ class CodingBridge:
         self.api_key = api_key or os.environ.get("CODING_BRIDGE_API_KEY", "")
         self.enabled = os.environ.get("CODING_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
         
-        logger.info(f"CodingBridge initialized (enabled={self.enabled}, endpoint={self.endpoint})")
+        logger.info("CodingBridge initialized (enabled=%s, endpoint=%s)", self.enabled, self.endpoint)
     
     def is_available(self) -> bool:
         """Check if the coding bridge is available."""
@@ -107,9 +87,9 @@ class CodingBridge:
                 error="CodingBridge is not enabled"
             )
         
-        logger.info(f"Submitting coding task: {task.task_id} ({task.task_type.value})")
-        logger.debug(f"Task description: {task.description}")
-        logger.debug(f"Output path: {task.output_path}")
+        logger.info("Submitting coding task: %s (%s)", task.task_id, task.task_type.value)
+        logger.debug("Task description: %s", task.description)
+        logger.debug("Output path: %s", task.output_path)
         
         # Handle scaffold generation
         if task.task_type == CodingTaskType.SCAFFOLD:
@@ -187,7 +167,7 @@ class CodingBridge:
                 str(pkg_dir / "__main__.py"),
             ]
             
-            logger.info(f"Generated scaffold for {project_name} at {output_path}")
+            logger.info("Generated scaffold for %s at %s", project_name, output_path)
             
             return CodingResult(
                 success=True,
@@ -202,7 +182,7 @@ class CodingBridge:
             )
             
         except Exception as e:
-            logger.error(f"Failed to generate scaffold: {e}")
+            logger.error("Failed to generate scaffold: %s", e)
             return CodingResult(
                 success=False,
                 task_id=task.task_id,
@@ -211,7 +191,7 @@ class CodingBridge:
     
     def get_task_status(self, task_id: str) -> Optional[CodingTask]:
         """Get the status of a coding task from the active task registry."""
-        logger.debug(f"Checking status for task: {task_id}")
+        logger.debug("Checking status for task: %s", task_id)
         # Check in-memory task registry if available
         if hasattr(self, "_active_tasks") and task_id in self._active_tasks:
             return self._active_tasks[task_id]
@@ -233,7 +213,7 @@ class CodingBridge:
     
     def cancel_task(self, task_id: str) -> bool:
         """Cancel a coding task."""
-        logger.info(f"Cancelling task: {task_id}")
+        logger.info("Cancelling task: %s", task_id)
         return True
     
     def list_active_tasks(self) -> List[CodingTask]:

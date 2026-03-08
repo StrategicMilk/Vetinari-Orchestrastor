@@ -20,23 +20,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
-class CodingTaskType(str, Enum):
-    """Types of coding tasks."""
-    SCAFFOLD = "scaffold"
-    IMPLEMENT = "implement"
-    TEST = "test"
-    REVIEW = "review"
-    REFACTOR = "refactor"
-    FIX = "fix"
-
-
-class CodingTaskStatus(str, Enum):
-    """Status of coding tasks."""
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+from vetinari.types import CodingTaskType, CodingTaskStatus  # canonical enums
 
 
 class ArtifactType(str, Enum):
@@ -121,7 +105,7 @@ class CodeAgentEngine:
         self.use_bridge = os.environ.get("CODING_AGENT_USE_BRIDGE", "false").lower() in ("1", "true", "yes")
         self.bridge_endpoint = os.environ.get("CODING_BRIDGE_ENDPOINT", "http://localhost:4096")
         
-        logger.info(f"CodeAgentEngine initialized (provider={lm_provider}, enabled={self.enabled}, bridge={self.use_bridge})")
+        logger.info("CodeAgentEngine initialized (provider=%s, enabled=%s, bridge=%s)", lm_provider, self.enabled, self.use_bridge)
     
     def is_available(self) -> bool:
         """Check if the coding agent is available."""
@@ -140,7 +124,7 @@ class CodeAgentEngine:
         task.status = CodingTaskStatus.IN_PROGRESS
         task.updated_at = datetime.now().isoformat()
         
-        logger.info(f"Executing coding task: {task.task_id} ({task.type.value})")
+        logger.info("Executing coding task: %s (%s)", task.task_id, task.type.value)
         
         try:
             if self.use_bridge:
@@ -154,7 +138,7 @@ class CodeAgentEngine:
             return artifact
             
         except Exception as e:
-            logger.error(f"Coding task failed: {e}")
+            logger.error("Coding task failed: %s", e)
             task.status = CodingTaskStatus.FAILED
             task.updated_at = datetime.now().isoformat()
             raise
@@ -258,7 +242,7 @@ class CodeAgentEngine:
                 language=task.language,
             )
         except Exception as e:
-            logger.debug(f"LLM code generation failed (will use fallback): {e}")
+            logger.debug("LLM code generation failed (will use fallback): %s", e)
             return None
     
     def _generate_scaffold(self, task: CodeTask) -> CodeArtifact:
@@ -291,7 +275,7 @@ if __name__ == "__main__":
             language=task.language
         )
         
-        logger.info(f"Generated scaffold for {project_name}")
+        logger.info("Generated scaffold for %s", project_name)
         return artifact
     
     def _generate_implementation(self, task: CodeTask) -> CodeArtifact:
@@ -328,7 +312,7 @@ class Implementation:
             language=task.language
         )
         
-        logger.info(f"Generated implementation for {target}")
+        logger.info("Generated implementation for %s", target)
         return artifact
     
     def _generate_tests(self, task: CodeTask) -> CodeArtifact:
@@ -374,7 +358,7 @@ if __name__ == "__main__":
             language=task.language
         )
         
-        logger.info(f"Generated tests for {target}")
+        logger.info("Generated tests for %s", target)
         return artifact
     
     def _generate_review(self, task: CodeTask) -> CodeArtifact:
@@ -407,7 +391,7 @@ if __name__ == "__main__":
             language="markdown"
         )
         
-        logger.info(f"Generated review for {task.task_id}")
+        logger.info("Generated review for %s", task.task_id)
         return artifact
     
     def _generate_generic(self, task: CodeTask) -> CodeArtifact:
@@ -438,7 +422,7 @@ if __name__ == "__main__":
     def _run_via_bridge(self, task: CodeTask) -> CodeArtifact:
         """Run task via external bridge (placeholder)."""
         
-        logger.info(f"Delegating task {task.task_id} to external bridge at {self.bridge_endpoint}")
+        logger.info("Delegating task %s to external bridge at %s", task.task_id, self.bridge_endpoint)
         
         # Placeholder for external bridge integration
         # In production, this would make HTTP calls to the bridge service
@@ -454,7 +438,7 @@ if __name__ == "__main__":
                 artifact = self.run_task(task)
                 artifacts.append(artifact)
             except Exception as e:
-                logger.error(f"Task {task.task_id} failed: {e}")
+                logger.error("Task %s failed: %s", task.task_id, e)
                 if not self.use_bridge:
                     raise
         

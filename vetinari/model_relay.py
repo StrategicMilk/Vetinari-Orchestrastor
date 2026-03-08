@@ -1,4 +1,41 @@
+"""
+vetinari.model_relay — DEPRECATED thin shim.
+
+This module is retained for backward compatibility only.
+New code should use vetinari.dynamic_model_router directly.
+
+Migration guide
+---------------
+Old import                                    New import
+--------------------------------------------  ----------------------------------------------------
+from vetinari.model_relay import model_relay  from vetinari.model_relay import model_relay  (still works)
+from vetinari.model_relay import ModelRelay   from vetinari.model_relay import ModelRelay   (still works)
+from vetinari.model_relay import RoutingPolicy  from vetinari.model_relay import RoutingPolicy  (still works)
+get_model_relay()                             get_model_relay()  (still works)
+                                              -- or --
+                                              from vetinari.dynamic_model_router import get_model_router
+
+Unique functionality still in this module (not yet in dynamic_model_router):
+- ModelEntry / RoutingPolicy / ModelStatus: yaml-backed static catalog types
+- ModelRelay: YAML file-based model catalog with routing policy persistence
+  (dynamic_model_router is runtime-only and does not persist config)
+- pick_model_for_task(): simple capability-filtered scoring (no performance history)
+  (dynamic_model_router.select_model() uses live performance metrics + Thompson Sampling)
+"""
+
+import warnings as _warnings
+
+_warnings.warn(
+    "vetinari.model_relay is deprecated. Use vetinari.dynamic_model_router instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+# ---------------------------------------------------------------------------
+# Standard library imports needed by the classes below
+# ---------------------------------------------------------------------------
 import json
+import logging
 import os
 import yaml
 from dataclasses import dataclass, field
@@ -6,15 +43,32 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 from enum import Enum
 
+logger = logging.getLogger(__name__)
 
-class ModelProvider(Enum):
-    LMSTUDIO = "lmstudio"
-    OLLAMA = "ollama"
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE = "google"
-    LOCAL = "local"
+from vetinari.types import ModelProvider  # canonical enum from types.py
 
+# ---------------------------------------------------------------------------
+# Re-export canonical router symbols so callers can migrate incrementally.
+# These are the canonical equivalents of the classes defined below.
+# ---------------------------------------------------------------------------
+from vetinari.dynamic_model_router import (  # noqa: F401  (re-export)
+    DynamicModelRouter,
+    ModelInfo,
+    ModelCapabilities,
+    TaskType,
+    get_model_router,
+    init_model_router,
+    infer_task_type,
+    # NOTE: dynamic_model_router also defines a ModelSelection, but its shape
+    # differs from the one defined in this module (it uses ModelInfo, not flat
+    # scalar fields).  We intentionally do NOT re-export it here to avoid
+    # shadowing the local ModelSelection that existing callers depend on.
+)
+
+
+# ---------------------------------------------------------------------------
+# Local types — unique to this module (yaml-backed catalog)
+# ---------------------------------------------------------------------------
 
 class ModelStatus(Enum):
     AVAILABLE = "available"
@@ -24,6 +78,7 @@ class ModelStatus(Enum):
 
 @dataclass
 class ModelEntry:
+    """A single entry in the YAML-backed model catalog."""
     model_id: str
     provider: str
     display_name: str
@@ -73,6 +128,7 @@ class ModelEntry:
 
 @dataclass
 class RoutingPolicy:
+    """Routing policy stored in the YAML catalog (persisted to disk)."""
     local_first: bool = True
     privacy_weight: float = 1.0
     latency_weight: float = 0.5
@@ -104,6 +160,14 @@ class RoutingPolicy:
 
 @dataclass
 class ModelSelection:
+    """
+    Flat model-selection result returned by ModelRelay.pick_model_for_task().
+
+    NOTE: dynamic_model_router also defines a ModelSelection but with a
+    different shape (it embeds a full ModelInfo object).  Keep this flat
+    version here for backward compatibility with web_ui.py callers that
+    serialize it directly to JSON.
+    """
     model_id: str
     provider: str
     endpoint: str
@@ -122,24 +186,38 @@ class ModelSelection:
         }
 
 
+# ---------------------------------------------------------------------------
+# ModelRelay — YAML-backed model catalog (unique functionality)
+# ---------------------------------------------------------------------------
+
 class ModelRelay:
-    _instance = None
+    """
+    YAML-backed model catalog with static routing policy.
+
+    Unique vs DynamicModelRouter:
+    - Persists the model catalog and policy to a YAML config file
+    - Policy weights are user-configurable and saved to disk
+    - Does not track live performance metrics or use Thompson Sampling
+    - pick_model_for_task() uses a simple weighted score on static attributes
+
+    For runtime performance-aware routing, use DynamicModelRouter /
+    get_model_router() from vetinari.dynamic_model_router.
+    """
+
+    _instance: Optional['ModelRelay'] = None
 
     @classmethod
-    def get_instance(cls, config_path: str = None):
+    def get_instance(cls, config_path: str = None) -> "ModelRelay":
         if cls._instance is None:
             cls._instance = cls(config_path)
         return cls._instance
 
     def __init__(self, config_path: str = None):
         if config_path is None:
-            # Use project-relative config or env var override
-            import os
             env_path = os.environ.get("VETINARI_MODELS_CONFIG", "")
             if env_path:
                 config_path = Path(env_path)
             else:
-                # Resolve relative to this file's package root
                 pkg_root = Path(__file__).parent.parent
                 config_path = pkg_root / "config" / "models.yaml"
 
@@ -161,7 +239,7 @@ class ModelRelay:
                         if 'policy' in data:
                             self.policy = RoutingPolicy.from_dict(data['policy'])
             except Exception as e:
-                print(f"Error loading model config: {e}")
+                logger.error("Error loading model config: %s", e)
 
         if not self.models:
             self._load_default_models()
@@ -345,14 +423,23 @@ class ModelRelay:
             self._save_config()
 
 
+# ---------------------------------------------------------------------------
+# Public API — singletons and helpers
+# ---------------------------------------------------------------------------
+
 def get_model_relay() -> "ModelRelay":
-    """Lazily return the singleton ModelRelay. Use this instead of module-level model_relay."""
+    """Return the singleton ModelRelay (yaml-backed catalog).
+
+    Deprecated: new code should use get_model_router() from
+    vetinari.dynamic_model_router for runtime performance-aware routing.
+    """
     return ModelRelay.get_instance()
 
 
 # Backward-compatible lazy proxy — no config I/O on import.
 class _LazyModelRelay:
     """Proxy that resolves the ModelRelay singleton on first attribute access."""
+
     def __getattr__(self, name):
         return getattr(ModelRelay.get_instance(), name)
 
