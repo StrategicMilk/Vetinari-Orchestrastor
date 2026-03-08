@@ -11,8 +11,11 @@ Usage:
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def migrate(storage_root: str = None):
@@ -23,7 +26,7 @@ def migrate(storage_root: str = None):
         storage_root = Path(storage_root)
     
     if not storage_root.exists():
-        print(f"Storage path does not exist: {storage_root}")
+        logger.warning(f"Storage path does not exist: {storage_root}")
         return
     
     migrated_count = 0
@@ -54,18 +57,16 @@ def migrate(storage_root: str = None):
             if changed:
                 with open(file, 'w') as f:
                     json.dump(data, f, indent=2)
-                print(f"Migrated: {file.name}")
+                logger.info(f"Migrated: {file.name}")
                 migrated_count += 1
             else:
-                print(f"Skipped (up to date): {file.name}")
+                logger.debug(f"Skipped (up to date): {file.name}")
                 
         except Exception as e:
-            print(f"Error migrating {file.name}: {e}")
+            logger.error(f"Error migrating {file.name}: {e}")
             error_count += 1
     
-    print(f"\nMigration complete:")
-    print(f"  Migrated: {migrated_count} files")
-    print(f"  Errors: {error_count} files")
+    logger.info(f"Migration complete: Migrated: {migrated_count} files, Errors: {error_count} files")
 
 
 if __name__ == '__main__':

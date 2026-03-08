@@ -98,6 +98,9 @@ class QualityScorer:
         except Exception as e:
             logger.debug(f"[QualityScorer] DB init failed (scores will be in-memory only): {e}")
 
+    # Benchmark blending weight: computed_score * (1 - weight) + benchmark * weight
+    BENCHMARK_BLEND_WEIGHT = 0.3
+
     def score(
         self,
         task_id: str,
@@ -106,6 +109,7 @@ class QualityScorer:
         task_description: str,
         output: str,
         use_llm: bool = True,
+        benchmark_score: Optional[float] = None,
     ) -> QualityScore:
         """
         Score a task output.
@@ -117,6 +121,8 @@ class QualityScorer:
             task_description: What the task asked for.
             output: The output to evaluate.
             use_llm: Whether to attempt LLM-as-judge evaluation.
+            benchmark_score: Optional benchmark score (0.0-1.0) to blend in.
+                When provided, final = computed * 0.7 + benchmark * 0.3.
 
         Returns:
             QualityScore with all dimensions populated.
@@ -126,14 +132,70 @@ class QualityScorer:
         if use_llm and self._adapter_manager:
             score = self._score_with_llm(task_id, model_id, task_type, task_description, output, dims)
             if score:
+                if benchmark_score is not None:
+                    score = self._blend_benchmark(score, benchmark_score)
                 self._scores.append(score)
                 self._persist(score)
                 return score
 
         # Fallback: heuristic scoring
         score = self._score_heuristic(task_id, model_id, task_type, output, dims)
+        if benchmark_score is not None:
+            score = self._blend_benchmark(score, benchmark_score)
         self._scores.append(score)
         self._persist(score)
+        return score
+
+    def score_with_benchmark(
+        self,
+        task_id: str,
+        model_id: str,
+        task_type: str,
+        task_description: str,
+        output: str,
+        benchmark_score: float,
+        use_llm: bool = True,
+    ) -> QualityScore:
+        """
+        Score a task output with mandatory benchmark blending.
+
+        Convenience wrapper that ensures benchmark_score is always applied.
+        Final score = computed * 0.7 + benchmark * 0.3.
+
+        Args:
+            task_id: Unique task identifier.
+            model_id: Model that produced the output.
+            task_type: Type of task (coding, research, etc.).
+            task_description: What the task asked for.
+            output: The output to evaluate.
+            benchmark_score: Benchmark score (0.0-1.0) to blend in.
+            use_llm: Whether to attempt LLM-as-judge evaluation.
+
+        Returns:
+            QualityScore with benchmark-blended overall_score.
+        """
+        return self.score(
+            task_id=task_id,
+            model_id=model_id,
+            task_type=task_type,
+            task_description=task_description,
+            output=output,
+            use_llm=use_llm,
+            benchmark_score=benchmark_score,
+        )
+
+    def _blend_benchmark(self, score: QualityScore, benchmark_score: float) -> QualityScore:
+        """Blend a benchmark score into an existing QualityScore.
+
+        Formula: final = computed * (1 - BENCHMARK_BLEND_WEIGHT) + benchmark * BENCHMARK_BLEND_WEIGHT
+        Default weight: 0.7 computed + 0.3 benchmark.
+        """
+        clamped = max(0.0, min(1.0, benchmark_score))
+        w = self.BENCHMARK_BLEND_WEIGHT
+        blended = score.overall_score * (1.0 - w) + clamped * w
+        score.overall_score = round(blended, 3)
+        score.dimensions["benchmark_score"] = round(clamped, 3)
+        score.method = f"{score.method}+benchmark"
         return score
 
     def _score_with_llm(
@@ -174,6 +236,8 @@ class QualityScorer:
             judge_model = self._pick_judge_model(model_id)
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
+            judge_model = resolve_lmstudio_model(judge_model, host)
             import requests as _req
             resp = _req.post(
                 f"{host}/v1/chat/completions",
@@ -186,6 +250,7 @@ class QualityScorer:
                     "max_tokens": 600,
                     "temperature": 0.1,
                 },
+                headers=get_lmstudio_headers(),
                 timeout=60,
             )
             if resp.status_code != 200:

@@ -24,20 +24,21 @@ class TestPlanningEnums(unittest.TestCase):
 
 class TestTask(unittest.TestCase):
     def _make(self, tid="t1"):
-        return Task(task_id=tid, agent_type="builder",
+        return Task(id=tid,
                     description="Build API", prompt="Create a REST API")
 
     def test_creation(self):
         t = self._make()
         self.assertEqual(t.task_id, "t1")
-        self.assertEqual(t.status, TaskStatus.PENDING.value)
+        self.assertEqual(t.id, "t1")
+        self.assertEqual(t.status, TaskStatus.PENDING)
         self.assertEqual(t.dependencies, [])
 
     def test_to_dict(self):
         t = self._make("t2")
         d = t.to_dict()
-        self.assertIn("task_id", d)
-        self.assertIn("agent_type", d)
+        self.assertIn("id", d)
+        self.assertIn("assigned_agent", d)
         self.assertIn("status", d)
 
     def test_from_dict(self):
@@ -45,11 +46,19 @@ class TestTask(unittest.TestCase):
         d = t.to_dict()
         t2 = Task.from_dict(d)
         self.assertEqual(t2.task_id, "t3")
+        self.assertEqual(t2.id, "t3")
+
+    def test_from_dict_legacy_task_id(self):
+        """Ensure from_dict still accepts the legacy 'task_id' key."""
+        d = {"task_id": "legacy1", "description": "test"}
+        t = Task.from_dict(d)
+        self.assertEqual(t.id, "legacy1")
+        self.assertEqual(t.task_id, "legacy1")
 
 
 class TestWave(unittest.TestCase):
     def _make_task(self, tid="t1"):
-        return Task(task_id=tid, agent_type="builder",
+        return Task(id=tid,
                     description="test", prompt="do thing")
 
     def test_creation(self):

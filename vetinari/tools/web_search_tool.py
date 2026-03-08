@@ -759,18 +759,18 @@ if __name__ == "__main__":
     tool = WebSearchTool(backend="duckduckgo")
     
     # Simple search
-    print("=== Simple Search ===")
+    logger.info("=== Simple Search ===")
     result = tool.search("Python async programming", max_results=3)
-    print(f"Found {result.total_results} results in {result.execution_time_ms}ms")
+    logger.info(f"Found {result.total_results} results in {result.execution_time_ms}ms")
     for r in result.results:
-        print(f"  - {r.title}: {r.url}")
-    
+        logger.info(f"  - {r.title}: {r.url}")
+
     # Research topic
-    print("\n=== Research Topic ===")
+    logger.info("\n=== Research Topic ===")
     research = tool.research_topic("LLM agents orchestration")
-    print(f"Topic: {research['topic']}")
-    print(f"Total sources: {research['total_sources']}")
-    print(f"High credibility: {research['high_credibility_sources']}")
-    print("Citations:")
+    logger.info(f"Topic: {research['topic']}")
+    logger.info(f"Total sources: {research['total_sources']}")
+    logger.info(f"High credibility: {research['high_credibility_sources']}")
+    logger.info("Citations:")
     for cite in research['citations'][:5]:
-        print(f"  {cite}")
+        logger.info(f"  {cite}")

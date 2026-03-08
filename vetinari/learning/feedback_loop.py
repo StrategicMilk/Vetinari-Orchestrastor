@@ -56,6 +56,7 @@ class FeedbackLoop:
         latency_ms: int = 0,
         cost_usd: float = 0.0,
         success: bool = True,
+        benchmark_result: Optional[Dict] = None,
     ) -> None:
         """
         Record a task outcome and propagate it to all performance tracking systems.
@@ -68,6 +69,12 @@ class FeedbackLoop:
             latency_ms: Execution latency in milliseconds.
             cost_usd: Estimated cost in USD.
             success: Whether the task succeeded.
+            benchmark_result: Optional benchmark data dict with keys:
+                - pass_rate (float): 0.0-1.0 fraction of benchmark cases passed
+                - task_type (str): benchmark task category
+                - suite_name (str): benchmark suite identifier
+                - n_trials (int): number of benchmark trials run
+                - avg_score (float): average benchmark score
         """
         logger.debug(
             f"[FeedbackLoop] Recording outcome: task={task_id} model={model_id} "
@@ -82,6 +89,84 @@ class FeedbackLoop:
 
         # 3. Update SubtaskMemory outcome with quality score
         self._update_subtask_quality(task_id, quality_score, success)
+
+        # 4. Update Thompson Sampling arms
+        self._update_thompson_arms(model_id, task_type, quality_score, success)
+
+        # 5. If benchmark_result provided, feed it into model selection and learning
+        if benchmark_result:
+            self._process_benchmark_result(model_id, task_type, benchmark_result)
+
+    def record_benchmark_outcome(
+        self,
+        model_id: str,
+        benchmark_result: Dict,
+    ) -> None:
+        """
+        Record a standalone benchmark outcome (not tied to a specific task).
+
+        Extracts pass_rate and task_type from the benchmark result and updates
+        all performance tracking systems with benchmark-weighted signals.
+
+        Args:
+            model_id: The model that was benchmarked.
+            benchmark_result: Dict with keys:
+                - pass_rate (float): 0.0-1.0 fraction of cases passed
+                - task_type (str): benchmark task category
+                - suite_name (str): benchmark suite identifier
+                - n_trials (int): number of benchmark trials run
+                - avg_score (float): average benchmark score
+        """
+        task_type = benchmark_result.get("task_type", "general")
+        pass_rate = benchmark_result.get("pass_rate", 0.0)
+        avg_score = benchmark_result.get("avg_score", pass_rate)
+
+        logger.debug(
+            f"[FeedbackLoop] Recording benchmark outcome: model={model_id} "
+            f"type={task_type} pass_rate={pass_rate:.2f} avg_score={avg_score:.2f}"
+        )
+
+        self._process_benchmark_result(model_id, task_type, benchmark_result)
+
+    def _process_benchmark_result(
+        self, model_id: str, task_type: str, benchmark_result: Dict
+    ) -> None:
+        """Process a benchmark result and propagate to all learning subsystems."""
+        pass_rate = float(benchmark_result.get("pass_rate", 0.0))
+        n_trials = int(benchmark_result.get("n_trials", 1))
+        avg_score = float(benchmark_result.get("avg_score", pass_rate))
+        suite_name = benchmark_result.get("suite_name", "unknown")
+        bench_task_type = benchmark_result.get("task_type", task_type)
+
+        # Update Thompson Sampling with 3x weight (benchmarks are more reliable)
+        try:
+            from vetinari.learning.model_selector import get_thompson_selector
+            get_thompson_selector().update_from_benchmark(
+                model_id=model_id,
+                pass_rate=pass_rate,
+                n_trials=n_trials,
+                task_type=bench_task_type,
+            )
+        except Exception as e:
+            logger.debug(f"Thompson benchmark update failed: {e}")
+
+        # Update memory store with benchmark-informed performance
+        try:
+            mem = self._get_memory()
+            if mem:
+                existing = mem.get_model_performance(model_id, bench_task_type) or {}
+                old_rate = existing.get("success_rate", 0.7)
+                # Benchmark signals get higher EMA weight
+                benchmark_ema = 0.5
+                new_rate = (1 - benchmark_ema) * old_rate + benchmark_ema * pass_rate
+                mem.update_model_performance(model_id, bench_task_type, {
+                    "success_rate": round(new_rate, 4),
+                    "benchmark_pass_rate": round(pass_rate, 4),
+                    "benchmark_suite": suite_name,
+                    "total_uses": existing.get("total_uses", 0),
+                })
+        except Exception as e:
+            logger.debug(f"Memory benchmark update failed: {e}")
 
     def _update_memory_performance(
         self, model_id: str, task_type: str, quality: float,
@@ -148,6 +233,16 @@ class FeedbackLoop:
             mem.update_subtask_quality(task_id, quality_score=quality, succeeded=success)
         except Exception as e:
             logger.debug(f"Subtask quality update failed: {e}")
+
+    def _update_thompson_arms(
+        self, model_id: str, task_type: str, quality: float, success: bool
+    ) -> None:
+        """Update Thompson Sampling arm for this model+task_type pair."""
+        try:
+            from vetinari.learning.model_selector import get_thompson_selector
+            get_thompson_selector().update(model_id, task_type, quality, success)
+        except Exception as e:
+            logger.debug(f"Thompson arm update failed: {e}")
 
 
 # Singleton

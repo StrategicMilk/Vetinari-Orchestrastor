@@ -116,6 +116,18 @@ class WorkflowLearner:
             success: Whether the plan succeeded.
         """
         domain = self.infer_domain(goal)
+        self._update_pattern(domain, plan_depth, plan_breadth, agents_used, quality_score, success)
+
+    def _update_pattern(
+        self,
+        domain: str,
+        plan_depth: int,
+        plan_breadth: int,
+        agents_used: List[str],
+        quality_score: float,
+        success: bool,
+    ) -> None:
+        """Update the workflow pattern for a domain based on an observed outcome."""
         EMA = 0.3
 
         if domain in self._patterns:
@@ -147,6 +159,145 @@ class WorkflowLearner:
 
         self._save_patterns()
         logger.debug(f"[WorkflowLearner] Updated pattern for domain '{domain}'")
+
+    def learn_from_benchmark(self, benchmark_result: Dict[str, Any]) -> None:
+        """
+        Extract decomposition patterns from benchmark results.
+
+        Analyses successful benchmark runs to learn which workflow structures
+        (depth, breadth, agent sequences) correlate with high benchmark scores.
+        Updates internal patterns so future plans benefit from benchmark insights.
+
+        Args:
+            benchmark_result: Dict with keys:
+                - suite_name (str): benchmark suite identifier
+                - task_type (str): task domain (coding, research, etc.)
+                - pass_rate (float): 0.0-1.0 fraction of cases passed
+                - avg_score (float): average benchmark score
+                - total_cases (int): number of cases in the suite
+                - passed_cases (int): number of cases that passed
+                - results (list[dict]): optional per-case results with metadata
+                - metadata (dict): optional extra metadata (agents_used, depth, breadth)
+        """
+        task_type = benchmark_result.get("task_type", "general")
+        pass_rate = float(benchmark_result.get("pass_rate", 0.0))
+        avg_score = float(benchmark_result.get("avg_score", pass_rate))
+        suite_name = benchmark_result.get("suite_name", "unknown")
+        metadata = benchmark_result.get("metadata", {})
+
+        # Only learn from reasonably successful benchmark runs
+        if pass_rate < 0.3:
+            logger.debug(
+                f"[WorkflowLearner] Skipping benchmark '{suite_name}' with "
+                f"pass_rate={pass_rate:.2f} (too low to extract useful patterns)"
+            )
+            return
+
+        domain = self._infer_domain_from_task_type(task_type)
+
+        # Extract structural hints from metadata if available
+        depth = metadata.get("depth", self._default_depth(domain))
+        breadth = metadata.get("breadth", self._default_breadth(domain))
+        agents_used = metadata.get("agents_used", self._default_agents(domain))
+
+        # Scale learning rate by benchmark quality -- higher pass_rate = stronger signal
+        quality_weight = pass_rate
+
+        logger.debug(
+            f"[WorkflowLearner] Learning from benchmark '{suite_name}': "
+            f"domain={domain}, pass_rate={pass_rate:.2f}, avg_score={avg_score:.2f}"
+        )
+
+        # Update patterns directly using the correctly-inferred domain
+        # (We don't go through record_outcome because its infer_domain uses
+        # keyword matching on the goal string, which may not map benchmark
+        # task_type strings correctly.)
+        agents_list = agents_used if isinstance(agents_used, list) else [agents_used]
+        self._update_pattern(
+            domain=domain,
+            plan_depth=int(depth),
+            plan_breadth=int(breadth),
+            agents_used=agents_list,
+            quality_score=avg_score * quality_weight,
+            success=pass_rate >= 0.5,
+        )
+
+        # Extract per-case patterns from detailed results if available
+        per_case_results = benchmark_result.get("results", [])
+        if per_case_results:
+            self._extract_case_patterns(domain, per_case_results)
+
+    def _extract_case_patterns(
+        self, domain: str, results: List[Dict[str, Any]]
+    ) -> None:
+        """Extract patterns from individual benchmark case results.
+
+        Looks at the highest-scoring cases to identify what made them succeed.
+        """
+        # Sort by score descending; learn from top performers
+        sorted_results = sorted(
+            results,
+            key=lambda r: r.get("score", 0.0),
+            reverse=True,
+        )
+
+        successful = [r for r in sorted_results if r.get("passed", False) or r.get("score", 0) >= 0.7]
+        if not successful:
+            return
+
+        # Aggregate metadata from successful cases to find common patterns
+        agent_freq: Dict[str, int] = {}
+        for result in successful[:10]:  # Top 10 successful cases
+            case_meta = result.get("metadata", {})
+            for agent in case_meta.get("agents_used", []):
+                agent_freq[agent] = agent_freq.get(agent, 0) + 1
+
+        if agent_freq and domain in self._patterns:
+            # Merge successful benchmark agents into preferred_agents
+            pattern = self._patterns[domain]
+            existing_freq: Dict[str, int] = {a: 1 for a in pattern.preferred_agents}
+            for agent, count in agent_freq.items():
+                existing_freq[agent] = existing_freq.get(agent, 0) + count
+            pattern.preferred_agents = sorted(
+                existing_freq, key=existing_freq.get, reverse=True
+            )[:5]
+            self._save_patterns()
+
+    def _infer_domain_from_task_type(self, task_type: str) -> str:
+        """Map a benchmark task_type to our domain categories."""
+        mapping = {
+            "coding": "coding",
+            "code": "coding",
+            "programming": "coding",
+            "research": "research",
+            "analysis": "research",
+            "data": "data",
+            "database": "data",
+            "documentation": "docs",
+            "writing": "docs",
+            "testing": "coding",
+            "review": "coding",
+            "planning": "general",
+        }
+        return mapping.get(task_type.lower(), self.infer_domain(task_type))
+
+    def _default_depth(self, domain: str) -> int:
+        defaults = {"coding": 4, "research": 3, "data": 4, "docs": 2, "general": 3}
+        return defaults.get(domain, 3)
+
+    def _default_breadth(self, domain: str) -> int:
+        defaults = {"coding": 3, "research": 2, "data": 2, "docs": 1, "general": 2}
+        return defaults.get(domain, 2)
+
+    def _default_agents(self, domain: str) -> List[str]:
+        defaults = {
+            "coding": ["EXPLORER", "BUILDER", "TEST_AUTOMATION", "EVALUATOR"],
+            "research": ["RESEARCHER", "LIBRARIAN", "SYNTHESIZER"],
+            "data": ["DATA_ENGINEER", "EVALUATOR"],
+            "docs": ["RESEARCHER", "DOCUMENTATION_AGENT"],
+            "general": ["EXPLORER", "BUILDER", "EVALUATOR"],
+        }
+        return defaults.get(domain, ["EXPLORER", "BUILDER"])
 
     def get_all_patterns(self) -> List[Dict[str, Any]]:
         """Get all learned patterns."""

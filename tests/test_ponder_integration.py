@@ -104,7 +104,7 @@ class TestIntegrationCloudRanking:
         ]
         
         # Mock search to return high relevance for cloud model
-        with patch("vetinari.ponder._get_model_search_candidates", return_value={
+        with patch("vetinari.models.ponder._get_model_search_candidates", return_value={
             "cloud:claude": 0.9,  # High relevance
             "local-model": 0.3   # Low relevance
         }):

@@ -85,7 +85,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
                 timeout=5
             )
             return result.returncode == 0
-        except:
+        except Exception:
             return False
 
     def search(
@@ -117,7 +117,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             return self._parse_results(result.stdout)
 
         except Exception as e:
-            print(f"CocoIndex search error: {e}")
+            logger.error(f"CocoIndex search error: {e}")
             return self._fallback_search(query, limit)
 
     def _parse_results(self, output: str) -> List[CodeSearchResult]:
@@ -206,6 +206,29 @@ class CocoIndexAdapter(CodeSearchAdapter):
 
         return results[:limit]
 
+    def search_symbols(self, name: str, kind: str = None) -> List[CodeSearchResult]:
+        """Search for symbol definitions using AST index."""
+        try:
+            from vetinari.repo_map import get_ast_indexer
+            indexer = get_ast_indexer(self.root_path)
+            symbols = indexer.find_symbol(name)
+            if kind:
+                symbols = [s for s in symbols if s.kind == kind]
+            return [
+                CodeSearchResult(
+                    file_path=s.file_path,
+                    language=self._detect_language(s.file_path),
+                    content=f"{s.kind} {s.name}" + (f" ({s.parent})" if s.parent else ""),
+                    line_start=s.line_start,
+                    line_end=s.line_end,
+                    score=0.9,
+                )
+                for s in symbols
+            ]
+        except Exception as e:
+            logger.debug(f"Symbol search error: {e}")
+            return []
+
     def index_project(self, project_path: str, force: bool = False) -> bool:
         cmd = [
             "uvx", "--prerelease=explicit",
@@ -226,7 +249,7 @@ class CocoIndexAdapter(CodeSearchAdapter):
             )
             return result.returncode == 0
         except Exception as e:
-            print(f"CocoIndex index error: {e}")
+            logger.error(f"CocoIndex index error: {e}")
             return False
 
     def get_status(self) -> SearchBackendStatus:
@@ -287,7 +310,7 @@ class CodeSearchRegistry:
                 'status': status.value,
                 'indexed_projects': adapter.get_indexed_projects() if status == SearchBackendStatus.AVAILABLE else []
             }
-        except:
+        except Exception:
             return {'name': name, 'status': 'error'}
 
 

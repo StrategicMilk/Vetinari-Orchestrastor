@@ -53,6 +53,8 @@ class AutoTuner:
             "retry_backoff_cap": 30,
             "min_quality_threshold": 0.65,
         }
+        # Set of (model_id, task_type) pairs to monitor for retraining
+        self._tracked_pairs: set = set()
 
     def run_cycle(self) -> List[TuningAction]:
         """
@@ -73,6 +75,9 @@ class AutoTuner:
 
         # Check cost trends
         applied.extend(self._tune_from_costs())
+
+        # Check retraining needs (generates manual-approval actions only)
+        applied.extend(self._check_retraining_need())
 
         if applied:
             logger.info(f"[AutoTuner] Applied {len(applied)} tuning actions")
@@ -172,6 +177,39 @@ class AutoTuner:
                 actions.append(action)
         except Exception as e:
             logger.debug(f"Cost tuning failed: {e}")
+        return actions
+
+    def _check_retraining_need(self) -> List[TuningAction]:
+        """Check tracked (model_id, task_type) pairs for retraining need.
+
+        Uses TrainingManager.should_retrain() for each pair.  When retraining
+        is recommended, creates a TuningAction with ``auto_applied=False``
+        so it surfaces as a manual-approval recommendation rather than an
+        automatic change.
+        """
+        actions: List[TuningAction] = []
+        if not self._tracked_pairs:
+            return actions
+        try:
+            from vetinari.learning.training_manager import get_training_manager
+            manager = get_training_manager()
+            for model_id, task_type in list(self._tracked_pairs):
+                try:
+                    rec = manager.should_retrain(model_id, task_type)
+                    if rec.recommended:
+                        action = self._apply(
+                            trigger=f"Quality degradation: {model_id}/{task_type}",
+                            parameter="retrain",
+                            old_val=rec.current_avg_quality,
+                            new_val=rec.recommended_method,
+                            rationale=rec.reason,
+                            auto=False,
+                        )
+                        actions.append(action)
+                except Exception as e:
+                    logger.debug(f"Retraining check failed for {model_id}/{task_type}: {e}")
+        except Exception as e:
+            logger.debug(f"Retraining check skipped: {e}")
         return actions
 
     def _apply(self, trigger: str, parameter: str, old_val: Any, new_val: Any,

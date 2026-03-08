@@ -45,30 +45,25 @@ from .improvement_agent import ImprovementAgent, get_improvement_agent
 from .user_interaction_agent import UserInteractionAgent, get_user_interaction_agent
 
 # New comprehensive orchestration agents
-try:
-    from .devops_agent import DevOpsAgent, get_devops_agent
-except ImportError:
-    DevOpsAgent = None
-    get_devops_agent = None
+from .devops_agent import DevOpsAgent, get_devops_agent
+from .version_control_agent import VersionControlAgent, get_version_control_agent
+from .error_recovery_agent import ErrorRecoveryAgent, get_error_recovery_agent
+from .context_manager_agent import ContextManagerAgent, get_context_manager_agent
+from .image_generator_agent import ImageGeneratorAgent, get_image_generator_agent
 
-# Newly implemented phantom agents (VERSION_CONTROL, ERROR_RECOVERY, CONTEXT_MANAGER)
-try:
-    from .version_control_agent import VersionControlAgent, get_version_control_agent
-except ImportError:
-    VersionControlAgent = None
-    get_version_control_agent = None
+# Consolidated agents (8 primary)
+from .architect_agent import ArchitectAgent, get_architect_agent
+from .tester_agent import TesterAgent, get_tester_agent
+from .documenter_agent import DocumenterAgent, get_documenter_agent
+from .resilience_agent import ResilienceAgent, get_resilience_agent
+from .meta_agent import MetaAgent, get_meta_agent
 
-try:
-    from .error_recovery_agent import ErrorRecoveryAgent, get_error_recovery_agent
-except ImportError:
-    ErrorRecoveryAgent = None
-    get_error_recovery_agent = None
-
-try:
-    from .context_manager_agent import ContextManagerAgent, get_context_manager_agent
-except ImportError:
-    ContextManagerAgent = None
-    get_context_manager_agent = None
+# Consolidation utilities
+from .contracts import (
+    AGENT_CONSOLIDATION_MAP,
+    CONSOLIDATED_AGENT_TYPES,
+    resolve_agent_type,
+)
 
 # Legacy coding bridge support
 from .coding_bridge import (
@@ -137,6 +132,8 @@ __all__ = [
     "get_error_recovery_agent",
     "ContextManagerAgent",
     "get_context_manager_agent",
+    "ImageGeneratorAgent",
+    "get_image_generator_agent",
 
     # Extended agents
     "SecurityAuditorAgent",
@@ -152,6 +149,21 @@ __all__ = [
     "ExperimentationManagerAgent",
     "get_experimentation_manager_agent",
     
+    # Consolidated agents
+    "ArchitectAgent",
+    "get_architect_agent",
+    "TesterAgent",
+    "get_tester_agent",
+    "DocumenterAgent",
+    "get_documenter_agent",
+    "ResilienceAgent",
+    "get_resilience_agent",
+    "MetaAgent",
+    "get_meta_agent",
+    "AGENT_CONSOLIDATION_MAP",
+    "CONSOLIDATED_AGENT_TYPES",
+    "resolve_agent_type",
+
     # Legacy coding bridge support
     "CodingBridge",
     "CodingTask",

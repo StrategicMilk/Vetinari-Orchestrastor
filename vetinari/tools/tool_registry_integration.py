@@ -505,9 +505,14 @@ class GeneratePlanToolWrapper(Tool):
 
 
 def register_all_tools():
-    """Register all tools in the global registry."""
+    """Register all tools in the global registry.
+
+    In addition to the hard-coded tool wrappers defined in this module, this
+    function auto-discovers skill classes from the ``vetinari.tools`` package
+    via :func:`vetinari.tools.get_all_skills` and registers each one.
+    """
     registry = get_tool_registry()
-    
+
     # List of tool instances to register
     tools = [
         WebSearchToolWrapper(),
@@ -518,16 +523,34 @@ def register_all_tools():
         ModelSelectToolWrapper(),
         GeneratePlanToolWrapper(),
     ]
-    
-    # Register each tool
+
+    # Register each hard-coded tool
     for tool in tools:
         try:
             registry.register(tool)
             logger.info(f"Registered tool: {tool.metadata.name}")
         except Exception as e:
             logger.error(f"Failed to register tool {tool.metadata.name}: {e}")
-    
-    return len(tools)
+
+    # Auto-discover and register skill classes from vetinari.tools,
+    # excluding the hard-coded ToolWrapper classes already registered above.
+    from vetinari.tools import get_all_skills
+
+    hard_coded_types = {type(t) for t in tools}
+    discovered = 0
+    for skill_cls in get_all_skills():
+        if skill_cls in hard_coded_types:
+            continue  # Already registered above
+        try:
+            instance = skill_cls()
+            registry.register(instance)
+            logger.info(f"Registered skill: {instance.metadata.name}")
+            discovered += 1
+        except Exception as e:
+            skill_name = getattr(skill_cls, "__name__", repr(skill_cls))
+            logger.error(f"Failed to register skill {skill_name}: {e}")
+
+    return len(tools) + discovered
 
 
 # Auto-register on import
@@ -552,10 +575,10 @@ if __name__ == "__main__":
     
     # Manual registration for testing
     count = register_all_tools()
-    print(f"Registered {count} tools")
-    
+    logger.info(f"Registered {count} tools")
+
     # List registered tools
     registry = get_tool_registry()
-    print("\nRegistered tools:")
+    logger.info("\nRegistered tools:")
     for tool in registry.list_tools():
-        print(f"  - {tool.metadata.name}: {tool.metadata.description}")
+        logger.info(f"  - {tool.metadata.name}: {tool.metadata.description}")

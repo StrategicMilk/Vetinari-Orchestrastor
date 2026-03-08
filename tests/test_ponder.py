@@ -392,6 +392,8 @@ class TestPonderConfig:
         """Should respect custom value"""
         with patch.dict(os.environ, {"PONDER_CLOUD_WEIGHT": "0.35"}):
             import importlib
+            import vetinari.models.ponder
+            importlib.reload(vetinari.models.ponder)
             import vetinari.ponder
             importlib.reload(vetinari.ponder)
             
@@ -509,7 +511,7 @@ class TestFallbackBehavior:
     
     def test_cloud_fallback_graceful(self):
         """Should handle cloud provider errors gracefully"""
-        from vetinari.ponder import _get_model_search_candidates
+        from vetinari.models.ponder import _get_model_search_candidates
         
         # Should return empty dict on error
         with patch("vetinari.model_search.ModelSearchEngine", side_effect=Exception("Simulated error")):

@@ -62,6 +62,7 @@ class PromptEvolver:
     MIN_EFFECT_SIZE = 0.2        # Cohen's d threshold (avoid noise-driven promotions)
     P_VALUE_THRESHOLD = 0.05     # Statistical significance threshold
     MAX_CONCURRENT_TESTS = 3     # Max A/B tests per agent (avoid traffic dilution)
+    BENCHMARK_PASS_THRESHOLD = 0.5  # Minimum benchmark pass rate to promote
 
     def __init__(self, adapter_manager=None):
         self._adapter_manager = adapter_manager
@@ -159,6 +160,14 @@ class PromptEvolver:
                     baseline_scores, variant_scores
                 )
                 if significant and effect_size >= self.MIN_EFFECT_SIZE:
+                    # Benchmark gate: validate variant before promotion
+                    if not self._validate_variant_with_benchmark(v):
+                        logger.info(
+                            f"[PromptEvolver] {v.variant_id} passed stats but "
+                            f"FAILED benchmark validation -- not promoting"
+                        )
+                        continue
+
                     logger.info(
                         f"[PromptEvolver] Promoting {v.variant_id} for {agent_type}: "
                         f"mean_diff={mean_diff:.3f}, effect_size={effect_size:.3f}"
@@ -223,6 +232,58 @@ class PromptEvolver:
                 count_extreme += 1
         p_bootstrap = count_extreme / 1000
         return p_bootstrap < 0.05, cohens_d
+
+    def _validate_variant_with_benchmark(self, variant: PromptVariant) -> bool:
+        """Run a quick benchmark check before promoting a variant.
+
+        Runs a lightweight benchmark (fast tier) for the variant's agent type.
+        If the benchmark pass rate falls below BENCHMARK_PASS_THRESHOLD, the
+        variant is NOT promoted -- this prevents regressions that look good in
+        A/B test averages but fail on standardised tasks.
+
+        Returns True if the variant passes benchmark validation (or if
+        benchmarks are unavailable), False if it fails.
+        """
+        try:
+            from vetinari.benchmarks.suite import BenchmarkSuite
+
+            suite = BenchmarkSuite()
+            result = suite.run_agent(variant.agent_type)
+
+            if result.cases_run == 0:
+                # No benchmark cases for this agent type -- pass by default
+                logger.debug(
+                    f"[PromptEvolver] No benchmark cases for {variant.agent_type}; "
+                    f"skipping benchmark validation"
+                )
+                return True
+
+            pass_rate = result.cases_passed / max(result.cases_run, 1)
+            avg_score = result.avg_score
+
+            logger.debug(
+                f"[PromptEvolver] Benchmark validation for {variant.variant_id}: "
+                f"pass_rate={pass_rate:.3f}, avg_score={avg_score:.3f}, "
+                f"threshold={self.BENCHMARK_PASS_THRESHOLD}"
+            )
+
+            if pass_rate < self.BENCHMARK_PASS_THRESHOLD:
+                return False
+
+            # Also record the benchmark score into the variant's quality history
+            if variant.variant_id not in self._score_history:
+                self._score_history[variant.variant_id] = []
+            self._score_history[variant.variant_id].append(avg_score)
+
+            return True
+
+        except ImportError:
+            logger.debug("[PromptEvolver] Benchmark suite not available; skipping validation")
+            return True
+        except Exception as e:
+            logger.debug(f"[PromptEvolver] Benchmark validation error: {e}")
+            # On error, don't block promotion -- fail open
+            return True
 
     def generate_variant(self, agent_type: str, baseline_prompt: str) -> Optional[str]:
         """Use LLM to generate an improved prompt variant."""

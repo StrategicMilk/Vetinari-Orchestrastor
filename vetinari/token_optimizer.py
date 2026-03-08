@@ -145,7 +145,8 @@ class LocalPreprocessor:
         try:
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
             import requests
-            resp = requests.get(f"{host}/v1/models", timeout=3)
+            from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers
+            resp = requests.get(f"{host}/v1/models", timeout=3, headers=get_lmstudio_headers())
             if resp.status_code == 200:
                 data = resp.json()
                 models = data.get("data", data) if isinstance(data, dict) else data
@@ -213,11 +214,13 @@ class LocalPreprocessor:
             )
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
+            resolved_model = resolve_lmstudio_model(local_model, host)
             import requests
             resp = requests.post(
                 f"{host}/v1/chat/completions",
                 json={
-                    "model": local_model,
+                    "model": resolved_model,
                     "messages": [
                         {"role": "system", "content": "You are a context compression specialist. Compress text while preserving all technically critical information."},
                         {"role": "user", "content": prompt},
@@ -225,6 +228,7 @@ class LocalPreprocessor:
                     "max_tokens": 1000,
                     "temperature": 0.1,
                 },
+                headers=get_lmstudio_headers(),
                 timeout=30,
             )
             if resp.status_code == 200:

@@ -21,7 +21,7 @@ class SecurityAuditorSkill(Tool):
         metadata = ToolMetadata(
             name="security_auditor",
             description="Perform security audits, vulnerability scanning, and policy compliance checks",
-            category=ToolCategory.ANALYSIS,
+            category=ToolCategory.SEARCH_ANALYSIS,
             parameters=[
                 ToolParameter("target", "str", "Code or system to audit", required=True),
                 ToolParameter("focus", "str", "Audit focus: vulnerabilities|compliance|access_control|all", required=False),

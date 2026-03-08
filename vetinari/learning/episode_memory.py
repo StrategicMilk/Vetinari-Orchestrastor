@@ -297,6 +297,10 @@ class EpisodeMemory:
     # Retrieval
     # ------------------------------------------------------------------
 
+    # Episodes with benchmark_score > this threshold get a relevance boost
+    BENCHMARK_BOOST_THRESHOLD = 0.8
+    BENCHMARK_BOOST_FACTOR = 1.5
+
     def recall(
         self,
         query: str,
@@ -306,6 +310,10 @@ class EpisodeMemory:
         successful_only: bool = False,
     ) -> List[Episode]:
         """Return the k most relevant past episodes for a query.
+
+        Episodes with ``benchmark_score > 0.8`` in their metadata receive a
+        1.5x relevance boost, making benchmark-validated episodes surface
+        more readily.
 
         Args:
             query:           The current task description to match against
@@ -329,6 +337,9 @@ class EpisodeMemory:
 
         if not top_ids:
             return []
+
+        # Build a similarity lookup for re-ranking with benchmark boost
+        similarity_map = {ep_id: sim for ep_id, sim in scored[:k * 3]}
 
         # Fetch full records from DB
         try:
@@ -364,6 +375,17 @@ class EpisodeMemory:
                 )
                 for row in rows
             ]
+
+            # Re-rank with benchmark boost: episodes with high benchmark_score
+            # in metadata get 1.5x relevance boost
+            def _boosted_score(ep: Episode) -> float:
+                base = similarity_map.get(ep.episode_id, 0.0)
+                bench_score = ep.metadata.get("benchmark_score", 0.0)
+                if isinstance(bench_score, (int, float)) and bench_score > self.BENCHMARK_BOOST_THRESHOLD:
+                    return base * self.BENCHMARK_BOOST_FACTOR
+                return base
+
+            episodes.sort(key=_boosted_score, reverse=True)
             return episodes[:k]
 
         except Exception as e:

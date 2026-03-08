@@ -15,40 +15,118 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+__all__ = [
+    "AgentType",
+    "AGENT_CONSOLIDATION_MAP",
+    "CONSOLIDATED_AGENT_TYPES",
+    "resolve_agent_type",
+    "TaskStatus",
+    "ExecutionMode",
+    "AgentSpec",
+    "Task",
+    "AgentTask",
+    "Plan",
+    "AgentResult",
+    "VerificationResult",
+    "get_agent_spec",
+    "get_all_agent_specs",
+    "get_enabled_agents",
+    "AGENT_CAPABILITIES",
+    "get_agents_for_expertise",
+    "get_agents_for_phase",
+]
+
 
 class AgentType(Enum):
-    """Enumeration of all Vetinari agents."""
+    """Enumeration of all Vetinari agents.
+
+    Consolidated (8 primary) agents:
+        PLANNER, RESEARCHER, ARCHITECT, BUILDER, TESTER,
+        DOCUMENTER, RESILIENCE, META
+
+    Legacy agent types are preserved for backward compatibility.
+    Use AGENT_CONSOLIDATION_MAP to resolve a legacy type to its
+    consolidated parent.
+    """
+    # --- Consolidated agents (primary) ---
     PLANNER = "PLANNER"
-    EXPLORER = "EXPLORER"
-    LIBRARIAN = "LIBRARIAN"
-    ORACLE = "ORACLE"
     RESEARCHER = "RESEARCHER"
-    EVALUATOR = "EVALUATOR"
-    SYNTHESIZER = "SYNTHESIZER"
+    ARCHITECT = "ARCHITECT"
     BUILDER = "BUILDER"
-    UI_PLANNER = "UI_PLANNER"
-    SECURITY_AUDITOR = "SECURITY_AUDITOR"
-    DATA_ENGINEER = "DATA_ENGINEER"
-    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"
-    COST_PLANNER = "COST_PLANNER"
-    TEST_AUTOMATION = "TEST_AUTOMATION"
-    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"
-    IMPROVEMENT = "IMPROVEMENT"
-    USER_INTERACTION = "USER_INTERACTION"
-    DEVOPS = "DEVOPS"
-    VERSION_CONTROL = "VERSION_CONTROL"
-    ERROR_RECOVERY = "ERROR_RECOVERY"
-    CONTEXT_MANAGER = "CONTEXT_MANAGER"
-    IMAGE_GENERATOR = "IMAGE_GENERATOR"
+    TESTER = "TESTER"
+    DOCUMENTER = "DOCUMENTER"
+    RESILIENCE = "RESILIENCE"
+    META = "META"
+
+    # --- Legacy agent types (kept for backward compat) ---
+    EXPLORER = "EXPLORER"              # → RESEARCHER
+    LIBRARIAN = "LIBRARIAN"            # → RESEARCHER
+    SYNTHESIZER = "SYNTHESIZER"        # → RESEARCHER
+    ORACLE = "ORACLE"                  # → ARCHITECT
+    COST_PLANNER = "COST_PLANNER"      # → ARCHITECT
+    UI_PLANNER = "UI_PLANNER"          # → BUILDER
+    DATA_ENGINEER = "DATA_ENGINEER"    # → BUILDER
+    DEVOPS = "DEVOPS"                  # → BUILDER
+    EVALUATOR = "EVALUATOR"            # → TESTER
+    SECURITY_AUDITOR = "SECURITY_AUDITOR"  # → TESTER
+    TEST_AUTOMATION = "TEST_AUTOMATION"    # → TESTER
+    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"  # → DOCUMENTER
+    VERSION_CONTROL = "VERSION_CONTROL"          # → DOCUMENTER
+    ERROR_RECOVERY = "ERROR_RECOVERY"    # → RESILIENCE
+    IMAGE_GENERATOR = "IMAGE_GENERATOR"  # → RESILIENCE
+    IMPROVEMENT = "IMPROVEMENT"          # → META
+    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"  # → META
+    USER_INTERACTION = "USER_INTERACTION"    # → PLANNER
+    CONTEXT_MANAGER = "CONTEXT_MANAGER"      # → PLANNER
+
+
+# Mapping from legacy agent types to their consolidated parent.
+AGENT_CONSOLIDATION_MAP: Dict[str, str] = {
+    "EXPLORER": "RESEARCHER",
+    "LIBRARIAN": "RESEARCHER",
+    "SYNTHESIZER": "RESEARCHER",
+    "ORACLE": "ARCHITECT",
+    "COST_PLANNER": "ARCHITECT",
+    "UI_PLANNER": "BUILDER",
+    "DATA_ENGINEER": "BUILDER",
+    "DEVOPS": "BUILDER",
+    "EVALUATOR": "TESTER",
+    "SECURITY_AUDITOR": "TESTER",
+    "TEST_AUTOMATION": "TESTER",
+    "DOCUMENTATION_AGENT": "DOCUMENTER",
+    "VERSION_CONTROL": "DOCUMENTER",
+    "ERROR_RECOVERY": "RESILIENCE",
+    "IMAGE_GENERATOR": "RESILIENCE",
+    "IMPROVEMENT": "META",
+    "EXPERIMENTATION_MANAGER": "META",
+    "USER_INTERACTION": "PLANNER",
+    "CONTEXT_MANAGER": "PLANNER",
+}
+
+CONSOLIDATED_AGENT_TYPES = frozenset({
+    AgentType.PLANNER, AgentType.RESEARCHER, AgentType.ARCHITECT,
+    AgentType.BUILDER, AgentType.TESTER, AgentType.DOCUMENTER,
+    AgentType.RESILIENCE, AgentType.META,
+})
+
+
+def resolve_agent_type(agent_type: "AgentType") -> "AgentType":
+    """Resolve a legacy agent type to its consolidated parent."""
+    consolidated = AGENT_CONSOLIDATION_MAP.get(agent_type.value)
+    if consolidated:
+        return AgentType(consolidated)
+    return agent_type
 
 
 class TaskStatus(Enum):
     """Status of a task in the orchestration."""
     PENDING = "pending"
+    ASSIGNED = "assigned"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     WAITING = "waiting"
+    BLOCKED = "blocked"
 
 
 class ExecutionMode(Enum):
@@ -68,6 +146,9 @@ class AgentSpec:
     enabled: bool = True
     system_prompt: str = ""
     version: str = "1.0.0"
+    expertise_areas: List[str] = field(default_factory=list)  # e.g., ["code", "testing", "security"]
+    can_delegate_to: List[str] = field(default_factory=list)  # agent type names this agent can delegate to
+    phase_affinity: str = ""  # "analysis", "implementation", "quality", "devops", "documentation"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -97,7 +178,12 @@ class AgentSpec:
 
 @dataclass
 class Task:
-    """A task in the plan."""
+    """A task in the plan.
+
+    This is the single canonical Task type used across planning, orchestration,
+    and agent execution.  Fields added for planning_engine / planning
+    compatibility all carry defaults so existing call-sites are unaffected.
+    """
     id: str
     description: str
     inputs: List[str] = field(default_factory=list)
@@ -108,6 +194,43 @@ class Task:
     depth: int = 0
     parent_id: str = ""
     status: TaskStatus = TaskStatus.PENDING
+
+    # --- Fields from planning.py -------------------------------------------
+    prompt: str = ""
+    wave_id: str = ""
+    priority: int = 5
+    estimated_effort: float = 1.0
+    retry_count: int = 0
+    result: Any = None
+    error: str = ""
+
+    # --- Fields from planning_engine.py ------------------------------------
+    assigned_model_id: str = ""
+    children: List[str] = field(default_factory=list)
+    owner_id: str = ""
+
+    # --- Additional planning.py scheduling / decomposition fields ----------
+    planned_start: str = ""
+    planned_end: str = ""
+    actual_start: str = ""
+    actual_end: str = ""
+    max_depth: int = 14
+    max_depth_override: int = 0
+    subtasks: List["Task"] = field(default_factory=list)
+    decomposition_seed: str = ""
+    dod_level: str = "Standard"
+    dor_level: str = "Standard"
+
+    # --- Milestone checkpoint fields ---
+    is_milestone: bool = False
+    milestone_name: str = ""
+    requires_approval: bool = False
+
+    # Backward-compat alias used by planning.py (``task.task_id``)
+    @property
+    def task_id(self) -> str:
+        """Alias kept for backward-compatibility with planning.py callers."""
+        return self.id
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -120,22 +243,81 @@ class Task:
             "model_override": self.model_override,
             "depth": self.depth,
             "parent_id": self.parent_id,
-            "status": self.status.value
+            "status": self.status.value,
+            "prompt": self.prompt,
+            "wave_id": self.wave_id,
+            "priority": self.priority,
+            "estimated_effort": self.estimated_effort,
+            "retry_count": self.retry_count,
+            "result": self.result,
+            "error": self.error,
+            "assigned_model_id": self.assigned_model_id,
+            "children": self.children,
+            "owner_id": self.owner_id,
+            "planned_start": self.planned_start,
+            "planned_end": self.planned_end,
+            "actual_start": self.actual_start,
+            "actual_end": self.actual_end,
+            "max_depth": self.max_depth,
+            "max_depth_override": self.max_depth_override,
+            "subtasks": [t.to_dict() for t in self.subtasks],
+            "decomposition_seed": self.decomposition_seed,
+            "dod_level": self.dod_level,
+            "dor_level": self.dor_level,
+            "is_milestone": self.is_milestone,
+            "milestone_name": self.milestone_name,
+            "requires_approval": self.requires_approval,
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Task:
+        subtasks = [Task.from_dict(t) for t in data.get("subtasks", [])]
+        # Accept both enum-style ("PLANNER") and lower-case string ("explorer")
+        raw_agent = data.get("assigned_agent", data.get("agent_type", "PLANNER"))
+        try:
+            agent = AgentType(raw_agent)
+        except ValueError:
+            agent = AgentType(raw_agent.upper()) if raw_agent else AgentType.PLANNER
+        # Accept both enum-style and lower-case status strings
+        raw_status = data.get("status", "pending")
+        try:
+            status = TaskStatus(raw_status)
+        except ValueError:
+            status = TaskStatus.PENDING
         return cls(
-            id=data["id"],
-            description=data["description"],
+            id=data.get("id", data.get("task_id", "")),
+            description=data.get("description", ""),
             inputs=data.get("inputs", []),
             outputs=data.get("outputs", []),
             dependencies=data.get("dependencies", []),
-            assigned_agent=AgentType(data.get("assigned_agent", "PLANNER")),
+            assigned_agent=agent,
             model_override=data.get("model_override", ""),
             depth=data.get("depth", 0),
             parent_id=data.get("parent_id", ""),
-            status=TaskStatus(data.get("status", "pending"))
+            status=status,
+            prompt=data.get("prompt", ""),
+            wave_id=data.get("wave_id", ""),
+            priority=data.get("priority", 5),
+            estimated_effort=data.get("estimated_effort", 1.0),
+            retry_count=data.get("retry_count", 0),
+            result=data.get("result"),
+            error=data.get("error", ""),
+            assigned_model_id=data.get("assigned_model_id", ""),
+            children=data.get("children", []),
+            owner_id=data.get("owner_id", ""),
+            planned_start=data.get("planned_start", ""),
+            planned_end=data.get("planned_end", ""),
+            actual_start=data.get("actual_start", ""),
+            actual_end=data.get("actual_end", ""),
+            max_depth=data.get("max_depth", 14),
+            max_depth_override=data.get("max_depth_override", 0),
+            subtasks=subtasks,
+            decomposition_seed=data.get("decomposition_seed", ""),
+            dod_level=data.get("dod_level", "Standard"),
+            dor_level=data.get("dor_level", "Standard"),
+            is_milestone=data.get("is_milestone", False),
+            milestone_name=data.get("milestone_name", ""),
+            requires_approval=data.get("requires_approval", False),
         )
 
 
@@ -277,6 +459,28 @@ class VerificationResult:
             "suggestions": self.suggestions,
             "score": self.score
         }
+
+
+AGENT_CAPABILITIES: Dict[str, Dict[str, Any]] = {
+    "PLANNER": {"expertise": ["planning", "decomposition", "user_interaction", "context_management"], "phase": "analysis"},
+    "RESEARCHER": {"expertise": ["search", "exploration", "synthesis", "library_lookup"], "phase": "analysis"},
+    "ARCHITECT": {"expertise": ["architecture", "risk_assessment", "cost_analysis", "tradeoff"], "phase": "analysis"},
+    "BUILDER": {"expertise": ["code", "ui", "data", "devops", "implementation"], "phase": "implementation"},
+    "TESTER": {"expertise": ["testing", "security", "evaluation", "quality"], "phase": "quality"},
+    "DOCUMENTER": {"expertise": ["documentation", "git", "technical_writing"], "phase": "documentation"},
+    "RESILIENCE": {"expertise": ["error_recovery", "image_generation", "resilience"], "phase": "implementation"},
+    "META": {"expertise": ["improvement", "experimentation", "metrics"], "phase": "analysis"},
+}
+
+
+def get_agents_for_expertise(expertise: str) -> List[str]:
+    """Return agent types that have the given expertise area."""
+    return [agent for agent, caps in AGENT_CAPABILITIES.items() if expertise in caps["expertise"]]
+
+
+def get_agents_for_phase(phase: str) -> List[str]:
+    """Return agent types with affinity for the given phase."""
+    return [agent for agent, caps in AGENT_CAPABILITIES.items() if caps["phase"] == phase]
 
 
 # Registry of all available agents
@@ -434,6 +638,42 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
         default_model="qwen2.5-72b",
         thinking_variant="medium"
+    ),
+    # --- Consolidated agents ---
+    AgentType.ARCHITECT: AgentSpec(
+        agent_type=AgentType.ARCHITECT,
+        name="Architect",
+        description="Architecture decisions, risk assessment, cost analysis, debugging strategies (absorbs Oracle + Cost Planner)",
+        default_model="qwen3-30b-a3b",
+        thinking_variant="xhigh"
+    ),
+    AgentType.TESTER: AgentSpec(
+        agent_type=AgentType.TESTER,
+        name="Tester",
+        description="Test generation, security audits, code evaluation, coverage improvement (absorbs Test Automation + Security Auditor + Evaluator)",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="high"
+    ),
+    AgentType.DOCUMENTER: AgentSpec(
+        agent_type=AgentType.DOCUMENTER,
+        name="Documenter",
+        description="Documentation, API docs, user guides, git operations, version control (absorbs Documentation + Version Control)",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium"
+    ),
+    AgentType.RESILIENCE: AgentSpec(
+        agent_type=AgentType.RESILIENCE,
+        name="Resilience",
+        description="Failure analysis, retry strategies, fallback planning, asset generation (absorbs Error Recovery + Image Generator)",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
+    ),
+    AgentType.META: AgentSpec(
+        agent_type=AgentType.META,
+        name="Meta",
+        description="System performance analysis, optimization recommendations, experiment tracking (absorbs Improvement + Experimentation Manager)",
+        default_model="qwen2.5-72b",
+        thinking_variant="high"
     ),
 }
 
