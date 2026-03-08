@@ -58,6 +58,14 @@ vault/*.key
 subtasks/
 dry_run_demo_pkg/
 
+# Claude Code / OMC working directories
+.claude/
+.omc/
+
+# Junk artifacts
+nul
+=6.0.0
+
 # OS
 .DS_Store
 Thumbs.db
