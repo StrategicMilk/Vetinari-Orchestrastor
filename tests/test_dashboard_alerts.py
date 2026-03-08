@@ -187,10 +187,10 @@ class TestResolveMetric(unittest.TestCase):
 class TestAlertEngineSingleton(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
+        pass
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_get_alert_engine_returns_same_instance(self):
         e1 = get_alert_engine()
@@ -211,11 +211,10 @@ class TestAlertEngineSingleton(unittest.TestCase):
 class TestThresholdManagement(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_register_threshold(self):
         self.engine.register_threshold(_make_threshold(name="a"))
@@ -252,11 +251,10 @@ class TestThresholdManagement(unittest.TestCase):
 class TestEvaluateAll(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_no_thresholds_returns_empty(self):
         fired = self.engine.evaluate_all(api=_make_mock_api())
@@ -355,11 +353,10 @@ class TestEvaluateAll(unittest.TestCase):
 class TestDurationAlerts(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_duration_not_yet_satisfied(self):
         self.engine.register_threshold(_make_threshold(
@@ -416,11 +413,10 @@ class TestDurationAlerts(unittest.TestCase):
 class TestIntrospection(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_get_stats_initial(self):
         stats = self.engine.get_stats()
@@ -464,11 +460,10 @@ class TestIntrospection(unittest.TestCase):
 class TestDispatchers(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def test_log_dispatcher_called(self):
         with patch.dict(DISPATCHERS, {"log": MagicMock()}):

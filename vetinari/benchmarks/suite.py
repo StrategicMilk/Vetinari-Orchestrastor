@@ -211,6 +211,119 @@ class BenchmarkSuite:
             expected_keys=["summary", "key_facts"],
         ))
 
+        # ---- Agents below were missing benchmark cases ----
+        # They return 0.0 with metadata if the agent isn't available in the graph.
+
+        # EXPLORER: Codebase exploration
+        cases.append(BenchmarkCase(
+            case_id="explorer_scan_001",
+            agent_type="EXPLORER",
+            task_type="coding",
+            description="Explore project structure",
+            input="Scan and summarize the project structure of a Python package",
+            evaluator=lambda o: _score_by_keys(o, ["files", "structure"]),
+            expected_keys=["files", "structure"],
+        ))
+
+        # ORACLE: Knowledge query
+        cases.append(BenchmarkCase(
+            case_id="oracle_query_001",
+            agent_type="ORACLE",
+            task_type="general",
+            description="Answer a technical question",
+            input="Explain the difference between asyncio and threading in Python",
+            evaluator=lambda o: _score_by_keys(o, ["answer", "explanation"]),
+            expected_keys=["answer", "explanation"],
+        ))
+
+        # LIBRARIAN: Reference lookup
+        cases.append(BenchmarkCase(
+            case_id="librarian_lookup_001",
+            agent_type="LIBRARIAN",
+            task_type="research",
+            description="Find library documentation",
+            input="Find documentation references for Python's dataclasses module",
+            evaluator=lambda o: _score_by_keys(o, ["references", "summary"]),
+            expected_keys=["references", "summary"],
+        ))
+
+        # SYNTHESIZER: Output synthesis
+        cases.append(BenchmarkCase(
+            case_id="synthesizer_merge_001",
+            agent_type="SYNTHESIZER",
+            task_type="general",
+            description="Synthesize multiple outputs",
+            input="Combine these outputs into a coherent summary: ['API design done', 'Tests written', 'Docs generated']",
+            evaluator=lambda o: _score_by_keys(o, ["synthesis", "summary"]),
+            expected_keys=["synthesis", "summary"],
+        ))
+
+        # UI_PLANNER: UI design
+        cases.append(BenchmarkCase(
+            case_id="ui_planner_001",
+            agent_type="UI_PLANNER",
+            task_type="coding",
+            description="Plan a dashboard UI",
+            input="Design the UI layout for a metrics dashboard with charts and alerts",
+            evaluator=lambda o: _score_by_keys(o, ["layout", "components"]),
+            expected_keys=["layout", "components"],
+        ))
+
+        # DATA_ENGINEER: Data pipeline
+        cases.append(BenchmarkCase(
+            case_id="data_eng_001",
+            agent_type="DATA_ENGINEER",
+            task_type="coding",
+            description="Design a data pipeline",
+            input="Design an ETL pipeline to process CSV files into a SQLite database",
+            evaluator=lambda o: _score_by_keys(o, ["pipeline", "schema"]),
+            expected_keys=["pipeline", "schema"],
+        ))
+
+        # COST_PLANNER: Cost estimation
+        cases.append(BenchmarkCase(
+            case_id="cost_planner_001",
+            agent_type="COST_PLANNER",
+            task_type="analysis",
+            description="Estimate API costs",
+            input="Estimate the monthly cost of running 10,000 LLM API requests per day",
+            evaluator=lambda o: _score_by_keys(o, ["estimate", "breakdown"]),
+            expected_keys=["estimate", "breakdown"],
+        ))
+
+        # EXPERIMENTATION_MANAGER: Experiment design
+        cases.append(BenchmarkCase(
+            case_id="experiment_mgr_001",
+            agent_type="EXPERIMENTATION_MANAGER",
+            task_type="analysis",
+            description="Design an A/B test",
+            input="Design an experiment to compare two prompt strategies for code generation",
+            evaluator=lambda o: _score_by_keys(o, ["experiment", "metrics"]),
+            expected_keys=["experiment", "metrics"],
+        ))
+
+        # IMPROVEMENT: System improvement suggestions
+        cases.append(BenchmarkCase(
+            case_id="improvement_001",
+            agent_type="IMPROVEMENT",
+            task_type="analysis",
+            description="Suggest system improvements",
+            input="Analyze current system performance and suggest three improvements",
+            evaluator=lambda o: _score_by_keys(o, ["suggestions", "rationale"]),
+            expected_keys=["suggestions", "rationale"],
+        ))
+
+        # USER_INTERACTION: User communication
+        cases.append(BenchmarkCase(
+            case_id="user_interaction_001",
+            agent_type="USER_INTERACTION",
+            task_type="general",
+            description="Format user-facing response",
+            input="Format a progress report for the user about completed tasks",
+            evaluator=lambda o: _score_by_keys(o, ["message", "status"]),
+            expected_keys=["message", "status"],
+        ))
+
         return cases
 
     # ------------------------------------------------------------------
@@ -226,6 +339,25 @@ class BenchmarkSuite:
             result = self.run_agent(agent_type)
             results.append(result)
             self._persist(result)
+
+        # I8: After running benchmarks, feed results to model router
+        try:
+            from vetinari.learning.feedback_loop import get_feedback_loop
+            feedback = get_feedback_loop()
+            for result in results:
+                if result.cases_run > 0:
+                    feedback.record_benchmark_outcome(
+                        model_id="default",
+                        benchmark_result={
+                            "pass_rate": result.cases_passed / max(result.cases_run, 1),
+                            "task_type": result.agent_type.lower(),
+                            "suite_name": f"vetinari_benchmark_{result.agent_type}",
+                            "n_trials": result.cases_run,
+                            "avg_score": result.avg_score,
+                        },
+                    )
+        except Exception as e:
+            logger.debug(f"[Benchmark] Feedback loop integration failed: {e}")
 
         return results
 

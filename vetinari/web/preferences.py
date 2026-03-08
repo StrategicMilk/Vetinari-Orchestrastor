@@ -38,6 +38,15 @@ class UserPreferences:
     show_learning_dashboard: bool = True
     show_agent_status: bool = True
     auto_approve_milestones: bool = False
+    # ── Sampling parameter overrides ────────────────────────────────────────
+    # Users can override the learned/default sampling profiles per task_type
+    # or per model_id. Keys are "task:<task_type>" or "model:<model_id>".
+    # Values are dicts of sampling params: temperature, top_p, top_k, min_p,
+    # repeat_penalty, presence_penalty, frequency_penalty.
+    # Example: {"task:coding": {"temperature": 0.2, "top_p": 0.9},
+    #           "model:qwen3-30b-a3b": {"temperature": 0.7}}
+    # These overrides take highest priority, above learned and default profiles.
+    sampling_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 
 class PreferencesManager:
@@ -89,6 +98,25 @@ class PreferencesManager:
         """Get display name for an agent type."""
         prefs = self.load()
         return prefs.agent_nicknames.get(agent_type, agent_type)
+
+    def get_sampling_override(
+        self, task_type: str = None, model_id: str = None
+    ) -> Dict[str, Any]:
+        """Look up user sampling overrides for a task type and/or model.
+
+        Resolution order (later wins):
+          1. task:<task_type>  overrides
+          2. model:<model_id> overrides
+
+        Returns a merged dict of sampling parameters, or empty dict.
+        """
+        prefs = self.load()
+        merged: Dict[str, Any] = {}
+        if task_type:
+            merged.update(prefs.sampling_overrides.get(f"task:{task_type}", {}))
+        if model_id:
+            merged.update(prefs.sampling_overrides.get(f"model:{model_id}", {}))
+        return merged
 
     def reset(self) -> UserPreferences:
         """Reset to defaults."""
@@ -151,3 +179,45 @@ def get_nickname(agent_type):
     return jsonify(
         {"agent_type": agent_type, "nickname": mgr.get_nickname(agent_type)}
     )
+
+
+@preferences_bp.route("/api/preferences/sampling", methods=["GET"])
+def get_sampling_overrides():
+    """Return current sampling parameter overrides.
+
+    Overrides are keyed by 'task:<task_type>' or 'model:<model_id>'.
+    Values are dicts of sampling parameters (temperature, top_p, etc.).
+    These take highest priority over learned and default profiles.
+    """
+    mgr = get_preferences_manager()
+    prefs = mgr.load()
+    return jsonify(prefs.sampling_overrides)
+
+
+@preferences_bp.route("/api/preferences/sampling", methods=["POST"])
+def update_sampling_overrides():
+    """Update sampling parameter overrides (merge).
+
+    Accepts JSON body: {"task:coding": {"temperature": 0.2}, ...}
+    Merges into existing overrides. Send null/None value to delete a key.
+    """
+    mgr = get_preferences_manager()
+    prefs = mgr.load()
+    updates = request.get_json(silent=True) or {}
+    for key, value in updates.items():
+        if value is None:
+            prefs.sampling_overrides.pop(key, None)
+        else:
+            prefs.sampling_overrides[key] = value
+    mgr.save(prefs)
+    return jsonify(prefs.sampling_overrides)
+
+
+@preferences_bp.route("/api/preferences/sampling/<path:override_key>", methods=["DELETE"])
+def delete_sampling_override(override_key):
+    """Delete a specific sampling override by key (e.g. 'task:coding')."""
+    mgr = get_preferences_manager()
+    prefs = mgr.load()
+    removed = prefs.sampling_overrides.pop(override_key, None)
+    mgr.save(prefs)
+    return jsonify({"deleted": override_key, "existed": removed is not None})

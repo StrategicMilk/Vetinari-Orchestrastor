@@ -29,5 +29,16 @@
   },
   "contexts": ["sample_docs_url", "sample_github_repo"],
   "external_endpoints": {"allowed": true, "endpoints": ["https://docs.example.com", "https://api.example.com", "https://github.com"]},
+  "constraints": {
+    "max_output_tokens": 4096,
+    "required_output_fields": ["result", "confidence"],
+    "quality_threshold": 0.7,
+    "max_retries": 2
+  },
+  "error_handling": {
+    "on_empty_output": "retry_with_simplified_prompt",
+    "on_malformed_output": "extract_partial_and_retry",
+    "retry_strategy": "exponential_backoff"
+  },
   "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["research", "documentation", "libraries", "examples", "api"]}
 }

@@ -27,6 +27,7 @@ from vetinari.tool_interface import (
     ToolCategory,
 )
 from vetinari.execution_context import ToolPermission, ExecutionMode
+from vetinari.tools.output_validation import validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +273,14 @@ class EvaluatorSkillTool(Tool):
             
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
+            # Validate output before returning
+            validation = validate_output(
+                result, required_fields=["success"]
+            )
+            if not validation["valid"]:
+                logger.warning("Evaluator output validation failed: %s", validation["errors"])
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -371,7 +379,7 @@ class EvaluatorSkillTool(Tool):
             recommendations.append("Consider breaking this file into smaller, more focused modules")
         
         quality_score = QualityScore.B if len(issues) <= 2 else QualityScore.C
-        if len(issues) == 0:
+        if not issues:
             quality_score = QualityScore.A
         
         return ReviewResult(
@@ -422,7 +430,7 @@ class EvaluatorSkillTool(Tool):
                     suggestion="Use meaningful variable names that describe the value",
                 ))
         
-        quality_score = QualityScore.A if len(issues) == 0 else (
+        quality_score = QualityScore.A if not issues else (
             QualityScore.B if len(issues) <= 2 else QualityScore.C
         )
         
@@ -625,7 +633,7 @@ class EvaluatorSkillTool(Tool):
         return ReviewResult(
             success=True,
             issues=issues,
-            quality_score=QualityScore.A if len(issues) == 0 else QualityScore.B,
+            quality_score=QualityScore.A if not issues else QualityScore.B,
             summary=f"Best practices check completed. Found {len(issues)} issue(s).",
             recommendations=[
                 "Follow SOLID principles",

@@ -114,7 +114,6 @@ class TestTelemetryCollector(unittest.TestCase):
     """Test TelemetryCollector."""
     
     def setUp(self):
-        reset_telemetry()
         self.collector = get_telemetry_collector()
     
     def test_singleton_instance(self):
@@ -194,7 +193,6 @@ class TestTelemetryThreadSafety(unittest.TestCase):
     """Test thread safety of telemetry collector."""
     
     def setUp(self):
-        reset_telemetry()
         self.collector = get_telemetry_collector()
     
     def test_concurrent_recording(self):

@@ -28,7 +28,6 @@ class TestTelemetryIntegration(unittest.TestCase):
     """Test telemetry collection across the system."""
     
     def setUp(self):
-        reset_telemetry()
         self.telemetry = get_telemetry_collector()
     
     def test_adapter_metrics_collection(self):
@@ -288,7 +287,6 @@ class TestCompleteWorkflow(unittest.TestCase):
         logger = get_logger("workflow_test")
         telemetry = get_telemetry_collector()
         memory = get_dual_memory_store()
-        reset_telemetry()
         
         with CorrelationContext() as ctx:
             trace_id = get_trace_id()

@@ -636,10 +636,43 @@ class PlanModeEngine:
         plan.updated_at = datetime.now().isoformat()
         
         self._persist_plan(plan)
-        
+
+        # I10: Store approval decision in feedback loop for learning
+        try:
+            from vetinari.learning.feedback_loop import get_feedback_loop
+            feedback = get_feedback_loop()
+            feedback.record_outcome(
+                task_id=plan.plan_id,
+                model_id="plan_approval",
+                task_type="plan_approval",
+                quality_score=1.0 if request.approved else 0.0,
+                success=request.approved,
+            )
+        except Exception as e:
+            logger.warning(f"Feedback loop recording for plan approval failed: {e}")
+
+        # I10: Store approval in episode memory for future retrieval
+        try:
+            from vetinari.learning.episode_memory import get_episode_memory
+            episode_mem = get_episode_memory()
+            episode_mem.record(
+                task_description=f"Plan approval: {plan.goal[:200]}",
+                agent_type="PLANNER",
+                task_type="plan_approval",
+                output_summary=f"{'Approved' if request.approved else 'Rejected'} by {request.approver}. "
+                               f"Risk: {plan.risk_score:.2f}. Subtasks: {len(plan.subtasks)}",
+                quality_score=1.0 if request.approved else 0.3,
+                success=request.approved,
+                model_id="plan_mode",
+                metadata={"plan_id": plan.plan_id, "approver": request.approver,
+                          "risk_score": plan.risk_score},
+            )
+        except Exception as e:
+            logger.warning(f"Episode memory recording for plan approval failed: {e}")
+
         logger.info(f"Plan {plan.plan_id} {'approved' if request.approved else 'rejected'} "
                    f"by {request.approver}")
-        
+
         return plan
     
     def get_plan(self, plan_id: str) -> Optional[Plan]:

@@ -15,8 +15,13 @@ Test categories
 """
 
 import importlib
+import os
 import pytest
 from unittest.mock import patch, MagicMock
+
+# Set admin token for tests that hit authenticated endpoints
+_TEST_TOKEN = "test-admin-token-for-integration"
+_AUTH_HEADERS = {"X-Admin-Token": _TEST_TOKEN}
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +154,7 @@ class TestLearningApiBlueprint:
         assert callable(get_quality_history)
         assert callable(get_training_stats)
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_thompson_endpoint_with_flask_test_client(self):
         """GET /api/v1/learning/thompson returns JSON."""
         from flask import Flask
@@ -158,11 +164,12 @@ class TestLearningApiBlueprint:
         app.register_blueprint(learning_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/learning/thompson")
+            resp = client.get("/api/v1/learning/thompson", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "arms" in data
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_quality_history_endpoint(self):
         """GET /api/v1/learning/quality-history returns JSON."""
         from flask import Flask
@@ -172,11 +179,12 @@ class TestLearningApiBlueprint:
         app.register_blueprint(learning_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/learning/quality-history")
+            resp = client.get("/api/v1/learning/quality-history", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "history" in data
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_training_stats_endpoint(self):
         """GET /api/v1/learning/training-stats returns JSON."""
         from flask import Flask
@@ -186,7 +194,7 @@ class TestLearningApiBlueprint:
         app.register_blueprint(learning_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/learning/training-stats")
+            resp = client.get("/api/v1/learning/training-stats", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "stats" in data
@@ -218,6 +226,7 @@ class TestAnalyticsApiBlueprint:
         assert callable(get_anomaly_data)
         assert callable(get_forecast_data)
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_cost_endpoint(self):
         """GET /api/v1/analytics/cost returns JSON."""
         from flask import Flask
@@ -227,11 +236,12 @@ class TestAnalyticsApiBlueprint:
         app.register_blueprint(analytics_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/analytics/cost")
+            resp = client.get("/api/v1/analytics/cost", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "cost" in data
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_sla_endpoint(self):
         """GET /api/v1/analytics/sla returns JSON."""
         from flask import Flask
@@ -241,11 +251,12 @@ class TestAnalyticsApiBlueprint:
         app.register_blueprint(analytics_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/analytics/sla")
+            resp = client.get("/api/v1/analytics/sla", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "sla" in data
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_anomalies_endpoint(self):
         """GET /api/v1/analytics/anomalies returns JSON."""
         from flask import Flask
@@ -255,11 +266,12 @@ class TestAnalyticsApiBlueprint:
         app.register_blueprint(analytics_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/analytics/anomalies")
+            resp = client.get("/api/v1/analytics/anomalies", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "anomalies" in data
 
+    @patch("vetinari.web.shared._ADMIN_TOKEN", _TEST_TOKEN)
     def test_forecasts_endpoint(self):
         """GET /api/v1/analytics/forecasts returns JSON."""
         from flask import Flask
@@ -269,7 +281,7 @@ class TestAnalyticsApiBlueprint:
         app.register_blueprint(analytics_bp)
 
         with app.test_client() as client:
-            resp = client.get("/api/v1/analytics/forecasts")
+            resp = client.get("/api/v1/analytics/forecasts", headers=_AUTH_HEADERS)
             assert resp.status_code == 200
             data = resp.get_json()
             assert "forecasts" in data

@@ -299,6 +299,35 @@ class TwoLayerOrchestrator:
         stages["final_assembly"] = {"output_length": len(str(final_output))}
 
         total_time = int((time.time() - start_time) * 1000)
+
+        # I4: Wire execution results to feedback loop for learning
+        try:
+            from vetinari.learning.feedback_loop import get_feedback_loop
+            feedback = get_feedback_loop()
+            completed = exec_results.get("completed", 0)
+            failed = exec_results.get("failed", 0)
+            total_tasks = completed + failed
+            quality = completed / max(total_tasks, 1)
+            feedback.record_outcome(
+                task_id=graph.plan_id,
+                model_id="orchestrator",
+                task_type="plan_execution",
+                quality_score=quality,
+                latency_ms=total_time,
+                success=failed == 0,
+            )
+        except Exception as e:
+            logger.warning(f"[Pipeline] Feedback loop recording failed: {e}")
+
+        # I6: Periodically check anomaly detector for execution anomalies
+        try:
+            from vetinari.analytics.anomaly import get_anomaly_detector
+            detector = get_anomaly_detector()
+            detector.detect("plan.execution_time_ms", float(total_time))
+            detector.detect("plan.failure_rate", float(failed) / max(total_tasks, 1) if total_tasks > 0 else 0.0)
+        except Exception as e:
+            logger.warning(f"[Pipeline] Anomaly detection check failed: {e}")
+
         return {
             "plan_id": graph.plan_id,
             "goal": goal,
@@ -320,6 +349,9 @@ class TwoLayerOrchestrator:
             "needs_research": False,
             "needs_code": False,
             "needs_ui": False,
+            "intent": "unknown",
+            "suggested_depth": 3,
+            "scope": "single",
         }
         g = goal.lower()
         result["needs_code"] = any(k in g for k in ["code", "implement", "build", "create", "program", "software"])
@@ -329,6 +361,35 @@ class TwoLayerOrchestrator:
                             "research" if result["needs_research"] else "general")
         word_count = len(goal.split())
         result["estimated_complexity"] = "simple" if word_count < 10 else "complex" if word_count > 30 else "medium"
+
+        # Classify intent
+        if any(k in g for k in ["fix", "bug", "error", "broken", "crash"]):
+            result["intent"] = "bugfix"
+        elif any(k in g for k in ["refactor", "clean", "simplify", "reorganize"]):
+            result["intent"] = "refactor"
+        elif any(k in g for k in ["add", "new", "create", "implement", "build"]):
+            result["intent"] = "feature"
+        elif any(k in g for k in ["document", "explain", "describe", "write docs"]):
+            result["intent"] = "documentation"
+        elif any(k in g for k in ["research", "analyze", "investigate", "compare"]):
+            result["intent"] = "research"
+        elif any(k in g for k in ["test", "validate", "verify", "check"]):
+            result["intent"] = "testing"
+        else:
+            result["intent"] = "general"
+
+        # Suggest decomposition depth based on complexity
+        complexity = result["estimated_complexity"]
+        result["suggested_depth"] = {"simple": 2, "medium": 3, "complex": 5}.get(complexity, 3)
+
+        # Determine scope
+        if any(k in g for k in ["full", "entire", "complete", "all", "whole system", "end-to-end"]):
+            result["scope"] = "system"
+        elif any(k in g for k in ["module", "component", "service", "package"]):
+            result["scope"] = "module"
+        else:
+            result["scope"] = "single"
+
         return result
 
     def _make_default_handler(self) -> Callable:
@@ -366,6 +427,30 @@ class TwoLayerOrchestrator:
                     max_tokens = 2048
                     temperature = 0.3
 
+                # Resolve sampling profile for this task + model
+                sampling_kwargs = {}
+                try:
+                    from vetinari.sampling_profile import SamplingProfileManager
+                    spm = SamplingProfileManager()
+                    profile = spm.resolve(
+                        task_type=task.task_type or "general",
+                        model_id=assigned_model,
+                    )
+                    sampling_kwargs = {
+                        "temperature": profile.temperature,
+                        "top_p": profile.top_p,
+                        "top_k": profile.top_k,
+                        "min_p": profile.min_p,
+                        "repeat_penalty": profile.repeat_penalty,
+                        "presence_penalty": profile.presence_penalty,
+                        "frequency_penalty": profile.frequency_penalty,
+                    }
+                    # Token optimizer temperature takes precedence if set
+                    if temperature != 0.3:  # non-default from optimizer
+                        sampling_kwargs["temperature"] = temperature
+                except Exception:
+                    pass
+
                 adapter_manager = self.agent_context.get("adapter_manager")
                 if adapter_manager:
                     try:
@@ -375,7 +460,13 @@ class TwoLayerOrchestrator:
                             prompt=optimised_prompt,
                             system_prompt=f"Execute this {task.task_type or 'general'} task precisely and completely.",
                             max_tokens=max_tokens,
-                            temperature=temperature,
+                            temperature=sampling_kwargs.get("temperature", temperature),
+                            top_p=sampling_kwargs.get("top_p", 0.9),
+                            top_k=sampling_kwargs.get("top_k", 40),
+                            min_p=sampling_kwargs.get("min_p"),
+                            repeat_penalty=sampling_kwargs.get("repeat_penalty"),
+                            presence_penalty=sampling_kwargs.get("presence_penalty"),
+                            frequency_penalty=sampling_kwargs.get("frequency_penalty"),
                         )
                         resp = adapter_manager.infer(req)
                         if resp.status == "ok":
@@ -400,12 +491,32 @@ class TwoLayerOrchestrator:
         return handle_task
 
     def _review_outputs(self, exec_results: Dict[str, Any], goal: str) -> Dict[str, Any]:
-        """Use EvaluatorAgent to review execution outputs for quality."""
+        """Use EvaluatorAgent to review execution outputs for quality, with loop detection."""
+        # Loop detection: check for repeated failure patterns
+        loop_detected = False
+        task_results = exec_results.get("task_results", {})
+        if task_results:
+            error_signatures = []
+            for tid, result in task_results.items():
+                if isinstance(result, dict) and result.get("status") == "error":
+                    sig = result.get("error", "")[:80]
+                    error_signatures.append(sig)
+            # Detect loops: same error appearing 3+ times
+            if error_signatures:
+                from collections import Counter
+                counts = Counter(error_signatures)
+                repeated = {sig: cnt for sig, cnt in counts.items() if cnt >= 3}
+                if repeated:
+                    loop_detected = True
+                    logger.warning(
+                        "[Pipeline] Loop detected in review: %d repeated error patterns",
+                        len(repeated),
+                    )
+
         try:
             evaluator = self._get_agent("EVALUATOR")
             if evaluator:
                 from vetinari.agents.contracts import AgentTask, AgentType
-                task_results = exec_results.get("task_results", {})
                 artifacts = [str(v) for v in task_results.values() if v]
                 eval_task = AgentTask(
                     task_id="review-0",
@@ -415,10 +526,17 @@ class TwoLayerOrchestrator:
                 )
                 result = evaluator.execute(eval_task)
                 if result.success:
-                    return result.output
+                    review = result.output if isinstance(result.output, dict) else {"verdict": "pass", "details": result.output}
+                    review["loop_detected"] = loop_detected
+                    return review
         except Exception as e:
             logger.warning(f"Output review failed: {e}")
-        return {"verdict": "inconclusive", "quality_score": 0.5, "summary": "Review skipped (evaluator unavailable)"}
+        return {
+            "verdict": "inconclusive",
+            "quality_score": 0.5,
+            "summary": "Review skipped (evaluator unavailable)",
+            "loop_detected": loop_detected,
+        }
 
     def _assemble_final_output(self, exec_results: Dict[str, Any],
                                review_result: Dict[str, Any], goal: str) -> str:

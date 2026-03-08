@@ -5,9 +5,12 @@ Monitors SLA compliance and anomaly patterns, then automatically adjusts
 system configuration to maintain performance targets.
 """
 
+import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,11 @@ class AutoTuner:
     MAX_AUTO_CONCURRENT = 8
     MIN_AUTO_CONCURRENT = 1
 
+    _CONFIG_PATH = os.path.join(
+        os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
+        ".vetinari", "auto_tuner_config.json"
+    )
+
     def __init__(self):
         self._actions: List[TuningAction] = []
         self._current_config: Dict[str, Any] = {
@@ -55,6 +63,8 @@ class AutoTuner:
         }
         # Set of (model_id, task_type) pairs to monitor for retraining
         self._tracked_pairs: set = set()
+        # Load persisted config (overrides defaults if file exists)
+        self._load_config()
 
     def run_cycle(self) -> List[TuningAction]:
         """
@@ -120,7 +130,7 @@ class AutoTuner:
                                              auto=True)
                         actions.append(action)
         except Exception as e:
-            logger.debug(f"SLA tuning failed: {e}")
+            logger.warning(f"SLA tuning failed: {e}")
         return actions
 
     def _tune_from_anomalies(self) -> List[TuningAction]:
@@ -146,7 +156,7 @@ class AutoTuner:
                     auto=True
                 )
                 actions.append(action)
-            elif len(recent) == 0 and current_thresh > 2.0:
+            elif not recent and current_thresh > 2.0:
                 new_thresh = round(current_thresh - 0.5, 1)
                 action = self._apply(
                     "Low anomaly rate", "anomaly_threshold",
@@ -156,7 +166,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Anomaly tuning failed: {e}")
+            logger.warning(f"Anomaly tuning failed: {e}")
         return actions
 
     def _tune_from_costs(self) -> List[TuningAction]:
@@ -176,7 +186,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Cost tuning failed: {e}")
+            logger.warning(f"Cost tuning failed: {e}")
         return actions
 
     def _check_retraining_need(self) -> List[TuningAction]:
@@ -207,9 +217,9 @@ class AutoTuner:
                         )
                         actions.append(action)
                 except Exception as e:
-                    logger.debug(f"Retraining check failed for {model_id}/{task_type}: {e}")
+                    logger.warning(f"Retraining check failed for {model_id}/{task_type}: {e}")
         except Exception as e:
-            logger.debug(f"Retraining check skipped: {e}")
+            logger.warning(f"Retraining check skipped: {e}")
         return actions
 
     def _apply(self, trigger: str, parameter: str, old_val: Any, new_val: Any,
@@ -217,6 +227,7 @@ class AutoTuner:
         """Apply a tuning action."""
         if auto:
             self._current_config[parameter] = new_val
+            self._save_config()
 
         action = TuningAction(
             timestamp=datetime.now().isoformat(),
@@ -247,10 +258,31 @@ class AutoTuner:
                 summary=f"AutoTuner: {parameter} {old_val}→{new_val}",
                 provenance="auto_tuner",
             ))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[AutoTuner] Could not log tuning action to memory: {e}")
 
         return action
+
+    def _save_config(self) -> None:
+        """Persist current config to .vetinari/auto_tuner_config.json."""
+        try:
+            os.makedirs(os.path.dirname(self._CONFIG_PATH), exist_ok=True)
+            with open(self._CONFIG_PATH, "w") as f:
+                json.dump(self._current_config, f, indent=2)
+        except Exception as e:
+            logger.warning(f"[AutoTuner] Could not save config: {e}")
+
+    def _load_config(self) -> None:
+        """Load persisted config from .vetinari/auto_tuner_config.json."""
+        try:
+            if os.path.exists(self._CONFIG_PATH):
+                with open(self._CONFIG_PATH) as f:
+                    saved = json.load(f)
+                if isinstance(saved, dict):
+                    self._current_config.update(saved)
+                    logger.debug(f"[AutoTuner] Loaded config from {self._CONFIG_PATH}")
+        except Exception as e:
+            logger.warning(f"[AutoTuner] Could not load config: {e}")
 
     def get_config(self) -> Dict[str, Any]:
         """Get current tuned configuration."""

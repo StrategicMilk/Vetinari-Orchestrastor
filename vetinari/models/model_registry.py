@@ -129,8 +129,6 @@ class ModelInfo:
             "provider": self.provider,
             "capabilities": self.capabilities,
             "context_window": self.context_window,
-            "context_len": self.context_window,       # compat alias
-            "context_length": self.context_window,    # compat alias
             "memory_requirements_gb": self.memory_requirements_gb,
             "quantization": self.quantization,
             "latency_hint": self.latency_hint,
@@ -142,7 +140,6 @@ class ModelInfo:
             "last_seen": self.last_seen,
             "endpoint": self.endpoint,
             "source": self.source,
-            "tags": self.capabilities,  # alias for ponder.py compatibility
         }
 
 
@@ -164,7 +161,8 @@ class ModelRegistry:
         self._last_refresh: float = 0.0
         self._refresh_lock = threading.Lock()
         self._lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
-        self._config_path = Path(__file__).parent.parent / "config" / "models.yaml"
+        # config/models.yaml lives at the project root, not inside vetinari/
+        self._config_path = Path(__file__).parent.parent.parent / "config" / "models.yaml"
 
         # Load static config immediately (no network call)
         self._load_static_config()
@@ -374,7 +372,7 @@ class ModelRegistry:
         return self._models.get(model_id)
 
     def get_all_as_dicts(self) -> List[Dict[str, Any]]:
-        """Return all models as plain dicts (compatible with legacy routing code)."""
+        """Return all models as plain dicts."""
         self.refresh()
         return [m.to_dict() for m in self._models.values()]
 
@@ -383,7 +381,7 @@ class ModelRegistry:
         return [m.to_dict() for m in self.get_loaded_local_models()]
 
     def list_loaded_models(self) -> List[Dict[str, Any]]:
-        """Compat shim for ponder.py which calls adapter.list_loaded_models()."""
+        """Return loaded models as plain dicts."""
         return self.get_loaded_as_dicts()
 
     def register_model(self, info: ModelInfo) -> None:

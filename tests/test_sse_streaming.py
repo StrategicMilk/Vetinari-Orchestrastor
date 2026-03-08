@@ -355,6 +355,10 @@ class TestFlaskBlueprint:
         assert resp.content_type.startswith("text/event-stream")
 
     def test_stream_endpoint_headers(self, client):
+        backend = get_sse_backend()
+        # Pre-load a record so the generator yields immediately
+        backend.send([_make_record("header-test")])
+
         resp = client.get("/api/logs/stream")
         assert resp.headers.get("Cache-Control") == "no-cache"
         assert resp.headers.get("X-Accel-Buffering") == "no"

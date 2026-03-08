@@ -12,6 +12,7 @@ from enum import Enum
 
 from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
 from vetinari.execution_context import ToolPermission, ExecutionMode
+from vetinari.tools.output_validation import validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,11 @@ class ResearcherSkillTool(Tool):
             exec_mode = ctx.mode
             result = self._execute_capability(req, exec_mode)
 
+            # Validate output before returning
+            validation = validate_output(result, required_fields=["success"])
+            if not validation["valid"]:
+                logger.warning("Researcher output validation failed: %s", validation["errors"])
+
             return ToolResult(success=result.success, output=result.to_dict(), error=None if result.success else "Research failed", metadata={"capability": cap.value, "mode": mode.value, "exec_mode": exec_mode.value})
         except Exception as e:
             logger.error(f"Researcher tool failed: {e}")
@@ -127,18 +133,18 @@ class ResearcherSkillTool(Tool):
     def _deep_dive(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would conduct deep dive research")
-        return ResearchResult(success=True, findings=[f"Finding 1 for {req.topic}", f"Finding 2 for {req.topic}"], summary=f"Deep dive research on {req.topic}", sources=["Source 1", "Source 2"], confidence="high" if req.thinking_mode.value in ["high", "xhigh"] else "medium")
+        return ResearchResult(success=True, findings=[f"Finding 1 for {req.topic}", f"Finding 2 for {req.topic}"], summary=f"Deep dive research on {req.topic}", sources=[], confidence="low")
 
     def _source_verification(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would verify sources")
-        return ResearchResult(success=True, findings=["Source verified: Official docs", "Source verified: Academic paper"], summary="Source verification complete", sources=["docs.example.com", "arxiv.org"])
+        return ResearchResult(success=True, findings=["source_verification: not_verified", "No live source verification performed"], summary=f"Source verification requested for {req.topic} but no live verification was performed", sources=[], confidence="low")
 
     def _comparative_analysis(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would perform comparative analysis")
         criteria = req.criteria if req.criteria else ["Performance", "Cost", "Features"]
-        return ResearchResult(success=True, findings=[f"Analysis of {req.topic} against criteria: {', '.join(criteria)}"], summary=f"Comparative analysis for {req.topic}", sources=["Analysis based on public data"])
+        return ResearchResult(success=True, findings=[f"Analysis of {req.topic} against criteria: {', '.join(criteria)}"], summary=f"Comparative analysis for {req.topic}", sources=[], confidence="low")
 
     def _fact_finding(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
@@ -148,7 +154,7 @@ class ResearcherSkillTool(Tool):
     def _comprehensive_report(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:
             return ResearchResult(success=True, summary="Planning: Would generate comprehensive report")
-        return ResearchResult(success=True, findings=["Comprehensive finding 1", "Comprehensive finding 2", "Comprehensive finding 3"], summary=f"Comprehensive report on {req.topic}", sources=["Multiple verified sources"], confidence="high")
+        return ResearchResult(success=True, findings=[f"Comprehensive finding 1 for {req.topic}", f"Comprehensive finding 2 for {req.topic}", f"Comprehensive finding 3 for {req.topic}"], summary=f"Comprehensive report on {req.topic} (source_verification: not_verified)", sources=[], confidence="low")
 
     def _data_collection(self, req: ResearchRequest, exec_mode: ExecutionMode) -> ResearchResult:
         if exec_mode == ExecutionMode.PLANNING:

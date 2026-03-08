@@ -436,13 +436,30 @@ if __name__ == "__main__":
         return artifact
     
     def _run_via_bridge(self, task: CodeTask) -> CodeArtifact:
-        """Run task via external bridge (placeholder)."""
-        
-        logger.info(f"Delegating task {task.task_id} to external bridge at {self.bridge_endpoint}")
-        
-        # Placeholder for external bridge integration
-        # In production, this would make HTTP calls to the bridge service
-        return self._run_in_process(task)
+        """Run task via external bridge with fallback to in-process execution."""
+        bridge_url = os.environ.get("CODING_BRIDGE_ENDPOINT", "http://localhost:4096")
+        try:
+            import requests
+            resp = requests.post(
+                f"{bridge_url}/tasks",
+                json=task.to_dict() if hasattr(task, 'to_dict') else {"task_id": task.task_id, "description": task.description},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info(f"Bridge completed task {task.task_id} via {bridge_url}")
+            return CodeArtifact(
+                artifact_id=data.get("artifact_id", f"art_{uuid.uuid4().hex[:8]}"),
+                task_id=task.task_id,
+                type=ArtifactType.FILE_CONTENTS,
+                path=data.get("path", ""),
+                content=data.get("content", ""),
+                provenance="bridge",
+                language=task.language,
+            )
+        except Exception as e:
+            logger.info(f"Bridge unavailable ({e}), falling back to in-process execution")
+            return self._run_in_process(task)
     
     def run_multi_step_task(self, tasks: List[CodeTask]) -> List[CodeArtifact]:
         """Run multiple coding tasks (scaffold + module + tests)."""

@@ -38,10 +38,12 @@ class SSETransport:
     def create_flask_routes(self):
         """Create Flask Blueprint for SSE-based MCP transport."""
         from flask import Blueprint, Response, request, jsonify
+        from vetinari.web.shared import require_admin_token
 
         bp = Blueprint("mcp", __name__)
 
         @bp.route("/mcp/message", methods=["POST"])
+        @require_admin_token
         def handle_message():
             message = request.get_json(silent=True)
             if not message:
@@ -50,6 +52,7 @@ class SSETransport:
             return jsonify(response)
 
         @bp.route("/mcp/tools", methods=["GET"])
+        @require_admin_token
         def list_tools():
             return jsonify({"tools": self._server.registry.list_tools()})
 

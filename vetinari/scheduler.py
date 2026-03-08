@@ -2,6 +2,8 @@ import logging
 from typing import List, Dict, Set
 from collections import defaultdict, deque
 
+logger = logging.getLogger(__name__)
+
 
 class Scheduler:
     def __init__(self, config: dict, max_concurrent: int = 4):
@@ -44,7 +46,7 @@ class Scheduler:
         for task in tasks:
             for dep in task.get("dependencies", []):
                 if dep not in task_ids:
-                    logging.warning(f"Task {task['id']} has unknown dependency: {dep}")
+                    logger.warning(f"Task {task['id']} has unknown dependency: {dep}")
         
         # Build dependency graph
         task_map = {t["id"]: t for t in tasks}
@@ -60,7 +62,7 @@ class Scheduler:
             # If any dependency is missing, mark this task as unresolvable
             if len(valid_deps) != len(deps):
                 unresolvable.add(task_id)
-                logging.warning(f"Task {task_id} has unknown dependency and will not be scheduled")
+                logger.warning(f"Task {task_id} has unknown dependency and will not be scheduled")
             in_degree[task_id] = len(valid_deps)
             for dep in valid_deps:
                 # Always initialize dependent list and add task_id
@@ -86,7 +88,7 @@ class Scheduler:
             if not ready:
                 # Circular dependency or missing task - log and break
                 remaining = [tid for tid in task_ids if tid not in processed]
-                logging.error(f"Possible circular dependency or missing tasks. Remaining: {remaining}")
+                logger.error(f"Possible circular dependency or missing tasks. Remaining: {remaining}")
                 break
 
             # Emit layers of at most max_concurrent tasks, but keep iterating
@@ -105,7 +107,7 @@ class Scheduler:
                         in_degree[dependent_id] -= 1
         
         if iteration >= max_iterations:
-            logging.error("Scheduler exceeded maximum iterations - possible circular dependency")
+            logger.error("Scheduler exceeded maximum iterations - possible circular dependency")
         
         return layers
 

@@ -24,6 +24,7 @@ from vetinari.web.shared import (
     _get_sse_queue, _push_sse_event, _cleanup_project_state,
     _get_models_cached, trigger_light_search,
     _is_admin_user, _project_external_model_enabled,
+    validate_json_request,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,9 @@ def api_cancel_project(project_id):
 
 @projects_bp.route('/api/new-project', methods=['POST'])
 def api_new_project():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     goal = data.get('goal', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
@@ -177,7 +180,7 @@ def api_new_project():
                 rules_list = [r.strip() for r in project_rules.splitlines() if r.strip()]
                 rm.set_project_rules(project_dir.name, rules_list)
             except Exception as _re:
-                logging.warning(f"Could not save project rules: {_re}")
+                logger.warning(f"Could not save project rules: {_re}")
 
         config_path = project_dir / 'project.yaml'
         with open(config_path, 'w', encoding='utf-8') as f:
@@ -395,10 +398,10 @@ Implement this task. Output the code as code blocks with filenames."""
 
                         logger.info(f"Final deliverable assembled: {final_report_path}")
                     except Exception as assemble_err:
-                        logging.error(f"Error assembling final deliverable: {assemble_err}")
+                        logger.error(f"Error assembling final deliverable: {assemble_err}")
 
                 except Exception as e:
-                    logging.error(f"Error running tasks: {e}")
+                    logger.error(f"Error running tasks: {e}")
                     project_config["status"] = "error"
                     project_config["error"] = str(e)
                     with open(config_path, 'w', encoding='utf-8') as f:
@@ -596,7 +599,9 @@ def api_project(project_id):
 @projects_bp.route('/api/project/<project_id>/message', methods=['POST'])
 def api_project_message(project_id):
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         message = data.get('message', '')
 
         if not message:
@@ -659,7 +664,9 @@ def api_project_message(project_id):
 @projects_bp.route('/api/project/<project_id>/task', methods=['POST'])
 def api_add_task(project_id):
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         project_dir = PROJECT_ROOT / 'projects' / project_id
 
         if not project_dir.exists():
@@ -706,7 +713,9 @@ def api_add_task(project_id):
 @projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['PUT'])
 def api_update_task(project_id, task_id):
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         project_dir = PROJECT_ROOT / 'projects' / project_id
 
         if not project_dir.exists():
@@ -1016,7 +1025,9 @@ def api_task_output(project_id, task_id):
 # API: Rename a project
 @projects_bp.route('/api/project/<project_id>/rename', methods=['POST'])
 def api_rename_project(project_id):
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     new_name = data.get('name', '')
     new_description = data.get('description', '')
 
@@ -1050,7 +1061,9 @@ def api_rename_project(project_id):
 # API: Archive/unarchive a project
 @projects_bp.route('/api/project/<project_id>/archive', methods=['POST'])
 def api_archive_project(project_id):
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     archive = data.get('archive', True)
 
     project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1208,7 +1221,9 @@ def api_artifacts():
 @projects_bp.route('/api/project/<project_id>/files/read', methods=['POST'])
 def api_read_file(project_id):
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         file_path = data.get('path', '')
 
         if not file_path:
@@ -1257,7 +1272,9 @@ def api_read_file(project_id):
 @projects_bp.route('/api/project/<project_id>/files/write', methods=['POST'])
 def api_write_file(project_id):
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         file_path = data.get('path', '')
         content = data.get('content', '')
 
@@ -1338,7 +1355,9 @@ def api_model_search(project_id):
             return jsonify({"error": "External model discovery disabled for this project"}), 403
         from vetinari.live_model_search import LiveModelSearchAdapter
 
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         task_description = data.get('task_description', '')
 
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1370,7 +1389,9 @@ def api_model_search(project_id):
 @projects_bp.route('/api/project/<project_id>/task/<task_id>/override', methods=['POST'])
 def api_task_override(project_id, task_id):
     try:
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         model_id = data.get('model_id', '')
 
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1418,7 +1439,9 @@ def api_verify_goal(project_id):
     """Verify the final deliverable against the original project goal."""
     try:
         from vetinari.goal_verifier import get_goal_verifier
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
 
         goal = data.get('goal', '')
         final_output = data.get('final_output', '')

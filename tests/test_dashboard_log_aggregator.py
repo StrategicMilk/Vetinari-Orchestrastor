@@ -240,10 +240,10 @@ class TestDatadogBackend(unittest.TestCase):
 class TestLogAggregatorSingleton(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
+        pass
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_get_returns_same_instance(self):
         a1 = get_log_aggregator()
@@ -264,11 +264,10 @@ class TestLogAggregatorSingleton(unittest.TestCase):
 class TestBackendManagement(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
         self.agg = get_log_aggregator()
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_configure_file_backend(self):
         with tempfile.TemporaryDirectory() as d:
@@ -297,11 +296,10 @@ class TestBackendManagement(unittest.TestCase):
 class TestIngestion(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
         self.agg = get_log_aggregator()
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_ingest_adds_to_buffer(self):
         self.agg.ingest(_rec("msg1"))
@@ -347,7 +345,6 @@ class TestIngestion(unittest.TestCase):
 class TestSearch(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
         self.agg = get_log_aggregator()
         # Populate with varied records
         now = time.time()
@@ -356,7 +353,7 @@ class TestSearch(unittest.TestCase):
         self.agg.ingest(_rec("gamma", level="INFO",  trace_id="t2", span_id="s3", logger_name="svc.a", ts=now - 10))
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_search_by_trace_id(self):
         results = self.agg.search(trace_id="t1")
@@ -409,11 +406,10 @@ class TestSearch(unittest.TestCase):
 class TestGetStats(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
         self.agg = get_log_aggregator()
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_stats_keys(self):
         stats = self.agg.get_stats()
@@ -432,10 +428,10 @@ class TestGetStats(unittest.TestCase):
 class TestAggregatorHandler(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
+        pass
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_handler_feeds_aggregator(self):
         agg = get_log_aggregator()

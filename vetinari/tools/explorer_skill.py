@@ -26,6 +26,7 @@ from vetinari.tool_interface import (
     ToolCategory,
 )
 from vetinari.execution_context import ToolPermission, ExecutionMode
+from vetinari.tools.output_validation import validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +294,14 @@ class ExplorerSkillTool(Tool):
             
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
+            # Validate output before returning
+            validation = validate_output(
+                result, required_fields=["success"]
+            )
+            if not validation["valid"]:
+                logger.warning("Explorer output validation failed: %s", validation["errors"])
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),

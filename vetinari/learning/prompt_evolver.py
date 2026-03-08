@@ -63,6 +63,8 @@ class PromptEvolver:
     P_VALUE_THRESHOLD = 0.05     # Statistical significance threshold
     MAX_CONCURRENT_TESTS = 3     # Max A/B tests per agent (avoid traffic dilution)
     BENCHMARK_PASS_THRESHOLD = 0.5  # Minimum benchmark pass rate to promote
+    AUTO_VARIANT_QUALITY_THRESHOLD = 0.5  # Trigger variant generation below this quality
+    AUTO_VARIANT_ROLLING_WINDOW = 10      # Number of recent scores to average
 
     def __init__(self, adapter_manager=None):
         self._adapter_manager = adapter_manager
@@ -70,6 +72,9 @@ class PromptEvolver:
         self._variants: Dict[str, List[PromptVariant]] = {}
         # Per-variant score history for statistical testing
         self._score_history: Dict[str, List[float]] = {}
+        # I12: Per-model performance tracking for model-prompt affinity
+        # Key: "variant_id:model_id" -> list of quality scores
+        self._model_affinity: Dict[str, List[float]] = {}
         self._load_variants()
 
     def register_baseline(self, agent_type: str, prompt_text: str) -> None:
@@ -94,16 +99,23 @@ class PromptEvolver:
         )
         self._variants[agent_type].append(variant)
 
+    # Default fallback prompt when no variants are registered for an agent type
+    _FALLBACK_PROMPT = (
+        "You are a helpful AI assistant. Complete the given task accurately, "
+        "completely, and concisely. Follow any formatting instructions provided."
+    )
+
     def select_prompt(self, agent_type: str) -> Tuple[str, str]:
         """
         Select which prompt to use for this invocation.
 
         Returns:
             Tuple of (prompt_text, variant_id).
+            Never returns an empty prompt string — falls back to a sensible default.
         """
         variants = self._variants.get(agent_type, [])
         if not variants:
-            return "", "none"
+            return self._FALLBACK_PROMPT, "fallback"
 
         promoted = [v for v in variants if v.status == "promoted"]
         testing = [v for v in variants if v.status == "testing"]
@@ -111,17 +123,30 @@ class PromptEvolver:
         if testing and random.random() < self.VARIANT_FRACTION:
             # Route to a testing variant
             v = random.choice(testing)
-            return v.prompt_text, v.variant_id
+            if v.prompt_text.strip():
+                return v.prompt_text, v.variant_id
 
         if promoted:
             # Use the best promoted variant
             best = max(promoted, key=lambda v: v.avg_quality if v.trials > 0 else 0.5)
-            return best.prompt_text, best.variant_id
+            if best.prompt_text.strip():
+                return best.prompt_text, best.variant_id
 
-        return "", "default"
+        return self._FALLBACK_PROMPT, "fallback"
 
-    def record_result(self, agent_type: str, variant_id: str, quality: float) -> None:
-        """Record a quality result for a variant and trigger promotion check."""
+    def record_result(self, agent_type: str, variant_id: str, quality: float,
+                      model_id: Optional[str] = None) -> None:
+        """Record a quality result for a variant and trigger promotion check.
+
+        Also checks rolling quality average and auto-generates a new variant
+        if quality falls below AUTO_VARIANT_QUALITY_THRESHOLD.
+
+        Args:
+            agent_type: The agent type string.
+            variant_id: The prompt variant identifier.
+            quality: Quality score 0.0-1.0.
+            model_id: Optional model that produced this result (for I12 affinity tracking).
+        """
         variants = self._variants.get(agent_type, [])
         for v in variants:
             if v.variant_id == variant_id:
@@ -132,7 +157,49 @@ class PromptEvolver:
                 self._score_history[variant_id].append(quality)
                 break
 
+        # I12: Track per-model performance for model-prompt affinity
+        if model_id:
+            affinity_key = f"{variant_id}:{model_id}"
+            if affinity_key not in self._model_affinity:
+                self._model_affinity[affinity_key] = []
+            self._model_affinity[affinity_key].append(quality)
+
         self._check_promotion(agent_type)
+
+        # Auto-trigger variant generation if rolling quality is below threshold
+        try:
+            self._maybe_auto_generate_variant(agent_type)
+        except Exception as e:
+            logger.warning(f"Auto variant generation check failed: {e}")
+
+    def _maybe_auto_generate_variant(self, agent_type: str) -> None:
+        """Check rolling quality average; auto-generate variant if below threshold."""
+        variants = self._variants.get(agent_type, [])
+        if not variants:
+            return
+
+        # Count active testing variants — respect MAX_CONCURRENT_TESTS
+        testing_count = sum(1 for v in variants if v.status == "testing")
+        if testing_count >= self.MAX_CONCURRENT_TESTS:
+            return
+
+        # Get the baseline (promoted) variant's recent scores
+        baseline = next((v for v in variants if v.is_baseline and v.status == "promoted"), None)
+        if not baseline:
+            return
+
+        scores = self._score_history.get(baseline.variant_id, [])
+        recent = scores[-self.AUTO_VARIANT_ROLLING_WINDOW:]
+        if len(recent) < self.AUTO_VARIANT_ROLLING_WINDOW:
+            return  # Not enough data yet
+
+        rolling_avg = sum(recent) / len(recent)
+        if rolling_avg < self.AUTO_VARIANT_QUALITY_THRESHOLD:
+            logger.info(
+                f"[PromptEvolver] Rolling quality for {agent_type} is {rolling_avg:.3f} "
+                f"(below {self.AUTO_VARIANT_QUALITY_THRESHOLD}) — auto-generating variant"
+            )
+            self.generate_variant(agent_type, baseline.prompt_text)
 
     def _check_promotion(self, agent_type: str) -> None:
         """Decide whether to promote, deprecate, or keep testing variants.
@@ -142,7 +209,7 @@ class PromptEvolver:
         """
         variants = self._variants.get(agent_type, [])
         baseline = next((v for v in variants if v.is_baseline and v.status == "promoted"), None)
-        baseline_quality = baseline.avg_quality if baseline and baseline.trials > 0 else 0.65
+        baseline_quality = baseline.avg_quality if baseline and baseline.trials > 0 else 0.5
         baseline_scores = self._score_history.get(
             baseline.variant_id if baseline else "", []
         )
@@ -172,10 +239,31 @@ class PromptEvolver:
                         f"[PromptEvolver] Promoting {v.variant_id} for {agent_type}: "
                         f"mean_diff={mean_diff:.3f}, effect_size={effect_size:.3f}"
                     )
+                    logger.info(
+                        f"[PromptEvolver] Winning prompt for {agent_type}: "
+                        f"{v.prompt_text[:200]}{'...' if len(v.prompt_text) > 200 else ''}"
+                    )
                     v.status = "promoted"
                     v.promoted_at = datetime.now().isoformat()
                     if baseline and v.variant_id != baseline.variant_id:
                         baseline.status = "deprecated"
+                    # I12: Push model affinity data on promotion
+                    try:
+                        from vetinari.learning.feedback_loop import get_feedback_loop
+                        feedback = get_feedback_loop()
+                        for aff_key, aff_scores in self._model_affinity.items():
+                            if aff_key.startswith(f"{v.variant_id}:") and aff_scores:
+                                aff_model = aff_key[len(v.variant_id) + 1:]
+                                avg_aff = sum(aff_scores) / len(aff_scores)
+                                feedback.record_outcome(
+                                    task_id=f"affinity_{v.variant_id}",
+                                    model_id=aff_model,
+                                    task_type=agent_type,
+                                    quality_score=avg_aff,
+                                    success=avg_aff >= 0.5,
+                                )
+                    except Exception as e:
+                        logger.debug(f"[PromptEvolver] Affinity push failed: {e}")
                 else:
                     logger.debug(
                         f"[PromptEvolver] {v.variant_id} improvement not significant "
@@ -341,6 +429,30 @@ Respond with ONLY the improved prompt text, no explanations.""",
                          for v in variants if v.status == "promoted"],
             "testing": len([v for v in variants if v.status == "testing"]),
             "deprecated": len([v for v in variants if v.status == "deprecated"]),
+        }
+
+    def get_model_affinity(self, agent_type: str) -> Dict[str, float]:
+        """I12: Get per-model average quality for all variants of an agent type.
+
+        Returns:
+            Dict mapping model_id to average quality score across all
+            variants for this agent type.
+        """
+        model_scores: Dict[str, List[float]] = {}
+        for key, scores in self._model_affinity.items():
+            parts = key.split(":")
+            if len(parts) >= 2:
+                variant_id = parts[0]
+                model_id = ":".join(parts[1:])
+                # Check if this variant belongs to the requested agent_type
+                variants = self._variants.get(agent_type, [])
+                if any(v.variant_id == variant_id for v in variants):
+                    if model_id not in model_scores:
+                        model_scores[model_id] = []
+                    model_scores[model_id].extend(scores)
+        return {
+            m: round(sum(s) / len(s), 3)
+            for m, s in model_scores.items() if s
         }
 
     def _load_variants(self) -> None:

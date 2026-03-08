@@ -435,8 +435,22 @@ class LMStudioProviderAdapter(ProviderAdapter):
                 ],
                 "temperature": request.temperature,
                 "top_p": request.top_p,
+                "top_k": request.top_k,
                 "max_tokens": request.max_tokens,
             }
+            # Include optional sampling parameters when set
+            if request.min_p is not None:
+                payload["min_p"] = request.min_p
+            if request.repeat_penalty is not None:
+                payload["repeat_penalty"] = request.repeat_penalty
+            if request.presence_penalty is not None:
+                payload["presence_penalty"] = request.presence_penalty
+            if request.frequency_penalty is not None:
+                payload["frequency_penalty"] = request.frequency_penalty
+            if request.seed is not None:
+                payload["seed"] = request.seed
+            if request.stop_sequences:
+                payload["stop"] = request.stop_sequences
 
             response = self.session.post(
                 f"{self.endpoint}/v1/chat/completions",
@@ -500,6 +514,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
         system_prompt: str,
         input_text: str,
         timeout: int = 120,
+        inference_request: Optional[InferenceRequest] = None,
     ) -> Dict[str, Any]:
         """OpenAI-compatible chat returning the legacy Dict envelope.
 
@@ -507,18 +522,42 @@ class LMStudioProviderAdapter(ProviderAdapter):
 
             {"output": str, "latency_ms": int, "tokens_used": int,
              "status": str, "error": str|None}
+
+        Args:
+            inference_request: Optional InferenceRequest to pull sampling
+                parameters from. When provided, its temperature and other
+                sampling fields override defaults.
         """
         resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
+        req = inference_request
         payload = {
             "model": resolved_model,
             "messages": [
                 {"role": "system", "content": system_prompt or ""},
                 {"role": "user", "content": input_text},
             ],
-            "temperature": 0.3,
+            "temperature": req.temperature if req else 0.3,
             "stream": False,
         }
+        # Include sampling parameters from InferenceRequest when available
+        if req is not None:
+            payload["top_p"] = req.top_p
+            payload["top_k"] = req.top_k
+            if req.max_tokens:
+                payload["max_tokens"] = req.max_tokens
+            if req.min_p is not None:
+                payload["min_p"] = req.min_p
+            if req.repeat_penalty is not None:
+                payload["repeat_penalty"] = req.repeat_penalty
+            if req.presence_penalty is not None:
+                payload["presence_penalty"] = req.presence_penalty
+            if req.frequency_penalty is not None:
+                payload["frequency_penalty"] = req.frequency_penalty
+            if req.seed is not None:
+                payload["seed"] = req.seed
+            if req.stop_sequences:
+                payload["stop"] = req.stop_sequences
 
         start = time.time()
         resp = self._post_with_retry(endpoint, payload, timeout=timeout)
@@ -532,11 +571,17 @@ class LMStudioProviderAdapter(ProviderAdapter):
         system_prompt: str,
         input_text: str,
         timeout: int = 180,
+        inference_request: Optional[InferenceRequest] = None,
     ) -> Iterator[str]:
         """Stream chat completion tokens from LM Studio.
 
         Yields individual text chunks as they arrive.  Falls back gracefully
         to a full (non-streamed) response if streaming fails.
+
+        Args:
+            inference_request: Optional InferenceRequest to pull sampling
+                parameters from. When provided, its temperature and other
+                sampling fields override defaults.
 
         Usage::
 
@@ -545,15 +590,34 @@ class LMStudioProviderAdapter(ProviderAdapter):
         """
         resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
+        req = inference_request
         payload = {
             "model": resolved_model,
             "messages": [
                 {"role": "system", "content": system_prompt or ""},
                 {"role": "user", "content": input_text},
             ],
-            "temperature": 0.3,
+            "temperature": req.temperature if req else 0.3,
             "stream": True,
         }
+        # Include sampling parameters from InferenceRequest when available
+        if req is not None:
+            payload["top_p"] = req.top_p
+            payload["top_k"] = req.top_k
+            if req.max_tokens:
+                payload["max_tokens"] = req.max_tokens
+            if req.min_p is not None:
+                payload["min_p"] = req.min_p
+            if req.repeat_penalty is not None:
+                payload["repeat_penalty"] = req.repeat_penalty
+            if req.presence_penalty is not None:
+                payload["presence_penalty"] = req.presence_penalty
+            if req.frequency_penalty is not None:
+                payload["frequency_penalty"] = req.frequency_penalty
+            if req.seed is not None:
+                payload["seed"] = req.seed
+            if req.stop_sequences:
+                payload["stop"] = req.stop_sequences
         headers: Dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"

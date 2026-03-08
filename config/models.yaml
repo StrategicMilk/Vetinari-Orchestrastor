@@ -28,6 +28,7 @@ models:
   # Your main model: discovered dynamically, VL + reasoning + uncensored thinking
   - model_id: "qwen3-vl-32b-gemini-heretic-uncensored-thinking"
     provider: "lmstudio"
+    model_family: "qwen3"
     display_name: "Qwen3 VL 32B Gemini Heretic (Uncensored)"
     capabilities:
       - coding
@@ -54,6 +55,7 @@ models:
   # ── FAST CODER ─────────────────────────────────────────────────────────────
   - model_id: "qwen2.5-coder-7b"
     provider: "lmstudio"
+    model_family: "qwen2.5"
     display_name: "Qwen 2.5 Coder 7B"
     capabilities:
       - coding
@@ -73,6 +75,7 @@ models:
   # ── MEDIUM REASONING ───────────────────────────────────────────────────────
   - model_id: "qwen3-30b-a3b"
     provider: "lmstudio"
+    model_family: "qwen3"
     display_name: "Qwen 3 30B A3B"
     capabilities:
       - reasoning
@@ -93,6 +96,7 @@ models:
   # ── VISION + CODING ────────────────────────────────────────────────────────
   - model_id: "qwen2.5-vl-32b"
     provider: "lmstudio"
+    model_family: "qwen2.5"
     display_name: "Qwen 2.5 VL 32B"
     capabilities:
       - vision
@@ -112,6 +116,7 @@ models:
   # ── LARGE REASONING (CPU offload required) ─────────────────────────────────
   - model_id: "qwen2.5-72b"
     provider: "lmstudio"
+    model_family: "qwen2.5"
     display_name: "Qwen 2.5 72B"
     capabilities:
       - reasoning
@@ -131,6 +136,7 @@ models:
 
   - model_id: "llama-3.3-70b"
     provider: "lmstudio"
+    model_family: "llama"
     display_name: "Llama 3.3 70B"
     capabilities:
       - reasoning
@@ -150,6 +156,7 @@ models:
   # ── TINY / UTILITY ─────────────────────────────────────────────────────────
   - model_id: "llama-3.2-1b"
     provider: "lmstudio"
+    model_family: "llama"
     display_name: "Llama 3.2 1B"
     capabilities:
       - fast
@@ -197,6 +204,7 @@ cloud_models:
   # Claude (Anthropic) ───────────────────────────────────────────────────────
   - model_id: "claude-sonnet-4"
     provider: "claude"
+    model_family: "claude"
     display_name: "Claude Sonnet 4"
     capabilities:
       - reasoning
@@ -213,6 +221,7 @@ cloud_models:
 
   - model_id: "claude-haiku-3"
     provider: "claude"
+    model_family: "claude"
     display_name: "Claude Haiku 3"
     capabilities:
       - fast
@@ -229,6 +238,7 @@ cloud_models:
   # Gemini (Google) ──────────────────────────────────────────────────────────
   - model_id: "gemini-2.0-flash"
     provider: "gemini"
+    model_family: "gemini"
     display_name: "Gemini 2.0 Flash"
     capabilities:
       - reasoning
@@ -245,6 +255,7 @@ cloud_models:
 
   - model_id: "gemini-1.5-pro"
     provider: "gemini"
+    model_family: "gemini"
     display_name: "Gemini 1.5 Pro"
     capabilities:
       - reasoning
@@ -262,6 +273,7 @@ cloud_models:
   # OpenAI ───────────────────────────────────────────────────────────────────
   - model_id: "gpt-4o"
     provider: "openai"
+    model_family: "openai"
     display_name: "GPT-4o"
     capabilities:
       - reasoning
@@ -278,6 +290,7 @@ cloud_models:
 
   - model_id: "gpt-4o-mini"
     provider: "openai"
+    model_family: "openai"
     display_name: "GPT-4o Mini"
     capabilities:
       - coding
@@ -294,6 +307,7 @@ cloud_models:
   # HuggingFace Inference ────────────────────────────────────────────────────
   - model_id: "hf-inference-meta-llama-3.1-70b"
     provider: "huggingface"
+    model_family: "llama"
     display_name: "Llama 3.1 70B (HF)"
     capabilities:
       - reasoning
@@ -309,6 +323,7 @@ cloud_models:
 
   - model_id: "hf-inference-mistral-7b"
     provider: "huggingface"
+    model_family: "mistral"
     display_name: "Mistral 7B (HF)"
     capabilities:
       - coding
@@ -325,6 +340,7 @@ cloud_models:
   # Replicate ────────────────────────────────────────────────────────────────
   - model_id: "replicate-llama-3.1-70b"
     provider: "replicate"
+    model_family: "llama"
     display_name: "Llama 3.1 70B (Replicate)"
     capabilities:
       - reasoning

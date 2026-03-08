@@ -15,3 +15,12 @@ from vetinari.web.variant_system import VariantLevel, VariantManager  # noqa: F4
 from vetinari.web.learning_api import learning_bp  # noqa: F401
 from vetinari.web.analytics_api import analytics_bp  # noqa: F401
 from vetinari.web.log_stream import log_stream_bp  # noqa: F401
+
+__all__ = [
+    "preferences_bp",
+    "learning_bp",
+    "analytics_bp",
+    "log_stream_bp",
+    "VariantLevel",
+    "VariantManager",
+]

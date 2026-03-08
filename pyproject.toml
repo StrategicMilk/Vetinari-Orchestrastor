@@ -7,7 +7,7 @@ name = "vetinari"
 version = "3.4.2"
 description = "AI Orchestration System for Local LLMs"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
     "requests>=2.31",
@@ -37,6 +37,8 @@ ml = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-timeout>=2.2",
+    "pytest-xdist>=3.5",
 ]
 
 [project.scripts]
@@ -44,11 +46,41 @@ vetinari = "vetinari.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-q",
+    "--ignore=outputs",
+    "--ignore=projects",
+    "--ignore=dry_run_demo_pkg",
+]
 markers = [
     "unit: fast unit tests (no external services)",
     "integration: tests requiring external services (LM Studio, web)",
     "slow: long-running tests (benchmarks, full pipeline)",
+    "performance: performance and stress tests",
+    "security: security-related tests",
+    "regression: regression tests from previous phases",
 ]
+timeout = 30
+timeout_method = "thread"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.isort]
+known-first-party = ["vetinari"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 include = ["vetinari*"]

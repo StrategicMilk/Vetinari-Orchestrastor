@@ -159,7 +159,10 @@ class DashboardAPI:
         # In-memory trace storage (Phase 3 integration)
         self._traces: Dict[str, TraceDetail] = {}
         self._trace_list: List[TraceInfo] = []
-        
+
+        # Time-series storage for trace-derived metrics
+        self._trace_timeseries: List[TimeSeriesPoint] = []
+
         logger.info("DashboardAPI initialized")
     
     # === Metrics Endpoints ===
@@ -393,6 +396,31 @@ class DashboardAPI:
             avg_value=sum(all_latencies) / len(all_latencies) if all_latencies else 0.0
         )
     
+    # === Forecast Endpoints ===
+
+    def get_forecast(self, metric: str, horizon: int = 10,
+                     method: str = "linear_trend") -> Optional[Dict[str, Any]]:
+        """
+        Get a forecast for a metric from the Forecaster.
+
+        Args:
+            metric: Metric name to forecast
+            horizon: Number of future steps to predict
+            method: Forecasting method (sma, exp_smoothing, linear_trend, seasonal)
+
+        Returns:
+            Dict with forecast data, or None if forecaster unavailable
+        """
+        try:
+            from vetinari.analytics.forecasting import get_forecaster, ForecastRequest
+            forecaster = get_forecaster()
+            request = ForecastRequest(metric=metric, horizon=horizon, method=method)
+            result = forecaster.forecast(request)
+            return result.to_dict()
+        except Exception as e:
+            logger.warning(f"Forecast request failed for metric '{metric}': {e}")
+            return None
+
     # === Trace Endpoints ===
     
     def search_traces(self, trace_id: Optional[str] = None, 
@@ -457,11 +485,34 @@ class DashboardAPI:
                 )
                 self._trace_list.append(trace_info)
                 
+                # Record trace duration as a time-series data point
+                self._trace_timeseries.append(TimeSeriesPoint(
+                    timestamp=trace_detail.start_time,
+                    value=trace_detail.duration_ms,
+                    metadata={
+                        "trace_id": trace_detail.trace_id,
+                        "status": trace_detail.status,
+                        "span_count": len(trace_detail.spans),
+                    }
+                ))
+
+                # Feed trace latency into the forecaster for capacity planning
+                try:
+                    from vetinari.analytics.forecasting import get_forecaster
+                    forecaster = get_forecaster()
+                    forecaster.ingest("trace.duration_ms", trace_detail.duration_ms)
+                except Exception:
+                    pass  # Forecaster is optional
+
                 # Keep only last 1000 traces
                 if len(self._trace_list) > 1000:
                     oldest = self._trace_list.pop(0)
                     self._traces.pop(oldest.trace_id, None)
-                
+
+                # Cap time-series storage at 5000 points
+                if len(self._trace_timeseries) > 5000:
+                    self._trace_timeseries = self._trace_timeseries[-5000:]
+
                 logger.debug(f"Trace added: {trace_detail.trace_id}")
                 return True
             except Exception as e:

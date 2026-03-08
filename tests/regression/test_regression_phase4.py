@@ -31,12 +31,11 @@ class TestDashboardAPIContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        reset_dashboard()
         cls.api = get_dashboard_api()
 
     @classmethod
     def tearDownClass(cls):
-        reset_dashboard()
+        pass
 
     # MetricsSnapshot contract
     def test_get_latest_metrics_returns_snapshot(self):
@@ -104,14 +103,13 @@ class TestRESTAPIContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        reset_dashboard()
         app = create_app()
         app.config["TESTING"] = True
         cls.client = app.test_client()
 
     @classmethod
     def tearDownClass(cls):
-        reset_dashboard()
+        pass
 
     def _json(self, path):
         r = self.client.get(path)
@@ -173,11 +171,10 @@ from vetinari.dashboard.alerts import (
 class TestAlertEngineContract(unittest.TestCase):
 
     def setUp(self):
-        reset_alert_engine()
         self.engine = get_alert_engine()
 
     def tearDown(self):
-        reset_alert_engine()
+        pass
 
     def _mock_api(self, latency=100.0):
         snap = MagicMock()
@@ -241,11 +238,10 @@ from vetinari.dashboard.log_aggregator import (
 class TestLogAggregatorContract(unittest.TestCase):
 
     def setUp(self):
-        reset_log_aggregator()
         self.agg = get_log_aggregator()
 
     def tearDown(self):
-        reset_log_aggregator()
+        pass
 
     def test_ingest_and_retrieve(self):
         self.agg.ingest(LogRecord(message="reg-test", trace_id="r-001"))

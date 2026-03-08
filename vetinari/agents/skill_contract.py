@@ -246,6 +246,6 @@ def self_check(output: SkillOutput) -> SkillOutput:
     if output.confidence == 0.0:
         issues.append("Confidence is 0.0 — was it actually computed?")
 
-    output.self_check_passed = len(issues) == 0
+    output.self_check_passed = not issues
     output.self_check_issues = issues
     return output

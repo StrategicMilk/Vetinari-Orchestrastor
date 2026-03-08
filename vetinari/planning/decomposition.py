@@ -20,6 +20,10 @@ MAX_MAX_DEPTH = 16
 SEED_RATE = 0.3   # 30% of tasks seeded with refined subtasks
 SEED_MIX = 0.5    # Balance between breadth and depth seeding
 
+# Guard-rails to prevent combinatorial explosion
+MAX_BREADTH_PER_LEVEL = 10   # Max subtasks at any single decomposition level
+MAX_TOTAL_TASKS = 200        # Hard cap on total tasks across the entire plan
+
 # Definition of Done criteria per level
 _DOD_CRITERIA = {
     "Light": [
@@ -156,6 +160,112 @@ class DecompositionEngine:
                     "Gather sources and references",
                     "Analyze and synthesize findings",
                     "Write research report",
+                ],
+            },
+            {
+                "template_id": "rest_api",
+                "name": "REST API",
+                "keywords": ["api", "rest", "endpoint", "server", "http", "backend"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define API specification and endpoints",
+                    "Set up project structure and framework",
+                    "Implement data models and validation",
+                    "Implement route handlers and middleware",
+                    "Add authentication and authorization",
+                    "Write integration and unit tests",
+                    "Generate API documentation",
+                ],
+            },
+            {
+                "template_id": "cli_tool",
+                "name": "CLI Tool",
+                "keywords": ["cli", "command", "terminal", "console", "script"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define command structure and arguments",
+                    "Set up CLI framework and entry point",
+                    "Implement core commands",
+                    "Add input validation and error handling",
+                    "Write tests for each command",
+                    "Add help text and usage documentation",
+                ],
+            },
+            {
+                "template_id": "ml_ai",
+                "name": "ML/AI Task",
+                "keywords": ["ml", "ai", "model", "train", "predict", "neural", "machine learning"],
+                "agent_type": "DATA_ENGINEER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Define problem statement and success metrics",
+                    "Collect and preprocess data",
+                    "Exploratory data analysis",
+                    "Select and implement model architecture",
+                    "Train and validate model",
+                    "Evaluate performance and iterate",
+                    "Package model for deployment",
+                    "Write evaluation report",
+                ],
+            },
+            {
+                "template_id": "library",
+                "name": "Library / Package",
+                "keywords": ["library", "package", "sdk", "module", "pip", "npm"],
+                "agent_type": "BUILDER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Define public API surface and contracts",
+                    "Set up package structure and build tooling",
+                    "Implement core functionality",
+                    "Add error handling and edge cases",
+                    "Write comprehensive unit tests",
+                    "Generate API documentation",
+                    "Add usage examples and README",
+                ],
+            },
+            {
+                "template_id": "bug_fix",
+                "name": "Bug Fix",
+                "keywords": ["bug", "fix", "error", "broken", "crash", "issue", "defect"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Reproduce the bug and document steps",
+                    "Identify root cause via debugging",
+                    "Implement the fix",
+                    "Write regression test",
+                    "Verify fix does not introduce side effects",
+                ],
+            },
+            {
+                "template_id": "refactor",
+                "name": "Refactor",
+                "keywords": ["refactor", "clean", "simplify", "reorganize", "restructure", "technical debt"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Identify code smells and improvement targets",
+                    "Ensure existing test coverage is adequate",
+                    "Refactor incrementally with passing tests",
+                    "Update affected documentation",
+                    "Verify no behavioral changes via test suite",
+                ],
+            },
+            {
+                "template_id": "documentation",
+                "name": "Documentation",
+                "keywords": ["docs", "documentation", "readme", "guide", "tutorial", "wiki"],
+                "agent_type": "DOCUMENTATION_AGENT",
+                "dod_level": "Light",
+                "subtasks": [
+                    "Audit existing documentation gaps",
+                    "Define documentation structure and outline",
+                    "Write core content and examples",
+                    "Add diagrams and visual aids",
+                    "Review for accuracy and completeness",
                 ],
             },
         ]

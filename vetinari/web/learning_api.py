@@ -15,12 +15,15 @@ import logging
 
 from flask import Blueprint, jsonify
 
+from vetinari.web.shared import require_admin_token
+
 logger = logging.getLogger(__name__)
 
 learning_bp = Blueprint("learning", __name__)
 
 
 @learning_bp.route("/api/v1/learning/thompson")
+@require_admin_token
 def get_thompson_arms():
     """Return Thompson Sampling arm states."""
     try:
@@ -45,6 +48,7 @@ def get_thompson_arms():
 
 
 @learning_bp.route("/api/v1/learning/quality-history")
+@require_admin_token
 def get_quality_history():
     """Return quality score time series."""
     try:
@@ -69,6 +73,7 @@ def get_quality_history():
 
 
 @learning_bp.route("/api/v1/learning/training-stats")
+@require_admin_token
 def get_training_stats():
     """Return training data statistics."""
     try:

@@ -9,7 +9,6 @@ from vetinari.analytics.anomaly import (
 
 
 def _engine():
-    reset_anomaly_detector()
     e = get_anomaly_detector()
     e.configure(AnomalyConfig(window_size=20, z_threshold=2.5,
                               iqr_factor=1.5, ewma_alpha=0.3,

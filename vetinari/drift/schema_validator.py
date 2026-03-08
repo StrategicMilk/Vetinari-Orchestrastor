@@ -179,7 +179,7 @@ class SchemaValidator:
 
     def is_valid(self, schema_name: str, obj: Any) -> bool:
         """Return True when validation produces no errors."""
-        return len(self.validate(schema_name, obj)) == 0
+        return not self.validate(schema_name, obj)
 
     # ------------------------------------------------------------------
     # Built-in Vetinari schemas

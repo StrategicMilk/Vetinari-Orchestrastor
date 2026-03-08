@@ -12,7 +12,8 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
-from vetinari.web.shared import PROJECT_ROOT, current_config, get_orchestrator, _is_admin_user
+from vetinari.constants import SD_WEBUI_HOST as _SD_WEBUI_HOST
+from vetinari.web.shared import PROJECT_ROOT, current_config, get_orchestrator, _is_admin_user, validate_json_request
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ def api_admin_set_credential(source_type):
     try:
         from vetinari.credentials import credential_manager
 
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         token = data.get('token', '')
         credential_type = data.get('credential_type', 'bearer')
         rotation_days = data.get('rotation_days', 30)
@@ -77,7 +80,9 @@ def api_admin_rotate_credential(source_type):
     try:
         from vetinari.credentials import credential_manager
 
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         new_token = data.get('token', '')
 
         if not new_token:
@@ -274,7 +279,9 @@ def api_decisions_pending():
 @admin_bp.route('/api/decisions', methods=['POST'])
 def api_decisions_submit():
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         decision_id = data.get("decision_id")
         choice = data.get("choice")
 
@@ -320,7 +327,9 @@ def api_model_get(model_id):
 def api_model_select():
     try:
         from vetinari.model_relay import model_relay
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         selection = model_relay.pick_model_for_task(
             task_type=data.get('task_type'),
@@ -345,7 +354,9 @@ def api_model_policy_get():
 def api_model_policy_update():
     try:
         from vetinari.model_relay import model_relay, RoutingPolicy
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         policy = RoutingPolicy.from_dict(data)
         model_relay.set_policy(policy)
@@ -374,7 +385,9 @@ def api_models_reload():
 def api_sandbox_execute():
     try:
         from vetinari.sandbox import sandbox_manager
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         result = sandbox_manager.execute(
             code=data.get('code', ''),
@@ -441,7 +454,9 @@ def api_code_search():
 def api_search_index():
     try:
         from vetinari.code_search import code_search_registry
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         project_path = data.get('project_path')
         backend = data.get('backend', 'cocoindex')
@@ -519,7 +534,9 @@ def api_adr_get(adr_id):
 def api_adr_create():
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         title = data.get('title')
         category = data.get('category', 'architecture')
@@ -548,7 +565,9 @@ def api_adr_create():
 def api_adr_update(adr_id):
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         adr = adr_system.update_adr(adr_id, data)
 
@@ -564,7 +583,9 @@ def api_adr_update(adr_id):
 def api_adr_deprecate(adr_id):
     try:
         from vetinari.adr import adr_system
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
 
         replacement_id = data.get('replacement_id')
 
@@ -582,7 +603,9 @@ def api_adr_deprecate(adr_id):
 def api_adr_propose():
     try:
         from vetinari.adr import adr_system, ADRProposal
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         context = data.get('context', '')
         num_options = int(data.get('num_options', 3))
@@ -603,7 +626,9 @@ def api_adr_propose():
 def api_adr_propose_accept():
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         question = data.get('question', '')
         options = data.get('options', [])
@@ -653,7 +678,9 @@ def api_ponder_choose_model():
     try:
         from vetinari.ponder import rank_models, get_available_models
 
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         task_description = data.get("task_description", "")
         top_n = data.get("top_n", 3)
         template_version = data.get("template_version", "v1")
@@ -756,7 +783,9 @@ def api_rules_global():
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
         if request.method == 'POST':
-            data = request.json or {}
+            data, err = validate_json_request()
+            if err:
+                return err
             rules = data.get('rules', [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
@@ -774,7 +803,9 @@ def api_rules_global_prompt():
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
         if request.method == 'POST':
-            data = request.json or {}
+            data, err = validate_json_request()
+            if err:
+                return err
             rm.set_global_system_prompt(data.get('prompt', ''))
             return jsonify({"status": "saved"})
         return jsonify({"prompt": rm.get_global_system_prompt()})
@@ -789,7 +820,9 @@ def api_rules_project(project_id):
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
         if request.method == 'POST':
-            data = request.json or {}
+            data, err = validate_json_request()
+            if err:
+                return err
             rules = data.get('rules', [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
@@ -807,7 +840,9 @@ def api_rules_model(model_id):
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
         if request.method == 'POST':
-            data = request.json or {}
+            data, err = validate_json_request()
+            if err:
+                return err
             rules = data.get('rules', [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
@@ -826,14 +861,16 @@ def api_generate_image():
     try:
         from vetinari.agents.image_generator_agent import get_image_generator_agent
         from vetinari.agents.contracts import AgentTask
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
 
         description = data.get('description', '')
         if not description:
             return jsonify({"error": "description required"}), 400
 
         agent = get_image_generator_agent({
-            "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),
+            "sd_host": current_config.get("sd_host", _SD_WEBUI_HOST),
             "sd_enabled": data.get("sd_enabled", True),
             "width": data.get("width", 512),
             "height": data.get("height", 512),
@@ -862,7 +899,7 @@ def api_sd_status():
     """Check Stable Diffusion WebUI connection status."""
     try:
         import requests as _req
-        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))
+        host = current_config.get("sd_host", _SD_WEBUI_HOST)
         resp = _req.get(f"{host}/sdapi/v1/options", timeout=5)
         if resp.status_code == 200:
             return jsonify({"status": "connected", "host": host})
@@ -890,7 +927,9 @@ def api_training_export():
     """Export training data for a given format."""
     try:
         from vetinari.learning.training_data import get_training_collector
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         export_format = data.get('format', 'sft')  # sft | dpo | prompts
         collector = get_training_collector()
 
@@ -915,7 +954,9 @@ def api_training_start():
     """Start a training run (async)."""
     try:
         from vetinari.training.pipeline import TrainingPipeline
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
 
         tier = data.get('tier', 'general')        # general|coding|research|review|individual
         model_id = data.get('model_id', '')

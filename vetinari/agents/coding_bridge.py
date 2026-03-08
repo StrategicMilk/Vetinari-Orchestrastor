@@ -550,11 +550,3 @@ def init_coding_bridge(endpoint: str = None, api_key: str = None) -> CodingBridg
     return _coding_bridge
 
 
-# ---------------------------------------------------------------------------
-# Legacy aliases so ``from vetinari.agents.coding_bridge import CodeBridge``
-# works for callers that used the old coding_agent.bridge module.
-# ---------------------------------------------------------------------------
-
-CodeBridge = CodingBridge
-get_code_bridge = get_coding_bridge
-init_code_bridge = init_coding_bridge

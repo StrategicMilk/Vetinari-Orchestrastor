@@ -212,39 +212,47 @@ class SemanticMemoryStore:
         self._conn.commit()
 
     def _init_embedding_provider(self):
-        """Initialize the embedding provider."""
+        """Initialize the embedding provider.
+
+        Tries sentence-transformers first (real semantic embeddings),
+        falls back to TF-IDF character n-gram approach.
+        """
+        self._st_model = None
         try:
-            # Try to use sentence-transformers if available
             from sentence_transformers import SentenceTransformer
+            self._st_model = SentenceTransformer("all-MiniLM-L6-v2")
             self._embedding_provider = "sentence_transformers"
             logger.info("Using sentence-transformers for embeddings")
-        except ImportError:
-            try:
-                # Try OpenAI embeddings
-                import openai
-                self._embedding_provider = "openai"
-                logger.info("Using OpenAI for embeddings")
-            except ImportError:
-                logger.warning("No embedding provider available, using simple hashing")
-                self._embedding_provider = "simple"
+        except Exception:
+            logger.info("sentence-transformers unavailable, using TF-IDF character n-gram embeddings")
+            self._embedding_provider = "tfidf"
 
     def _get_embedding(self, text: str) -> List[float]:
         """Get embedding for text."""
-        if self._embedding_provider == "sentence_transformers":
-            # This would require loading the model - simplified here
-            return self._simple_embedding(text)
-        elif self._embedding_provider == "openai":
-            # This would call OpenAI API - simplified here
-            return self._simple_embedding(text)
+        if self._embedding_provider == "sentence_transformers" and self._st_model is not None:
+            try:
+                vec = self._st_model.encode(text).tolist()
+                return vec
+            except Exception as e:
+                logger.warning(f"sentence-transformers encoding failed, falling back to TF-IDF: {e}")
+                return self._tfidf_embedding(text)
         else:
-            return self._simple_embedding(text)
+            return self._tfidf_embedding(text)
 
-    def _simple_embedding(self, text: str) -> List[float]:
-        """Simple hash-based embedding for fallback."""
-        # Simple deterministic hash-based vector
-        hash_val = hashlib.sha256(text.encode()).digest()
-        # Convert to float list
-        return [float(b) / 255.0 for b in hash_val[:32]]
+    def _tfidf_embedding(self, text: str, dim: int = 256) -> List[float]:
+        """TF-IDF character n-gram embedding fallback.
+
+        Produces a deterministic, normalised vector from character trigrams.
+        Not as powerful as a learned model but captures lexical similarity
+        far better than a raw SHA-256 hash.
+        """
+        ngrams = [text[i:i+3] for i in range(len(text)-2)]
+        vec = [0.0] * dim
+        for ng in ngrams:
+            idx = hash(ng) % dim
+            vec[idx] += 1.0
+        norm = max(sum(v*v for v in vec) ** 0.5, 1e-8)
+        return [v / norm for v in vec]
 
     def store(self, entry: MemoryEntry) -> bool:
         """Store a memory entry."""

@@ -65,7 +65,7 @@ from .contracts import (
     resolve_agent_type,
 )
 
-# Legacy coding bridge support
+# Coding bridge
 from .coding_bridge import (
     CodingBridge,
     CodingTask,
@@ -164,7 +164,7 @@ __all__ = [
     "CONSOLIDATED_AGENT_TYPES",
     "resolve_agent_type",
 
-    # Legacy coding bridge support
+    # Coding bridge
     "CodingBridge",
     "CodingTask",
     "CodingResult",

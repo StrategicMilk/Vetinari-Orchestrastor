@@ -339,9 +339,12 @@ class TestAdapters:
         assert len(suites) == 5  # all 5 adapters
 
     def test_adapter_evaluate(self):
+        from unittest.mock import patch
         from vetinari.benchmarks.swe_bench import SWEBenchAdapter
         adapter = SWEBenchAdapter()
         cases = adapter.load_cases(limit=1)
-        result = adapter.run_case(cases[0], "test-run")
+        # Mock the orchestrator to avoid full pipeline execution (hangs without LLM)
+        with patch.object(adapter, '_generate_patch_via_orchestrator', side_effect=RuntimeError("no LLM")):
+            result = adapter.run_case(cases[0], "test-run")
         score = adapter.evaluate(result)
         assert 0.0 <= score <= 1.0

@@ -27,14 +27,10 @@ class TestTelemetryToDashboard(unittest.TestCase):
     def setUpClass(cls):
         from vetinari.telemetry import get_telemetry_collector, reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
-        reset_telemetry()
-        reset_dashboard()
 
     def tearDown(self):
         from vetinari.telemetry import reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
-        reset_telemetry()
-        reset_dashboard()
 
     def test_adapter_metrics_visible_in_snapshot(self):
         from vetinari.telemetry import get_telemetry_collector
@@ -77,17 +73,11 @@ class TestTelemetryToAlerts(unittest.TestCase):
         from vetinari.telemetry import reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
         from vetinari.dashboard.alerts import reset_alert_engine
-        reset_telemetry()
-        reset_dashboard()
-        reset_alert_engine()
 
     def tearDown(self):
         from vetinari.telemetry import reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
         from vetinari.dashboard.alerts import reset_alert_engine
-        reset_telemetry()
-        reset_dashboard()
-        reset_alert_engine()
 
     def test_high_latency_alert_fires(self):
         from vetinari.telemetry import get_telemetry_collector
@@ -120,11 +110,9 @@ class TestCostToAnalytics(unittest.TestCase):
 
     def setUp(self):
         from vetinari.analytics.cost import reset_cost_tracker
-        reset_cost_tracker()
 
     def tearDown(self):
         from vetinari.analytics.cost import reset_cost_tracker
-        reset_cost_tracker()
 
     def test_end_to_end_cost_report(self):
         from vetinari.analytics.cost import (
@@ -158,11 +146,9 @@ class TestSLABreachDetection(unittest.TestCase):
 
     def setUp(self):
         from vetinari.analytics.sla import reset_sla_tracker
-        reset_sla_tracker()
 
     def tearDown(self):
         from vetinari.analytics.sla import reset_sla_tracker
-        reset_sla_tracker()
 
     def test_p95_breach_reported(self):
         from vetinari.analytics.sla import (
@@ -208,11 +194,9 @@ class TestForecastingCapacityPipeline(unittest.TestCase):
 
     def setUp(self):
         from vetinari.analytics.forecasting import reset_forecaster
-        reset_forecaster()
 
     def tearDown(self):
         from vetinari.analytics.forecasting import reset_forecaster
-        reset_forecaster()
 
     def test_rising_series_exceeds_threshold(self):
         from vetinari.analytics.forecasting import get_forecaster, ForecastRequest
@@ -234,11 +218,9 @@ class TestLogAggregatorPipeline(unittest.TestCase):
 
     def setUp(self):
         from vetinari.dashboard.log_aggregator import reset_log_aggregator
-        reset_log_aggregator()
 
     def tearDown(self):
         from vetinari.dashboard.log_aggregator import reset_log_aggregator
-        reset_log_aggregator()
 
     def test_ingest_and_trace_correlation(self):
         from vetinari.dashboard.log_aggregator import get_log_aggregator, LogRecord
@@ -335,11 +317,9 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
 
     def setUp(self):
         from vetinari.analytics.anomaly import reset_anomaly_detector
-        reset_anomaly_detector()
 
     def tearDown(self):
         from vetinari.analytics.anomaly import reset_anomaly_detector
-        reset_anomaly_detector()
 
     def test_spike_detection_in_latency_stream(self):
         from vetinari.analytics.anomaly import get_anomaly_detector, AnomalyConfig
@@ -366,8 +346,6 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
         from vetinari.dashboard.api import get_dashboard_api, reset_dashboard
         from vetinari.telemetry import get_telemetry_collector, reset_telemetry
 
-        reset_telemetry()
-        reset_dashboard()
 
         tel = get_telemetry_collector()
         for _ in range(15):
@@ -380,8 +358,6 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
         results = detector.scan_snapshot(snap)
         self.assertIsInstance(results, list)
 
-        reset_telemetry()
-        reset_dashboard()
 
 
 class TestMemorySearchIntegration(unittest.TestCase):

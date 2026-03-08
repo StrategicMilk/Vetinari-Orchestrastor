@@ -6,7 +6,7 @@ import json
 class Validator:
     def is_valid_text(self, text: str) -> bool:
         # Check if text is empty
-        if not text or len(text.strip()) == 0:
+        if not text or not text.strip():
             return False
         
         # Try to parse as JSON first (some tasks return JSON)

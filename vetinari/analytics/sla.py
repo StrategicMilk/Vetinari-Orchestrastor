@@ -188,6 +188,37 @@ class SLATracker:
         self._obs:    Dict[str, Deque[_Obs]] = {}
         self._breaches: List[SLABreach] = []
 
+        # Pre-register default SLOs
+        self._register_default_slos()
+
+    def _register_default_slos(self) -> None:
+        """Register built-in SLOs for core system health."""
+        defaults = [
+            SLOTarget(
+                name="p95_latency",
+                slo_type=SLOType.LATENCY_P95,
+                budget=30000.0,           # 30 seconds in ms
+                window_seconds=3600.0,
+                description="P95 inference latency must be <= 30s",
+            ),
+            SLOTarget(
+                name="success_rate",
+                slo_type=SLOType.SUCCESS_RATE,
+                budget=85.0,              # 85% minimum success rate
+                window_seconds=3600.0,
+                description="Task success rate must be >= 85%",
+            ),
+            SLOTarget(
+                name="approval_rate",
+                slo_type=SLOType.APPROVAL_RATE,
+                budget=70.0,              # 70% minimum plan approval rate
+                window_seconds=3600.0,
+                description="Plan approval rate must be >= 70%",
+            ),
+        ]
+        for slo in defaults:
+            self.register_slo(slo)
+
     # ------------------------------------------------------------------
     # SLO management
     # ------------------------------------------------------------------

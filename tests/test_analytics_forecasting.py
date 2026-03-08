@@ -10,7 +10,6 @@ from vetinari.analytics.sla import _percentile
 
 
 def _fc():
-    reset_forecaster()
     return get_forecaster()
 
 

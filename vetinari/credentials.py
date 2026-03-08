@@ -69,24 +69,34 @@ class CredentialVault:
         self._credentials: Dict[str, Credential] = {}
         self._load()
     
+    @staticmethod
+    def _enforce_key_permissions(key_path: Path) -> None:
+        """Enforce restrictive file permissions on key files (non-Windows only)."""
+        import platform
+        if platform.system() != "Windows":
+            try:
+                os.chmod(str(key_path), 0o600)
+            except OSError as e:
+                logger.warning(f"Could not set permissions on {key_path}: {e}")
+
     def _get_or_create_key(self) -> bytes:
         if not CRYPTO_AVAILABLE:
             return None
-            
+
         key_file = self.vault_path / ".key"
         if key_file.exists():
             try:
-                return key_file.read_bytes()
+                key = key_file.read_bytes()
+                # Ensure permissions are correct on every load
+                self._enforce_key_permissions(key_file)
+                return key
             except Exception:
                 pass
-        
+
         try:
             key = Fernet.generate_key()
             key_file.write_bytes(key)
-            try:
-                os.chmod(str(key_file), 0o600)
-            except Exception:
-                pass  # May fail on Windows
+            self._enforce_key_permissions(key_file)
             return key
         except Exception as e:
             logger.warning(f"Failed to generate encryption key: {e}")
@@ -114,36 +124,50 @@ class CredentialVault:
                 except Exception as e:
                     logger.warning(f"Failed to decrypt credentials: {e}")
             
-            # Fallback: try to load as plain JSON (for migration)
+            # Warn if credentials appear to be stored as plaintext JSON
             try:
                 data = json.loads(encrypted.decode('utf-8'))
+                # If we got here, credentials are in plaintext -- log warning
+                # but load them for migration purposes, then re-encrypt on next save
+                logger.warning(
+                    "Credentials file contains unencrypted data. "
+                    "They will be encrypted on the next save operation. "
+                    "Install the 'cryptography' package if not already installed."
+                )
                 for source_type, cred_data in data.items():
                     self._credentials[source_type] = Credential(**cred_data)
             except Exception:
-                pass
+                logger.error("Could not decrypt or parse credentials file.")
         except Exception as e:
             logger.warning(f"Could not load credentials: {e}")
     
     def _save(self):
         data = {k: asdict(v) for k, v in self._credentials.items()}
         json_str = json.dumps(data)
-        
-        # Encrypt if fernet is available
+
+        # Encrypt -- never fall back to plaintext storage
         if self._fernet:
             try:
                 encrypted = self._fernet.encrypt(json_str.encode())
                 with open(self.credentials_file, 'wb') as f:
                     f.write(encrypted)
             except Exception as e:
-                logger.warning(f"Encryption failed, falling back to plain JSON: {e}")
-                # Fallback to plain JSON
-                with open(self.credentials_file, 'w') as f:
-                    f.write(json_str)
+                logger.error(f"Encryption failed, refusing to store credentials in plaintext: {e}")
+                raise RuntimeError(
+                    "Cannot save credentials: encryption failed and plaintext "
+                    "fallback is disabled for security. Install the 'cryptography' "
+                    "package and ensure the encryption key is valid."
+                ) from e
         else:
-            # Save as plain JSON if encryption not available
-            with open(self.credentials_file, 'w') as f:
-                f.write(json_str)
-        
+            logger.error(
+                "Cannot save credentials: 'cryptography' package is not installed. "
+                "Plaintext credential storage is not permitted."
+            )
+            raise RuntimeError(
+                "Cannot save credentials without encryption. "
+                "Install the 'cryptography' package: pip install cryptography"
+            )
+
         self._save_meta()
     
     def _save_meta(self):
@@ -210,6 +234,64 @@ class CredentialVault:
             }
         return health
     
+    def rotate_encryption_key(self) -> bool:
+        """Generate a new encryption key and re-encrypt all stored credentials.
+
+        This supports key rotation: a new Fernet key is generated, all
+        existing credential data is decrypted with the old key and
+        re-encrypted with the new key, and the old key file is replaced.
+
+        Returns:
+            True if rotation succeeded, False otherwise.
+        """
+        if not CRYPTO_AVAILABLE:
+            logger.error("Cannot rotate encryption key: 'cryptography' package not installed.")
+            return False
+
+        if not self._fernet:
+            logger.error("Cannot rotate encryption key: no existing encryption context.")
+            return False
+
+        # Ensure all credentials are loaded into memory (already decrypted)
+        if not self._credentials and self.credentials_file.exists():
+            self._load()
+
+        # Generate new key
+        try:
+            new_key = Fernet.generate_key()
+            new_fernet = Fernet(new_key)
+        except Exception as e:
+            logger.error(f"Failed to generate new encryption key: {e}")
+            return False
+
+        # Re-encrypt all credential data with the new key
+        data = {k: asdict(v) for k, v in self._credentials.items()}
+        json_str = json.dumps(data)
+
+        try:
+            encrypted = new_fernet.encrypt(json_str.encode())
+            with open(self.credentials_file, 'wb') as f:
+                f.write(encrypted)
+        except Exception as e:
+            logger.error(f"Failed to re-encrypt credentials with new key: {e}")
+            return False
+
+        # Write the new key, replacing the old one
+        key_file = self.vault_path / ".key"
+        try:
+            key_file.write_bytes(new_key)
+            self._enforce_key_permissions(key_file)
+        except Exception as e:
+            logger.error(f"Failed to write new key file: {e}")
+            return False
+
+        # Update internal state
+        self._key = new_key
+        self._fernet = new_fernet
+
+        logger.info("Encryption key rotated successfully. All credentials re-encrypted.")
+        return True
+
     def is_admin(self, user_id: str) -> bool:
         admins_file = self.vault_path / "admins.json"
         if admins_file.exists():
@@ -261,6 +343,10 @@ class CredentialManager:
     
     def health(self) -> Dict[str, Any]:
         return self.vault.get_health()
+
+    def rotate_encryption_key(self) -> bool:
+        """Rotate the vault encryption key and re-encrypt all credentials."""
+        return self.vault.rotate_encryption_key()
 
 
 credential_manager = CredentialManager()

@@ -15,12 +15,15 @@ import logging
 
 from flask import Blueprint, jsonify
 
+from vetinari.web.shared import require_admin_token
+
 logger = logging.getLogger(__name__)
 
 analytics_bp = Blueprint("analytics", __name__)
 
 
 @analytics_bp.route("/api/v1/analytics/cost")
+@require_admin_token
 def get_cost_data():
     """Token costs by model / agent / provider."""
     try:
@@ -34,6 +37,7 @@ def get_cost_data():
 
 
 @analytics_bp.route("/api/v1/analytics/sla")
+@require_admin_token
 def get_sla_data():
     """SLA compliance metrics."""
     try:
@@ -48,6 +52,7 @@ def get_sla_data():
 
 
 @analytics_bp.route("/api/v1/analytics/anomalies")
+@require_admin_token
 def get_anomaly_data():
     """Recent anomaly detections."""
     try:
@@ -61,6 +66,7 @@ def get_anomaly_data():
 
 
 @analytics_bp.route("/api/v1/analytics/forecasts")
+@require_admin_token
 def get_forecast_data():
     """Capacity-planning forecasts."""
     try:

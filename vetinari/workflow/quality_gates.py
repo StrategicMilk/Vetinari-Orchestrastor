@@ -175,7 +175,7 @@ class WorkflowGateRunner:
                             f"{key}: {value} below minimum {threshold}"
                         )
 
-        passed = len(violations) == 0
+        passed = not violations
         action = GateAction.CONTINUE if passed else gate.failure_action
 
         # Record history entry

@@ -428,6 +428,17 @@ class BaseAgent(ABC):
         
         task.started_at = datetime.now().isoformat()
 
+        # I2: Search memory for similar past work to inject as context
+        try:
+            from vetinari.memory import get_memory_store
+            memory = get_memory_store()
+            if memory:
+                similar = memory.search(task.description, limit=5)
+                if similar:
+                    task.context["historical_context"] = [{"content": str(r)[:500]} for r in similar]
+        except Exception as e:
+            logger.warning(f"Memory search failed: {e}")
+
         # Emit structured trace span for this task
         try:
             from vetinari.structured_logging import log_event
@@ -548,6 +559,9 @@ class BaseAgent(ABC):
             except Exception:
                 pass  # Learning subsystem errors must never crash agents
 
+        # I1: Persist execution results to memory for future retrieval
+        self._persist_execution(task, result)
+
         return task
     
     # ------------------------------------------------------------------
@@ -655,6 +669,16 @@ class BaseAgent(ABC):
                 "delegating_agent": self._agent_type.value,
             },
         )
+
+    def _persist_execution(self, task: AgentTask, result: AgentResult) -> None:
+        """Persist successful execution results to memory for future retrieval."""
+        try:
+            from vetinari.memory import get_memory_store
+            memory = get_memory_store()
+            if memory and result.success:
+                memory.remember(content=result.output, metadata={"agent_type": self.agent_type.value, "task_id": task.task_id})
+        except Exception as e:
+            logger.warning(f"Failed to persist execution: {e}")
 
     def can_handle(self, task: "AgentTask") -> bool:
         """Return True if this agent can handle the given task.

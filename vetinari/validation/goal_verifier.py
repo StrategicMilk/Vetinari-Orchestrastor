@@ -190,7 +190,7 @@ class GoalVerifier:
         task_outputs = task_outputs or []
 
         # 1. Check required features
-        report.features = self._verify_features(
+        report.features = self._heuristic_feature_check(
             goal, required_features, final_output, task_outputs
         )
 
@@ -240,7 +240,11 @@ class GoalVerifier:
                             existing.evidence = feat_data["evidence"]
         except Exception as e:
             logger.warning(f"LLM evaluation failed in goal verifier: {e}")
-            report.quality_score = 0.7  # Default passing score
+            report.quality_score = 0.0  # Fail-safe: no score when evaluation fails
+            report.metadata = getattr(report, 'metadata', {})
+            if not isinstance(report.metadata, dict):
+                report.metadata = {}
+            report.metadata["evaluation_failed"] = True
 
         # 6. Run security check
         try:
@@ -249,7 +253,9 @@ class GoalVerifier:
             )
         except Exception as e:
             logger.warning(f"Security check failed: {e}")
-            report.security_passed = True  # Don't block on security check failure
+            report.security_passed = False  # Fail-safe: treat as failed when check unavailable
+            report.security_findings = [{"severity": "unknown", "issue": "security_check_unavailable", "detail": str(e)}]
+            report.security_score = 0.0
 
         # 7. Calculate overall compliance
         report.missing_features = [
@@ -285,14 +291,18 @@ class GoalVerifier:
 
     # ─── Private helpers ──────────────────────────────────────────────────────
 
-    def _verify_features(
+    def _heuristic_feature_check(
         self,
         goal: str,
         features: List[str],
         final_output: str,
         task_outputs: List[Dict[str, Any]],
     ) -> List[FeatureVerification]:
-        """Heuristically check if features appear in the output."""
+        """Heuristically check if features appear in the output.
+
+        Confidence is capped at 0.6 because this is a keyword-based heuristic,
+        not a verified check.  Higher confidence requires LLM evaluation.
+        """
         verified = []
         combined_text = final_output + "\n" + "\n".join(
             str(t.get("output", "")) for t in task_outputs
@@ -306,14 +316,15 @@ class GoalVerifier:
             # Extract keywords from feature description
             keywords = [w for w in feature_lower.split() if len(w) > 3]
             matches = sum(1 for kw in keywords if kw in combined_lower)
-            confidence = min(1.0, matches / max(len(keywords), 1))
+            # Cap at 0.6 — heuristic check cannot claim high confidence
+            confidence = min(0.6, matches / max(len(keywords), 1))
             implemented = confidence >= 0.5
 
             verified.append(FeatureVerification(
                 feature=feature,
                 implemented=implemented,
                 confidence=confidence,
-                evidence=f"Found {matches}/{len(keywords)} keywords" if implemented else "Not found in output",
+                evidence=f"Heuristic: found {matches}/{len(keywords)} keywords" if implemented else "Not found in output (heuristic)",
                 severity="major",
             ))
 
@@ -419,7 +430,7 @@ For each required feature, check if it's implemented. Return JSON:
                 return result.output
 
         except Exception as e:
-            logger.debug(f"LLM evaluation in goal verifier failed: {e}")
+            logger.error(f"LLM evaluation in goal verifier failed: {e}")
         return None
 
     def _security_check(
@@ -449,11 +460,11 @@ For each required feature, check if it's implemented. Return JSON:
                 findings = result.output.get("findings", [])
                 score = result.output.get("score", 100) / 100.0
                 critical = [f for f in findings if f.get("severity") in ("critical", "high")]
-                return len(critical) == 0, findings, score
+                return not critical, findings, score
         except Exception as e:
-            logger.debug(f"Security check failed: {e}")
+            logger.error(f"Security check failed: {e}")
 
-        return True, [], 1.0
+        return False, ["security_check_unavailable"], 0.0
 
 
 # ─── Singleton ────────────────────────────────────────────────────────────────

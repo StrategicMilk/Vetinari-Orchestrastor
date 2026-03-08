@@ -275,12 +275,78 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
         return round(min(score, 1.0), 4)
 
     def _run_via_agent(self, case: BenchmarkCase) -> Dict[str, Any]:
-        """Attempt tool selection via Vetinari agent."""
-        from vetinari.tool_interface import ToolInterface
+        """Attempt tool selection via Vetinari agent inference."""
+        import os
+        import json as _json
 
-        ti = ToolInterface()
-        # Would normally invoke agent for tool selection
-        raise NotImplementedError("Agent-based tool selection not wired")
+        query = case.input_data.get("query", "")
+        tool_pool = case.input_data.get("tool_pool", _TOOL_POOL)
+
+        # Build a prompt that asks the agent to select tools
+        tool_descriptions = "\n".join(
+            f"- {t['name']}: {t['description']} (params: {t['params']})"
+            for t in tool_pool
+        )
+        prompt = (
+            f"Given these available tools:\n{tool_descriptions}\n\n"
+            f"User request: {query}\n\n"
+            f"Select the tool(s) needed and their parameters. "
+            f"Respond with JSON: {{\"selected_tools\": [...], \"params\": [{{...}}]}}"
+        )
+
+        # Try adapter_manager first, then fall back to LM Studio directly
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+            from vetinari.adapters.base import InferenceRequest
+
+            mgr = get_adapter_manager()
+            req = InferenceRequest(
+                model_id="default",
+                prompt=prompt,
+                system_prompt="You are a tool selection agent. Output valid JSON only.",
+                max_tokens=512,
+                temperature=0.1,
+            )
+            resp = mgr.infer(req)
+            if resp.status == "ok" and resp.output:
+                # Extract JSON from response
+                text = resp.output.strip()
+                # Try to find JSON in the response
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start >= 0 and end > start:
+                    parsed = _json.loads(text[start:end])
+                    return {
+                        "selected_tools": parsed.get("selected_tools", []),
+                        "params": parsed.get("params", []),
+                    }
+        except Exception:
+            pass
+
+        # Fallback: direct LM Studio call
+        from vetinari.lmstudio_adapter import LMStudioAdapter
+
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        adapter = LMStudioAdapter(host=host)
+        result = adapter.chat(
+            model_id="default",
+            system_prompt="You are a tool selection agent. Output valid JSON only.",
+            input_text=prompt,
+        )
+        text = result.get("output", "").strip()
+        try:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                parsed = _json.loads(text[start:end])
+                return {
+                    "selected_tools": parsed.get("selected_tools", []),
+                    "params": parsed.get("params", []),
+                }
+        except Exception:
+            pass
+
+        raise RuntimeError("Agent-based tool selection failed to produce valid JSON")
 
     def _mock_run(self, case: BenchmarkCase) -> Dict[str, Any]:
         """Mock run returning expected tool selections."""

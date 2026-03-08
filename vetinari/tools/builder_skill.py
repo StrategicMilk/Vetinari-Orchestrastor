@@ -27,6 +27,7 @@ from vetinari.tool_interface import (
     ToolCategory,
 )
 from vetinari.execution_context import ToolPermission, ExecutionMode
+from vetinari.tools.output_validation import validate_output
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +228,14 @@ class BuilderSkillTool(Tool):
             
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
+            # Validate output before returning
+            validation = validate_output(
+                result, required_fields=["success"]
+            )
+            if not validation["valid"]:
+                logger.warning("Builder output validation failed: %s", validation["errors"])
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -282,6 +290,23 @@ class BuilderSkillTool(Tool):
                 explanation=f"Unknown capability: {capability.value}",
             )
     
+    def _try_llm_generate(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Attempt LLM-based code generation via BaseAgent._infer_json().
+
+        Returns parsed JSON on success, None on failure.
+        """
+        try:
+            from vetinari.agents.base_agent import BaseAgent
+            agent = BaseAgent.__new__(BaseAgent)
+            # Minimal init so _infer_json works
+            if hasattr(agent, '_infer_json'):
+                result = agent._infer_json(prompt, fallback=None)
+                if result and isinstance(result, dict):
+                    return result
+        except Exception as e:
+            logger.debug(f"LLM inference attempt failed: {e}")
+        return None
+
     def _implement_feature(
         self,
         request: ImplementationRequest,
@@ -289,7 +314,7 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Implement a new feature."""
         logger.info(f"Implementing feature: {request.description}")
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -299,40 +324,34 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
-        # In EXECUTION mode, we would generate code
-        # For now, return a structured response
-        explanation = (
-            f"Feature Implementation (Thinking Mode: {request.thinking_mode.value})\n"
-            f"Description: {request.description}\n"
+
+        # Try LLM-based implementation
+        prompt = (
+            f"Implement the following feature and return JSON with keys: "
+            f"code, explanation, files_affected, tests_added.\n\n"
+            f"Feature: {request.description}\n"
         )
-        
         if request.requirements:
-            explanation += f"Requirements: {', '.join(request.requirements)}\n"
-        
+            prompt += f"Requirements: {', '.join(request.requirements)}\n"
         if request.context:
-            explanation += f"Context: {request.context}\n"
-        
-        # Determine approach based on thinking mode
-        if request.thinking_mode == ThinkingMode.LOW:
-            explanation += "Approach: Quick implementation with minimal code\n"
-        elif request.thinking_mode == ThinkingMode.MEDIUM:
-            explanation += (
-                "Approach: Full feature with basic tests and error handling\n"
+            prompt += f"Context: {request.context}\n"
+        prompt += f"Thinking mode: {request.thinking_mode.value}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Feature implemented: {request.description}"),
+                files_affected=llm_result.get("files_affected", []),
+                tests_added=llm_result.get("tests_added", 0),
             )
-        elif request.thinking_mode == ThinkingMode.HIGH:
-            explanation += (
-                "Approach: Complete implementation with comprehensive error handling\n"
-            )
-        else:  # XHIGH
-            explanation += (
-                "Approach: Production-ready with full test coverage and edge cases\n"
-            )
-        
+
+        # LLM unavailable
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            warnings=["llm_unavailable"],
         )
     
     def _refactor_code(
@@ -360,22 +379,27 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - refactoring disabled"],
             )
-        
-        explanation = (
-            f"Code Refactoring\n"
+
+        # Try LLM-based refactoring
+        prompt = (
+            f"Refactor the following code and return JSON with keys: "
+            f"code, explanation, files_affected.\n\n"
             f"Description: {request.description}\n"
             f"Original Code:\n{request.context}\n"
-            f"Refactoring Approach:\n"
-            f"1. Analyze current structure\n"
-            f"2. Identify improvements (DRY, naming, performance)\n"
-            f"3. Apply refactoring patterns\n"
-            f"4. Verify tests still pass\n"
         )
-        
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Refactored: {request.description}"),
+                files_affected=llm_result.get("files_affected", []),
+            )
+
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            warnings=["llm_unavailable"],
         )
     
     def _write_tests(
@@ -403,26 +427,30 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - test generation disabled"],
             )
-        
-        explanation = (
-            f"Test Writing\n"
+
+        # Try LLM-based test generation
+        prompt = (
+            f"Write tests for the following code and return JSON with keys: "
+            f"code, explanation, files_affected, tests_added (integer count).\n\n"
             f"Target: {request.description}\n"
-            f"Test Strategy:\n"
-            f"1. Identify test cases (happy path, edge cases, errors)\n"
-            f"2. Use Arrange-Act-Assert pattern\n"
-            f"3. Mock external dependencies\n"
-            f"4. Achieve target coverage based on thinking mode\n"
+            f"Code to test:\n{request.context}\n"
+            f"Thinking mode: {request.thinking_mode.value}\n"
         )
-        
-        if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
-            explanation += "5. Include integration tests\n"
-            explanation += "6. Performance/stress tests\n"
-        
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Tests written for: {request.description}"),
+                tests_added=llm_result.get("tests_added", 0),
+                files_affected=llm_result.get("files_affected", []),
+            )
+
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            tests_added=5,  # Placeholder
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            tests_added=0,
+            warnings=["llm_unavailable"],
         )
     
     def _handle_errors(
@@ -450,22 +478,27 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
-        explanation = (
-            f"Error Handling Implementation\n"
+
+        # Try LLM-based error handling
+        prompt = (
+            f"Add error handling to the following code and return JSON with keys: "
+            f"code, explanation, files_affected.\n\n"
             f"Target: {request.description}\n"
-            f"Strategy:\n"
-            f"1. Identify failure points\n"
-            f"2. Add try-catch blocks with meaningful messages\n"
-            f"3. Implement graceful degradation\n"
-            f"4. Add logging for debugging\n"
-            f"5. Create error boundary patterns\n"
+            f"Code to enhance:\n{request.context}\n"
         )
-        
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Error handling added: {request.description}"),
+                files_affected=llm_result.get("files_affected", []),
+            )
+
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            warnings=["llm_unavailable"],
         )
     
     def _generate_code(
@@ -485,25 +518,32 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
-        explanation = (
-            f"Code Generation\n"
+
+        # Try LLM-based code generation
+        prompt = (
+            f"Generate code for the following specification and return JSON with keys: "
+            f"code, explanation, files_affected, tests_added.\n\n"
             f"Specification: {request.description}\n"
-            f"Generation Process:\n"
-            f"1. Analyze specification\n"
-            f"2. Determine patterns and structure\n"
-            f"3. Generate boilerplate and scaffolding\n"
-            f"4. Add type definitions\n"
-            f"5. Include basic documentation\n"
         )
-        
         if request.requirements:
-            explanation += f"6. Ensure requirements met: {', '.join(request.requirements)}\n"
-        
+            prompt += f"Requirements: {', '.join(request.requirements)}\n"
+        if request.context:
+            prompt += f"Context: {request.context}\n"
+
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Code generated: {request.description}"),
+                files_affected=llm_result.get("files_affected", []),
+                tests_added=llm_result.get("tests_added", 0),
+            )
+
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            warnings=["llm_unavailable"],
         )
     
     def _debug_code(
@@ -531,21 +571,25 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - debugging disabled"],
             )
-        
-        explanation = (
-            f"Code Debugging\n"
+
+        # Try LLM-based debugging
+        prompt = (
+            f"Debug the following code and return JSON with keys: "
+            f"code, explanation, files_affected.\n\n"
             f"Issue: {request.description}\n"
-            f"Debug Process:\n"
-            f"1. Understand the problem\n"
-            f"2. Identify failure points\n"
-            f"3. Analyze root cause\n"
-            f"4. Implement fix\n"
-            f"5. Test the fix\n"
-            f"6. Verify no regressions\n"
+            f"Code to debug:\n{request.context}\n"
         )
-        
+        llm_result = self._try_llm_generate(prompt)
+        if llm_result:
+            return ImplementationResult(
+                success=True,
+                code=llm_result.get("code"),
+                explanation=llm_result.get("explanation", f"Debugged: {request.description}"),
+                files_affected=llm_result.get("files_affected", []),
+            )
+
         return ImplementationResult(
-            success=True,
-            explanation=explanation,
-            files_affected=[],
+            success=False,
+            explanation="LLM inference unavailable",
+            warnings=["llm_unavailable"],
         )

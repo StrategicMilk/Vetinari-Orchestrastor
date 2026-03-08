@@ -29,6 +29,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from vetinari.constants import (
+    DEFAULT_LM_STUDIO_HOST,
+    DEFAULT_WEB_PORT,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +66,7 @@ def _load_config(config_path: str) -> dict:
 
 def _get_host(args_host: Optional[str]) -> str:
     """Resolve host from args → env → default."""
-    return args_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+    return args_host or DEFAULT_LM_STUDIO_HOST
 
 
 def _build_orchestrator(config_path: str, host: str, mode: str = "execution"):
@@ -133,7 +138,7 @@ def cmd_serve(args) -> int:
     """Start the web dashboard."""
     _setup_logging(args.verbose)
     host = _get_host(args.host)
-    port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
+    port = args.port or DEFAULT_WEB_PORT
     web_host = args.web_host or "0.0.0.0"
 
     print(f"[Vetinari] Starting web dashboard on {web_host}:{port}")
@@ -161,7 +166,7 @@ def cmd_start(args) -> int:
     _print_banner(args.mode, host)
 
     # Start web dashboard in background thread
-    port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
+    port = args.port or DEFAULT_WEB_PORT
     dashboard_started = False
 
     if not args.no_dashboard:

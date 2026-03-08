@@ -126,22 +126,22 @@ class TestCodeBridge:
     
     def test_bridge_initialization(self):
         """Test that the bridge initializes correctly."""
-        from vetinari.coding_agent.bridge import CodeBridge
-        
-        bridge = CodeBridge()
+        from vetinari.agents.coding_bridge import CodingBridge
+
+        bridge = CodingBridge()
         assert bridge is not None
         assert bridge.enabled is False  # Default disabled
-    
+
     def test_bridge_disabled_returns_error(self):
         """Test that disabled bridge returns error."""
-        from vetinari.coding_agent.bridge import CodeBridge, BridgeTaskSpec
-        
-        bridge = CodeBridge()
+        from vetinari.agents.coding_bridge import CodingBridge, BridgeTaskSpec
+
+        bridge = CodingBridge()
         bridge.enabled = False
-        
+
         spec = BridgeTaskSpec()
         result = bridge.submit_task(spec)
-        
+
         assert result.success is False
         assert "not enabled" in result.error.lower()
 

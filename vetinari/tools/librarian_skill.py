@@ -285,57 +285,52 @@ class LibrarianSkillTool(Tool):
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Look up official documentation using webfetch."""
+        """Look up official documentation using web search if available."""
         logger.info(f"Looking up documentation for: {request.query}")
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would fetch documentation for '{request.query}' at {request.thinking_mode.value} depth.",
             )
-        
-        # Construct a search query URL for simplicity, mimicking a common pattern
-        search_term = f"{request.query} official documentation".replace(" ", "+")
-        # NOTE: In a real system, this URL would target a specific web search API or documentation portal.
-        # Using a generic search URL as a placeholder for webfetch demonstration.
-        search_url = f"https://www.google.com/search?q={search_term}"
-        
+
+        # Try real web search via the web_search tool
         try:
-            # Fetch content - assuming webfetch returns markdown
-            # Placeholder for actual webfetch call simulation
-            
-            if request.thinking_mode == ThinkingMode.LOW:
-                summary = f"Quick lookup result for {request.query}."
-                doc_url = f"https://docs.example.com/{request.query.lower().replace(' ', '-')}"
+            from vetinari.tools.web_search_tool import WebSearchTool
+            search_tool = WebSearchTool()
+            search_result = search_tool.execute(
+                query=f"{request.query} official documentation",
+                max_results=3,
+            )
+            if search_result.success and search_result.output:
+                results = search_result.output if isinstance(search_result.output, list) else search_result.output.get("results", [])
+                urls = [r.get("url", r.get("link", "")) for r in results if isinstance(r, dict)]
+                titles = [r.get("title", "") for r in results if isinstance(r, dict)]
+                snippets = [r.get("snippet", r.get("description", "")) for r in results if isinstance(r, dict)]
+
+                summary = f"Documentation search for '{request.query}': found {len(results)} results."
+                if snippets:
+                    summary += f" Top result: {snippets[0][:200]}"
+
                 return ResearchResult(
                     success=True,
                     summary=summary,
-                    documentation_url=doc_url,
-                    citations=[f"Source: Direct Search for: {request.query}"]
+                    documentation_url=urls[0] if urls else None,
+                    best_practices=[],
+                    citations=urls[:3],
                 )
-            
-            # Medium/High mode: Simulate fetching and summarizing
-            mock_content = f"This is the documentation summary for {request.query} at {request.thinking_mode.value} level. It covers the main API points and configuration."
-            
-            # In a real scenario, we would use:
-            # fetch_result = webfetch(url=search_url, format="markdown")
-            # summary = LLM_summarize(fetch_result.content)
-            
-            return ResearchResult(
-                success=True,
-                summary=f"Documentation summary for '{request.query}' found at {request.thinking_mode.value} depth.",
-                documentation_url=f"https://docs.example.com/{request.query.lower().replace(' ', '-')}",
-                code_example="def example_func(): return True # Placeholder example",
-                best_practices=["Keep dependencies up to date"],
-                citations=[f"Simulated fetch from {search_url}"]
-            )
-            
         except Exception as e:
-            logger.error(f"Webfetch failed during documentation lookup: {e}")
-            return ResearchResult(
-                success=False,
-                summary=f"Failed to retrieve documentation for '{request.query}'.",
-            )
+            logger.warning(f"Web search unavailable for documentation lookup: {e}")
+
+        # Fallback: search unavailable
+        return ResearchResult(
+            success=True,
+            summary=f"Documentation lookup for '{request.query}': search_unavailable. No live search could be performed.",
+            documentation_url=None,
+            code_example=None,
+            best_practices=[],
+            citations=[],
+        )
             
     def _find_github_examples(
         self,
@@ -350,30 +345,41 @@ class LibrarianSkillTool(Tool):
                 success=True,
                 summary=f"Planning mode: Would search GitHub for examples of '{request.query}' using {request.thinking_mode.value} depth.",
             )
-            
-        if request.thinking_mode == ThinkingMode.LOW:
-            return ResearchResult(
-                success=True,
-                summary=f"Low effort GitHub search for '{request.query}' found a sample repository.",
-                code_example="print('Simple example code')",
-                citations=["Source: Popular GitHub repository example"],
+
+        # Try real web search for GitHub examples
+        try:
+            from vetinari.tools.web_search_tool import WebSearchTool
+            search_tool = WebSearchTool()
+            search_result = search_tool.execute(
+                query=f"{request.query} site:github.com example",
+                max_results=3,
             )
-            
-        # Medium/High/XHigh: Simulate deeper search and synthesis
-        mock_code = f"""
-# Example found for {request.query}
-import library_x as lx
-config = {{ 'mode': '{request.thinking_mode.value}' }}
-lx.initialize(config)
-lx.run_process()
-"""
-        
+            if search_result.success and search_result.output:
+                results = search_result.output if isinstance(search_result.output, list) else search_result.output.get("results", [])
+                urls = [r.get("url", r.get("link", "")) for r in results if isinstance(r, dict)]
+                snippets = [r.get("snippet", r.get("description", "")) for r in results if isinstance(r, dict)]
+
+                summary = f"GitHub examples search for '{request.query}': found {len(results)} results."
+                if snippets:
+                    summary += f" Top: {snippets[0][:200]}"
+
+                return ResearchResult(
+                    success=True,
+                    summary=summary,
+                    code_example=None,
+                    citations=urls[:3],
+                    best_practices=[],
+                )
+        except Exception as e:
+            logger.warning(f"Web search unavailable for GitHub examples: {e}")
+
+        # Fallback: search unavailable
         return ResearchResult(
             success=True,
-            summary=f"Found multiple real-world examples for '{request.query}' using {request.thinking_mode.value} depth.",
-            code_example=mock_code,
-            citations=["Source: Repo A", "Source: Repo B (high star count)"],
-            best_practices=["Initialize configuration first", "Use context managers"],
+            summary=f"GitHub examples for '{request.query}': search_unavailable. No live search could be performed.",
+            code_example=None,
+            citations=[],
+            best_practices=[],
         )
 
     def _retrieve_api_reference(
@@ -383,27 +389,45 @@ lx.run_process()
     ) -> ResearchResult:
         """Retrieve specific API reference details."""
         logger.info(f"Retrieving API reference for: {request.query}")
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would fetch API reference for '{request.query}'.",
             )
-            
-        # Simulate API lookup based on query context
-        if "error" in request.query.lower() or "exception" in request.query.lower():
-            return ResearchResult(
-                success=True,
-                summary=f"API reference found for error handling in {request.query}.",
-                best_practices=["Always catch specific exceptions", "Use custom exception types"],
-                documentation_url="https://docs.example.com/errors",
+
+        # Try real web search for API reference
+        try:
+            from vetinari.tools.web_search_tool import WebSearchTool
+            search_tool = WebSearchTool()
+            search_result = search_tool.execute(
+                query=f"{request.query} API reference",
+                max_results=3,
             )
-        
+            if search_result.success and search_result.output:
+                results = search_result.output if isinstance(search_result.output, list) else search_result.output.get("results", [])
+                urls = [r.get("url", r.get("link", "")) for r in results if isinstance(r, dict)]
+                snippets = [r.get("snippet", r.get("description", "")) for r in results if isinstance(r, dict)]
+
+                summary = f"API reference search for '{request.query}': found {len(results)} results."
+                if snippets:
+                    summary += f" Top: {snippets[0][:200]}"
+
+                return ResearchResult(
+                    success=True,
+                    summary=summary,
+                    documentation_url=urls[0] if urls else None,
+                    citations=urls[:3],
+                )
+        except Exception as e:
+            logger.warning(f"Web search unavailable for API reference: {e}")
+
+        # Fallback: search unavailable
         return ResearchResult(
             success=True,
-            summary=f"API reference retrieved for method/endpoint: {request.query}.",
-            documentation_url="https://docs.example.com/api/ref",
-            citations=["Source: Official API Docs"],
+            summary=f"API reference for '{request.query}': search_unavailable. No live search could be performed.",
+            documentation_url=None,
+            citations=[],
         )
 
     def _retrieve_package_info(
@@ -413,22 +437,49 @@ lx.run_process()
     ) -> ResearchResult:
         """Retrieve package information (e.g., version, dependencies)."""
         logger.info(f"Retrieving package info for: {request.query}")
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would retrieve package info for '{request.query}'.",
             )
 
-        # Simulate package info lookup (e.g., via npm or pypi API)
-        package_name = request.query.split()[0].strip() # Simple extraction
-        
+        package_name = request.query.split()[0].strip()
+
+        # Try real web search for package info
+        try:
+            from vetinari.tools.web_search_tool import WebSearchTool
+            search_tool = WebSearchTool()
+            search_result = search_tool.execute(
+                query=f"{package_name} package pypi npm",
+                max_results=3,
+            )
+            if search_result.success and search_result.output:
+                results = search_result.output if isinstance(search_result.output, list) else search_result.output.get("results", [])
+                urls = [r.get("url", r.get("link", "")) for r in results if isinstance(r, dict)]
+                snippets = [r.get("snippet", r.get("description", "")) for r in results if isinstance(r, dict)]
+
+                summary = f"Package info search for '{package_name}': found {len(results)} results."
+                if snippets:
+                    summary += f" Top: {snippets[0][:200]}"
+
+                return ResearchResult(
+                    success=True,
+                    summary=summary,
+                    documentation_url=urls[0] if urls else None,
+                    best_practices=[],
+                    citations=urls[:3],
+                )
+        except Exception as e:
+            logger.warning(f"Web search unavailable for package info: {e}")
+
+        # Fallback: search unavailable
         return ResearchResult(
             success=True,
-            summary=f"Package information retrieved for '{package_name}'.",
-            documentation_url=f"https://package-registry.org/{package_name}",
-            best_practices=[f"Current version of {package_name} is 2.1.0"],
-            citations=[f"Source: Package Registry API for {package_name}"],
+            summary=f"Package info for '{package_name}': search_unavailable. No live search could be performed.",
+            documentation_url=None,
+            best_practices=[],
+            citations=[],
         )
 
     def _research_best_practices(
@@ -438,22 +489,43 @@ lx.run_process()
     ) -> ResearchResult:
         """Research general best practices for a topic."""
         logger.info(f"Researching best practices for: {request.query}")
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would research best practices for '{request.query}' using {request.thinking_mode.value} depth.",
             )
-            
-        # Use high-level thinking to synthesize practices
-        if "security" in request.query.lower() or "security" in request.focus_areas:
-            practices = ["Never trust user input", "Sanitize all output", "Use principle of least privilege"]
-        else:
-            practices = ["Keep code modular", "Use descriptive naming", "Handle exceptions gracefully"]
-            
+
+        # Try real web search for best practices
+        try:
+            from vetinari.tools.web_search_tool import WebSearchTool
+            search_tool = WebSearchTool()
+            search_result = search_tool.execute(
+                query=f"{request.query} best practices",
+                max_results=3,
+            )
+            if search_result.success and search_result.output:
+                results = search_result.output if isinstance(search_result.output, list) else search_result.output.get("results", [])
+                urls = [r.get("url", r.get("link", "")) for r in results if isinstance(r, dict)]
+                snippets = [r.get("snippet", r.get("description", "")) for r in results if isinstance(r, dict)]
+
+                summary = f"Best practices search for '{request.query}': found {len(results)} results."
+                if snippets:
+                    summary += f" Top: {snippets[0][:200]}"
+
+                return ResearchResult(
+                    success=True,
+                    summary=summary,
+                    best_practices=[],
+                    citations=urls[:3],
+                )
+        except Exception as e:
+            logger.warning(f"Web search unavailable for best practices: {e}")
+
+        # Fallback: search unavailable
         return ResearchResult(
             success=True,
-            summary=f"Best practices research completed for: {request.query}.",
-            best_practices=practices,
-            citations=["Source: Vetinari Internal Guide", "Source: General Community Wisdom"],
+            summary=f"Best practices for '{request.query}': search_unavailable. No live search could be performed.",
+            best_practices=[],
+            citations=[],
         )

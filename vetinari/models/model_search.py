@@ -55,6 +55,57 @@ class ModelCandidate:
         }
 
 
+def _score_from_model_metadata(model_id: str, context_len: int = 2048) -> dict:
+    """Compute scores from model metadata instead of using hardcoded values.
+
+    Returns dict with hard_data_score, benchmark_score, sentiment_score,
+    and score_source field.
+    """
+    model_lower = model_id.lower()
+
+    # Parameter count heuristic from model name
+    param_score = 0.5  # default
+    param_sizes = [
+        ("72b", 0.95), ("70b", 0.95), ("65b", 0.92),
+        ("34b", 0.87), ("32b", 0.85),
+        ("14b", 0.75), ("13b", 0.73),
+        ("8b", 0.65), ("7b", 0.6),
+        ("3b", 0.45), ("2b", 0.4),
+        ("1b", 0.35), ("0.5b", 0.3),
+    ]
+    for size_tag, score in param_sizes:
+        if size_tag in model_lower:
+            param_score = score
+            break
+
+    # Quantization penalty
+    quant_adj = 0.0
+    quant_levels = [
+        ("q2", -0.2), ("q3", -0.15), ("q4", -0.1),
+        ("q5", -0.05), ("q6", -0.02), ("q8", 0.0),
+        ("fp16", 0.05), ("f16", 0.05), ("fp32", 0.05),
+    ]
+    for qtag, penalty in quant_levels:
+        if qtag in model_lower:
+            quant_adj = penalty
+            break
+
+    # Context length score
+    ctx_score = min(1.0, context_len / 32768)
+
+    # Compose scores
+    hard_data = round(max(0.0, min(1.0, param_score + quant_adj)), 3)
+    benchmark = round(max(0.0, min(1.0, param_score * 0.9 + ctx_score * 0.1 + quant_adj)), 3)
+    sentiment = round(max(0.0, min(1.0, param_score * 0.8 + ctx_score * 0.2)), 3)
+
+    return {
+        "hard_data_score": hard_data,
+        "benchmark_score": benchmark,
+        "sentiment_score": sentiment,
+        "score_source": "model_metadata",
+    }
+
+
 class ModelSearchEngine:
     WEIGHTS = {
         "hard_data": 0.55,
@@ -91,21 +142,24 @@ class ModelSearchEngine:
         return candidates[:15]
     
     def _create_candidate_from_lm_studio(self, model: Dict) -> ModelCandidate:
+        model_id = model.get("id", model.get("name", ""))
+        ctx_len = model.get("context_len", 2048)
+        scores = _score_from_model_metadata(model_id, ctx_len)
         return ModelCandidate(
-            id=model.get("id", model.get("name", "")),
+            id=model_id,
             name=model.get("name", model.get("id", "")),
             source_type="lm_studio",
-            metrics=model.get("capabilities", []),
+            metrics={**(model.get("capabilities", {}) if isinstance(model.get("capabilities"), dict) else {}), "score_source": scores["score_source"]},
             memory_gb=model.get("memory_gb", 2),
-            context_len=model.get("context_len", 2048),
+            context_len=ctx_len,
             version=model.get("version", ""),
             last_updated=datetime.now().isoformat(),
-            hard_data_score=0.8,
-            benchmark_score=0.7,
-            sentiment_score=0.7,
+            hard_data_score=scores["hard_data_score"],
+            benchmark_score=scores["benchmark_score"],
+            sentiment_score=scores["sentiment_score"],
             provenance=[ModelSource(
                 source_type="lm_studio",
-                url=f"lmstudio://model/{model.get('id', '')}",
+                url=f"lmstudio://model/{model_id}",
                 last_checked=datetime.now().isoformat(),
                 confidence=0.9
             )]
@@ -167,18 +221,19 @@ class ModelSearchEngine:
         
         for model_id, category in model_names:
             if any(kw in category.lower() for kw in keywords) or any(kw in model_id.lower() for kw in keywords):
+                hf_scores = _score_from_model_metadata(model_id, 8192)
                 candidate = ModelCandidate(
                     id=model_id,
                     name=model_id.split("/")[-1],
                     source_type="huggingface",
-                    metrics={"category": category, "query_match": True},
+                    metrics={"category": category, "query_match": True, "score_source": hf_scores["score_source"]},
                     memory_gb=self._estimate_memory(model_id),
                     context_len=8192,
                     version="latest",
                     last_updated=datetime.now().isoformat(),
-                    hard_data_score=0.7,
-                    benchmark_score=0.75,
-                    sentiment_score=0.7,
+                    hard_data_score=hf_scores["hard_data_score"],
+                    benchmark_score=hf_scores["benchmark_score"],
+                    sentiment_score=hf_scores["sentiment_score"],
                     provenance=[ModelSource(
                         source_type="huggingface",
                         url=f"https://huggingface.co/{model_id}",
@@ -221,18 +276,20 @@ class ModelSearchEngine:
         recommendations = self._get_reddit_recommendations(query)
         
         for rec in recommendations:
+            rec_ctx = rec.get("context_len", 4096)
+            rec_scores = _score_from_model_metadata(rec["model_id"], rec_ctx)
             candidate = ModelCandidate(
                 id=rec["model_id"],
                 name=rec["model_name"],
                 source_type="reddit",
-                metrics={"subreddit": rec.get("subreddit", ""), "votes": rec.get("votes", 0)},
+                metrics={"subreddit": rec.get("subreddit", ""), "votes": rec.get("votes", 0), "score_source": rec_scores["score_source"]},
                 memory_gb=rec.get("memory_gb", 4),
-                context_len=rec.get("context_len", 4096),
+                context_len=rec_ctx,
                 version=rec.get("version", ""),
                 last_updated=datetime.now().isoformat(),
-                hard_data_score=0.3,
-                benchmark_score=0.4,
-                sentiment_score=rec.get("sentiment", 0.6),
+                hard_data_score=rec_scores["hard_data_score"],
+                benchmark_score=rec_scores["benchmark_score"],
+                sentiment_score=rec.get("sentiment", rec_scores["sentiment_score"]),
                 provenance=[ModelSource(
                     source_type="reddit",
                     url=rec.get("url", ""),
@@ -284,18 +341,19 @@ class ModelSearchEngine:
         
         for repo, org, mem in repo_recs:
             if any(kw in repo.lower() for kw in keywords):
+                gh_scores = _score_from_model_metadata(repo, 4096)
                 candidate = ModelCandidate(
                     id=f"github/{org}/{repo.split('/')[-1]}",
                     name=repo.split("/")[-1],
                     source_type="github",
-                    metrics={"repo": repo, "stars": 5000},
+                    metrics={"repo": repo, "stars": 5000, "score_source": gh_scores["score_source"]},
                     memory_gb=mem,
                     context_len=4096,
                     version="latest",
                     last_updated=datetime.now().isoformat(),
-                    hard_data_score=0.5,
-                    benchmark_score=0.6,
-                    sentiment_score=0.6,
+                    hard_data_score=gh_scores["hard_data_score"],
+                    benchmark_score=gh_scores["benchmark_score"],
+                    sentiment_score=gh_scores["sentiment_score"],
                     provenance=[ModelSource(
                         source_type="github",
                         url=f"https://github.com/{repo}",
@@ -344,18 +402,19 @@ class ModelSearchEngine:
             elif any(kw in ["code", "program", "develop"] for kw in keywords):
                 relevance = 0.75
             
+            claude_scores = _score_from_model_metadata(model_id, context_len)
             candidate = ModelCandidate(
                 id=f"claude:{model_id}",
                 name=model_name,
                 source_type="claude",
-                metrics={"query": query, "relevance": relevance},
+                metrics={"query": query, "relevance": relevance, "score_source": claude_scores["score_source"]},
                 memory_gb=0,
                 context_len=context_len,
                 version=model_id,
                 last_updated=datetime.now().isoformat(),
-                hard_data_score=0.9,
-                benchmark_score=0.92,
-                sentiment_score=0.88,
+                hard_data_score=claude_scores["hard_data_score"],
+                benchmark_score=claude_scores["benchmark_score"],
+                sentiment_score=claude_scores["sentiment_score"],
                 provenance=[ModelSource(
                     source_type="claude",
                     url=f"https://console.anthropic.com/{model_id}",
@@ -406,18 +465,19 @@ class ModelSearchEngine:
             elif any(kw in ["creative", "write", "story"] for kw in keywords):
                 relevance = 0.82
             
+            gemini_scores = _score_from_model_metadata(model_id, context_len)
             candidate = ModelCandidate(
                 id=f"gemini:{model_id}",
                 name=model_name,
                 source_type="gemini",
-                metrics={"query": query, "relevance": relevance},
+                metrics={"query": query, "relevance": relevance, "score_source": gemini_scores["score_source"]},
                 memory_gb=0,
                 context_len=context_len,
                 version=model_id,
                 last_updated=datetime.now().isoformat(),
-                hard_data_score=0.85,
-                benchmark_score=0.88,
-                sentiment_score=0.82,
+                hard_data_score=gemini_scores["hard_data_score"],
+                benchmark_score=gemini_scores["benchmark_score"],
+                sentiment_score=gemini_scores["sentiment_score"],
                 provenance=[ModelSource(
                     source_type="gemini",
                     url=f"https://aistudio.google.com/app/{model_id}",

@@ -35,7 +35,9 @@ class Upgrader:
         return candidates
 
     def install_upgrade(self, candidate: dict):
-        # Placeholder: in real life, this would download/install binaries
-        logger.info(f"Installing upgrade: {candidate.get('name')} v{candidate.get('version')}")
-        # After install, you should update manifest/model registry entry accordingly
-        return True
+        # Automatic installation not implemented — requires manual download/install
+        logger.warning(
+            f"Upgrade installation not available: {candidate.get('name')} v{candidate.get('version')}. "
+            f"Please install manually via LM Studio."
+        )
+        return False

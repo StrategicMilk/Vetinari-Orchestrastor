@@ -160,6 +160,21 @@ class ExplainAgent:
             }
         }
     
+    def _compute_confidence(self, response: str, expected_sections: list) -> float:
+        """Calculate confidence from response completeness instead of using hardcoded values.
+
+        Args:
+            response: The text content to evaluate.
+            expected_sections: Keywords/sections expected to appear in the response.
+
+        Returns:
+            A float 0.0-1.0 reflecting how complete the response is.
+        """
+        section_hits = sum(1 for s in expected_sections if s.lower() in response.lower())
+        section_score = section_hits / max(len(expected_sections), 1)
+        length_score = min(1.0, len(response.split()) / 100)
+        return round(section_score * 0.7 + length_score * 0.3, 2)
+
     def explain_plan(self, plan) -> PlanExplanation:
         """Generate an explanation for a plan.
         
@@ -189,23 +204,25 @@ class ExplainAgent:
         template = self._domain_templates.get(domain, self._domain_templates["general"])
         
         # Add risk assessment block
+        risk_content = (f"Risk assessment: {plan.risk_level.value if hasattr(plan.risk_level, 'value') else str(plan.risk_level)} risk (score: {plan.risk_score:.2f}). "
+                       f"This plan has {len(plan.subtasks)} subtasks across {max([s.depth for s in plan.subtasks], default=0) + 1} depth levels.")
         risk_block = ExplanationBlock(
             target_id=plan.plan_id,
             domain="planning",
-            content=f"Risk assessment: {plan.risk_level.value if hasattr(plan.risk_level, 'value') else str(plan.risk_level)} risk (score: {plan.risk_score:.2f}). "
-                   f"This plan has {len(plan.subtasks)} subtasks across {max([s.depth for s in plan.subtasks], default=0) + 1} depth levels.",
-            confidence=0.85,
+            content=risk_content,
+            confidence=self._compute_confidence(risk_content, ["risk", "subtasks", "depth"]),
             sources=["PlanMode risk scoring"],
             sanitized=True
         )
         explanation.blocks.append(risk_block)
         
         # Add domain-specific justification block
+        justification_content = template["plan_summary"]
         justification_block = ExplanationBlock(
             target_id=plan.plan_id,
             domain=domain,
-            content=template["plan_summary"],
-            confidence=0.75,
+            content=justification_content,
+            confidence=self._compute_confidence(justification_content, ["complexity", "maintainability", "latency", "cost", "reliability"]),
             sources=["Domain templates", "Plan metadata"],
             sanitized=True
         )
@@ -217,7 +234,7 @@ class ExplainAgent:
             target_id=plan.plan_id,
             domain=domain,
             content=factors_content,
-            confidence=0.70,
+            confidence=self._compute_confidence(factors_content, template["key_factors"]),
             sources=["Plan analysis"],
             sanitized=True
         )
@@ -225,12 +242,13 @@ class ExplainAgent:
         
         # Add model selection rationale if available
         if hasattr(plan, 'chosen_plan_id') and plan.chosen_plan_id:
+            model_content = (f"Selected plan variant: {plan.chosen_plan_id}. "
+                           f"Justification: {plan.plan_justification or 'Auto-selected based on risk score'}")
             model_block = ExplanationBlock(
                 target_id=plan.plan_id,
                 domain="model_selection",
-                content=f"Selected plan variant: {plan.chosen_plan_id}. "
-                       f"Justification: {plan.plan_justification or 'Auto-selected based on risk score'}",
-                confidence=0.80,
+                content=model_content,
+                confidence=self._compute_confidence(model_content, ["variant", "justification", "risk", "score"]),
                 sources=["Ponder scoring", "Plan candidate evaluation"],
                 sanitized=True
             )
@@ -239,12 +257,13 @@ class ExplainAgent:
         # Add dependency analysis if there are subtasks
         if plan.subtasks:
             dep_count = sum(len(deps) for deps in plan.dependencies.values()) if plan.dependencies else 0
+            dep_content = (f"Dependency analysis: {len(plan.subtasks)} subtasks with {dep_count} dependencies. "
+                          f"Execution will proceed in dependency-order to maximize parallelization.")
             dep_block = ExplanationBlock(
                 target_id=plan.plan_id,
                 domain="planning",
-                content=f"Dependency analysis: {len(plan.subtasks)} subtasks with {dep_count} dependencies. "
-                       f"Execution will proceed in dependency-order to maximize parallelization.",
-                confidence=0.90,
+                content=dep_content,
+                confidence=self._compute_confidence(dep_content, ["subtasks", "dependencies", "dependency", "parallelization"]),
                 sources=["Scheduler dependency analysis"],
                 sanitized=True
             )
@@ -282,12 +301,13 @@ class ExplainAgent:
         domain = subtask.domain.value if hasattr(subtask.domain, 'value') else str(subtask.domain)
         
         # Add depth/context block
+        depth_content = (f"This subtask is at depth {subtask.depth} within the plan hierarchy. "
+                        f"It {'has' if subtask.dependencies else 'has no'} dependencies on other subtasks.")
         depth_block = ExplanationBlock(
             target_id=subtask.subtask_id,
             domain="planning",
-            content=f"This subtask is at depth {subtask.depth} within the plan hierarchy. "
-                   f"It {'has' if subtask.dependencies else 'has no'} dependencies on other subtasks.",
-            confidence=0.95,
+            content=depth_content,
+            confidence=self._compute_confidence(depth_content, ["depth", "hierarchy", "dependencies"]),
             sources=["Plan hierarchy"],
             sanitized=True
         )
@@ -295,12 +315,13 @@ class ExplainAgent:
         
         # Add domain-specific rationale
         template = self._domain_templates.get(domain, self._domain_templates["general"])
+        domain_content = (f"Domain: {domain}. This subtask aligns with the overall {domain} strategy: "
+                         f"{template['plan_summary'][:100]}...")
         domain_block = ExplanationBlock(
             target_id=subtask.subtask_id,
             domain=domain,
-            content=f"Domain: {domain}. This subtask aligns with the overall {domain} strategy: "
-                   f"{template['plan_summary'][:100]}...",
-            confidence=0.65,
+            content=domain_content,
+            confidence=self._compute_confidence(domain_content, ["domain", "strategy", "aligns"]),
             sources=["Domain templates"],
             sanitized=True
         )
@@ -308,12 +329,13 @@ class ExplainAgent:
         
         # Add model assignment rationale if available
         if subtask.assigned_model_id:
+            subtask_model_content = (f"Assigned model: {subtask.assigned_model_id}. "
+                                    f"This model was selected based on capability match and resource availability.")
             model_block = ExplanationBlock(
                 target_id=subtask.subtask_id,
                 domain="model_selection",
-                content=f"Assigned model: {subtask.assigned_model_id}. "
-                       f"This model was selected based on capability match and resource availability.",
-                confidence=0.75,
+                content=subtask_model_content,
+                confidence=self._compute_confidence(subtask_model_content, ["model", "capability", "resource", "availability"]),
                 sources=["Ponder scoring", "Model pool"],
                 sanitized=True
             )
@@ -326,7 +348,7 @@ class ExplainAgent:
                 target_id=subtask.subtask_id,
                 domain="planning",
                 content=dod_content,
-                confidence=0.90,
+                confidence=self._compute_confidence(dod_content, subtask.definition_of_done.criteria),
                 sources=["Subtask metadata"],
                 sanitized=True
             )

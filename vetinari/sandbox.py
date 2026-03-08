@@ -1,7 +1,10 @@
+import ast
 import uuid
 import time
 import json
 import os
+import re
+import shlex
 import sys
 import subprocess
 import tempfile
@@ -11,7 +14,7 @@ import traceback
 import tracemalloc
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 from datetime import datetime
 from enum import Enum
@@ -82,17 +85,144 @@ class AuditEntry:
         }
 
 
+def is_path_blocked(file_path: str, blocked_paths: List[str] = None) -> bool:
+    """Check if a file path is blocked by the sandbox policy.
+
+    Uses pathlib.Path.resolve() to canonicalize the path, preventing
+    symlink traversal attacks that could bypass string-based blocking.
+
+    Args:
+        file_path: The path to check.
+        blocked_paths: List of blocked path patterns. If None, loads from
+            the sandbox_policy.yaml config file.
+
+    Returns:
+        True if the path is blocked.
+    """
+    if blocked_paths is None:
+        try:
+            import yaml
+            config_path = Path(__file__).resolve().parents[1] / "config" / "sandbox_policy.yaml"
+            if config_path.exists():
+                with open(config_path, "r") as f:
+                    policy = yaml.safe_load(f) or {}
+                blocked_paths = policy.get("rules", {}).get("blocked_paths", [])
+            else:
+                blocked_paths = []
+        except Exception:
+            blocked_paths = []
+
+    if not blocked_paths:
+        return False
+
+    # Resolve the candidate path to its canonical absolute form (follows symlinks)
+    try:
+        resolved = Path(file_path).expanduser().resolve()
+    except (OSError, ValueError):
+        # If we can't resolve the path, block it defensively
+        return True
+
+    resolved_str = str(resolved)
+
+    for pattern in blocked_paths:
+        pattern = pattern.strip()
+        if not pattern:
+            continue
+
+        # Glob-style extension patterns like "*.pem"
+        if pattern.startswith("*."):
+            ext = pattern[1:]  # e.g. ".pem"
+            if resolved_str.endswith(ext):
+                return True
+            continue
+
+        # Directory / path prefix patterns -- resolve them too
+        try:
+            blocked_resolved = Path(pattern).expanduser().resolve()
+        except (OSError, ValueError):
+            continue
+
+        blocked_str = str(blocked_resolved)
+
+        # Check if the resolved path starts with (is inside) the blocked directory
+        if resolved_str == blocked_str or resolved_str.startswith(blocked_str + os.sep):
+            return True
+
+    return False
+
+
 ALLOWED_BUILTINS = {
     'str', 'int', 'float', 'bool', 'list', 'dict', 'set', 'tuple',
     'type', 'range', 'enumerate', 'zip', 'map', 'filter',
     'len', 'sum', 'min', 'max', 'sorted', 'reversed', 'any', 'all',
     'abs', 'round', 'pow',
-    'print', 'isinstance', 'hasattr', 'getattr', 'setattr',
+    'print', 'isinstance', 'hasattr',
     'isinstance', 'issubclass', 'callable', 'id', 'hash',
     'strip', 'split', 'join', 'replace', 'upper', 'lower', 'title',
     'startswith', 'endswith', 'find', 'count', 'format',
     'append', 'extend', 'pop', 'get', 'keys', 'values', 'items', 'copy',
 }
+
+# Shell metacharacters that indicate command injection attempts
+_SHELL_METACHARACTERS = re.compile(r'[;|&`]|\$\(')
+
+
+class _DangerousNodeVisitor(ast.NodeVisitor):
+    """AST visitor that detects dangerous constructs in sandbox code."""
+
+    DANGEROUS_NAMES: frozenset = frozenset({
+        'eval', 'exec', 'compile', '__import__', 'open', 'input',
+        'getattr', 'setattr', 'delattr',
+    })
+    DANGEROUS_ATTRS: frozenset = frozenset({
+        '__builtins__', '__globals__', '__locals__', '__subclasses__',
+        '__bases__', '__mro__', '__code__', '__func__',
+    })
+
+    def __init__(self):
+        self.violations: List[str] = []
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Name) and node.func.id in self.DANGEROUS_NAMES:
+            self.violations.append(f"Call to dangerous builtin '{node.func.id}'")
+        if isinstance(node.func, ast.Attribute) and node.func.attr in self.DANGEROUS_NAMES:
+            self.violations.append(f"Call to dangerous attribute '{node.func.attr}'")
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if node.attr in self.DANGEROUS_ATTRS:
+            self.violations.append(f"Access to dangerous attribute '{node.attr}'")
+        self.generic_visit(node)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self.violations.append(f"Import statement not allowed: '{alias.name}'")
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        self.violations.append(f"Import statement not allowed: 'from {node.module}'")
+        self.generic_visit(node)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if node.id in ('__builtins__', '__globals__', '__locals__'):
+            self.violations.append(f"Access to dangerous name '{node.id}'")
+        self.generic_visit(node)
+
+
+def _check_code_safety(code: str) -> Optional[str]:
+    """Parse code into AST and check for dangerous constructs.
+
+    Returns an error string if dangerous patterns are found, else ``None``.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return f"Syntax error: {e}"
+    visitor = _DangerousNodeVisitor()
+    visitor.visit(tree)
+    if visitor.violations:
+        return f"Dangerous pattern detected: {'; '.join(visitor.violations)}"
+    return None
 
 
 BLOCKED_BUILTINS = {
@@ -125,103 +255,142 @@ class InProcessSandbox:
         execution_id = f"exec_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
-        # Check for dangerous patterns before execution (check compile first)
-        dangerous_patterns = ['compile', 'eval', 'exec', '__import__', 'open', 'input']
-        for pattern in dangerous_patterns:
-            if pattern in code:
-                return SandboxResult(
-                    success=False,
-                    error=f"Dangerous pattern '{pattern}' not allowed in sandbox",
-                    execution_time_ms=int((time.time() - start_time) * 1000),
-                    execution_id=execution_id
-                )
-
-        # Use threading timeout instead of signal (works on Windows)
-        result_holder = [None]
-        error_holder = [None]
-        peak_memory = [0.0]
-
-        def run_code():
-            # Start tracemalloc inside the thread to track memory
-            import tracemalloc
-            tracemalloc.start()
-            try:
-                restricted_globals = {
-                    '__builtins__': self._get_safe_builtins()
-                }
-                if context:
-                    restricted_globals.update(context)
-
-                # Use exec() to support both expressions and statements (like function definitions)
-                # but capture the last expression value if it's an expression
-                is_expression = True
-                try:
-                    compile(code, '<string>', 'eval')
-                except SyntaxError:
-                    is_expression = False
-
-                if is_expression:
-                    result_holder[0] = eval(code, restricted_globals, {})
-                else:
-                    # For statements (like function defs + calls), capture the last expression result
-                    # by evaluating the last line if it's an expression statement
-                    lines = code.strip().split('\n')
-                    exec_globals = restricted_globals.copy()
-                    exec(code, exec_globals)
-                    # Try to get result from last line if it's a function call
-                    if lines:
-                        last_line = lines[-1].strip()
-                        # Check if last line is an expression (not a statement)
-                        try:
-                            compile(last_line, '<string>', 'eval')
-                            result_holder[0] = eval(last_line, exec_globals, {})
-                        except (SyntaxError, TypeError):
-                            result_holder[0] = None
-            except Exception as e:
-                error_holder[0] = e
-            finally:
-                # Get peak memory in this thread
-                current, peak = tracemalloc.get_traced_memory()
-                peak_memory[0] = peak / (1024 * 1024)
-                tracemalloc.stop()
-
-        execution_thread = threading.Thread(target=run_code, daemon=True)
-        execution_thread.start()
-        execution_thread.join(timeout=self.timeout)
-
-        if execution_thread.is_alive():
-            # Timeout occurred
-            result = SandboxResult(
+        # AST-based safety check replaces naive string pattern matching
+        safety_error = _check_code_safety(code)
+        if safety_error:
+            return SandboxResult(
                 success=False,
-                error=f"Execution timeout after {self.timeout}s",
-                execution_time_ms=self.timeout * 1000,
-                execution_id=execution_id
-            )
-            if STRUCTURED_LOGGING:
-                log_sandbox_execution(execution_id, False, self.timeout * 1000, 0.0)
-            return result
-
-        if error_holder[0]:
-            result = SandboxResult(
-                success=False,
-                error=f"{type(error_holder[0]).__name__}: {str(error_holder[0])}",
+                error=f"Safety check failed: {safety_error}",
                 execution_time_ms=int((time.time() - start_time) * 1000),
                 execution_id=execution_id
             )
-            if STRUCTURED_LOGGING:
-                log_sandbox_execution(execution_id, False, int((time.time() - start_time) * 1000), 0.0, error=str(error_holder[0]))
-            return result
 
-        result = SandboxResult(
-            success=True,
-            result=result_holder[0],
-            execution_time_ms=int((time.time() - start_time) * 1000),
-            memory_used_mb=peak_memory[0],
-            execution_id=execution_id
+        # Use a subprocess instead of an unkillable daemon thread so the
+        # process can actually be terminated on timeout via proc.kill().
+        import base64 as _b64
+
+        context_json = json.dumps(context or {})
+        code_b64 = _b64.b64encode(code.encode("utf-8")).decode("ascii")
+        context_b64 = _b64.b64encode(context_json.encode("utf-8")).decode("ascii")
+        allowed_b64 = _b64.b64encode(
+            json.dumps(list(self.allowed_builtins)).encode("utf-8")
+        ).decode("ascii")
+
+        # Runner script executed in a child process with restricted builtins.
+        # Uses compile() to pre-compile code before eval/exec (no raw
+        # eval/exec on string input).
+        runner_code = (
+            'import sys, json, traceback, tracemalloc, base64, builtins\n'
+            f'allowed_names = json.loads(base64.b64decode("{allowed_b64}").decode("utf-8"))\n'
+            'safe_builtins = {k: getattr(builtins, k) for k in allowed_names if hasattr(builtins, k)}\n'
+            f'code = base64.b64decode("{code_b64}").decode("utf-8")\n'
+            f'context = json.loads(base64.b64decode("{context_b64}").decode("utf-8"))\n'
+            'tracemalloc.start()\n'
+            'try:\n'
+            '    restricted_globals = {"__builtins__": safe_builtins}\n'
+            '    restricted_globals.update(context)\n'
+            '    try:\n'
+            '        compiled = compile(code, "<sandbox>", "eval")\n'
+            '        result = eval(compiled, restricted_globals, {})\n'
+            '    except SyntaxError:\n'
+            '        compiled = compile(code, "<sandbox>", "exec")\n'
+            '        exec_globals = restricted_globals.copy()\n'
+            '        exec(compiled, exec_globals)\n'
+            '        lines = code.strip().split("\\n")\n'
+            '        result = None\n'
+            '        if lines:\n'
+            '            last_line = lines[-1].strip()\n'
+            '            try:\n'
+            '                last_compiled = compile(last_line, "<sandbox>", "eval")\n'
+            '                result = eval(last_compiled, exec_globals, {})\n'
+            '            except (SyntaxError, TypeError):\n'
+            '                pass\n'
+            '    current, peak = tracemalloc.get_traced_memory()\n'
+            '    peak_mb = peak / (1024 * 1024)\n'
+            '    tracemalloc.stop()\n'
+            '    output = {"success": True, "result": repr(result), "peak_mb": peak_mb}\n'
+            '    sys.stdout.write(json.dumps(output))\n'
+            'except Exception as e:\n'
+            '    current, peak = tracemalloc.get_traced_memory()\n'
+            '    peak_mb = peak / (1024 * 1024)\n'
+            '    tracemalloc.stop()\n'
+            '    output = {"success": False, "error": f"{type(e).__name__}: {e}", "peak_mb": peak_mb}\n'
+            '    sys.stdout.write(json.dumps(output))\n'
         )
-        if STRUCTURED_LOGGING:
-            log_sandbox_execution(execution_id, True, int((time.time() - start_time) * 1000), peak_memory[0])
-        return result
+
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, "-c", runner_code],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                stdout, stderr = proc.communicate(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                result = SandboxResult(
+                    success=False,
+                    error=f"Execution timeout after {self.timeout}s",
+                    execution_time_ms=self.timeout * 1000,
+                    execution_id=execution_id
+                )
+                if STRUCTURED_LOGGING:
+                    log_sandbox_execution(execution_id, False, self.timeout * 1000, 0.0)
+                return result
+
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            if proc.returncode != 0:
+                result = SandboxResult(
+                    success=False,
+                    error=stderr or f"Process exited with code {proc.returncode}",
+                    execution_time_ms=elapsed_ms,
+                    execution_id=execution_id
+                )
+                if STRUCTURED_LOGGING:
+                    log_sandbox_execution(execution_id, False, elapsed_ms, 0.0, error=stderr)
+                return result
+
+            try:
+                output = json.loads(stdout)
+            except (json.JSONDecodeError, ValueError):
+                output = {"success": False, "error": f"Unexpected output: {stdout[:200]}"}
+
+            if output.get("success"):
+                result = SandboxResult(
+                    success=True,
+                    result=output.get("result"),
+                    execution_time_ms=elapsed_ms,
+                    memory_used_mb=output.get("peak_mb", 0.0),
+                    execution_id=execution_id
+                )
+                if STRUCTURED_LOGGING:
+                    log_sandbox_execution(execution_id, True, elapsed_ms, output.get("peak_mb", 0.0))
+                return result
+            else:
+                result = SandboxResult(
+                    success=False,
+                    error=output.get("error", "Unknown error"),
+                    execution_time_ms=elapsed_ms,
+                    execution_id=execution_id
+                )
+                if STRUCTURED_LOGGING:
+                    log_sandbox_execution(execution_id, False, elapsed_ms, 0.0, error=output.get("error"))
+                return result
+
+        except Exception as e:
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            result = SandboxResult(
+                success=False,
+                error=f"Sandbox execution failed: {type(e).__name__}: {e}",
+                execution_time_ms=elapsed_ms,
+                execution_id=execution_id
+            )
+            if STRUCTURED_LOGGING:
+                log_sandbox_execution(execution_id, False, elapsed_ms, 0.0, error=str(e))
+            return result
 
 
 class ExternalPluginSandbox:
@@ -280,19 +449,61 @@ class ExternalPluginSandbox:
         ))
 
         try:
-            result = {"status": "simulated", "hook": hook_name}
+            # Look for hook file in .vetinari/hooks/{hook_name}.py
+            hook_file = Path(".vetinari") / "hooks" / f"{hook_name}.py"
+            if not hook_file.exists():
+                result = {"status": "not_found", "hook": hook_name}
+                self._log_audit(AuditEntry(
+                    timestamp=datetime.now().isoformat(),
+                    execution_id=execution_id,
+                    operation=hook_name,
+                    sandbox_type="external",
+                    status="not_found",
+                    duration_ms=int((time.time() - start_time) * 1000),
+                    details={'plugin': plugin_name, 'hook_file': str(hook_file)}
+                ))
+                return result
+
+            # Execute hook via subprocess
+            hook_result = subprocess.run(
+                [sys.executable, str(hook_file)],
+                input=json.dumps(params),
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
+
+            if hook_result.returncode == 0:
+                try:
+                    result = json.loads(hook_result.stdout)
+                except (json.JSONDecodeError, ValueError):
+                    result = {"status": "success", "hook": hook_name, "output": hook_result.stdout}
+            else:
+                result = {"status": "error", "hook": hook_name, "error": hook_result.stderr}
 
             self._log_audit(AuditEntry(
                 timestamp=datetime.now().isoformat(),
                 execution_id=execution_id,
                 operation=hook_name,
                 sandbox_type="external",
-                status="success",
+                status="success" if hook_result.returncode == 0 else "error",
                 duration_ms=int((time.time() - start_time) * 1000),
-                details={'plugin': plugin_name}
+                details={'plugin': plugin_name, 'returncode': hook_result.returncode}
             ))
 
             return result
+
+        except subprocess.TimeoutExpired:
+            self._log_audit(AuditEntry(
+                timestamp=datetime.now().isoformat(),
+                execution_id=execution_id,
+                operation=hook_name,
+                sandbox_type="external",
+                status="timeout",
+                duration_ms=int((time.time() - start_time) * 1000),
+                details={'plugin': plugin_name, 'timeout': self.timeout}
+            ))
+            return {"status": "timeout", "hook": hook_name}
 
         except Exception as e:
             self._log_audit(AuditEntry(
@@ -604,7 +815,7 @@ except Exception as e:
 
 # Output results
 result = {{
-    "success": len(_errors) == 0,
+    "success": not _errors,
     "output": "".join(_output),
     "errors": "".join(_errors),
     "input_received": INPUT_DATA
@@ -619,15 +830,28 @@ print("===VETINARI_OUTPUT_END===")
     def execute_shell(self,
                     command: str,
                     timeout: int = None) -> ExecutionResult:
-        """Execute a shell command."""
+        """Execute a shell command.
+
+        Security: uses shlex.split() with shell=False to prevent command
+        injection.  Commands containing shell metacharacters are rejected.
+        """
         timeout = timeout or self.max_execution_time
+
+        # Reject commands containing shell metacharacters
+        if _SHELL_METACHARACTERS.search(command):
+            return ExecutionResult(
+                success=False,
+                output="",
+                error="Command rejected: shell metacharacters (;|&`$()) are not allowed",
+                return_code=-1,
+            )
 
         start_time = time.time()
 
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout,

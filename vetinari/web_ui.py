@@ -31,6 +31,7 @@ from vetinari.web.shared import (  # noqa: F401
     trigger_light_search,
     _is_admin_user,
     _project_external_model_enabled,
+    validate_json_request,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,23 @@ app = Flask(__name__,
     template_folder=str(PROJECT_ROOT / 'ui' / 'templates'),
     static_folder=str(PROJECT_ROOT / 'ui' / 'static'))
 
+
+# ---------------------------------------------------------------------------
+# Security headers (S6)
+# ---------------------------------------------------------------------------
+@app.after_request
+def set_security_headers(response):
+    """Add security headers to every HTTP response."""
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
+
 # Model search scheduler (only if APScheduler is installed)
 scheduler = None
 if _APSCHEDULER_AVAILABLE:
@@ -46,7 +64,7 @@ if _APSCHEDULER_AVAILABLE:
         scheduler = BackgroundScheduler()
         scheduler.start()
     except Exception as _sched_err:
-        logging.warning(f"[Vetinari] Could not start background scheduler: {_sched_err}")
+        logger.warning(f"[Vetinari] Could not start background scheduler: {_sched_err}")
 
 if scheduler is not None:
     try:
@@ -58,7 +76,7 @@ if scheduler is not None:
             name="Monthly model cache refresh"
         )
     except Exception as _job_err:
-        logging.warning(f"[Vetinari] Could not add scheduler job: {_job_err}")
+        logger.warning(f"[Vetinari] Could not add scheduler job: {_job_err}")
 
 # Read HTML template
 template_path = PROJECT_ROOT / 'ui' / 'templates' / 'index.html'
@@ -193,7 +211,9 @@ def api_models_refresh():
 @app.route('/api/score-models', methods=['POST'])
 def api_score_models():
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         task_description = data.get('task_description', '')
 
         orb = get_orchestrator()
@@ -264,7 +284,9 @@ def api_tasks():
 # API: Run a task
 @app.route('/api/run-task', methods=['POST'])
 def api_run_task():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     task_id = data.get('task_id')
 
     if not task_id:
@@ -302,7 +324,9 @@ def api_run_all():
 # API: Run custom prompt
 @app.route('/api/run-prompt', methods=['POST'])
 def api_run_prompt():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     prompt = data.get('prompt', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
@@ -342,7 +366,9 @@ def api_run_prompt():
 # API: Create a plan using the planning engine
 @app.route('/api/plan', methods=['POST'])
 def api_create_plan():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     goal = data.get('goal', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
 
@@ -399,7 +425,9 @@ def api_system_prompts():
 @app.route('/api/system-prompts', methods=['POST'])
 def api_save_system_prompt():
     try:
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
         name = data.get('name', '')
         content = data.get('content', '')
 
@@ -491,7 +519,9 @@ def api_discover():
 @app.route('/api/config', methods=['POST'])
 def api_config():
     global orchestrator
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
 
     host = None
     api_token = None
@@ -619,7 +649,9 @@ def api_model_config():
 # API: Update model configuration
 @app.route('/api/model-config', methods=['POST'])
 def api_update_model_config():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
 
     if 'default_models' in data:
         current_config["default_models"] = data['default_models']
@@ -641,7 +673,9 @@ def api_update_model_config():
 # API: Swap to a different model (per-project)
 @app.route('/api/swap-model', methods=['POST'])
 def api_swap_model():
-    data = request.json
+    data, err = validate_json_request()
+    if err:
+        return err
     project_id = data.get('project_id')
     new_model = data.get('model_id', '')
 

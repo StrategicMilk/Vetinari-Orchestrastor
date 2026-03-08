@@ -80,6 +80,25 @@ SD_DEFAULT_HEIGHT: int = 512
 SD_DEFAULT_STEPS: int = 20
 SD_DEFAULT_CFG: float = 7.0
 
+# ── Admin / Security ─────────────────────────────────────────────────────────
+ADMIN_TOKEN: str = os.environ.get("VETINARI_ADMIN_TOKEN", "")
+ENABLE_EXTERNAL_DISCOVERY: bool = os.environ.get(
+    "ENABLE_EXTERNAL_DISCOVERY", "true"
+).lower() in ("1", "true", "yes")
+
+# ── Plan Mode ────────────────────────────────────────────────────────────────
+PLAN_MODE_ENABLE: bool = os.environ.get("PLAN_MODE_ENABLE", "true").lower() in ("1", "true", "yes")
+PLAN_MODE_DEFAULT: bool = os.environ.get("PLAN_MODE_DEFAULT", "true").lower() in ("1", "true", "yes")
+PLAN_MAX_CANDIDATES: int = int(os.environ.get("PLAN_MAX_CANDIDATES", 3))
+DRY_RUN_ENABLED: bool = os.environ.get("DRY_RUN_ENABLED", "false").lower() in ("1", "true", "yes")
+
+# ── Execution ────────────────────────────────────────────────────────────────
+EXECUTION_MODE: str = os.environ.get("EXECUTION_MODE", "execution").lower()
+VERIFICATION_LEVEL: str = os.environ.get("VERIFICATION_LEVEL", "standard").lower()
+UPGRADE_AUTO_APPROVE: bool = os.environ.get(
+    "VETINARI_UPGRADE_AUTO_APPROVE", "false"
+).lower() in ("1", "true", "yes")
+
 # ── External services ─────────────────────────────────────────────────────────
 ELASTICSEARCH_HOST: str = os.environ.get("ELASTICSEARCH_HOST", "http://localhost:9200")
 SPLUNK_HOST: str = os.environ.get("SPLUNK_HOST", "http://localhost:8088")

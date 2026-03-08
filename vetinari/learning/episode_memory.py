@@ -202,7 +202,7 @@ class EpisodeMemory:
                     if row[1]
                 ]
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Index load failed: {e}")
+            logger.warning(f"[EpisodeMemory] Index load failed: {e}")
 
     # ------------------------------------------------------------------
     # Recording
@@ -273,7 +273,22 @@ class EpisodeMemory:
                 if len(self._index) > _MAX_EPISODES:
                     self._evict()
             except Exception as e:
-                logger.debug(f"[EpisodeMemory] Record failed: {e}")
+                logger.warning(f"[EpisodeMemory] Record failed: {e}")
+
+        # I13: Feed episode data to WorkflowLearner for pattern extraction
+        try:
+            from vetinari.learning.workflow_learner import get_workflow_learner
+            learner = get_workflow_learner()
+            learner.record_outcome(
+                goal=task_summary,
+                plan_depth=int((metadata or {}).get("plan_depth", 1)),
+                plan_breadth=int((metadata or {}).get("plan_breadth", 1)),
+                agents_used=[agent_type],
+                quality_score=quality_score,
+                success=success,
+            )
+        except Exception as e:
+            logger.debug(f"[EpisodeMemory] WorkflowLearner feed failed: {e}")
 
         return episode_id
 
@@ -291,7 +306,7 @@ class EpisodeMemory:
             # Rebuild index
             self._load_index()
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Eviction failed: {e}")
+            logger.warning(f"[EpisodeMemory] Eviction failed: {e}")
 
     # ------------------------------------------------------------------
     # Retrieval
@@ -389,7 +404,7 @@ class EpisodeMemory:
             return episodes[:k]
 
         except Exception as e:
-            logger.debug(f"[EpisodeMemory] Recall failed: {e}")
+            logger.warning(f"[EpisodeMemory] Recall failed: {e}")
             return []
 
     def get_failure_patterns(self, agent_type: str, task_type: str) -> List[str]:

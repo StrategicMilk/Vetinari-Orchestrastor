@@ -266,6 +266,7 @@ class ModelSelection:
     reasoning: str
     alternatives: List[ModelInfo] = field(default_factory=list)
     confidence: float = 1.0
+    sampling_profile: Optional[Any] = None  # SamplingProfile resolved after selection
 
 
 # =====================================================================
@@ -435,6 +436,9 @@ class DynamicModelRouter:
         # Callbacks
         self._health_check_callback: Optional[Callable] = None
 
+        # I5: Load persistent performance cache on init
+        self._load_cache()
+
         logger.info(f"DynamicModelRouter initialized (prefer_local={prefer_local})")
 
     # ------------------------------------------------------------------
@@ -520,6 +524,39 @@ class DynamicModelRouter:
             "timestamp": time.time(),
         }
 
+        # I5: Persist performance cache after update
+        self._save_cache()
+
+    # ------------------------------------------------------------------
+    # I5: Persistent performance cache
+    # ------------------------------------------------------------------
+
+    _CACHE_PATH = os.path.join(
+        os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
+        ".vetinari", "router_performance.json"
+    )
+
+    def _save_cache(self) -> None:
+        """Persist performance data to .vetinari/router_performance.json."""
+        try:
+            os.makedirs(os.path.dirname(self._CACHE_PATH), exist_ok=True)
+            with open(self._CACHE_PATH, "w") as f:
+                json.dump(self._performance_cache, f, indent=2)
+        except Exception as e:
+            logger.debug(f"[ModelRouter] Could not save performance cache: {e}")
+
+    def _load_cache(self) -> None:
+        """Load performance data from .vetinari/router_performance.json."""
+        try:
+            if os.path.exists(self._CACHE_PATH):
+                with open(self._CACHE_PATH) as f:
+                    saved = json.load(f)
+                if isinstance(saved, dict):
+                    self._performance_cache.update(saved)
+                    logger.debug(f"[ModelRouter] Loaded {len(saved)} cached performance entries")
+        except Exception as e:
+            logger.debug(f"[ModelRouter] Could not load performance cache: {e}")
+
     # ------------------------------------------------------------------
     # Model selection
     # ------------------------------------------------------------------
@@ -585,12 +622,13 @@ class DynamicModelRouter:
                 logger.warning("No models available!")
                 return None
 
-            # Pick random available model as fallback
-            fallback = random.choice(available)
+            # Pick best-scoring available model as fallback (not random)
+            fallback = max(available, key=lambda m: max(self._score_model(m, task_type, task_description, preferred_models or []), 0.1))
+            fallback_score = max(self._score_model(fallback, task_type, task_description, preferred_models or []), 0.1)
             return ModelSelection(
                 model=fallback,
-                score=0.0,
-                reasoning="Fallback: no models matched criteria",
+                score=fallback_score,
+                reasoning="Fallback: no models matched criteria, selected best available by score",
                 confidence=0.1,
             )
 
@@ -618,7 +656,7 @@ class DynamicModelRouter:
             "timestamp": datetime.now().isoformat(),
         })
 
-        return ModelSelection(
+        selection = ModelSelection(
             model=best_model,
             score=best_score,
             reasoning=self._generate_reasoning(best_model, task_type, best_score),
@@ -626,22 +664,39 @@ class DynamicModelRouter:
             confidence=confidence,
         )
 
+        # Resolve sampling profile for the selected model + task type
+        try:
+            from vetinari.sampling_profile import SamplingProfileManager
+            spm = SamplingProfileManager()
+            selection.sampling_profile = spm.get_profile(
+                task_type=task_type.value,
+                model_id=best_model.id,
+            )
+        except Exception as e:
+            logger.debug(f"Sampling profile resolution skipped: {e}")
+
+        return selection
+
     def _score_model(self,
                      model: ModelInfo,
                      task_type: TaskType,
                      task_description: str,
                      preferred_models: List[str]) -> float:
-        """Score a model for a given task."""
-        score = 0.0
+        """Score a model for a given task.
 
+        Enforces a minimum score floor of 0.1 so no model scores exactly zero.
+        """
         # --- PonderEngine override (if available) ---
         ponder_score = self._ponder_score(model, task_description)
         if ponder_score is not None:
             # Blend: 50 % ponder + 50 % internal scoring
             internal = self._internal_score(model, task_type, task_description, preferred_models)
-            return 0.50 * ponder_score + 0.50 * internal
+            raw = 0.50 * ponder_score + 0.50 * internal
+        else:
+            raw = self._internal_score(model, task_type, task_description, preferred_models)
 
-        return self._internal_score(model, task_type, task_description, preferred_models)
+        # Score floor: no model scores exactly zero
+        return max(raw, 0.1)
 
     def _internal_score(self,
                         model: ModelInfo,

@@ -9,7 +9,6 @@ from vetinari.analytics.sla import (
 
 
 def _tracker():
-    reset_sla_tracker()
     return get_sla_tracker()
 
 
@@ -48,13 +47,15 @@ class TestSLOManagement(unittest.TestCase):
     def test_register_and_list(self):
         t = _tracker()
         t.register_slo(SLOTarget(name="a", slo_type=SLOType.LATENCY_P95, budget=500.0))
-        self.assertEqual(len(t.list_slos()), 1)
+        # 3 pre-registered defaults + 1 new
+        self.assertEqual(len(t.list_slos()), 4)
 
     def test_unregister(self):
         t = _tracker()
         t.register_slo(SLOTarget(name="b", slo_type=SLOType.SUCCESS_RATE, budget=99.0))
         self.assertTrue(t.unregister_slo("b"))
-        self.assertEqual(len(t.list_slos()), 0)
+        # 3 pre-registered defaults remain
+        self.assertEqual(len(t.list_slos()), 3)
 
     def test_unregister_nonexistent(self):
         t = _tracker()
@@ -177,7 +178,8 @@ class TestGetAllReports(unittest.TestCase):
         t.register_slo(SLOTarget(name="a", slo_type=SLOType.LATENCY_P95, budget=500.0))
         t.register_slo(SLOTarget(name="b", slo_type=SLOType.SUCCESS_RATE, budget=99.0))
         reports = t.get_all_reports()
-        self.assertEqual(len(reports), 2)
+        # 3 pre-registered defaults + 2 new
+        self.assertEqual(len(reports), 5)
 
 
 class TestStats(unittest.TestCase):

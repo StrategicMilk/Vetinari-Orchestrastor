@@ -24,7 +24,7 @@ import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
-from collections import defaultdict
+from collections import defaultdict, deque
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,10 @@ class TelemetryCollector:
         self.plan_metrics = PlanMetrics()
         self._lock = threading.RLock()
         self._start_time = datetime.now(timezone.utc)
-        
+        # Time-series circular buffers keyed by metric name
+        # Each buffer stores (timestamp, value) tuples
+        self._ts_buffers: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
+
         logger.info("TelemetryCollector initialized")
     
     # === Adapter Metrics ===
@@ -162,7 +165,10 @@ class TelemetryCollector:
                 metrics.successful_requests += 1
             else:
                 metrics.failed_requests += 1
-            
+
+            # Append to time-series buffer
+            self._ts_buffers[f"adapter_latency:{key}"].append((time.time(), latency_ms))
+
             logger.debug(f"Recorded adapter latency: {key} = {latency_ms}ms (success={success})")
     
     def get_adapter_metrics(self, provider: Optional[str] = None) -> Dict[str, AdapterMetrics]:
@@ -171,7 +177,22 @@ class TelemetryCollector:
             if provider:
                 return {k: v for k, v in self.adapter_metrics.items() if v.provider == provider}
             return dict(self.adapter_metrics)
-    
+
+    def get_time_series(self, metric: str, since_timestamp: float = 0.0) -> List[tuple]:
+        """Return time-series data points for a metric since a given timestamp.
+
+        Args:
+            metric: The metric name (e.g. ``"adapter_latency:openai:gpt-4"``).
+            since_timestamp: Unix timestamp; only points after this time are
+                returned.  Defaults to 0.0 (all points).
+
+        Returns:
+            List of ``(timestamp, value)`` tuples in chronological order.
+        """
+        with self._lock:
+            buf = self._ts_buffers.get(metric, deque())
+            return [(ts, val) for ts, val in buf if ts >= since_timestamp]
+
     # === Memory Metrics ===
     
     def record_memory_write(self, backend: str, latency_ms: float):
@@ -376,6 +397,7 @@ class TelemetryCollector:
                 "mnemosyne": MemoryMetrics(backend="mnemosyne")
             }
             self.plan_metrics = PlanMetrics()
+            self._ts_buffers.clear()
             self._start_time = datetime.now(timezone.utc)
             logger.info("Telemetry metrics reset")
 

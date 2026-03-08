@@ -9,7 +9,6 @@ from vetinari.analytics.cost import (
 
 
 def _tracker():
-    reset_cost_tracker()
     return get_cost_tracker()
 
 

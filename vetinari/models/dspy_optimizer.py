@@ -94,6 +94,13 @@ class DSPyOptimizer:
     def _check_dspy() -> bool:
         try:
             import dspy  # noqa: F401
+            # Verify DSPy is actually configured with a language model
+            if hasattr(dspy, 'settings') and hasattr(dspy.settings, 'lm'):
+                if dspy.settings.lm is None:
+                    logger.warning(
+                        "[DSPyOptimizer] DSPy is installed but no language model is configured "
+                        "(dspy.settings.lm is None). Call _configure_lm() before optimization."
+                    )
             return True
         except ImportError:
             return False

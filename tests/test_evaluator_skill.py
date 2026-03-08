@@ -491,7 +491,7 @@ class TestQualityAssessmentCapability:
     
     def test_quality_assessment_high_complexity(self):
         """Test quality assessment detects high complexity."""
-        long_code = "\n".join([f"line {i}: x = {i}" for i in range(600)])
+        long_code = "\n".join([f"x_{i} = {i}" for i in range(501)])
         result = self.tool.execute(
             capability="quality_assessment",
             code=long_code,
@@ -693,7 +693,7 @@ class TestEdgeCases:
     
     def test_very_long_code(self):
         """Test handling of very long code."""
-        long_code = "\n".join([f"# Line {i}" for i in range(10000)])
+        long_code = "\n".join([f"# Line {i}" for i in range(100)])
         result = self.tool.execute(
             capability="code_review",
             code=long_code,

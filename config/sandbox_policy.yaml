@@ -66,9 +66,9 @@ sandbox:
       - "api.openai.com"
 
     # Plugin security
-    require_signature: false
-    allow_network: true
-    allow_file_write: true
+    require_signature: true
+    allow_network: false
+    allow_file_write: false
 
     # Audit
     audit_enabled: true
@@ -77,16 +77,19 @@ sandbox:
 
 rules:
   # Code execution
-  allow_code_execution: true
+  allow_code_execution: false
+  require_signature: true
   require_approval_for_external: true
 
   # Network
-  allow_network: true
+  allow_network: false
   blocked_domains: []
 
   # File system
   allow_file_read: true
-  allow_file_write: true
+  allow_file_write: false
+  # Path blocking uses pathlib.Path.resolve() at runtime to prevent symlink traversal.
+  # These patterns are resolved to absolute canonical paths before comparison.
   blocked_paths:
     - "/etc"
     - "/root"

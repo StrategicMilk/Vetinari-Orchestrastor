@@ -183,7 +183,7 @@ class ContractRegistry:
 
     def is_stable(self) -> bool:
         """Return True when no drift is detected."""
-        return len(self.check_drift()) == 0
+        return not self.check_drift()
 
     # ------------------------------------------------------------------
     # Introspection

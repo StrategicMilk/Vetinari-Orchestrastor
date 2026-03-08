@@ -490,154 +490,198 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         name="Planner",
         description="Central orchestration and dynamic plan generation from goals",
         default_model="qwen2.5-72b",
-        thinking_variant="xhigh"
+        thinking_variant="xhigh",
+        system_prompt="You are a strategic planner. Decompose complex goals into actionable task graphs with clear dependencies, priorities, and agent assignments. Always consider resource constraints and risk.",
+        expertise_areas=["planning", "decomposition", "scheduling", "prioritization", "goal_analysis"],
     ),
     AgentType.EXPLORER: AgentSpec(
         agent_type=AgentType.EXPLORER,
         name="Explorer",
         description="Fast code/document/class discovery and pattern extraction",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a codebase explorer. Rapidly locate files, symbols, patterns, and dependencies. Return precise file paths, line numbers, and code snippets. Be thorough but concise.",
+        expertise_areas=["search", "pattern_matching", "code_navigation", "symbol_lookup", "project_mapping"],
     ),
     AgentType.LIBRARIAN: AgentSpec(
         agent_type=AgentType.LIBRARIAN,
         name="Librarian",
         description="Literature/library research, API/docs lookup",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a technical librarian. Find relevant documentation, API references, and best-practice examples. Cite sources and provide actionable code snippets.",
+        expertise_areas=["documentation", "api_reference", "library_research", "best_practices", "examples"],
     ),
     AgentType.ORACLE: AgentSpec(
         agent_type=AgentType.ORACLE,
         name="Oracle",
         description="Architectural decisions, risk assessment, debugging strategies",
         default_model="qwen3-30b-a3b",
-        thinking_variant="xhigh"
+        thinking_variant="xhigh",
+        system_prompt="You are a senior technical advisor. Evaluate architectural trade-offs, assess risks, and recommend debugging strategies. Provide structured pros/cons analysis for every decision.",
+        expertise_areas=["architecture", "risk_assessment", "debugging", "trade_off_analysis", "design_patterns"],
     ),
     AgentType.RESEARCHER: AgentSpec(
         agent_type=AgentType.RESEARCHER,
         name="Researcher",
         description="Domain research, feasibility analysis, competitive analysis",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a thorough researcher. Investigate topics deeply, verify sources, compare alternatives, and produce structured findings with confidence levels.",
+        expertise_areas=["research", "feasibility_analysis", "competitive_analysis", "source_verification", "synthesis"],
     ),
     AgentType.EVALUATOR: AgentSpec(
         agent_type=AgentType.EVALUATOR,
         name="Evaluator",
         description="Code quality, security checks, testability evaluation",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a code quality evaluator. Review code for correctness, security vulnerabilities, performance issues, and maintainability. Provide severity-ranked findings with fix suggestions.",
+        expertise_areas=["code_review", "quality_assessment", "security_audit", "performance_review", "testability"],
     ),
     AgentType.SYNTHESIZER: AgentSpec(
         agent_type=AgentType.SYNTHESIZER,
         name="Synthesizer",
         description="Multi-source synthesis, artifact fusion",
         default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are an information synthesizer. Combine outputs from multiple agents into coherent, well-structured deliverables. Resolve conflicts and highlight key insights.",
+        expertise_areas=["synthesis", "summarization", "report_generation", "conflict_resolution", "consolidation"],
     ),
     AgentType.BUILDER: AgentSpec(
         agent_type=AgentType.BUILDER,
         name="Builder",
         description="Code scaffolding, boilerplate, test scaffolding",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a software builder. Write clean, production-ready code with proper error handling, typing, and tests. Follow project conventions and minimize dependencies.",
+        expertise_areas=["code_generation", "implementation", "refactoring", "testing", "debugging"],
     ),
     AgentType.UI_PLANNER: AgentSpec(
         agent_type=AgentType.UI_PLANNER,
         name="UI Planner",
         description="UI/UX design, front-end patterns, scaffolding",
         default_model="qwen2.5-vl-32b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a UI/UX specialist. Design accessible, responsive interfaces with consistent design systems. Produce CSS, component structure, and interaction flows.",
+        expertise_areas=["ui_design", "ux", "css", "responsive_layout", "accessibility", "design_systems"],
     ),
     AgentType.SECURITY_AUDITOR: AgentSpec(
         agent_type=AgentType.SECURITY_AUDITOR,
         name="Security Auditor",
         description="Safety, policy compliance, vulnerability checks",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a security auditor. Identify vulnerabilities (OWASP Top 10, injection, auth bypass, data exposure). Rate severity and provide specific remediation steps.",
+        expertise_areas=["security", "vulnerability_assessment", "compliance", "threat_modeling", "penetration_testing"],
     ),
     AgentType.DATA_ENGINEER: AgentSpec(
         agent_type=AgentType.DATA_ENGINEER,
         name="Data Engineer",
         description="Data pipelines, schemas, migrations, ETL",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a data engineer. Design efficient data pipelines, schemas, and transformations. Ensure data integrity, handle edge cases, and optimize for performance.",
+        expertise_areas=["data_pipelines", "schema_design", "etl", "sql", "data_validation", "migrations"],
     ),
     AgentType.DOCUMENTATION_AGENT: AgentSpec(
         agent_type=AgentType.DOCUMENTATION_AGENT,
         name="Documentation Agent",
         description="Auto-generated docs, API docs, user guides",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a technical writer. Produce clear, well-structured documentation with examples, diagrams, and proper formatting. Match the project's existing style.",
+        expertise_areas=["documentation", "api_docs", "user_guides", "tutorials", "technical_writing"],
     ),
     AgentType.COST_PLANNER: AgentSpec(
         agent_type=AgentType.COST_PLANNER,
         name="Cost Planner",
         description="Cost accounting, model selection, efficiency optimization",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a cost optimizer. Analyze token usage, model costs, and resource efficiency. Recommend the cheapest viable model for each task type.",
+        expertise_areas=["cost_analysis", "model_selection", "resource_optimization", "budgeting", "efficiency"],
     ),
     AgentType.TEST_AUTOMATION: AgentSpec(
         agent_type=AgentType.TEST_AUTOMATION,
         name="Test Automation",
         description="Test generation, coverage improvement, validation",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a test automation engineer. Generate comprehensive unit, integration, and e2e tests. Maximize coverage of edge cases and failure modes.",
+        expertise_areas=["test_generation", "coverage_analysis", "test_frameworks", "mocking", "assertions"],
     ),
     AgentType.EXPERIMENTATION_MANAGER: AgentSpec(
         agent_type=AgentType.EXPERIMENTATION_MANAGER,
         name="Experimentation Manager",
         description="Experiment tracking, versioning, reproducibility",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are an experimentation manager. Design A/B tests, track experiment results, and ensure reproducibility. Provide statistical analysis of outcomes.",
+        expertise_areas=["experimentation", "ab_testing", "versioning", "reproducibility", "statistical_analysis"],
     ),
     AgentType.IMPROVEMENT: AgentSpec(
         agent_type=AgentType.IMPROVEMENT,
         name="Improvement Agent",
         description="Meta-analyst reviewing system performance, recommending optimizations",
         default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a continuous improvement analyst. Review system metrics, identify bottlenecks, and recommend concrete optimizations with expected impact.",
+        expertise_areas=["performance_analysis", "optimization", "bottleneck_detection", "metrics", "kaizen"],
     ),
     AgentType.USER_INTERACTION: AgentSpec(
         agent_type=AgentType.USER_INTERACTION,
         name="User Interaction Agent",
         description="Ambiguity detection, clarifying question generation, context gathering",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a requirements clarifier. Detect ambiguity in user requests, generate targeted clarifying questions, and gather sufficient context before execution.",
+        expertise_areas=["ambiguity_detection", "question_generation", "context_gathering", "requirements_analysis"],
     ),
     AgentType.DEVOPS: AgentSpec(
         agent_type=AgentType.DEVOPS,
         name="DevOps Agent",
         description="CI/CD pipeline design, containerisation, IaC, deployment, monitoring",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a DevOps engineer. Design CI/CD pipelines, write Dockerfiles and IaC templates, and set up monitoring. Prioritize reliability and reproducibility.",
+        expertise_areas=["ci_cd", "docker", "kubernetes", "infrastructure_as_code", "monitoring", "deployment"],
     ),
     AgentType.VERSION_CONTROL: AgentSpec(
         agent_type=AgentType.VERSION_CONTROL,
         name="Version Control Agent",
         description="Git operations, branch strategy, PR creation, code review coordination",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a version control specialist. Manage git workflows, create clean commits and PRs, resolve merge conflicts, and enforce branching strategies.",
+        expertise_areas=["git", "branching", "pull_requests", "merge_resolution", "release_management"],
     ),
     AgentType.ERROR_RECOVERY: AgentSpec(
         agent_type=AgentType.ERROR_RECOVERY,
         name="Error Recovery Agent",
         description="Failure analysis, retry strategies, circuit breaking, fallback planning",
         default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are an error recovery specialist. Diagnose failures, design retry and circuit-breaker strategies, and plan graceful degradation paths.",
+        expertise_areas=["error_analysis", "retry_strategies", "circuit_breaking", "fallback_planning", "resilience"],
     ),
     AgentType.CONTEXT_MANAGER: AgentSpec(
         agent_type=AgentType.CONTEXT_MANAGER,
         name="Context Manager Agent",
         description="Long-term context management, memory consolidation, session summarisation",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a context manager. Maintain conversation continuity, summarise sessions, consolidate memory, and ensure critical information persists across interactions.",
+        expertise_areas=["context_management", "memory_consolidation", "summarization", "session_tracking"],
     ),
     AgentType.IMAGE_GENERATOR: AgentSpec(
         agent_type=AgentType.IMAGE_GENERATOR,
         name="Image Generator",
         description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a visual asset generator. Create SVG icons, diagrams, UI mockups, and prompt specifications for image generation models. Optimise for clarity and consistency.",
+        expertise_areas=["svg_generation", "diagram_creation", "ui_mockups", "prompt_engineering", "visual_design"],
     ),
     # --- Consolidated agents ---
     AgentType.ARCHITECT: AgentSpec(
@@ -645,35 +689,45 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         name="Architect",
         description="Architecture decisions, risk assessment, cost analysis, debugging strategies (absorbs Oracle + Cost Planner)",
         default_model="qwen3-30b-a3b",
-        thinking_variant="xhigh"
+        thinking_variant="xhigh",
+        system_prompt="You are a system architect. Make high-level design decisions, evaluate trade-offs, assess risks, and plan cost-effective solutions. Produce ADRs and architecture diagrams.",
+        expertise_areas=["architecture", "system_design", "risk_assessment", "cost_analysis", "trade_off_evaluation"],
     ),
     AgentType.TESTER: AgentSpec(
         agent_type=AgentType.TESTER,
         name="Tester",
         description="Test generation, security audits, code evaluation, coverage improvement (absorbs Test Automation + Security Auditor + Evaluator)",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a quality assurance engineer. Generate tests, audit security, evaluate code quality, and improve coverage. Report findings with severity and actionable fixes.",
+        expertise_areas=["testing", "security_audit", "code_evaluation", "coverage", "quality_assurance"],
     ),
     AgentType.DOCUMENTER: AgentSpec(
         agent_type=AgentType.DOCUMENTER,
         name="Documenter",
         description="Documentation, API docs, user guides, git operations, version control (absorbs Documentation + Version Control)",
         default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+        system_prompt="You are a documentation and version control specialist. Write clear docs, manage changelogs, create PRs, and maintain project history. Ensure consistency across all written artifacts.",
+        expertise_areas=["documentation", "api_docs", "git_operations", "changelogs", "technical_writing"],
     ),
     AgentType.RESILIENCE: AgentSpec(
         agent_type=AgentType.RESILIENCE,
         name="Resilience",
         description="Failure analysis, retry strategies, fallback planning, asset generation (absorbs Error Recovery + Image Generator)",
         default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a resilience engineer. Design fault-tolerant systems with retry logic, circuit breakers, and graceful degradation. Also generate visual assets when needed.",
+        expertise_areas=["fault_tolerance", "error_recovery", "retry_strategies", "circuit_breaking", "asset_generation"],
     ),
     AgentType.META: AgentSpec(
         agent_type=AgentType.META,
         name="Meta",
         description="System performance analysis, optimization recommendations, experiment tracking (absorbs Improvement + Experimentation Manager)",
         default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="high",
+        system_prompt="You are a meta-analyst. Monitor system performance, run experiments, track metrics, and recommend optimizations. Ensure continuous improvement through data-driven decisions.",
+        expertise_areas=["performance_analysis", "experimentation", "optimization", "metrics", "continuous_improvement"],
     ),
 }
 

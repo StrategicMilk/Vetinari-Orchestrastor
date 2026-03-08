@@ -3,6 +3,7 @@
 __all__ = [
     "quality_scorer",
     "feedback_loop",
+    "feedback_hub",
     "model_selector",
     "prompt_evolver",
     "training_data",

@@ -275,6 +275,34 @@ class DriftMonitor:
         else:
             logger.warning("Full drift audit found issues: %s",
                            report.summary())
+
+            # I7: Fire alert via alert engine when drift is detected
+            try:
+                from vetinari.dashboard.alerts import (
+                    get_alert_engine, AlertThreshold, AlertCondition,
+                    AlertSeverity, AlertRecord,
+                )
+                alert_engine = get_alert_engine()
+                # Register a drift threshold if not already present
+                drift_threshold = AlertThreshold(
+                    name="drift_detected",
+                    metric_key="drift.issue_count",
+                    condition=AlertCondition.GREATER_THAN,
+                    threshold_value=0.0,
+                    severity=AlertSeverity.HIGH,
+                    channels=["log"],
+                )
+                alert_engine.register_threshold(drift_threshold)
+                # Directly create and dispatch an alert record
+                record = AlertRecord(
+                    threshold=drift_threshold,
+                    current_value=float(len(report.issues)),
+                )
+                alert_engine._history.append(record)
+                alert_engine._dispatch(record)
+            except Exception as e:
+                logger.warning("Drift alert dispatch failed: %s", e)
+
         return report
 
     # ------------------------------------------------------------------

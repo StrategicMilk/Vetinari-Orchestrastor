@@ -149,19 +149,36 @@ def _dispatch_log(alert: AlertRecord) -> None:
 
 
 def _dispatch_email(alert: AlertRecord) -> None:
-    """Placeholder — integrate with an email backend here."""
-    logger.info(
-        "EMAIL (placeholder): would send alert '%s' to email channel",
+    """Email dispatch — requires SMTP configuration to send."""
+    logger.warning(
+        "Email dispatch skipped: SMTP not configured (alert='%s')",
         alert.threshold.name,
     )
 
 
 def _dispatch_webhook(alert: AlertRecord) -> None:
-    """Placeholder — integrate with an HTTP webhook here."""
-    logger.info(
-        "WEBHOOK (placeholder): would POST alert '%s' to webhook channel",
-        alert.threshold.name,
-    )
+    """Dispatch alert via HTTP webhook POST."""
+    import os
+    url = os.environ.get("VETINARI_ALERT_WEBHOOK_URL", "")
+    if not url:
+        logger.warning(
+            "Webhook dispatch skipped: VETINARI_ALERT_WEBHOOK_URL not configured (alert='%s')",
+            alert.threshold.name,
+        )
+        return
+    try:
+        import requests
+        resp = requests.post(url, json=alert.to_dict(), timeout=10)
+        resp.raise_for_status()
+        logger.info(
+            "Webhook dispatched alert '%s' to %s (status=%d)",
+            alert.threshold.name, url, resp.status_code,
+        )
+    except Exception as exc:
+        logger.error(
+            "Webhook dispatch failed for alert '%s' to %s: %s",
+            alert.threshold.name, url, exc,
+        )
 
 
 DISPATCHERS: Dict[str, Callable[[AlertRecord], None]] = {

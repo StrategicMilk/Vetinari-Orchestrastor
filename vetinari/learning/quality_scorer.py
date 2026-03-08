@@ -34,10 +34,10 @@ class QualityScore:
     model_id: str
     task_type: str
     overall_score: float          # 0.0 - 1.0
-    correctness: float = 0.7      # Is the output correct?
-    completeness: float = 0.7     # Does it address the full task?
-    efficiency: float = 0.7       # Is it efficient/concise?
-    style: float = 0.7            # Follows conventions?
+    correctness: float = 0.5      # Is the output correct?
+    completeness: float = 0.5     # Does it address the full task?
+    efficiency: float = 0.5       # Is it efficient/concise?
+    style: float = 0.5            # Follows conventions?
     dimensions: Dict[str, float] = field(default_factory=dict)
     issues: List[str] = field(default_factory=list)
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -136,6 +136,7 @@ class QualityScorer:
                     score = self._blend_benchmark(score, benchmark_score)
                 self._scores.append(score)
                 self._persist(score)
+                self._push_to_router(score)
                 return score
 
         # Fallback: heuristic scoring
@@ -144,6 +145,7 @@ class QualityScorer:
             score = self._blend_benchmark(score, benchmark_score)
         self._scores.append(score)
         self._persist(score)
+        self._push_to_router(score)
         return score
 
     def score_with_benchmark(
@@ -320,7 +322,21 @@ class QualityScorer:
                     ),
                 )
         except Exception as e:
-            logger.debug(f"[QualityScorer] persist failed: {e}")
+            logger.warning(f"[QualityScorer] persist failed: {e}")
+
+    def _push_to_router(self, score: QualityScore) -> None:
+        """I11: Push quality scores to the model router via feedback loop."""
+        try:
+            from vetinari.learning.feedback_loop import get_feedback_loop
+            get_feedback_loop().record_outcome(
+                task_id=score.task_id,
+                model_id=score.model_id,
+                task_type=score.task_type,
+                quality_score=score.overall_score,
+                success=score.overall_score >= 0.5,
+            )
+        except Exception as e:
+            logger.debug(f"[QualityScorer] Router push failed: {e}")
 
     def _score_heuristic(
         self,
@@ -372,12 +388,12 @@ class QualityScorer:
             if not has_sources:
                 issues.append("No source citations found")
 
-        # Fill missing dimensions with default
+        # Fill missing dimensions with neutral default
         for d in dims:
             if d not in scores:
-                scores[d] = 0.65
+                scores[d] = 0.5
 
-        overall = sum(scores.values()) / len(scores) if scores else 0.65
+        overall = sum(scores.values()) / len(scores) if scores else 0.5
 
         return QualityScore(
             task_id=task_id, model_id=model_id, task_type=task_type,
@@ -431,7 +447,7 @@ class QualityScorer:
         """Get average quality score for a model (optionally filtered by task type)."""
         scores = self.get_history(model_id=model_id, task_type=task_type)
         if not scores:
-            return 0.7  # Default prior
+            return 0.5  # Neutral prior — no history, no bias
         return sum(s.overall_score for s in scores) / len(scores)
 
 

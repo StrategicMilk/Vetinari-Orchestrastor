@@ -31,7 +31,6 @@ class TestFlaskRestAPI:
     @pytest.fixture
     def client(self):
         """Create Flask test client."""
-        reset_dashboard()
         app = create_app(debug=True)
         with app.test_client() as client:
             yield client
@@ -288,7 +287,6 @@ class TestFlaskRestAPI:
     
     def test_timeseries_with_no_data(self, client):
         """Test timeseries when no data is available."""
-        reset_dashboard()
         
         response = client.get('/api/v1/metrics/timeseries?metric=latency')
         

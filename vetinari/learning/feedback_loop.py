@@ -97,6 +97,52 @@ class FeedbackLoop:
         if benchmark_result:
             self._process_benchmark_result(model_id, task_type, benchmark_result)
 
+        # 6. Fan out to PromptEvolver
+        try:
+            from vetinari.learning.prompt_evolver import get_prompt_evolver
+            get_prompt_evolver().record_result(
+                agent_type=task_type,
+                variant_id=f"{task_type}_baseline",
+                quality=quality_score,
+            )
+        except Exception as e:
+            logger.warning(f"PromptEvolver fan-out failed: {e}")
+
+        # 7. Fan out to WorkflowLearner
+        try:
+            from vetinari.learning.workflow_learner import get_workflow_learner
+            get_workflow_learner().record_outcome(
+                goal=task_id,
+                plan_depth=1,
+                plan_breadth=1,
+                agents_used=[model_id],
+                quality_score=quality_score,
+                success=success,
+            )
+        except Exception as e:
+            logger.warning(f"WorkflowLearner fan-out failed: {e}")
+
+        # 8. Fan out to AutoTuner
+        try:
+            from vetinari.learning.auto_tuner import get_auto_tuner
+            get_auto_tuner().run_cycle()
+        except Exception as e:
+            logger.warning(f"AutoTuner fan-out failed: {e}")
+
+        # 9. Fan out to SamplingProfileManager for learned sampling adjustments
+        try:
+            from vetinari.sampling_profile import SamplingProfileManager, SamplingProfile
+            spm = SamplingProfileManager()
+            profile = spm.resolve(task_type=task_type, model_id=model_id)
+            spm.record_outcome(
+                task_type=task_type,
+                model_id=model_id,
+                profile=profile,
+                quality_score=quality_score,
+            )
+        except Exception as e:
+            logger.warning(f"SamplingProfile fan-out failed: {e}")
+
     def record_benchmark_outcome(
         self,
         model_id: str,
@@ -148,7 +194,7 @@ class FeedbackLoop:
                 task_type=bench_task_type,
             )
         except Exception as e:
-            logger.debug(f"Thompson benchmark update failed: {e}")
+            logger.warning(f"Thompson benchmark update failed: {e}")
 
         # Update memory store with benchmark-informed performance
         try:
@@ -166,63 +212,71 @@ class FeedbackLoop:
                     "total_uses": existing.get("total_uses", 0),
                 })
         except Exception as e:
-            logger.debug(f"Memory benchmark update failed: {e}")
+            logger.warning(f"Memory benchmark update failed: {e}")
 
     def _update_memory_performance(
         self, model_id: str, task_type: str, quality: float,
         latency_ms: int, success: bool
     ) -> None:
-        """Update the ModelPerformance running averages in the memory store."""
+        """Update the ModelPerformance running averages in the memory store.
+
+        Tracks success_rate and quality_score independently — no mixing.
+        """
         mem = self._get_memory()
         if mem is None:
             return
         try:
             existing = mem.get_model_performance(model_id, task_type) or {}
-            old_rate = existing.get("success_rate", 0.7)
+            old_rate = existing.get("success_rate", 0.5)
+            old_quality = existing.get("quality_score", 0.5)
             old_latency = existing.get("avg_latency", latency_ms or 1000)
             old_uses = existing.get("total_uses", 0)
 
-            # Exponential moving average update
+            # Exponential moving average update — independent tracks
             new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * (1.0 if success else 0.0)
+            new_quality = (1 - self.EMA_ALPHA) * old_quality + self.EMA_ALPHA * quality
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
-            # Incorporate quality score into success rate
-            new_rate = (new_rate + quality) / 2
 
             # Pass dict-form update (new signature)
             mem.update_model_performance(model_id, task_type, {
                 "success_rate": round(new_rate, 4),
+                "quality_score": round(new_quality, 4),
                 "avg_latency": int(new_latency),
                 "total_uses": old_uses + 1,
             })
         except Exception as e:
-            logger.debug(f"Memory performance update failed: {e}")
+            logger.warning(f"Memory performance update failed: {e}")
 
     def _update_router_cache(
         self, model_id: str, task_type: str, quality: float,
         latency_ms: int, success: bool
     ) -> None:
-        """Update the DynamicModelRouter's in-memory performance cache."""
+        """Update the DynamicModelRouter's in-memory performance cache.
+
+        Tracks success_rate and quality_score independently — no mixing.
+        """
         router = self._get_router()
         if router is None:
             return
         try:
             cache_key = f"{model_id}:{task_type}"
             existing = router._performance_cache.get(cache_key, {})
-            old_rate = existing.get("success_rate", 0.7)
+            old_rate = existing.get("success_rate", 0.5)
+            old_quality = existing.get("quality_score", 0.5)
             old_latency = existing.get("avg_latency_ms", latency_ms or 1000)
 
             new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * float(success)
-            new_rate = (new_rate + quality) / 2
+            new_quality = (1 - self.EMA_ALPHA) * old_quality + self.EMA_ALPHA * quality
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
 
             router._performance_cache[cache_key] = {
                 "success_rate": round(new_rate, 4),
+                "quality_score": round(new_quality, 4),
                 "avg_latency_ms": int(new_latency),
-                "quality_score": round(quality, 4),
                 "last_updated": datetime.now().isoformat(),
             }
         except Exception as e:
-            logger.debug(f"Router cache update failed: {e}")
+            logger.warning(f"Router cache update failed: {e}")
 
     def _update_subtask_quality(self, task_id: str, quality: float, success: bool) -> None:
         """Annotate the SubtaskMemory record with quality score."""
@@ -232,7 +286,7 @@ class FeedbackLoop:
         try:
             mem.update_subtask_quality(task_id, quality_score=quality, succeeded=success)
         except Exception as e:
-            logger.debug(f"Subtask quality update failed: {e}")
+            logger.warning(f"Subtask quality update failed: {e}")
 
     def _update_thompson_arms(
         self, model_id: str, task_type: str, quality: float, success: bool
@@ -242,7 +296,7 @@ class FeedbackLoop:
             from vetinari.learning.model_selector import get_thompson_selector
             get_thompson_selector().update(model_id, task_type, quality, success)
         except Exception as e:
-            logger.debug(f"Thompson arm update failed: {e}")
+            logger.warning(f"Thompson arm update failed: {e}")
 
 
 # Singleton

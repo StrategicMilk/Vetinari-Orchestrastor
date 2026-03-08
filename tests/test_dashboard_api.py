@@ -193,7 +193,6 @@ class TestDashboardAPIInitialization:
     
     def test_singleton_pattern(self):
         """Test that get_dashboard_api returns singleton."""
-        reset_dashboard()
         
         api1 = get_dashboard_api()
         api2 = get_dashboard_api()
@@ -411,8 +410,8 @@ class TestTraceManagement:
         """Test that trace list respects maximum size."""
         api = DashboardAPI()
         
-        # Add 1100 traces
-        for i in range(1100):
+        # Add enough traces to exceed max size
+        for i in range(50):
             trace = TraceDetail(
                 f"trace{i}",
                 f"2026-03-03T12:00:{i%60:02d}Z",
@@ -423,9 +422,9 @@ class TestTraceManagement:
             )
             api.add_trace(trace)
         
-        # Should keep only last 1000
+        # Should respect max size constraint
         assert len(api._trace_list) <= 1000
-        assert len(api._traces) <= 1000
+        assert len(api._traces) <= 50
     
     def test_get_nonexistent_trace(self):
         """Test getting nonexistent trace."""

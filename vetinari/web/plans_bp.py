@@ -11,7 +11,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
-from vetinari.web.shared import PROJECT_ROOT, get_orchestrator, current_config
+from vetinari.web.shared import PROJECT_ROOT, get_orchestrator, current_config, validate_json_request
 
 plans_bp = Blueprint('plans', __name__)
 
@@ -22,7 +22,9 @@ plans_bp = Blueprint('plans', __name__)
 def api_plan_create():
     try:
         from vetinari.planning import plan_manager
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         plan = plan_manager.create_plan(
             title=data.get('title', ''),
@@ -74,7 +76,9 @@ def api_plan_get(plan_id):
 def api_plan_update(plan_id):
     try:
         from vetinari.planning import plan_manager
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         plan = plan_manager.update_plan(plan_id, data)
 
@@ -236,7 +240,9 @@ def api_decomposition_dod_dor():
 def api_decomposition_decompose():
     try:
         from vetinari.decomposition import decomposition_engine
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         task_prompt = data.get('task_prompt', '')
         parent_task_id = data.get('parent_task_id', 'root')
@@ -272,7 +278,9 @@ def api_decomposition_decompose_agent():
     try:
         from vetinari.decomposition_agent import decomposition_agent
         from vetinari.planning import plan_manager
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         plan_id = data.get('plan_id')
         prompt = data.get('prompt', '')
@@ -381,7 +389,9 @@ def api_get_subtasks(plan_id):
 def api_create_subtask(plan_id):
     try:
         from vetinari.subtask_tree import subtask_tree
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         parent_id = data.get('parent_id', 'root')
         depth = data.get('depth', 0)
@@ -423,7 +433,9 @@ def api_create_subtask(plan_id):
 def api_update_subtask(plan_id, subtask_id):
     try:
         from vetinari.subtask_tree import subtask_tree
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         subtask = subtask_tree.update_subtask(plan_id, subtask_id, data)
 
@@ -459,7 +471,9 @@ def api_get_subtask_tree(plan_id):
 def api_assignment_execute_pass():
     try:
         from vetinari.assignment_pass import execute_assignment_pass
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
 
         plan_id = data.get('plan_id')
         auto_assign = data.get('auto_assign', True)
@@ -505,7 +519,9 @@ def api_get_assignments(plan_id):
 def api_override_assignment(plan_id, subtask_id):
     try:
         from vetinari.subtask_tree import subtask_tree
-        data = request.json
+        data, err = validate_json_request()
+        if err:
+            return err
 
         assigned_agent = data.get('assigned_agent')
         if not assigned_agent:
@@ -561,7 +577,9 @@ def api_migrate_templates(plan_id):
         from vetinari.planning import plan_manager
         from vetinari.template_loader import template_loader
 
-        data = request.json or {}
+        data, err = validate_json_request()
+        if err:
+            return err
         target_version = data.get("target_version")
         dry_run = data.get("dry_run", True)
 

@@ -89,6 +89,7 @@ class AgentGraph:
         self._strategy = strategy
         self._max_workers = max_workers
         self._agents: Dict[AgentType, Any] = {}
+        self._failed_agents: Dict[str, str] = {}  # agent_type.value -> error message
         self._execution_plans: Dict[str, ExecutionPlan] = {}
         self._initialized = False
         self._goal_tracker: Optional[Any] = None
@@ -158,6 +159,7 @@ class AgentGraph:
 
         for agent_type, getter in _agent_map:
             if getter is None:
+                self._failed_agents[agent_type.value] = "Getter function is None"
                 logger.warning(f"[AgentGraph] Getter for {agent_type} is None — skipping")
                 continue
             try:
@@ -166,11 +168,23 @@ class AgentGraph:
                     agent.initialize({})
                     self._agents[agent_type] = agent
                     logger.debug(f"[AgentGraph] Registered {agent_type.value}")
+                else:
+                    self._failed_agents[agent_type.value] = "Getter returned None"
+                    logger.warning(f"[AgentGraph] {agent_type.value} getter returned None — skipping")
             except Exception as e:
+                self._failed_agents[agent_type.value] = str(e)
                 logger.warning(f"[AgentGraph] Could not initialize {agent_type.value}: {e}")
 
+        if self._failed_agents:
+            logger.warning(
+                f"[AgentGraph] {len(self._failed_agents)} agent(s) failed to initialize: "
+                + ", ".join(f"{name} ({err[:80]})" for name, err in self._failed_agents.items())
+            )
+
+        total_expected = len(_agent_map)
         logger.info(
-            f"[AgentGraph] Initialized {len(self._agents)}/21 agents "
+            f"[AgentGraph] Initialized {len(self._agents)}/{total_expected} agents "
+            f"({len(self._failed_agents)} failed) "
             f"(strategy={self._strategy.value})"
         )
         self._initialized = True
@@ -530,7 +544,19 @@ class AgentGraph:
 
                 # Last attempt failed — try ErrorRecoveryAgent if available
                 if AgentType.ERROR_RECOVERY in self._agents and attempt >= node.max_retries:
-                    return self._run_error_recovery(task, result, verification)
+                    recovery_result = self._run_error_recovery(task, result, verification)
+
+                    # I3: After verification failure, generate corrective tasks
+                    try:
+                        if recovery_result.success and recovery_result.metadata.get("corrective_tasks"):
+                            corrective = recovery_result.metadata["corrective_tasks"]
+                            logger.info(
+                                f"[AgentGraph] Generated {len(corrective)} corrective tasks for {task.id}"
+                            )
+                    except Exception as e:
+                        logger.warning(f"[AgentGraph] Corrective task generation failed: {e}")
+
+                    return recovery_result
 
                 return AgentResult(
                     success=False,
@@ -570,7 +596,22 @@ class AgentGraph:
             )
             recovery_task.context["original_output"] = str(failed_result.output)[:1000]
             recovery_task.context["verification_issues"] = issues_text
-            return recovery_agent.execute(recovery_task)
+            recovery_result = recovery_agent.execute(recovery_task)
+
+            # I9: After error recovery, record outcome to feedback loop
+            try:
+                from vetinari.learning.feedback_loop import get_feedback_loop
+                get_feedback_loop().record_outcome(
+                    task_id=task.id,
+                    model_id=getattr(task, "assigned_model", "default") or "default",
+                    task_type=task.task_type if hasattr(task, "task_type") else "general",
+                    quality_score=0.3 if recovery_result.success else 0.1,
+                    success=recovery_result.success,
+                )
+            except Exception as e:
+                logger.warning(f"[AgentGraph] Error recovery feedback recording failed: {e}")
+
+            return recovery_result
         except Exception as e:
             logger.debug(f"[AgentGraph] ErrorRecoveryAgent delegation failed: {e}")
             return AgentResult(
@@ -635,6 +676,18 @@ class AgentGraph:
 
     def get_registered_agents(self) -> List[AgentType]:
         return list(self._agents.keys())
+
+    def get_health(self) -> Dict[str, Any]:
+        """Return health status including initialized and failed agents."""
+        return {
+            "initialized": self._initialized,
+            "strategy": self._strategy.value,
+            "agents_initialized": [at.value for at in self._agents.keys()],
+            "agents_initialized_count": len(self._agents),
+            "agents_failed": dict(self._failed_agents),
+            "agents_failed_count": len(self._failed_agents),
+            "total_expected": 21,
+        }
 
     def __repr__(self) -> str:
         return (

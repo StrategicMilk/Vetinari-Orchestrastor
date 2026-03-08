@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 
 CLOUD_PROVIDERS = {
     "huggingface_inference": {
@@ -102,7 +104,7 @@ class ModelPool:
             try:
                 # Try to get models from LM Studio /v1/models endpoint (with auth if set)
                 models_endpoint = f"{self.host}/v1/models"
-                logging.debug(f"[Model Discovery] Attempt {self._discovery_retry_count}/{self._max_discovery_retries} at {models_endpoint}")
+                logger.debug(f"[Model Discovery] Attempt {self._discovery_retry_count}/{self._max_discovery_retries} at {models_endpoint}")
                 
                 resp = self.session.get(models_endpoint, timeout=5)
                 resp.raise_for_status()
@@ -130,7 +132,7 @@ class ModelPool:
                     
                     # Skip models that exceed memory budget
                     if mem > self.memory_budget_gb:
-                        logging.info(f"[Model Discovery] Skipping {model_id} - exceeds memory budget ({mem}GB > {self.memory_budget_gb}GB)")
+                        logger.info(f"[Model Discovery] Skipping {model_id} - exceeds memory budget ({mem}GB > {self.memory_budget_gb}GB)")
                         continue
                     
                     model = {
@@ -138,14 +140,14 @@ class ModelPool:
                         "name": model_id,  # Use ID as name
                         "endpoint": f"{self.host}/v1/chat/completions",
                         "capabilities": ["code_gen", "docs", "chat"],  # Default capabilities
-                        "context_len": 2048,
+                        "context_len": 4096,
                         "memory_gb": mem if mem > 0 else 2,  # Default to 2GB if unknown
                         "version": ""
                     }
                     self.models.append(model)
                     discovered_count += 1
                 
-                logging.info(f"[Model Discovery] SUCCESS: Discovered {discovered_count} models from {self.host}")
+                logger.info(f"[Model Discovery] SUCCESS: Discovered {discovered_count} models from {self.host}")
                 self._discovery_failed = False
                 self._fallback_active = False
                 self._last_known_good = list(self.models)  # Save for next failure
@@ -153,7 +155,7 @@ class ModelPool:
                 
             except requests.exceptions.Timeout:
                 error_msg = f"Model discovery timeout on attempt {self._discovery_retry_count}/{self._max_discovery_retries}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logger.warning(f"[Model Discovery] {error_msg}")
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
                 
@@ -161,12 +163,12 @@ class ModelPool:
                 if attempt < self._max_discovery_retries - 1:
                     delay = self._discovery_retry_delay_base * (2 ** attempt)  # Exponential backoff
                     delay = min(delay, 30)  # Cap at 30 seconds
-                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    logger.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
                     time.sleep(delay)
                     
             except requests.exceptions.ConnectionError as e:
                 error_msg = f"Connection error during model discovery (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logger.warning(f"[Model Discovery] {error_msg}")
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
                 
@@ -174,12 +176,12 @@ class ModelPool:
                 if attempt < self._max_discovery_retries - 1:
                     delay = self._discovery_retry_delay_base * (2 ** attempt)
                     delay = min(delay, 30)
-                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    logger.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
                     time.sleep(delay)
                     
             except Exception as e:
                 error_msg = f"Model discovery failed (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logger.warning(f"[Model Discovery] {error_msg}")
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
                 
@@ -187,16 +189,16 @@ class ModelPool:
                 break
         
         # Fallback order: last-known-good → static config models
-        if self._discovery_failed and len(self.models) == 0:
+        if self._discovery_failed and not self.models:
             if _previous_models:
-                logging.warning(
+                logger.warning(
                     f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
                     f"Using last-known-good ({len(_previous_models)} models)."
                 )
                 self.models = list(_previous_models)
                 self._fallback_active = True
             else:
-                logging.warning(
+                logger.warning(
                     f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
                     f"Falling back to static config models."
                 )
@@ -209,9 +211,9 @@ class ModelPool:
 
         # Log final state
         if self._fallback_active:
-            logging.info(f"[Model Discovery] Using {len(self.models)} models (fallback active)")
+            logger.info(f"[Model Discovery] Using {len(self.models)} models (fallback active)")
         else:
-            logging.info(f"[Model Discovery] Available models: {len(self.models)}")
+            logger.info(f"[Model Discovery] Available models: {len(self.models)}")
     
     def get_discovery_health(self) -> Dict[str, Any]:
         """Get health information about model discovery."""
@@ -236,7 +238,7 @@ class ModelPool:
                     best = m
                     best_score = score
             t["assigned_model_id"] = best["id"] if best else None
-        logging.info("Task-to-model assignments completed.")
+        logger.info("Task-to-model assignments completed.")
 
     def _score_task_model(self, task: dict, model: dict) -> float:
         required = set(task.get("inputs", []))
@@ -246,13 +248,16 @@ class ModelPool:
         latency = model.get("latency_estimate", 1000)
         latency_norm = max(0.0, 1.0 - (latency / 2000.0))
 
-        reliability = 0.8  # placeholder; could use history caching
+        # Dynamic reliability from quality history instead of hardcoded 0.8
+        reliability = self._get_model_reliability(model.get("id", ""))
 
-        ctx_len = model.get("context_len", 2048)
+        ctx_len = model.get("context_len", 4096)
         data_size = sum(len(str(x)) for x in task.get("inputs", []))
         context_fit = 1.0 if data_size <= ctx_len else max(0.0, ctx_len / max(1, data_size))
 
-        resource_load = 0.5  # placeholder
+        # Dynamic resource load from model memory vs VRAM budget
+        model_mem = model.get("memory_gb", 0)
+        resource_load = model_mem / max(self.memory_budget_gb, 1) if model_mem > 0 else 0.3
 
         w_cap = 0.35
         w_lat = 0.25
@@ -268,6 +273,20 @@ class ModelPool:
             w_res * (1.0 - resource_load)
         )
         return score
+
+    def _get_model_reliability(self, model_id: str) -> float:
+        """Get dynamic reliability score from quality history.
+
+        Falls back to 0.5 (neutral prior) if no history is available.
+        """
+        if not model_id:
+            return 0.5
+        try:
+            from vetinari.learning.quality_scorer import get_quality_scorer
+            avg = get_quality_scorer().get_model_average(model_id)
+            return avg
+        except Exception:
+            return 0.5
 
     def get_cloud_models(self) -> List[Dict]:
         """Get available cloud models based on environment tokens."""
@@ -289,9 +308,9 @@ class ModelPool:
                     "version": "latest"
                 }
                 cloud_models.append(model)
-                logging.info(f"Cloud model available: {provider['name']}")
+                logger.info(f"Cloud model available: {provider['name']}")
             else:
-                logging.debug(f"Cloud provider {provider['name']} not configured (missing {provider['env_token']})")
+                logger.debug(f"Cloud provider {provider['name']} not configured (missing {provider['env_token']})")
         
         return cloud_models
 

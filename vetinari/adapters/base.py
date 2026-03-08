@@ -59,6 +59,11 @@ class InferenceRequest:
     temperature: float = 0.7
     top_p: float = 0.9
     top_k: int = 40
+    min_p: Optional[float] = None
+    repeat_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    seed: Optional[int] = None
     stop_sequences: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
