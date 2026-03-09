@@ -1,0 +1,334 @@
+# =============================================================================
+# Vetinari Model Registry Configuration
+# =============================================================================
+# Read by:
+#   - vetinari/models/model_registry.py  (cfg["models"] + cfg["cloud_models"])
+#   - vetinari/models/vram_manager.py    (cfg["hardware"])
+#
+# ModelRegistry field mapping (ModelInfo dataclass):
+#   model_id             -> ModelInfo.model_id
+#   display_name         -> ModelInfo.display_name
+#   provider             -> ModelInfo.provider         (default: "lmstudio")
+#   capabilities         -> ModelInfo.capabilities     (list of strings)
+#   context_window       -> ModelInfo.context_window   (int, tokens)
+#   memory_requirements_gb -> ModelInfo.memory_requirements_gb
+#   quantization         -> ModelInfo.quantization     (e.g. "q4_k_m", "f16")
+#   latency_hint         -> ModelInfo.latency_hint     ("fast"|"medium"|"slow")
+#   privacy_level        -> ModelInfo.privacy_level    ("local"|"public")
+#   cost_per_1k_tokens   -> ModelInfo.cost_per_1k_tokens
+#   requires_cpu_offload -> ModelInfo.requires_cpu_offload
+#   preferred_for        -> ModelInfo.preferred_for    (list of task strings)
+#   endpoint             -> ModelInfo.endpoint
+#
+# model_family is informational only in this file -- it is used by
+# vetinari/sampling_profile.py via MODEL_FAMILY_PATTERNS auto-detection
+# from the model_id string. Documenting it here for cross-reference.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Hardware budget
+# -----------------------------------------------------------------------------
+# VRAMManager reads these keys to set its internal budget limits.
+# Override at runtime via env vars: VETINARI_GPU_VRAM_GB, VETINARI_CPU_OFFLOAD_GB
+hardware:
+  gpu_vram_gb: 32          # Total GPU VRAM (e.g. RTX 5090 = 32 GB)
+  max_cpu_offload_gb: 30   # System RAM available for CPU-offload layers
+
+
+# -----------------------------------------------------------------------------
+# Local models (provider: lmstudio)
+# -----------------------------------------------------------------------------
+# These are models you may have downloaded and can load in LM Studio.
+# The registry merges these entries with live /v1/models discovery so that
+# explicitly-configured metadata (context window, VRAM, capabilities) wins
+# over the registry's inference heuristics.
+models:
+
+  # ---------------------------------------------------------------------------
+  # Qwen3-30B-A3B  (MoE, ~3B active params at inference time)
+  # model_family: qwen3_nothinking
+  # sampling_profile.py override: temperature=0.7, top_p=0.80, top_k=20, min_p=0
+  # ---------------------------------------------------------------------------
+  - model_id: qwen3-30b-a3b
+    display_name: "Qwen3 30B-A3B (MoE)"
+    provider: lmstudio
+    # Capabilities must match the routing tags used by DynamicModelRouter
+    capabilities:
+      - code_gen
+      - planning
+      - analysis
+      - chat
+    context_window: 40960
+    memory_requirements_gb: 20
+    quantization: q4_k_m
+    latency_hint: medium
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - coding
+      - planning
+      - analysis
+    # Vendor-recommended sampling for qwen3 non-thinking mode
+    sampling_defaults:
+      temperature: 0.7
+      top_p: 0.80
+      top_k: 20
+      min_p: 0
+
+  # ---------------------------------------------------------------------------
+  # Qwen2.5-Coder-7B  (coding specialist, fast)
+  # model_family: null (no family override; relies on task-type profiles)
+  # ---------------------------------------------------------------------------
+  - model_id: qwen2.5-coder-7b
+    display_name: "Qwen2.5 Coder 7B"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - testing
+    context_window: 32768
+    memory_requirements_gb: 5
+    quantization: q4_k_m
+    latency_hint: fast
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - coding
+      - testing
+
+  # ---------------------------------------------------------------------------
+  # Qwen2.5-72B  (large general-purpose; may require CPU offload on 32 GB GPU)
+  # model_family: null
+  # ---------------------------------------------------------------------------
+  - model_id: qwen2.5-72b
+    display_name: "Qwen2.5 72B"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - planning
+      - analysis
+      - docs
+      - chat
+      - research
+    context_window: 32768
+    memory_requirements_gb: 48
+    quantization: q4_k_m
+    latency_hint: slow
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    # 48 GB model on 32 GB GPU -- needs ~16 GB CPU offload
+    requires_cpu_offload: true
+    preferred_for:
+      - planning
+      - research
+      - analysis
+
+  # ---------------------------------------------------------------------------
+  # Llama-3.2-3B-Instruct  (tiny, very fast; good for quick chat / docs)
+  # model_family: llama
+  # sampling_profile.py override: temperature=0.6, top_p=0.90
+  # ---------------------------------------------------------------------------
+  - model_id: llama-3.2-3b-instruct
+    display_name: "Llama 3.2 3B Instruct"
+    provider: lmstudio
+    capabilities:
+      - chat
+      - docs
+    context_window: 8192
+    memory_requirements_gb: 2.5
+    quantization: q4_k_m
+    latency_hint: fast
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - documentation
+      - summarization
+    # Llama vendor defaults
+    sampling_defaults:
+      temperature: 0.6
+      top_p: 0.90
+
+  # ---------------------------------------------------------------------------
+  # DeepSeek-R1-14B  (reasoning / chain-of-thought specialist)
+  # model_family: deepseek_r1
+  # sampling_profile.py override: temperature=0.6, top_p=0.95
+  # ---------------------------------------------------------------------------
+  - model_id: deepseek-r1-14b
+    display_name: "DeepSeek R1 14B"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - analysis
+      - reasoning
+    context_window: 32768
+    memory_requirements_gb: 9
+    quantization: q4_k_m
+    latency_hint: medium
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - analysis
+      - reasoning
+    # DeepSeek-R1 vendor-recommended sampling
+    sampling_defaults:
+      temperature: 0.6
+      top_p: 0.95
+
+  # ---------------------------------------------------------------------------
+  # Mistral-7B-Instruct  (instruction-following, balanced speed/quality)
+  # model_family: mistral_instruct
+  # sampling_profile.py override: temperature=0.15
+  # ---------------------------------------------------------------------------
+  - model_id: mistral-7b-instruct
+    display_name: "Mistral 7B Instruct"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - chat
+      - docs
+    context_window: 32768
+    memory_requirements_gb: 5
+    quantization: q4_k_m
+    latency_hint: fast
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - documentation
+      - chat
+    # Mistral vendor default: low temperature for instruction following
+    sampling_defaults:
+      temperature: 0.15
+
+  # ---------------------------------------------------------------------------
+  # Gemma-3-12B  (Google, strong general-purpose)
+  # model_family: gemma
+  # sampling_profile.py override: temperature=1.0, top_p=0.96, top_k=64
+  # ---------------------------------------------------------------------------
+  - model_id: gemma-3-12b
+    display_name: "Gemma 3 12B"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - chat
+      - docs
+    context_window: 32768
+    memory_requirements_gb: 8
+    quantization: q4_k_m
+    latency_hint: fast
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - chat
+      - documentation
+    # Google/Gemma vendor-recommended sampling
+    sampling_defaults:
+      temperature: 1.0
+      top_p: 0.96
+      top_k: 64
+
+  # ---------------------------------------------------------------------------
+  # Phi-4-14B  (Microsoft reasoning model)
+  # model_family: phi_reasoning  (matched by pattern "phi-4" in sampling_profile.py)
+  # sampling_profile.py override: temperature=0.8, top_p=0.95, top_k=50
+  # ---------------------------------------------------------------------------
+  - model_id: phi-4-14b
+    display_name: "Phi-4 14B"
+    provider: lmstudio
+    capabilities:
+      - code_gen
+      - analysis
+      - reasoning
+    context_window: 16384
+    memory_requirements_gb: 9
+    quantization: q4_k_m
+    latency_hint: medium
+    privacy_level: local
+    cost_per_1k_tokens: 0.0
+    requires_cpu_offload: false
+    preferred_for:
+      - analysis
+      - reasoning
+    # Microsoft Phi-4 recommended sampling
+    sampling_defaults:
+      temperature: 0.8
+      top_p: 0.95
+      top_k: 50
+
+
+# -----------------------------------------------------------------------------
+# Cloud / API models (provider: anthropic | google | openai)
+# -----------------------------------------------------------------------------
+# These are never "loaded" in LM Studio; is_loaded stays False.
+# privacy_level must be "public" so the router knows data leaves the machine.
+cloud_models:
+
+  # ---------------------------------------------------------------------------
+  # Claude Sonnet 4 (Anthropic)
+  # ---------------------------------------------------------------------------
+  - model_id: claude-sonnet-4
+    display_name: "Claude Sonnet 4"
+    provider: anthropic
+    capabilities:
+      - code_gen
+      - planning
+      - analysis
+      - docs
+      - chat
+      - research
+      - security
+    # Claude Sonnet 4 supports up to 200k context
+    context_window: 200000
+    memory_requirements_gb: 0
+    latency_hint: medium
+    privacy_level: public
+    cost_per_1k_tokens: 0.003
+    requires_cpu_offload: false
+    preferred_for:
+      - security
+      - planning
+      - research
+
+  # ---------------------------------------------------------------------------
+  # Gemini 2.5 Pro (Google)
+  # ---------------------------------------------------------------------------
+  - model_id: gemini-2.5-pro
+    display_name: "Gemini 2.5 Pro"
+    provider: google
+    capabilities:
+      - code_gen
+      - planning
+      - analysis
+      - docs
+      - chat
+      - research
+    # Gemini 2.5 Pro supports up to 1M context (set conservatively)
+    context_window: 1000000
+    memory_requirements_gb: 0
+    latency_hint: medium
+    privacy_level: public
+    cost_per_1k_tokens: 0.00125
+    requires_cpu_offload: false
+    preferred_for:
+      - research
+      - planning
+      - analysis
+
+
+# -----------------------------------------------------------------------------
+# Routing configuration
+# -----------------------------------------------------------------------------
+# Used by the DynamicModelRouter to select a scoring strategy.
+routing:
+  # "scored"       -- rank candidates by weighted capability + VRAM score
+  # "round_robin"  -- distribute load evenly across available models
+  # "priority"     -- always prefer the highest-priority available model
+  default_strategy: scored
+
+  # Fallback scoring function when no task-specific scorer matches
+  fallback_strategy: general_score

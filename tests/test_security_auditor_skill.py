@@ -3,6 +3,8 @@ import pytest
 from vetinari.tools.security_auditor_skill import SecurityAuditorSkill
 from vetinari.tool_interface import ToolCategory
 
+pytestmark = pytest.mark.security
+
 
 class TestSecurityAuditorSkill:
     def test_instantiation(self):

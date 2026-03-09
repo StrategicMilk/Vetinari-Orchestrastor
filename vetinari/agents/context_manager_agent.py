@@ -345,7 +345,7 @@ Return ONLY valid JSON."""
 
         # Also try shared memory
         try:
-            from vetinari.shared_memory import shared_memory
+            from vetinari.memory.shared_memory import shared_memory
             sm_entries = shared_memory.get_all(limit=30)
             for e in (sm_entries or []):
                 if hasattr(e, "to_dict"):

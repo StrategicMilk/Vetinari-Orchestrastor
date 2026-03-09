@@ -2,7 +2,7 @@ import re
 import time
 from pathlib import Path
 from vetinari.lmstudio_adapter import LMStudioAdapter
-from vetinari.validator import Validator
+from vetinari.validation.validator import Validator
 
 # Import structured logging
 try:

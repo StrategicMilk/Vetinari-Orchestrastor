@@ -14,7 +14,7 @@ if os.path.exists(env_file):
                 os.environ[k] = v
 
 from vetinari.lmstudio_adapter import LMStudioAdapter
-from vetinari.model_pool import ModelPool
+from vetinari.models.model_pool import ModelPool
 
 host = os.environ.get('LM_STUDIO_HOST', 'http://100.78.30.7:1234')
 token = os.environ.get('LM_STUDIO_API_TOKEN', '')

@@ -15,7 +15,7 @@ from this registry instead of maintaining separate model lists.  The registry:
 
 Usage::
 
-    from vetinari.model_registry import get_model_registry
+    from vetinari.models.model_registry import get_model_registry
 
     registry = get_model_registry()
     registry.refresh()                           # poll LM Studio

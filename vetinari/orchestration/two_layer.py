@@ -176,12 +176,12 @@ class TwoLayerOrchestrator:
         """Select the best model for a task using dynamic model routing."""
         if self.model_router is None:
             try:
-                from vetinari.dynamic_model_router import get_model_router
+                from vetinari.models.dynamic_model_router import get_model_router
                 self.model_router = get_model_router()
             except Exception:
                 return "default"
         try:
-            from vetinari.dynamic_model_router import TaskType
+            from vetinari.models.dynamic_model_router import TaskType
             task_type_map = {
                 "analysis": TaskType.ANALYSIS,
                 "implementation": TaskType.CODING,
@@ -300,24 +300,27 @@ class TwoLayerOrchestrator:
 
         total_time = int((time.time() - start_time) * 1000)
 
-        # I4: Wire execution results to feedback loop for learning
+        # I4: Wire execution results to feedback hub (dispatches to all learning subsystems)
         try:
-            from vetinari.learning.feedback_loop import get_feedback_loop
-            feedback = get_feedback_loop()
+            from vetinari.learning.feedback_hub import get_feedback_hub
+            hub = get_feedback_hub()
             completed = exec_results.get("completed", 0)
             failed = exec_results.get("failed", 0)
             total_tasks = completed + failed
             quality = completed / max(total_tasks, 1)
-            feedback.record_outcome(
+            hub.on_task_complete(
                 task_id=graph.plan_id,
                 model_id="orchestrator",
+                agent_type="ORCHESTRATOR",
                 task_type="plan_execution",
                 quality_score=quality,
-                latency_ms=total_time,
                 success=failed == 0,
+                output_summary=f"Completed {completed}/{total_tasks} tasks",
+                task_description=goal[:300],
+                latency_ms=total_time,
             )
         except Exception as e:
-            logger.warning(f"[Pipeline] Feedback loop recording failed: {e}")
+            logger.warning(f"[Pipeline] Feedback hub recording failed: {e}")
 
         # I6: Periodically check anomaly detector for execution anomalies
         try:

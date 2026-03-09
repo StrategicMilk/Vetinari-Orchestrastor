@@ -5,14 +5,14 @@ Covers:
 - vetinari.types (canonical enums)
 - vetinari.constants
 - vetinari.rules_manager
-- vetinari.goal_verifier
+- vetinari.validation.goal_verifier
 - vetinari.decomposition
 - vetinari.decomposition_agent
 - vetinari.assignment_pass
-- vetinari.multi_agent_orchestrator
+- vetinari.agents.multi_agent_orchestrator
 - vetinari.agents.image_generator_agent (no SD required)
 - vetinari.agents.planner_agent (verification fix)
-- vetinari.two_layer_orchestration (bug fixes)
+- vetinari.orchestration (bug fixes)
 - vetinari.model_search (cache hash fix)
 """
 
@@ -23,6 +23,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.slow
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -200,13 +202,13 @@ class TestRulesManager:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# vetinari.goal_verifier
+# vetinari.validation.goal_verifier
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestGoalVerifier:
     @pytest.fixture
     def verifier(self):
-        from vetinari.goal_verifier import GoalVerifier
+        from vetinari.validation.goal_verifier import GoalVerifier
         return GoalVerifier(quality_threshold=0.7)
 
     def test_basic_verification_passes(self, verifier):
@@ -310,7 +312,7 @@ def test_user_creation():
 class TestDecompositionEngine:
     @pytest.fixture
     def engine(self):
-        from vetinari.decomposition import DecompositionEngine
+        from vetinari.planning.decomposition import DecompositionEngine
         return DecompositionEngine()
 
     def test_get_templates_returns_list(self, engine):
@@ -339,7 +341,7 @@ class TestDecompositionEngine:
         # Without LLM, should fall back to keyword decomposition
         with patch.object(engine, '_keyword_decompose', wraps=engine._keyword_decompose) as mock_kw:
             # Force failure of LLM path
-            with patch('vetinari.decomposition.DecompositionEngine.decompose_task') as mock_decomp:
+            with patch('vetinari.planning.decomposition.DecompositionEngine.decompose_task') as mock_decomp:
                 mock_decomp.return_value = engine._keyword_decompose(
                     "Build a web application", "root", 0
                 )
@@ -377,31 +379,31 @@ class TestDecompositionEngine:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# vetinari.multi_agent_orchestrator
+# vetinari.agents.multi_agent_orchestrator
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestMultiAgentOrchestrator:
     def test_singleton(self):
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         o1 = MultiAgentOrchestrator.get_or_create()
         o2 = MultiAgentOrchestrator.get_or_create()
         assert o1 is o2
 
     def test_get_instance_before_create(self):
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         # Should return the instance (may or may not be None depending on order)
         instance = MultiAgentOrchestrator.get_instance()
         # Instance was created in previous test, so it exists
         assert instance is not None
 
     def test_initialize_agents(self):
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         o = MultiAgentOrchestrator.get_or_create()
         o.initialize_agents()
         assert len(o.agents) > 0
 
     def test_get_agent_status(self):
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         o = MultiAgentOrchestrator.get_or_create()
         o.initialize_agents()
         status = o.get_agent_status()
@@ -569,23 +571,23 @@ class TestPlannerAgentVerification:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# vetinari.two_layer_orchestration (bug fixes)
+# vetinari.orchestration (bug fixes)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestTwoLayerOrchestrationFixes:
     def test_max_concurrent_enforced(self):
         """max_concurrent should cap thread pool size."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_engine import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph
+        from vetinari.orchestration.types import TaskNode, TaskStatus
         engine = DurableExecutionEngine(max_concurrent=2)
         assert engine.max_concurrent == 2
 
     def test_transitive_cancellation(self):
         """Failed task A should cancel B (depends on A) and C (depends on B)."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_engine import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph
+        from vetinari.orchestration.types import TaskNode, TaskStatus
         engine = DurableExecutionEngine()
 
         graph = ExecutionGraph(plan_id="test_trans", goal="Test transitive cancellation")
@@ -604,14 +606,14 @@ class TestTwoLayerOrchestrationFixes:
 
     def test_event_history_grows(self):
         """Events should be appended to history."""
-        from vetinari.two_layer_orchestration import DurableExecutionEngine
+        from vetinari.orchestration.durable_engine import DurableExecutionEngine
         engine = DurableExecutionEngine()
         engine._emit_event("test_event", "task_1", {"key": "value"})
         assert len(engine._event_history) >= 1
         assert engine._event_history[-1].event_type == "test_event"
 
     def test_task_node_serialization(self):
-        from vetinari.two_layer_orchestration import TaskNode, TaskStatus
+        from vetinari.orchestration.types import TaskNode, TaskStatus
         node = TaskNode(
             id="t1",
             description="Test task",
@@ -634,7 +636,7 @@ class TestModelSearchCacheFix:
     def test_cache_key_is_deterministic(self, tmp_path):
         """Cache keys must be deterministic (not Python's random hash)."""
         import hashlib
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
 
         engine = ModelSearchEngine(cache_dir=str(tmp_path))
 

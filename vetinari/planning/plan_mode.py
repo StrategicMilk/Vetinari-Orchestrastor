@@ -757,7 +757,7 @@ class PlanModeEngine:
         try:
             from vetinari.memory import MemoryEntry, MemoryEntryType, ApprovalDetails
             # Use module-level import so mocks applied via @patch work correctly
-            import vetinari.plan_mode as _self_mod
+            import vetinari.planning.plan_mode as _self_mod
             _get_store = getattr(_self_mod, 'get_dual_memory_store', get_dual_memory_store)
 
             store = _get_store()

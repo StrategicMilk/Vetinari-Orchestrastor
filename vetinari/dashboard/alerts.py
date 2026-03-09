@@ -15,8 +15,8 @@ Supported metric keys (dot-notation):
 
 Alert channels:
     log      - emit via Python logging (default)
-    email    - placeholder dispatcher
-    webhook  - placeholder dispatcher
+    email    - SMTP dispatcher (requires VETINARI_SMTP_* env vars)
+    webhook  - HTTP POST dispatcher (requires VETINARI_ALERT_WEBHOOK_URL)
 
 Usage:
     from vetinari.dashboard.alerts import get_alert_engine, AlertThreshold, AlertCondition, AlertSeverity

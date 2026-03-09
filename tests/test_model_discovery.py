@@ -12,7 +12,7 @@ import requests
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from vetinari.model_pool import ModelPool
+from vetinari.models.model_pool import ModelPool
 
 
 class TestModelDiscoveryRetry:

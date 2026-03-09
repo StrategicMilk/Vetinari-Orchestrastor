@@ -131,7 +131,7 @@ def api_new_project():
         uncensored_fallback_models = current_config.get("uncensored_fallback_models", [])
         memory_budget_gb = current_config.get("memory_budget_gb", 32)
 
-        from vetinari.planning_engine import PlanningEngine
+        from vetinari.planning.planning_engine import PlanningEngine
         planner = PlanningEngine(
             default_models=default_models,
             fallback_models=fallback_models,
@@ -792,7 +792,7 @@ def api_model_search(project_id):
             return jsonify({"error": "External discovery globally disabled"}), 403
         if not _project_external_model_enabled(project_dir):
             return jsonify({"error": "External model discovery disabled for this project"}), 403
-        from vetinari.live_model_search import LiveModelSearchAdapter
+        from vetinari.models.live_model_search import LiveModelSearchAdapter
 
         data, err = validate_json_request()
         if err:
@@ -803,7 +803,7 @@ def api_model_search(project_id):
 
         lm_models = []
         try:
-            from vetinari.model_pool import ModelPool
+            from vetinari.models.model_pool import ModelPool
             model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
             model_pool.discover_models()
             lm_models = model_pool.list_models()
@@ -872,7 +872,7 @@ def api_refresh_models(project_id):
 def api_verify_goal(project_id):
     """Verify the final deliverable against the original project goal."""
     try:
-        from vetinari.goal_verifier import get_goal_verifier
+        from vetinari.validation.goal_verifier import get_goal_verifier
         data, err = validate_json_request()
         if err:
             return err

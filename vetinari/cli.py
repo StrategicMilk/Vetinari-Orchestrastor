@@ -95,7 +95,7 @@ def cmd_run(args) -> int:
         # High-level goal → assembly-line pipeline
         print(f"[Vetinari] Running goal: {args.goal[:80]}")
         try:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             orch = get_two_layer_orchestrator()
             # Wire agent context if orchestrator is available
             try:
@@ -444,7 +444,7 @@ def cmd_interactive(args) -> int:
     print("-" * 50)
 
     try:
-        from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+        from vetinari.orchestration.two_layer import get_two_layer_orchestrator
         orch = get_two_layer_orchestrator()
         try:
             base_orch = _build_orchestrator(args.config, host, args.mode)
@@ -548,9 +548,12 @@ def cmd_switch_model(args) -> int:
 def cmd_benchmark(args) -> int:
     """Run benchmark suites."""
     from vetinari.benchmarks.runner import get_default_runner
-    import tempfile, os
+    from pathlib import Path
+    import os
 
-    db_path = os.path.join(tempfile.gettempdir(), "vetinari_benchmarks.db")
+    data_dir = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    db_path = str(data_dir / "vetinari_benchmark_metrics.db")
     runner = get_default_runner(db_path=db_path)
 
     action = getattr(args, "action", "list")

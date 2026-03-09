@@ -31,7 +31,7 @@ from vetinari.tool_interface import (
     ToolRegistry,
     get_tool_registry,
 )
-from vetinari.verification import (
+from vetinari.validation.verification import (
     VerificationPipeline,
     VerificationLevel,
     get_verifier_pipeline,
@@ -42,6 +42,9 @@ from vetinari.adapters.base import (
     InferenceRequest,
     InferenceResponse,
 )
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestExecutionContextIntegration(unittest.TestCase):

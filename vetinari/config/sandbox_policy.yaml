@@ -1,0 +1,189 @@
+# =============================================================================
+# Vetinari Sandbox Policy Configuration
+# =============================================================================
+# Read by: vetinari/sandbox/process.py  (yaml.safe_load)
+#
+# IMPORTANT: blocked_paths is read via:
+#   policy.get("rules", {}).get("blocked_paths", [])
+# All blocked path rules MUST be nested under the "rules" key.
+#
+# Security rationale: the sandbox executes arbitrary Python code submitted
+# by AI-generated tool calls. Defaults are intentionally restrictive.
+# Operators who need expanded permissions should explicitly opt in below.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Top-level execution controls
+# -----------------------------------------------------------------------------
+
+# Deny code execution by default. Flip to true only in controlled environments
+# where you have reviewed the allowed_builtins and blocked_modules lists.
+allow_code_execution: false
+
+# Deny sandbox code from writing to the filesystem. Prevents exfiltration
+# and persistent side-effects from untrusted code.
+allow_file_write: false
+
+# Deny all outbound network access from within the sandbox. Prevents data
+# exfiltration and SSRF attacks via AI-generated code.
+allow_network: false
+
+# Require that submitted code passes the AST-based signature check in
+# process.py (_check_code_safety) before execution is attempted.
+require_signature: true
+
+# Hard wall on how long a single sandbox execution may run (seconds).
+# Prevents runaway loops and resource exhaustion.
+max_execution_time_seconds: 30
+
+# Maximum RSS memory the sandbox child process may consume (MB).
+# Prevents memory exhaustion attacks (e.g. recursive data structures).
+max_memory_mb: 512
+
+
+# -----------------------------------------------------------------------------
+# Path-based access control
+# -----------------------------------------------------------------------------
+# Read by: is_path_blocked() in process.py
+#   policy.get("rules", {}).get("blocked_paths", [])
+#
+# Patterns are matched after Path.expanduser().resolve() canonicalisation,
+# which prevents symlink-traversal bypasses. Glob-style "*.ext" patterns
+# match on the resolved path suffix.
+rules:
+  blocked_paths:
+    # -------------------------------------------------------------------------
+    # Unix credential / authentication stores
+    # -------------------------------------------------------------------------
+    - /etc/passwd          # Local user account database
+    - /etc/shadow          # Hashed passwords (root-only but block anyway)
+    - /etc/ssh             # SSH daemon host keys and config
+
+    # User-level secret stores (expanded at runtime via Path.expanduser)
+    - ~/.ssh               # SSH private keys and known_hosts
+    - ~/.gnupg             # GPG private keyring
+    - ~/.aws               # AWS CLI credentials and config
+    - ~/.config            # XDG config dir (may contain API tokens, OAuth)
+
+    # -------------------------------------------------------------------------
+    # Windows system and user data areas
+    # -------------------------------------------------------------------------
+    - C:\Windows\System32        # Windows system binaries and DLLs
+    - C:\Users\*\AppData         # Per-user app data (cookies, credentials, tokens)
+
+    # -------------------------------------------------------------------------
+    # Linux virtual filesystems (reading leaks kernel internals / hardware info)
+    # -------------------------------------------------------------------------
+    - /proc                # Process and kernel state
+    - /sys                 # Kernel subsystem interfaces
+    - /dev                 # Raw device nodes (disk, memory, random, etc.)
+
+    # -------------------------------------------------------------------------
+    # File-extension patterns for sensitive credential files
+    # -------------------------------------------------------------------------
+    # Blocked regardless of directory location.
+    # process.py checks pattern.startswith("*.") for these entries.
+    - "*.pem"              # PEM-encoded certificates and private keys
+    - "*.key"              # Generic private key files
+    - "*.p12"              # PKCS#12 key bundles
+    - "*.pfx"              # PFX certificate+key bundles
+
+    # -------------------------------------------------------------------------
+    # Substring patterns for common secret-file naming conventions
+    # -------------------------------------------------------------------------
+    # process.py resolves paths before comparison; these string fragments are
+    # matched case-insensitively against the resolved path at call sites that
+    # perform substring checks. Document here as policy intent even if the
+    # caller implements the substring match separately.
+    - .env                 # dotenv files that hold API keys / DB passwords
+    - credentials          # AWS credentials, GCP service-account JSON, etc.
+    - secrets              # Generic secrets files / Kubernetes secret mounts
+    - private_key          # Private key material with explicit naming
+
+
+# -----------------------------------------------------------------------------
+# Allowed builtins
+# -----------------------------------------------------------------------------
+# Must mirror ALLOWED_BUILTINS in vetinari/sandbox/process.py (lines 154-164).
+# The InProcessSandbox builds its restricted __builtins__ dict from this set.
+# Only pure computation and basic I/O (print) are permitted; no file, network,
+# or introspection access.
+allowed_builtins:
+  # Type constructors
+  - str
+  - int
+  - float
+  - bool
+  - list
+  - dict
+  - set
+  - tuple
+  - type
+  # Iteration helpers
+  - range
+  - enumerate
+  - zip
+  - map
+  - filter
+  # Aggregation / math
+  - len
+  - sum
+  - min
+  - max
+  - sorted
+  - reversed
+  - any
+  - all
+  - abs
+  - round
+  - pow
+  # Output and introspection (safe subset)
+  - print
+  - isinstance
+  - hasattr
+  - issubclass
+  - callable
+  - id
+  - hash
+  # String helpers (these are methods, not builtins, but listed for policy clarity)
+  - strip
+  - split
+  - join
+  - replace
+  - upper
+  - lower
+  - title
+  - startswith
+  - endswith
+  - find
+  - count
+  - format
+  # Collection helpers (also methods, listed for completeness)
+  - append
+  - extend
+  - pop
+  - get
+  - keys
+  - values
+  - items
+  - copy
+
+
+# -----------------------------------------------------------------------------
+# Blocked modules
+# -----------------------------------------------------------------------------
+# These modules are detected by the AST visitor (_DangerousNodeVisitor) which
+# rejects any import statement. Listing them explicitly here documents which
+# modules are considered high-risk and why.
+blocked_modules:
+  - os            # Filesystem traversal, env vars, process management
+  - sys           # Interpreter internals, stdin/stdout, path manipulation
+  - subprocess    # Arbitrary command execution / shell escape
+  - shutil        # High-level file operations (copy, delete, move)
+  - socket        # Raw TCP/UDP -- all network access denied
+  - http          # HTTP client/server stack
+  - urllib        # URL fetching (includes urllib.request, urllib.parse)
+  - importlib     # Dynamic import -- can bypass module-level blocks
+  - ctypes        # Foreign function interface -- direct memory/OS access
+  - pathlib       # Filesystem path operations (can read/write files)

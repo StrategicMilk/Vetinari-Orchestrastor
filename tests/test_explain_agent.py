@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vetinari.plan_types import Plan, PlanStatus, PlanRiskLevel, Subtask, SubtaskStatus, TaskDomain
+from vetinari.planning.plan_types import Plan, PlanStatus, PlanRiskLevel, Subtask, SubtaskStatus, TaskDomain
 from vetinari.explain_agent import (
     ExplainAgent, 
     ExplanationBlock, 

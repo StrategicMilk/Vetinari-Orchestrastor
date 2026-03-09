@@ -16,6 +16,9 @@ import tempfile
 import unittest
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
+import pytest
+
+pytestmark = pytest.mark.slow
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -379,7 +382,7 @@ class TestSchemaValidator(unittest.TestCase):
 
     def test_plan_schema_validates_live_plan(self):
         self.v.register_vetinari_schemas()
-        from vetinari.plan_types import Plan
+        from vetinari.planning.plan_types import Plan
         errs = self.v.validate("Plan", Plan(goal="real plan"))
         self.assertEqual(errs, [], errs)
 

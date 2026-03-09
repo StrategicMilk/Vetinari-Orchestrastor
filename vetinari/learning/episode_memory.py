@@ -56,7 +56,8 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = os.environ.get("VETINARI_EPISODE_DB", "./vetinari_episodes.db")
+_DEFAULT_DATA_DIR = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+_DB_PATH = os.environ.get("VETINARI_EPISODE_DB", str(_DEFAULT_DATA_DIR / "vetinari_episodes.db"))
 _MAX_EPISODES = int(os.environ.get("VETINARI_MAX_EPISODES", "10000"))
 
 
@@ -166,7 +167,13 @@ class EpisodeMemory:
     # ------------------------------------------------------------------
 
     def _init_db(self) -> None:
+        # Ensure data directory exists
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self._db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS episodes (
                     episode_id TEXT PRIMARY KEY,
@@ -186,6 +193,10 @@ class EpisodeMemory:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_type ON episodes(task_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_score ON episodes(quality_score)")
+            # Additional indexes for common query patterns
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_agent_type_success ON episodes(agent_type, task_type, success)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_importance ON episodes(importance)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ep_created_at ON episodes(created_at)")
 
     def _load_index(self) -> None:
         """Load embeddings from DB into memory for fast search."""

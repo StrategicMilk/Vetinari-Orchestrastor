@@ -344,7 +344,7 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
 
     def _run_via_planner(self, case: BenchmarkCase) -> Dict[str, Any]:
         """Attempt decomposition via Vetinari planner."""
-        from vetinari.planning_engine import PlanningEngine
+        from vetinari.planning.planning_engine import PlanningEngine
 
         engine = PlanningEngine()
         plan = engine.decompose(case.input_data["goal"])

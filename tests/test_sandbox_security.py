@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from vetinari.sandbox import InProcessSandbox, SandboxManager, SandboxResult
 
+pytestmark = pytest.mark.security
+
 
 class TestSandboxDangerousPatterns:
     """Test that dangerous patterns are blocked before execution."""

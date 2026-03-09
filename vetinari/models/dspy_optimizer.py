@@ -16,7 +16,7 @@ Hardware note (5090, local LM Studio):
 
 Usage::
 
-    from vetinari.dspy_optimizer import get_dspy_optimizer
+    from vetinari.models.dspy_optimizer import get_dspy_optimizer
 
     optimizer = get_dspy_optimizer()
 

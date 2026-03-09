@@ -65,7 +65,7 @@ def validate_output(
             if field not in data or data[field] is None:
                 errors.append(f"Missing required field: {field}")
 
-    valid = len(errors) == 0
+    valid = not errors
     if not valid:
         logger.debug("validate_output: %d error(s): %s", len(errors), errors)
 

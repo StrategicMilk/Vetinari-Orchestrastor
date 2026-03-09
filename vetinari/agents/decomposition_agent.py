@@ -40,7 +40,7 @@ class DecompositionAgent:
         Returns a dict with tasks, depth info, and metadata.
         """
         try:
-            from vetinari.decomposition import decomposition_engine
+            from vetinari.planning.decomposition import decomposition_engine
             subtasks = decomposition_engine.decompose_task(
                 task_prompt=prompt,
                 parent_task_id=getattr(plan, "plan_id", "root"),

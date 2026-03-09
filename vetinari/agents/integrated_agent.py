@@ -140,7 +140,7 @@ class IntegratedAgent:
         # Model pool
         if self.model_pool is None:
             try:
-                from vetinari.model_pool import ModelPool
+                from vetinari.models.model_pool import ModelPool
                 pool_config = self.config.get("model_pool", {})
                 host = self.config.get("lm_studio_host",
                        os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"))
@@ -151,7 +151,7 @@ class IntegratedAgent:
         # Model router
         if self.model_router is None:
             try:
-                from vetinari.dynamic_model_router import DynamicModelRouter, init_model_router
+                from vetinari.models.dynamic_model_router import DynamicModelRouter, init_model_router
                 prefer_local = self.config.get("prefer_local", True)
                 self.model_router = init_model_router(prefer_local=prefer_local)
                 
@@ -171,7 +171,7 @@ class IntegratedAgent:
         # Memory manager
         if self.memory_manager is None:
             try:
-                from vetinari.enhanced_memory import get_memory_manager, MemoryType
+                from vetinari.memory.enhanced import get_memory_manager, MemoryType
                 self.memory_manager = get_memory_manager()
             except Exception as e:
                 logger.warning(f"Could not initialize memory manager: {e}")
@@ -187,7 +187,7 @@ class IntegratedAgent:
         # Two-layer orchestrator
         if self.two_layer_orchestrator is None:
             try:
-                from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+                from vetinari.orchestration.two_layer import get_two_layer_orchestrator
                 self.two_layer_orchestrator = get_two_layer_orchestrator()
             except Exception as e:
                 logger.warning(f"Could not initialize two-layer orchestrator: {e}")
@@ -195,7 +195,7 @@ class IntegratedAgent:
         # Code executor
         if self.code_executor is None:
             try:
-                from vetinari.code_sandbox import get_subprocess_executor
+                from vetinari.sandbox import get_subprocess_executor
                 self.code_executor = get_subprocess_executor()
             except Exception as e:
                 logger.warning(f"Could not initialize code executor: {e}")
@@ -280,7 +280,7 @@ class IntegratedAgent:
         # Infer task type
         if self.model_router:
             try:
-                from vetinari.dynamic_model_router import infer_task_type, TaskType
+                from vetinari.models.dynamic_model_router import infer_task_type, TaskType
                 task_type = infer_task_type(goal)
                 context["task_type"] = task_type.value
             except Exception:
@@ -404,7 +404,7 @@ class IntegratedAgent:
         model_info = None
         if self.model_router:
             try:
-                from vetinari.dynamic_model_router import TaskType
+                from vetinari.models.dynamic_model_router import TaskType
                 
                 # Map task type
                 type_map = {
@@ -518,7 +518,7 @@ class IntegratedAgent:
             return
         
         try:
-            from vetinari.enhanced_memory import MemoryType
+            from vetinari.memory.enhanced import MemoryType
             
             # Remember the goal and outcome
             self.memory_manager.remember(

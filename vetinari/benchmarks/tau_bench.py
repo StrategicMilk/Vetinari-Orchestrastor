@@ -265,7 +265,7 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
 
     def _run_via_orchestrator(self, case: BenchmarkCase) -> Dict[str, Any]:
         """Attempt execution via Vetinari pipeline."""
-        from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+        from vetinari.orchestration.two_layer import get_two_layer_orchestrator
 
         orch = get_two_layer_orchestrator()
         result = orch.generate_and_execute(

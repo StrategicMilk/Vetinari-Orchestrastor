@@ -128,7 +128,8 @@ class SemanticMemoryStore:
             enable_embeddings: Enable vector embeddings for semantic search
             embedding_model: Embedding model to use
         """
-        self.db_path = db_path or os.environ.get("VETINARI_MEMORY_DB", "./vetinari_memory.db")
+        _data_dir = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+        self.db_path = db_path or os.environ.get("VETINARI_MEMORY_DB", str(_data_dir / "vetinari_memory.db"))
         self.enable_embeddings = enable_embeddings
         self.embedding_model = embedding_model
 
@@ -147,8 +148,13 @@ class SemanticMemoryStore:
 
     def _init_db(self):
         """Initialize the database schema."""
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
 
         cursor = self._conn.cursor()
 
@@ -713,7 +719,8 @@ def get_memory_manager() -> MemoryManager:
     global _memory_manager
     if _memory_manager is None:
         enable_semantic = os.environ.get("VETINARI_ENABLE_SEMANTIC_MEMORY", "false").lower() in ("1", "true", "yes")
-        db_path = os.environ.get("VETINARI_MEMORY_DB", "./vetinari_memory.db")
+        _data_dir = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+        db_path = os.environ.get("VETINARI_MEMORY_DB", str(_data_dir / "vetinari_memory.db"))
         _memory_manager = MemoryManager(db_path=db_path, enable_semantic=enable_semantic)
     return _memory_manager
 

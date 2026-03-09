@@ -41,7 +41,7 @@ class FeedbackLoop:
     def _get_router(self):
         if self._router is None:
             try:
-                from vetinari.dynamic_model_router import get_model_router
+                from vetinari.models.dynamic_model_router import get_model_router
                 self._router = get_model_router()
             except Exception:
                 pass

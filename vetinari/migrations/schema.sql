@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS PlanHistory (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'draft',
     plan_json TEXT,
+    plan_explanation_json TEXT,
     chosen_plan_id TEXT,
     plan_justification TEXT,
     risk_score REAL DEFAULT 0.0,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS SubtaskMemory (
     duration_seconds REAL,
     cost_estimate REAL,
     rationale TEXT,
+    subtask_explanation_json TEXT,
     domain TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -110,11 +112,11 @@ CREATE INDEX IF NOT EXISTS idx_subtask_status ON SubtaskMemory(status);
 -- 1. Create tables using the CREATE TABLE statements above
 -- 2. Parse the JSON file and insert records:
 -- 
--- INSERT INTO PlanHistory (plan_id, plan_version, goal, created_at, updated_at, status, plan_json, chosen_plan_id, plan_justification, risk_score, dry_run, auto_approved)
--- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+-- INSERT INTO PlanHistory (plan_id, plan_version, goal, created_at, updated_at, status, plan_json, plan_explanation_json, chosen_plan_id, plan_justification, risk_score, dry_run, auto_approved)
+-- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 --
--- INSERT INTO SubtaskMemory (subtask_id, plan_id, parent_subtask_id, description, depth, status, assigned_model_id, outcome, duration_seconds, cost_estimate, rationale, domain, created_at, updated_at)
--- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+-- INSERT INTO SubtaskMemory (subtask_id, plan_id, parent_subtask_id, description, depth, status, assigned_model_id, outcome, duration_seconds, cost_estimate, rationale, subtask_explanation_json, domain, created_at, updated_at)
+-- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- ==========================================
 -- Retention Policy

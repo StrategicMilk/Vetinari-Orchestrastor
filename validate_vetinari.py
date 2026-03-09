@@ -79,7 +79,7 @@ check("CLI import", test_cli)
 
 # 5. Two-layer orchestration
 def test_orchestration():
-    from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+    from vetinari.orchestration.two_layer import get_two_layer_orchestrator
     orch = get_two_layer_orchestrator()
     graph = orch.generate_plan_only("Build a Python test project")
     assert len(graph.nodes) >= 2, f"Expected 2+ tasks, got {len(graph.nodes)}"

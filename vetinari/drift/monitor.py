@@ -134,7 +134,7 @@ class DriftMonitor:
     def _seed_contract_snapshots(self) -> None:
         """Register fingerprints for all known Vetinari contracts."""
         try:
-            from vetinari.plan_types import Plan, Subtask, PlanCandidate
+            from vetinari.planning.plan_types import Plan, Subtask, PlanCandidate
             self._registry.register("Plan",         Plan(goal="__seed__"))
             self._registry.register("Subtask",      Subtask())
             self._registry.register("PlanCandidate",PlanCandidate())
@@ -213,12 +213,12 @@ class DriftMonitor:
         """Build minimal valid sample objects for schema validation."""
         samples: Dict[str, Any] = {}
         try:
-            from vetinari.plan_types import Plan
+            from vetinari.planning.plan_types import Plan
             samples["Plan"] = Plan(goal="sample plan")
         except Exception:
             pass
         try:
-            from vetinari.plan_types import Subtask
+            from vetinari.planning.plan_types import Subtask
             samples["Subtask"] = Subtask(description="sample subtask",
                                           plan_id="p1")
         except Exception:

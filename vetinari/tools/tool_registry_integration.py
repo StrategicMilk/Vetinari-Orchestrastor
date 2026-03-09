@@ -268,7 +268,7 @@ class MemoryRecallToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
+            from vetinari.memory.enhanced import get_memory_manager
             self._memory = get_memory_manager()
         return self._memory
     
@@ -337,7 +337,7 @@ class MemoryRememberToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
+            from vetinari.memory.enhanced import get_memory_manager
             self._memory = get_memory_manager()
         return self._memory
     
@@ -350,7 +350,7 @@ class MemoryRememberToolWrapper(Tool):
             memory = self._get_memory()
             
             # Import MemoryType
-            from vetinari.enhanced_memory import MemoryType
+            from vetinari.memory.enhanced import MemoryType
             mem_type = MemoryType(memory_type)
             
             entry_id = memory.remember(
@@ -405,7 +405,7 @@ class ModelSelectToolWrapper(Tool):
     
     def _get_router(self):
         if self._router is None:
-            from vetinari.dynamic_model_router import get_model_router, TaskType
+            from vetinari.models.dynamic_model_router import get_model_router, TaskType
             self._router = get_model_router()
         return self._router
     
@@ -416,7 +416,7 @@ class ModelSelectToolWrapper(Tool):
         try:
             router = self._get_router()
             
-            from vetinari.dynamic_model_router import TaskType
+            from vetinari.models.dynamic_model_router import TaskType
             task_enum = TaskType(task_type)
             
             selection = router.select_model(task_enum, task_description)
@@ -480,7 +480,7 @@ class GeneratePlanToolWrapper(Tool):
     
     def _get_orchestrator(self):
         if self._orchestrator is None:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             self._orchestrator = get_two_layer_orchestrator()
         return self._orchestrator
     

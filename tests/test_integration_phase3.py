@@ -22,6 +22,9 @@ from vetinari.telemetry import get_telemetry_collector, reset_telemetry
 from vetinari.security import get_secret_scanner, SecretPattern
 from vetinari.memory import get_dual_memory_store
 from vetinari.memory.interfaces import MemoryEntry, MemoryEntryType
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestTelemetryIntegration(unittest.TestCase):

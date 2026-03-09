@@ -111,7 +111,7 @@ The coding agent integrates with Vetinari's plan mode:
 4. Artifacts logged to dual memory
 
 ```python
-from vetinari.plan_mode import PlanModeEngine
+from vetinari.planning.plan_mode import PlanModeEngine
 
 engine = PlanModeEngine()
 

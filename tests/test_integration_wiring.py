@@ -19,6 +19,8 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 
+pytestmark = pytest.mark.integration
+
 # Set admin token for tests that hit authenticated endpoints
 _TEST_TOKEN = "test-admin-token-for-integration"
 _AUTH_HEADERS = {"X-Admin-Token": _TEST_TOKEN}

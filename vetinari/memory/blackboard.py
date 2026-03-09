@@ -22,7 +22,7 @@ Architecture
 
 Usage::
 
-    from vetinari.blackboard import get_blackboard
+    from vetinari.memory.blackboard import get_blackboard
 
     board = get_blackboard()
 

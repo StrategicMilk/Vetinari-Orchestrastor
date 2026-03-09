@@ -5,10 +5,13 @@ Tests secret detection and sanitization functionality.
 """
 
 import unittest
+import pytest
 from vetinari.security import (
     SecretScanner, SecretPattern, get_secret_scanner,
     sanitize_for_memory, sanitize_dict_for_memory
 )
+
+pytestmark = pytest.mark.security
 
 
 class TestSecretPatterns(unittest.TestCase):

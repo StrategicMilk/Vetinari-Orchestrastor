@@ -53,6 +53,9 @@ from vetinari.dashboard.log_aggregator import (
     get_log_aggregator,
     reset_log_aggregator,
 )
+import pytest
+
+pytestmark = pytest.mark.performance
 
 
 # ---------------------------------------------------------------------------

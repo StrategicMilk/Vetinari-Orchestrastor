@@ -24,7 +24,7 @@ system_mgmt_bp = Blueprint('system_mgmt', __name__)
 @system_mgmt_bp.route('/api/agents/status', methods=['GET'])
 def api_agents_status():
     try:
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         orch = MultiAgentOrchestrator.get_instance()
         if orch is None:
             return jsonify({"agents": []})
@@ -36,7 +36,7 @@ def api_agents_status():
 @system_mgmt_bp.route('/api/agents/initialize', methods=['POST'])
 def api_agents_initialize():
     try:
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         orch = MultiAgentOrchestrator.get_instance()
         if orch is None:
             orch = MultiAgentOrchestrator()
@@ -50,7 +50,7 @@ def api_agents_initialize():
 @system_mgmt_bp.route('/api/agents/active', methods=['GET'])
 def api_agents_active():
     try:
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         orch = MultiAgentOrchestrator.get_instance()
         if orch is None:
             return jsonify({"agents": []})
@@ -91,7 +91,7 @@ def api_agents_active():
 @system_mgmt_bp.route('/api/agents/tasks', methods=['GET'])
 def api_agents_tasks():
     try:
-        from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
+        from vetinari.agents.multi_agent_orchestrator import MultiAgentOrchestrator
         orch = MultiAgentOrchestrator.get_instance()
         if orch is None:
             return jsonify({"tasks": []})
@@ -115,7 +115,7 @@ def api_agents_tasks():
 @system_mgmt_bp.route('/api/memory', methods=['GET'])
 def api_memory():
     try:
-        from vetinari.shared_memory import SharedMemory
+        from vetinari.memory.shared_memory import SharedMemory
         memory = SharedMemory.get_instance()
         memories = memory.get_all()
         return jsonify({"memories": memories})
@@ -128,7 +128,7 @@ def api_memory():
 @system_mgmt_bp.route('/api/decisions/pending', methods=['GET'])
 def api_decisions_pending():
     try:
-        from vetinari.shared_memory import SharedMemory
+        from vetinari.memory.shared_memory import SharedMemory
         memory = SharedMemory.get_instance()
         decisions = memory.get_memories_by_type("decision")
 
@@ -156,7 +156,7 @@ def api_decisions_submit():
         decision_id = data.get("decision_id")
         choice = data.get("choice")
 
-        from vetinari.shared_memory import SharedMemory
+        from vetinari.memory.shared_memory import SharedMemory
         memory = SharedMemory.get_instance()
         memory.resolve_decision(decision_id, choice)
 

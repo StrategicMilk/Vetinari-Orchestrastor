@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 def _make_app():
     """Create a minimal Flask app with the plan_api blueprint registered."""
     from flask import Flask
-    from vetinari.plan_api import plan_api
+    from vetinari.planning.plan_api import plan_api
     app = Flask(__name__)
     app.register_blueprint(plan_api)
     app.config["TESTING"] = True
@@ -51,14 +51,14 @@ class TestCheckPlanModeEnabled(unittest.TestCase):
 
     def test_enabled(self):
         with patch("vetinari.planning.plan_api.PLAN_MODE_ENABLE", True):
-            from vetinari.plan_api import check_plan_mode_enabled
+            from vetinari.planning.plan_api import check_plan_mode_enabled
             enabled, err = check_plan_mode_enabled()
             self.assertTrue(enabled)
             self.assertIsNone(err)
 
     def test_disabled(self):
         with patch("vetinari.planning.plan_api.PLAN_MODE_ENABLE", False):
-            from vetinari.plan_api import check_plan_mode_enabled
+            from vetinari.planning.plan_api import check_plan_mode_enabled
             enabled, err = check_plan_mode_enabled()
             self.assertFalse(enabled)
             self.assertIsNotNone(err)

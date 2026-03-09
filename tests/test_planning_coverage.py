@@ -1,7 +1,7 @@
 """Coverage tests for vetinari/planning.py — Phase 7D"""
 import json
 import unittest
-from vetinari.planning import (
+from vetinari.planning.planning import (
     PlanStatus, WaveStatus, TaskStatus, AgentType,
     Task, Wave, Plan,
 )

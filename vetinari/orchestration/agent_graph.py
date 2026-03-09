@@ -450,7 +450,7 @@ class AgentGraph:
 
         if agent_type not in self._agents:
             # Try the blackboard delegation path
-            from vetinari.blackboard import get_blackboard
+            from vetinari.memory.blackboard import get_blackboard
             board = get_blackboard()
             return board.delegate(task, self._agents) or AgentResult(
                 success=False,
@@ -546,15 +546,36 @@ class AgentGraph:
                 if AgentType.ERROR_RECOVERY in self._agents and attempt >= node.max_retries:
                     recovery_result = self._run_error_recovery(task, result, verification)
 
-                    # I3: After verification failure, generate corrective tasks
+                    # I3: After verification failure, execute corrective tasks
                     try:
-                        if recovery_result.success and recovery_result.metadata.get("corrective_tasks"):
-                            corrective = recovery_result.metadata["corrective_tasks"]
+                        corrective = recovery_result.metadata.get("corrective_tasks", [])
+                        if corrective:
                             logger.info(
-                                f"[AgentGraph] Generated {len(corrective)} corrective tasks for {task.id}"
+                                f"[AgentGraph] Executing {len(corrective)} corrective tasks for {task.id}"
                             )
+                            for i, ct in enumerate(corrective[:3]):  # Max 3 corrective tasks
+                                ct_desc = ct.get("description", "") if isinstance(ct, dict) else str(ct)
+                                ct_agent_str = ct.get("agent_type", agent_type.value) if isinstance(ct, dict) else agent_type.value
+                                try:
+                                    ct_agent_type = AgentType(ct_agent_str)
+                                except ValueError:
+                                    ct_agent_type = agent_type
+                                if ct_agent_type in self._agents:
+                                    ct_task = AgentTask(
+                                        task_id=f"{task.id}_corrective_{i}",
+                                        agent_type=ct_agent_type,
+                                        description=ct_desc,
+                                        prompt=ct_desc,
+                                        context={"original_task": task.id, "corrective": True},
+                                    )
+                                    ct_result = self._agents[ct_agent_type].execute(ct_task)
+                                    if ct_result.success:
+                                        recovery_result.metadata[f"corrective_{i}_output"] = str(ct_result.output)[:500]
+                                        logger.info(f"[AgentGraph] Corrective task {i} succeeded for {task.id}")
+                                    else:
+                                        logger.warning(f"[AgentGraph] Corrective task {i} failed for {task.id}")
                     except Exception as e:
-                        logger.warning(f"[AgentGraph] Corrective task generation failed: {e}")
+                        logger.warning(f"[AgentGraph] Corrective task execution failed: {e}")
 
                     return recovery_result
 

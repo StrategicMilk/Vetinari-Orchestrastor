@@ -310,7 +310,7 @@ class SWEBenchAdapter(BenchmarkSuiteAdapter):
 
     def _generate_patch_via_orchestrator(self, case: BenchmarkCase) -> str:
         """Attempt real patch generation via Vetinari pipeline."""
-        from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+        from vetinari.orchestration.two_layer import get_two_layer_orchestrator
 
         orch = get_two_layer_orchestrator()
         goal = (

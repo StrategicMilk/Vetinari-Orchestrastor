@@ -693,7 +693,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
     def list_loaded_models(self) -> List[Dict[str, Any]]:
         """Return loaded models, using ModelRegistry when available."""
         try:
-            from vetinari.model_registry import get_model_registry
+            from vetinari.models.model_registry import get_model_registry
             registry = get_model_registry()
             registry.refresh()
             return registry.get_loaded_as_dicts()

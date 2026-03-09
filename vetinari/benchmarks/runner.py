@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import time
 import uuid
@@ -211,7 +212,8 @@ class BenchmarkSuiteAdapter(ABC):
 # SQLite metric store
 # ============================================================
 
-_DEFAULT_DB = Path("vetinari_benchmark_metrics.db")
+_DEFAULT_DATA_DIR = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+_DEFAULT_DB = _DEFAULT_DATA_DIR / "vetinari_benchmark_metrics.db"
 
 
 class MetricStore:
@@ -222,8 +224,13 @@ class MetricStore:
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self._db_path))
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA synchronous=NORMAL")
         return conn
 
     def _ensure_schema(self) -> None:

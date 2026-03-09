@@ -16,7 +16,7 @@ Features
 
 Usage::
 
-    from vetinari.vram_manager import get_vram_manager
+    from vetinari.models.vram_manager import get_vram_manager
 
     manager = get_vram_manager()
     manager.refresh()

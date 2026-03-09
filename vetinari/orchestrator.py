@@ -22,11 +22,11 @@ from vetinari.constants import (
     VERIFICATION_LEVEL as _DEFAULT_VERIFICATION_LEVEL,
 )
 from vetinari.lmstudio_adapter import LMStudioAdapter
-from vetinari.model_pool import ModelPool
+from vetinari.models.model_pool import ModelPool
 from vetinari.scheduler import Scheduler
 from vetinari.executor import TaskExecutor
 from vetinari.upgrader import Upgrader
-from vetinari.validator import Validator
+from vetinari.validation.validator import Validator
 from vetinari.builder import Builder
 
 # Phase 2: OpenCode Integration
@@ -37,7 +37,7 @@ from vetinari.execution_context import (
 )
 from vetinari.adapter_manager import get_adapter_manager
 from vetinari.tool_interface import get_tool_registry
-from vetinari.verification import get_verifier_pipeline, VerificationLevel
+from vetinari.validation.verification import get_verifier_pipeline, VerificationLevel
 
 
 class Orchestrator:
@@ -91,7 +91,7 @@ class Orchestrator:
         self.plan_engine = None
         if self.plan_mode_enabled:
             try:
-                from vetinari.plan_mode import get_plan_engine
+                from vetinari.planning.plan_mode import get_plan_engine
                 self.plan_engine = get_plan_engine()
                 logger.info("Plan Mode initialized successfully")
             except Exception as e:
@@ -169,7 +169,7 @@ class Orchestrator:
                 goal = self.config.get("goal", "Execute tasks from manifest")
                 constraints = self.config.get("constraints", "")
                 
-                from vetinari.plan_types import PlanGenerationRequest
+                from vetinari.planning.plan_types import PlanGenerationRequest
                 req = PlanGenerationRequest(
                     goal=goal,
                     constraints=constraints,

@@ -31,6 +31,16 @@ from vetinari.tools.context_manager_skill import ContextManagerSkillTool
 from vetinari.tools.image_generator_skill import ImageGeneratorSkillTool
 from vetinari.tools.user_interaction_skill import UserInteractionSkillTool
 from vetinari.tools.improvement_skill import ImprovementSkillTool
+from vetinari.tools.code_mode import (
+    CodeModeTransform,
+    SearchToolsTool,
+    GetSchemasTool,
+    ExecuteCodeTool,
+    ToolSearchIndex,
+    BM25Index,
+    enable_code_mode,
+    get_code_mode_transform,
+)
 
 __all__ = [
     "BuilderSkillTool",
@@ -49,6 +59,15 @@ __all__ = [
     "UserInteractionSkillTool",
     "ImprovementSkillTool",
     "get_all_skills",
+    # Code Mode
+    "CodeModeTransform",
+    "SearchToolsTool",
+    "GetSchemasTool",
+    "ExecuteCodeTool",
+    "ToolSearchIndex",
+    "BM25Index",
+    "enable_code_mode",
+    "get_code_mode_transform",
 ]
 
 

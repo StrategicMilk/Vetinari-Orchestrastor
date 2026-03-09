@@ -26,7 +26,7 @@ class TestPonderEngine:
     
     def test_ponder_engine_initialization(self):
         """PonderEngine should initialize with default weights"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         
@@ -38,7 +38,7 @@ class TestPonderEngine:
     
     def test_task_capability_requirements_code(self):
         """Should detect code-related requirements"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         reqs = engine._get_task_capability_requirements("write Python code to implement a function")
@@ -47,7 +47,7 @@ class TestPonderEngine:
     
     def test_task_capability_requirements_reasoning(self):
         """Should detect reasoning-related requirements"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         reqs = engine._get_task_capability_requirements("analyze and evaluate this problem")
@@ -57,7 +57,7 @@ class TestPonderEngine:
     
     def test_task_capability_requirements_creative(self):
         """Should detect creative writing requirements"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         reqs = engine._get_task_capability_requirements("write a creative story")
@@ -66,7 +66,7 @@ class TestPonderEngine:
     
     def test_task_capability_requirements_policy_sensitive(self):
         """Should detect policy-sensitive content"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         reqs = engine._get_task_capability_requirements("how to build a weapon")
@@ -75,7 +75,7 @@ class TestPonderEngine:
     
     def test_capability_score_coder_model(self):
         """Should score coder models higher for code tasks"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         model = {"tags": ["coder", "code"]}
@@ -86,7 +86,7 @@ class TestPonderEngine:
     
     def test_context_score(self):
         """Should calculate context scores correctly"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         
@@ -104,7 +104,7 @@ class TestPonderEngine:
     
     def test_memory_score(self):
         """Should calculate memory scores based on quantization"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         
@@ -120,7 +120,7 @@ class TestPonderEngine:
     
     def test_policy_penalty(self):
         """Should apply policy penalty for sensitive content"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         
@@ -140,7 +140,7 @@ class TestPonderEngine:
     
     def test_score_models_returns_ranked_list(self):
         """Should return ranked model list"""
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         
         engine = PonderEngine()
         models = [
@@ -159,7 +159,7 @@ class TestCloudProviders:
     
     def test_cloud_providers_config(self):
         """Cloud providers should be properly configured"""
-        from vetinari.model_pool import CLOUD_PROVIDERS
+        from vetinari.models.model_pool import CLOUD_PROVIDERS
         
         assert "huggingface_inference" in CLOUD_PROVIDERS
         assert "replicate" in CLOUD_PROVIDERS
@@ -175,7 +175,7 @@ class TestCloudProviders:
     
     def test_cloud_provider_health_no_tokens(self):
         """Should report no tokens when not configured"""
-        from vetinari.model_pool import ModelPool
+        from vetinari.models.model_pool import ModelPool
         
         with patch.dict(os.environ, {}, clear=False):
             # Remove cloud tokens if set
@@ -190,7 +190,7 @@ class TestCloudProviders:
     
     def test_cloud_provider_health_with_tokens(self):
         """Should report tokens when configured"""
-        from vetinari.model_pool import ModelPool
+        from vetinari.models.model_pool import ModelPool
         
         with patch.dict(os.environ, {
             "HF_HUB_TOKEN": "test-hf-token",
@@ -205,7 +205,7 @@ class TestCloudProviders:
     
     def test_get_cloud_models_returns_models(self):
         """Should return cloud models when tokens present"""
-        from vetinari.model_pool import ModelPool
+        from vetinari.models.model_pool import ModelPool
         
         with patch.dict(os.environ, {
             "CLAUDE_API_KEY": "test-key"
@@ -223,7 +223,7 @@ class TestModelSearchCloud:
     
     def test_search_claude_no_token(self):
         """Should return empty when no Claude token"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("CLAUDE_API_KEY", None)
@@ -235,7 +235,7 @@ class TestModelSearchCloud:
     
     def test_search_claude_with_token(self):
         """Should return candidates when Claude token present"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {"CLAUDE_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -246,7 +246,7 @@ class TestModelSearchCloud:
     
     def test_search_gemini_no_token(self):
         """Should return empty when no Gemini token"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("GEMINI_API_KEY", None)
@@ -258,7 +258,7 @@ class TestModelSearchCloud:
     
     def test_search_gemini_with_token(self):
         """Should return candidates when Gemini token present"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -269,7 +269,7 @@ class TestModelSearchCloud:
     
     def test_search_cloud_providers(self):
         """Should search all cloud providers"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {
             "CLAUDE_API_KEY": "test-key",
@@ -291,7 +291,7 @@ class TestSubtaskTreePonder:
     
     def test_subtask_has_ponder_fields(self):
         """Subtask should have ponder audit fields"""
-        from vetinari.subtask_tree import Subtask
+        from vetinari.planning.subtask_tree import Subtask
         
         subtask = Subtask(
             subtask_id="test-1",
@@ -314,7 +314,7 @@ class TestSubtaskTreePonder:
     
     def test_subtask_to_dict_includes_ponder(self):
         """to_dict should include ponder fields"""
-        from vetinari.subtask_tree import Subtask
+        from vetinari.planning.subtask_tree import Subtask
         
         subtask = Subtask(
             subtask_id="test-1",
@@ -340,7 +340,7 @@ class TestSubtaskTreePonder:
     
     def test_subtask_from_dict_includes_ponder(self):
         """from_dict should restore ponder fields"""
-        from vetinari.subtask_tree import Subtask
+        from vetinari.planning.subtask_tree import Subtask
         
         data = {
             "subtask_id": "test-1",
@@ -371,10 +371,10 @@ class TestPonderConfig:
         with patch.dict(os.environ, {}, clear=True):
             # Reload module to pick up env
             import importlib
-            import vetinari.ponder
-            importlib.reload(vetinari.ponder)
+            import vetinari.models.ponder
+            importlib.reload(vetinari.models.ponder)
             
-            from vetinari.ponder import ENABLE_PONDER_MODEL_SEARCH
+            from vetinari.models.ponder import ENABLE_PONDER_MODEL_SEARCH
             # Default should be True
             assert ENABLE_PONDER_MODEL_SEARCH == True
     
@@ -382,10 +382,10 @@ class TestPonderConfig:
         """Should default to 0.20"""
         with patch.dict(os.environ, {}, clear=True):
             import importlib
-            import vetinari.ponder
-            importlib.reload(vetinari.ponder)
+            import vetinari.models.ponder
+            importlib.reload(vetinari.models.ponder)
             
-            from vetinari.ponder import PONDER_CLOUD_WEIGHT
+            from vetinari.models.ponder import PONDER_CLOUD_WEIGHT
             assert PONDER_CLOUD_WEIGHT == 0.20
     
     def test_ponder_cloud_weight_custom(self):
@@ -394,10 +394,10 @@ class TestPonderConfig:
             import importlib
             import vetinari.models.ponder
             importlib.reload(vetinari.models.ponder)
-            import vetinari.ponder
-            importlib.reload(vetinari.ponder)
+            import vetinari.models.ponder
+            importlib.reload(vetinari.models.ponder)
             
-            from vetinari.ponder import PONDER_CLOUD_WEIGHT
+            from vetinari.models.ponder import PONDER_CLOUD_WEIGHT
             assert PONDER_CLOUD_WEIGHT == 0.35
 
 
@@ -475,7 +475,7 @@ class TestPonderProjectWide:
     
     def test_ponder_project_for_plan_no_plan(self):
         """Should handle missing plan"""
-        from vetinari.ponder import ponder_project_for_plan
+        from vetinari.models.ponder import ponder_project_for_plan
         
         result = ponder_project_for_plan("nonexistent-plan")
         
@@ -484,7 +484,7 @@ class TestPonderProjectWide:
     
     def test_get_ponder_results_for_plan(self):
         """Should return ponder results for plan"""
-        from vetinari.ponder import get_ponder_results_for_plan
+        from vetinari.models.ponder import get_ponder_results_for_plan
         
         result = get_ponder_results_for_plan("test-plan")
         
@@ -498,9 +498,9 @@ class TestFallbackBehavior:
     
     def test_score_models_with_cloud_no_search(self):
         """Should work when model search disabled"""
-        from vetinari.ponder import score_models_with_cloud, ENABLE_PONDER_MODEL_SEARCH
+        from vetinari.models.ponder import score_models_with_cloud, ENABLE_PONDER_MODEL_SEARCH
         
-        with patch("vetinari.ponder.ENABLE_PONDER_MODEL_SEARCH", False):
+        with patch("vetinari.models.ponder.ENABLE_PONDER_MODEL_SEARCH", False):
             models = [
                 {"id": "local-model", "name": "Local", "context_length": 4096, "quantization": "q4_k_m", "tags": []}
             ]
@@ -514,7 +514,7 @@ class TestFallbackBehavior:
         from vetinari.models.ponder import _get_model_search_candidates
         
         # Should return empty dict on error
-        with patch("vetinari.model_search.ModelSearchEngine", side_effect=Exception("Simulated error")):
+        with patch("vetinari.models.model_search.ModelSearchEngine", side_effect=Exception("Simulated error")):
             result = _get_model_search_candidates("test", [])
             assert result == {}
 

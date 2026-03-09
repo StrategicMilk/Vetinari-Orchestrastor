@@ -165,7 +165,7 @@ class TrainingDataCollector:
         # Snapshot VRAM usage if available
         vram_used = 0.0
         try:
-            from vetinari.vram_manager import get_vram_manager
+            from vetinari.models.vram_manager import get_vram_manager
             vram_used = get_vram_manager().get_used_vram_gb()
         except Exception:
             pass

@@ -82,7 +82,7 @@ class MultiAgentOrchestrator:
     def dispatch_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatch a task to the appropriate agent via TwoLayerOrchestrator."""
         try:
-            from vetinari.two_layer_orchestration import TwoLayerOrchestrator
+            from vetinari.orchestration.two_layer import TwoLayerOrchestrator
             orch = TwoLayerOrchestrator()
             results = orch.generate_and_execute(
                 goal=task.get("description", ""),

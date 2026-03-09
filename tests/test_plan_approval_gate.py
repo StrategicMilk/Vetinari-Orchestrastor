@@ -21,8 +21,8 @@ class TestApprovalGating:
     
     def test_coding_task_requires_approval_in_plan_mode(self):
         """Test that coding tasks require approval in Plan mode."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Subtask, TaskDomain, SubtaskStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Subtask, TaskDomain, SubtaskStatus
         
         engine = PlanModeEngine()
         
@@ -38,8 +38,8 @@ class TestApprovalGating:
     
     def test_coding_task_no_approval_in_build_mode(self):
         """Test that coding tasks do NOT require approval in Build mode."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Subtask, TaskDomain, SubtaskStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Subtask, TaskDomain, SubtaskStatus
         
         engine = PlanModeEngine()
         
@@ -55,8 +55,8 @@ class TestApprovalGating:
     
     def test_docs_task_no_approval(self):
         """Test that docs tasks do not require approval."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Subtask, TaskDomain, SubtaskStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Subtask, TaskDomain, SubtaskStatus
         
         engine = PlanModeEngine()
         
@@ -72,8 +72,8 @@ class TestApprovalGating:
     
     def test_infra_task_no_approval(self):
         """Test that infrastructure tasks do not require approval."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Subtask, TaskDomain, SubtaskStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Subtask, TaskDomain, SubtaskStatus
         
         engine = PlanModeEngine()
         
@@ -89,8 +89,8 @@ class TestApprovalGating:
     
     def test_check_subtask_approval_required(self):
         """Test the check_subtask_approval_required method."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
         
         engine = PlanModeEngine()
         
@@ -116,8 +116,8 @@ class TestApprovalGating:
     
     def test_check_subtask_approval_not_found(self):
         """Test approval check for non-existent subtask."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Plan, PlanStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Plan, PlanStatus
         
         engine = PlanModeEngine()
         
@@ -134,7 +134,7 @@ class TestApprovalGating:
     
     def test_is_low_risk(self):
         """Test the is_low_risk method."""
-        from vetinari.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_mode import PlanModeEngine
         
         engine = PlanModeEngine()
         
@@ -145,8 +145,8 @@ class TestApprovalGating:
     
     def test_auto_approve_low_risk_dry_run(self):
         """Test auto-approval for low-risk dry-run tasks."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
         
         engine = PlanModeEngine()
         
@@ -170,8 +170,8 @@ class TestApprovalGating:
     
     def test_no_auto_approve_high_risk(self):
         """Test that high-risk tasks are not auto-approved."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
         
         engine = PlanModeEngine()
         
@@ -195,8 +195,8 @@ class TestApprovalGating:
     
     def test_no_auto_approve_non_dry_run(self):
         """Test that non-dry-run tasks are not auto-approved."""
-        from vetinari.plan_mode import PlanModeEngine
-        from vetinari.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
+        from vetinari.planning.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_types import Plan, Subtask, TaskDomain, SubtaskStatus, PlanStatus
         
         engine = PlanModeEngine()
         
@@ -222,10 +222,10 @@ class TestApprovalGating:
 class TestApprovalLogging:
     """Tests for approval logging to memory."""
     
-    @patch('vetinari.plan_mode.get_dual_memory_store')
+    @patch('vetinari.planning.plan_mode.get_dual_memory_store')
     def test_log_approval_decision(self, mock_get_store):
         """Test logging an approval decision."""
-        from vetinari.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_mode import PlanModeEngine
         
         mock_store = MagicMock()
         mock_get_store.return_value = mock_store
@@ -244,10 +244,10 @@ class TestApprovalLogging:
         assert result is True
         mock_store.remember.assert_called_once()
     
-    @patch('vetinari.plan_mode.get_dual_memory_store')
+    @patch('vetinari.planning.plan_mode.get_dual_memory_store')
     def test_log_rejection_decision(self, mock_get_store):
         """Test logging a rejection decision."""
-        from vetinari.plan_mode import PlanModeEngine
+        from vetinari.planning.plan_mode import PlanModeEngine
         
         mock_store = MagicMock()
         mock_get_store.return_value = mock_store

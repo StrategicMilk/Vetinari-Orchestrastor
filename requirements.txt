@@ -80,6 +80,6 @@ pydantic>=2.0
 # ---------------------------------------------------------------------------
 # Optional: Enhanced features
 # ---------------------------------------------------------------------------
-# cryptography>=41.0.0    # For CredentialVault encryption
+cryptography>=41.0.0    # For CredentialVault encryption
 # numpy>=1.24.0           # For numerical operations
 # tavily-python>=0.3.0    # For Tavily web search API

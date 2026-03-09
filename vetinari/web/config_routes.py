@@ -189,7 +189,7 @@ def api_models_reload():
 @config_bp.route('/api/ponder/choose-model', methods=['POST'])
 def api_ponder_choose_model():
     try:
-        from vetinari.ponder import rank_models, get_available_models
+        from vetinari.models.ponder import rank_models, get_available_models
         data, err = validate_json_request()
         if err:
             return err
@@ -207,7 +207,7 @@ def api_ponder_choose_model():
 @config_bp.route('/api/ponder/templates', methods=['GET'])
 def api_ponder_templates():
     try:
-        from vetinari.ponder import PonderEngine
+        from vetinari.models.ponder import PonderEngine
         version = request.args.get("version", "v1")
         engine = PonderEngine(template_version=version)
         templates = engine.get_template_prompts()
@@ -219,7 +219,7 @@ def api_ponder_templates():
 @config_bp.route('/api/ponder/models', methods=['GET'])
 def api_ponder_models():
     try:
-        from vetinari.ponder import get_available_models
+        from vetinari.models.ponder import get_available_models
         models = get_available_models()
         return jsonify({"models": models, "total": len(models)})
     except Exception as e:
@@ -229,7 +229,7 @@ def api_ponder_models():
 @config_bp.route('/api/ponder/plan/<plan_id>', methods=['POST'])
 def api_ponder_run_plan(plan_id):
     try:
-        from vetinari.ponder import ponder_project_for_plan
+        from vetinari.models.ponder import ponder_project_for_plan
         result = ponder_project_for_plan(plan_id)
         if not result.get("success", False):
             return jsonify(result), 400
@@ -241,7 +241,7 @@ def api_ponder_run_plan(plan_id):
 @config_bp.route('/api/ponder/plan/<plan_id>', methods=['GET'])
 def api_ponder_get_plan(plan_id):
     try:
-        from vetinari.ponder import get_ponder_results_for_plan
+        from vetinari.models.ponder import get_ponder_results_for_plan
         result = get_ponder_results_for_plan(plan_id)
         return jsonify(result)
     except Exception as e:
@@ -251,7 +251,7 @@ def api_ponder_get_plan(plan_id):
 @config_bp.route('/api/ponder/health', methods=['GET'])
 def api_ponder_health():
     try:
-        from vetinari.ponder import get_ponder_health
+        from vetinari.models.ponder import get_ponder_health
         health = get_ponder_health()
         return jsonify(health)
     except Exception as e:

@@ -11,7 +11,7 @@ when VRAM allows.
 
 Usage::
 
-    from vetinari.agent_affinity import get_affinity, pick_model_for_agent
+    from vetinari.agents.agent_affinity import get_affinity, pick_model_for_agent
 
     affinity = get_affinity(AgentType.UI_PLANNER)
     # -> AffinityProfile(required=["vision"], preferred=["coding"], ...)

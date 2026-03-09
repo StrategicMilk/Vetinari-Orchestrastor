@@ -224,7 +224,7 @@ class GoalVerifier:
                 goal, final_output, required_features, things_to_avoid
             )
             if llm_result:
-                report.quality_score = llm_result.get("quality_score", 0.7)
+                report.quality_score = llm_result.get("quality_score", 0.0)
                 report.evaluator_verdict = llm_result.get("verdict", "pass")
                 report.corrective_suggestions = llm_result.get("improvements", [])
                 report.model_used = llm_result.get("model_used", "")

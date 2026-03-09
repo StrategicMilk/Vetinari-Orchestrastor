@@ -270,7 +270,7 @@ def get_orchestrator():
 # ---------------------------------------------------------------------------
 def refresh_model_cache():
     try:
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
 
         search_engine = ModelSearchEngine()
         search_engine.refresh_all_caches()
@@ -282,13 +282,13 @@ def refresh_model_cache():
 
 def trigger_light_search(project_id: str, task_description: str):
     try:
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
 
         search_engine = ModelSearchEngine()
 
         lm_models = []
         try:
-            from vetinari.model_pool import ModelPool
+            from vetinari.models.model_pool import ModelPool
 
             model_pool = ModelPool(
                 current_config, current_config.get("host", "http://localhost:1234")

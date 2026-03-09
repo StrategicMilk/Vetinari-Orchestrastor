@@ -13,6 +13,8 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
+pytestmark = pytest.mark.integration
+
 # Add project root to path
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
@@ -24,8 +26,8 @@ class TestIntegrationPonderFlow:
     @pytest.fixture
     def mock_plan(self):
         """Create a mock plan with subtasks"""
-        from vetinari.planning import Plan, Wave, Task
-        from vetinari.subtask_tree import SubtaskTree, Subtask
+        from vetinari.planning.planning import Plan, Wave, Task
+        from vetinari.planning.subtask_tree import SubtaskTree, Subtask
         
         # Create temporary storage
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -58,10 +60,10 @@ class TestIntegrationPonderFlow:
         """Ponder pass should update all subtasks with rankings"""
         tree, plan_id = mock_plan
         
-        from vetinari.ponder import ponder_project_for_plan, get_all_models_with_cloud
+        from vetinari.models.ponder import ponder_project_for_plan, get_all_models_with_cloud
         
         # Mock the cloud models to return empty (no API calls)
-        with patch("vetinari.ponder.get_all_models_with_cloud", return_value=[
+        with patch("vetinari.models.ponder.get_all_models_with_cloud", return_value=[
             {"id": "test-model", "name": "Test", "context_length": 8192, "quantization": "q4_k_m", "tags": ["code"]}
         ]):
             result = ponder_project_for_plan(plan_id)
@@ -96,7 +98,7 @@ class TestIntegrationCloudRanking:
     
     def test_cloud_augmentation_increases_score(self):
         """Cloud signals should augment scores"""
-        from vetinari.ponder import score_models_with_cloud
+        from vetinari.models.ponder import score_models_with_cloud
         
         models = [
             {"id": "local-model", "name": "Local", "context_length": 8192, "quantization": "q4_k_m", "tags": ["code"]},
@@ -208,7 +210,7 @@ class TestSecurityAndSecrets:
     
     def test_missing_tokens_handled_gracefully(self):
         """Missing tokens should not cause crashes"""
-        from vetinari.model_pool import ModelPool
+        from vetinari.models.model_pool import ModelPool
         
         # Clear all cloud tokens
         env_backup = os.environ.copy()
@@ -231,7 +233,7 @@ class TestPerformanceAndCaching:
     
     def test_caching_reduces_calls(self):
         """Caching should reduce repeated API calls"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         
         with patch.dict(os.environ, {"CLAUDE_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -248,7 +250,7 @@ class TestPerformanceAndCaching:
     
     def test_cache_ttl_respected(self):
         """Cache should respect TTL"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.models.model_search import ModelSearchEngine
         from datetime import datetime, timedelta
         import json
         
@@ -293,7 +295,7 @@ class TestErrorHandling:
     
     def test_invalid_plan_id_handled(self):
         """Invalid plan ID should return proper error"""
-        from vetinari.ponder import ponder_project_for_plan
+        from vetinari.models.ponder import ponder_project_for_plan
         
         result = ponder_project_for_plan("")
         
@@ -301,7 +303,7 @@ class TestErrorHandling:
     
     def test_malformed_task_handled(self):
         """Malformed task description should not crash"""
-        from vetinari.ponder import score_models_with_cloud
+        from vetinari.models.ponder import score_models_with_cloud
         
         models = [{"id": "test", "name": "Test", "context_length": 4096, "quantization": "q4_k_m", "tags": []}]
         

@@ -34,23 +34,44 @@ def _load_env_file() -> None:
 
 _load_env_file()
 
+
+def _ensure_data_dirs() -> None:
+    """Create the .vetinari directory structure if it doesn't exist.
+
+    Called once on package import to guarantee that all subsystems can
+    read/write their state files without first having to ``mkdir``.
+    """
+    base = _pathlib.Path(".vetinari")
+    for subdir in (
+        base,
+        base / "checkpoints",
+        base / "drift_snapshots",
+        base / "agent_versions",
+        base / "hooks",
+    ):
+        subdir.mkdir(parents=True, exist_ok=True)
+
+
+_ensure_data_dirs()
+
 __all__ = [
     # Core
     "cli",
     "orchestrator",
     "lmstudio_adapter",
-    "model_pool",
     "scheduler",
     "executor",
-    "validator",
     "builder",
     "upgrader",
     "utils",
+    # Subpackages
+    "agents",
+    "models",
+    "memory",
+    "orchestration",
+    "validation",
+    "sandbox",
     # New components
-    "dynamic_model_router",
-    "two_layer_orchestration",
-    "enhanced_memory",
-    "code_sandbox",
     "integrated_agent",
     "tool_interface",
     "token_optimizer",

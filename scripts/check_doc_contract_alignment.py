@@ -35,7 +35,7 @@ def check_contract_fingerprints() -> bool:
 
     # Register all known contracts
     try:
-        from vetinari.plan_types import Plan, Subtask, PlanCandidate
+        from vetinari.planning.plan_types import Plan, Subtask, PlanCandidate
         reg.register("Plan",         Plan(goal="__check__"))
         reg.register("Subtask",      Subtask())
         reg.register("PlanCandidate",PlanCandidate())
@@ -139,7 +139,7 @@ def check_schema_validation() -> bool:
     failures = []
 
     try:
-        from vetinari.plan_types import Plan
+        from vetinari.planning.plan_types import Plan
         errs = v.validate("Plan", Plan(goal="alignment check"))
         if errs:
             failures.append(("Plan", errs))
@@ -150,7 +150,7 @@ def check_schema_validation() -> bool:
         print(f"  WARN Plan: {e}")
 
     try:
-        from vetinari.plan_types import Subtask
+        from vetinari.planning.plan_types import Subtask
         errs = v.validate("Subtask", Subtask(description="x", plan_id="p1"))
         if errs:
             failures.append(("Subtask", errs))

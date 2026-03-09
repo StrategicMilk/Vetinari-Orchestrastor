@@ -1,7 +1,7 @@
 """Tests for vetinari/plan_types.py — Phase 7D"""
 import json
 import unittest
-from vetinari.plan_types import (
+from vetinari.planning.plan_types import (
     PlanStatus, SubtaskStatus, TaskDomain, PlanRiskLevel,
     DefinitionOfDone, DefinitionOfReady, TaskRationale,
     Subtask, Plan, PlanCandidate,

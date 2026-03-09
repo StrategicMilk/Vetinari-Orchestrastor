@@ -291,7 +291,7 @@ Focus on actionable, specific improvements based on the data."""
     def _apply_model_routing_change(self, params: Dict[str, Any]) -> None:
         """Apply a model routing weight change."""
         try:
-            from vetinari.dynamic_model_router import get_model_router
+            from vetinari.models.dynamic_model_router import get_model_router
             router = get_model_router()
             model_id = params.get("model_id")
             if model_id and hasattr(router, "_performance_cache"):

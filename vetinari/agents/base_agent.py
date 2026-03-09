@@ -583,7 +583,7 @@ class BaseAgent(ABC):
         Returns:
             entry_id: Use with get_help_result() to retrieve the answer.
         """
-        from vetinari.blackboard import get_blackboard
+        from vetinari.memory.blackboard import get_blackboard
         board = get_blackboard()
         entry_id = board.post(
             content=content,
@@ -605,7 +605,7 @@ class BaseAgent(ABC):
         Returns:
             The result posted by the helper agent, or None if timed out / failed.
         """
-        from vetinari.blackboard import get_blackboard
+        from vetinari.memory.blackboard import get_blackboard
         board = get_blackboard()
         return board.get_result(entry_id, timeout=timeout)
 
@@ -619,7 +619,7 @@ class BaseAgent(ABC):
             value: The data to share.
             finding_type: Category for filtering (e.g. "security", "architecture").
         """
-        from vetinari.blackboard import get_blackboard
+        from vetinari.memory.blackboard import get_blackboard
         board = get_blackboard()
         board.post(
             content=value,
@@ -639,7 +639,7 @@ class BaseAgent(ABC):
         Returns:
             List of dicts with keys: content, agent, finding_key.
         """
-        from vetinari.blackboard import get_blackboard
+        from vetinari.memory.blackboard import get_blackboard
         board = get_blackboard()
         prefix = f"finding:{finding_type}" if finding_type else "finding:"
         entries = board.get_pending(request_type_prefix=prefix)

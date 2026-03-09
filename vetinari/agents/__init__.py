@@ -77,99 +77,25 @@ from .coding_bridge import (
 )
 
 __all__ = [
-    # Base classes
-    "BaseAgent",
-
-    # Contracts and types
-    "AgentType",
-    "AgentSpec",
-    "Task",
-    "AgentTask",
-    "Plan",
-    "AgentResult",
-    "VerificationResult",
-    "TaskStatus",
-    "ExecutionMode",
-    "get_agent_spec",
-    "AGENT_REGISTRY",
-    
-    # Core agents
-    "PlannerAgent",
-    "get_planner_agent",
-    "ExplorerAgent",
-    "get_explorer_agent",
-    "OracleAgent",
-    "get_oracle_agent",
-    
-    # Core expansion agents
-    "LibrarianAgent",
-    "get_librarian_agent",
-    "ResearcherAgent",
-    "get_researcher_agent",
-    "EvaluatorAgent",
-    "get_evaluator_agent",
-    "SynthesizerAgent",
-    "get_synthesizer_agent",
-    "BuilderAgent",
-    "get_builder_agent",
-    "UIPlannerAgent",
-    "get_ui_planner_agent",
-    
-    # Meta agents
-    "ImprovementAgent",
-    "get_improvement_agent",
-    "UserInteractionAgent",
-    "get_user_interaction_agent",
-
-    # DevOps agent
-    "DevOpsAgent",
-    "get_devops_agent",
-
-    # New orchestration agents
-    "VersionControlAgent",
-    "get_version_control_agent",
-    "ErrorRecoveryAgent",
-    "get_error_recovery_agent",
-    "ContextManagerAgent",
-    "get_context_manager_agent",
-    "ImageGeneratorAgent",
-    "get_image_generator_agent",
-
-    # Extended agents
-    "SecurityAuditorAgent",
-    "get_security_auditor_agent",
-    "DataEngineerAgent",
-    "get_data_engineer_agent",
-    "DocumentationAgent",
-    "get_documentation_agent",
-    "CostPlannerAgent",
-    "get_cost_planner_agent",
-    "TestAutomationAgent",
-    "get_test_automation_agent",
-    "ExperimentationManagerAgent",
-    "get_experimentation_manager_agent",
-    
-    # Consolidated agents
-    "ArchitectAgent",
-    "get_architect_agent",
-    "TesterAgent",
-    "get_tester_agent",
-    "DocumenterAgent",
-    "get_documenter_agent",
-    "ResilienceAgent",
-    "get_resilience_agent",
-    "MetaAgent",
-    "get_meta_agent",
-    "AGENT_CONSOLIDATION_MAP",
-    "CONSOLIDATED_AGENT_TYPES",
-    "resolve_agent_type",
-
-    # Coding bridge
-    "CodingBridge",
-    "CodingTask",
-    "CodingResult",
-    "CodingTaskType",
-    "CodingTaskStatus",
-    "get_coding_bridge",
-    "init_coding_bridge"
+    "BaseAgent", "AgentType", "AgentSpec", "Task", "AgentTask", "Plan",
+    "AgentResult", "VerificationResult", "TaskStatus", "ExecutionMode",
+    "get_agent_spec", "AGENT_REGISTRY",
+    "PlannerAgent", "get_planner_agent", "ExplorerAgent", "get_explorer_agent",
+    "OracleAgent", "get_oracle_agent", "LibrarianAgent", "get_librarian_agent",
+    "ResearcherAgent", "get_researcher_agent", "EvaluatorAgent", "get_evaluator_agent",
+    "SynthesizerAgent", "get_synthesizer_agent", "BuilderAgent", "get_builder_agent",
+    "UIPlannerAgent", "get_ui_planner_agent", "ImprovementAgent", "get_improvement_agent",
+    "UserInteractionAgent", "get_user_interaction_agent", "DevOpsAgent", "get_devops_agent",
+    "VersionControlAgent", "get_version_control_agent", "ErrorRecoveryAgent", "get_error_recovery_agent",
+    "ContextManagerAgent", "get_context_manager_agent", "ImageGeneratorAgent", "get_image_generator_agent",
+    "SecurityAuditorAgent", "get_security_auditor_agent", "DataEngineerAgent", "get_data_engineer_agent",
+    "DocumentationAgent", "get_documentation_agent", "CostPlannerAgent", "get_cost_planner_agent",
+    "TestAutomationAgent", "get_test_automation_agent",
+    "ExperimentationManagerAgent", "get_experimentation_manager_agent",
+    "ArchitectAgent", "get_architect_agent", "TesterAgent", "get_tester_agent",
+    "DocumenterAgent", "get_documenter_agent", "ResilienceAgent", "get_resilience_agent",
+    "MetaAgent", "get_meta_agent",
+    "AGENT_CONSOLIDATION_MAP", "CONSOLIDATED_AGENT_TYPES", "resolve_agent_type",
+    "CodingBridge", "CodingTask", "CodingResult", "CodingTaskType", "CodingTaskStatus",
+    "get_coding_bridge", "init_coding_bridge",
 ]

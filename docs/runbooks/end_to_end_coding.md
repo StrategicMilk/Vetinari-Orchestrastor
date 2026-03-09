@@ -79,7 +79,7 @@ Start a Python REPL or script in the Vetinari project root:
 
 ```python
 from vetinari.structured_logging import configure_logging, CorrelationContext, get_logger
-from vetinari.plan_mode import PlanModeEngine
+from vetinari.planning.plan_mode import PlanModeEngine
 from vetinari.memory import get_dual_memory_store
 from vetinari.telemetry import get_telemetry_collector
 
@@ -291,7 +291,7 @@ import json
 from vetinari.structured_logging import (
     configure_logging, CorrelationContext, get_logger, traced_operation
 )
-from vetinari.plan_mode import PlanModeEngine
+from vetinari.planning.plan_mode import PlanModeEngine
 from vetinari.memory import get_dual_memory_store
 from vetinari.memory.interfaces import MemoryEntry, MemoryEntryType
 from vetinari.telemetry import get_telemetry_collector

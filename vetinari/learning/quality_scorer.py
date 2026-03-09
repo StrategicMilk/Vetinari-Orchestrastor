@@ -24,7 +24,8 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = os.environ.get("VETINARI_QUALITY_DB", "./vetinari_quality_scores.db")
+_DEFAULT_DATA_DIR = Path(os.environ.get("VETINARI_DATA_DIR", Path.home() / ".vetinari"))
+_DB_PATH = os.environ.get("VETINARI_QUALITY_DB", str(_DEFAULT_DATA_DIR / "vetinari_quality_scores.db"))
 
 
 @dataclass
@@ -74,7 +75,12 @@ class QualityScorer:
     def _init_db(self) -> None:
         """Create quality_scores table if it doesn't exist."""
         try:
+            Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(self._db_path) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA foreign_keys=ON")
+                conn.execute("PRAGMA busy_timeout=5000")
+                conn.execute("PRAGMA synchronous=NORMAL")
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS quality_scores (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,6 +101,7 @@ class QualityScorer:
                 """)
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_model ON quality_scores(model_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_task_type ON quality_scores(task_type)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_created_at ON quality_scores(created_at)")
         except Exception as e:
             logger.debug(f"[QualityScorer] DB init failed (scores will be in-memory only): {e}")
 
@@ -287,7 +294,7 @@ class QualityScorer:
     def _pick_judge_model(self, evaluated_model_id: str) -> str:
         """Pick a judge model that is DIFFERENT from the model being evaluated."""
         try:
-            from vetinari.model_registry import get_model_registry
+            from vetinari.models.model_registry import get_model_registry
             loaded = get_model_registry().get_loaded_local_models()
             for m in loaded:
                 if m.model_id != evaluated_model_id:
