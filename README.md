@@ -1,6 +1,6 @@
 # Vetinari AI Orchestration System
 
-**v0.2.1** -- Comprehensive Multi-Agent AI Orchestration with Assembly-Line Execution, Self-Improvement, and Token Optimization
+**v0.4.0** — Multi-Agent AI Orchestration with 6 Consolidated Agents, Circuit Breakers, Code Mode, and Full Observability
 
 ## Overview
 
@@ -8,19 +8,21 @@ Vetinari is a comprehensive AI orchestration system that automatically plans, de
 
 ### Key Features
 
-- **Assembly-Line Pipeline**: Input Analysis → Plan Generation → Recursive Task Decomposition → Model Assignment → Parallel Execution → Output Review → Final Assembly
-- **21 Specialized Agents**: Planner, Explorer (with RepoMap), Oracle, Librarian, Researcher, Evaluator, Synthesizer, Builder, UI Planner, Security Auditor (heuristic + LLM), Data Engineer, Documentation, Cost Planner, Test Automation, Experimentation Manager, Improvement Agent, DevOps Agent, Version Control, Error Recovery, Context Manager
-- **Token Optimizer**: Per-task token budgets, dynamic max_tokens by task type, context deduplication, local LLM preprocessing for cloud models (30-60% cloud token reduction)
-- **RepoMap**: Tree-sitter-inspired structural codebase mapping — sends function signatures instead of raw files, saving thousands of tokens
-- **Local-Cloud Hybrid**: Local LLMs pre-process and compress context before expensive cloud API calls
-- **Self-Improvement System**: Thompson Sampling model selection, prompt A/B testing (PromptEvolver), workflow learning, cost optimization, auto-tuning — all fully wired into execution
-- **Real Web Search**: Multi-source search with DuckDuckGo, Wikipedia, arXiv -- with anti-hallucination verification (two-source rule)
-- **User Interaction**: Detects ambiguous goals and asks targeted clarifying questions
-- **Multi-Provider Support**: LM Studio (local), OpenAI, Anthropic (with prompt caching), Google Gemini, Cohere (v2 chat API), HuggingFace, Replicate
-- **Durable Execution**: Checkpoint-based recovery for long-running projects
-- **Real-Time UI**: SSE streaming of task progress, cancel button, token counter, global search, auto-wired analytics
-- **Full Observability**: Structured JSON logging, distributed tracing, telemetry, analytics — all wired into the execution pipeline
-- **Security**: XSS-safe chat rendering, `.gitignore`, CSRF awareness, heuristic vulnerability scanning in Security Auditor agent
+- **Assembly-Line Pipeline**: Input Analysis > Plan Generation > Task Decomposition > Model Assignment > Parallel Execution > Output Review > Final Assembly
+- **6 Consolidated Multi-Mode Agents**: Planner, Researcher, Oracle, Builder, Quality, Operations — covering 33 modes
+- **Circuit Breakers**: Per-agent fault isolation with CLOSED/OPEN/HALF_OPEN states
+- **Code Mode Orchestration**: LLM generates Python code chaining agent API calls, executed in sandbox
+- **SLM/LLM Hybrid Routing**: Automatic model tier selection based on task complexity
+- **Context Window Management**: Token estimation, smart truncation, per-agent budgets
+- **Typed Output Schemas**: Pydantic validation for all 33 agent modes
+- **Distributed Tracing**: OpenTelemetry integration with no-op fallback
+- **Plan Mode**: LLM-generated multi-candidate plans with risk evaluation and domain-specific templates
+- **Self-Improvement System**: Thompson Sampling model selection, prompt A/B testing, workflow learning
+- **Analytics Suite**: Cost tracking, SLA monitoring, anomaly detection, forecasting
+- **Real Web Search**: Multi-source search with DuckDuckGo, Wikipedia, arXiv
+- **Multi-Provider Support**: LM Studio (local), OpenAI, Anthropic, Google Gemini, Cohere, HuggingFace, Replicate
+- **Performance Benchmarks**: p50/p95/p99 latency tests, memory bounds, regression guards
+- **Full Observability**: Structured JSON logging, distributed tracing, alert system, agent dashboard
 
 ---
 
@@ -29,13 +31,10 @@ Vetinari is a comprehensive AI orchestration system that automatically plans, de
 ### 1. Setup
 
 ```bash
-# Clone or navigate to project
-cd C:\Users\darst\.lmstudio\projects\Vetinari
+cd Vetinari
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Copy and configure environment
 cp .env.example .env
 # Edit .env with your LM Studio host and any API keys
 ```
@@ -72,19 +71,21 @@ python -m vetinari start --no-dashboard --goal "Research best practices for micr
 ### 3. All CLI Commands
 
 ```
-vetinari run       --goal "..."    Execute a goal through the full pipeline
-vetinari run       --task t1       Execute a specific manifest task
-vetinari serve     --port 5000     Start web dashboard
-vetinari start                     Start with dashboard (recommended)
-vetinari status                    Show system status
-vetinari health                    Health check all providers
-vetinari upgrade                   Check for model upgrades
-vetinari review                    Run self-improvement analysis
-vetinari interactive               Enter REPL mode
+vetinari run          --goal "..."    Execute a goal through the full pipeline
+vetinari run          --task t1       Execute a specific manifest task
+vetinari serve        --port 5000     Start web dashboard
+vetinari start                        Start with dashboard (recommended)
+vetinari status                       Show system status
+vetinari health                       Health check all providers
+vetinari upgrade                      Check for model upgrades
+vetinari review                       Run self-improvement agent review
+vetinari interactive                  Enter interactive REPL mode
+vetinari benchmark    [--agents ...]  Run agent benchmarks
+vetinari drift-check                  Check for contract drift across agents
 
 Global flags:
   --config PATH   Manifest file path
-  --host URL      LM Studio host (default: http://100.78.30.7:1234)
+  --host URL      LM Studio host (default: http://localhost:1234)
   --mode          planning | execution | sandbox
   --verbose       Debug logging
 ```
@@ -97,26 +98,26 @@ Global flags:
 
 ```
 User Input
-    │
-    ▼
+    |
+    v
 [1. INPUT ANALYZER]    Classifies request type, domain, complexity
-    │
-    ▼
-[2. PLAN GENERATOR]    LLM-powered task decomposition (PlannerAgent)
-    │
-    ▼
+    |
+    v
+[2. PLAN GENERATOR]    LLM-powered multi-candidate plans with risk evaluation
+    |
+    v
 [3. TASK DECOMPOSER]   Recursive breakdown to atomic tasks (depth cap: 16)
-    │
-    ▼
-[4. MODEL ASSIGNER]    Thompson Sampling + DynamicModelRouter selects best model per task
-    │
-    ▼
-[5. PARALLEL EXECUTOR] DAG scheduler + ThreadPoolExecutor runs tasks in parallel
-    │
-    ▼
+    |
+    v
+[4. MODEL ASSIGNER]    Thompson Sampling + DynamicModelRouter + SLA/cost awareness
+    |
+    v
+[5. PARALLEL EXECUTOR] DAG scheduler + ThreadPoolExecutor + Blackboard coordination
+    |
+    v
 [6. OUTPUT REVIEWER]   EvaluatorAgent checks quality and consistency
-    │
-    ▼
+    |
+    v
 [7. FINAL ASSEMBLER]   SynthesizerAgent creates unified final output
 ```
 
@@ -124,52 +125,48 @@ User Input
 
 ```
 Execution Results
-    │
-    ▼
+    |
+    v
 [Quality Scorer]      LLM-as-judge + heuristics
-    │
-    ▼
+    |
+    v
 [Feedback Loop]       Updates ModelPerformance table (EMA)
-    │
-    ▼
+    |
+    v
 [Thompson Sampling]   Beta distribution updates per model+task_type
-    │
-    ▼
+    |
+    v
 [Prompt Evolver]      A/B tests prompt variants for underperforming agents
-    │
-    ▼
+    |
+    v
 [Workflow Learner]    Updates domain-specific decomposition strategies
-    │
-    ▼
+    |
+    v
 [Cost Optimizer]      Routes to cheapest adequate model
-    │
-    ▼
-[Auto-Tuner]          Adjusts concurrency, thresholds from SLA data
-    │
-    ▼
+    |
+    v
+[Auto-Tuner]          Adjusts concurrency, thresholds (config persisted)
+    |
+    v
+[SLA Tracker]         Monitors latency/error SLOs per model
+    |
+    v
+[Anomaly Detector]    Flags model performance anomalies
+    |
+    v
 [Improvement Agent]   Periodic meta-review with recommendations
 ```
 
-### Agents
+### 6 Consolidated Multi-Mode Agents
 
-| Agent | Capabilities |
-|-------|-------------|
-| Planner | LLM-powered task decomposition, dependency mapping |
-| Explorer | Web search + code pattern discovery |
-| Oracle | LLM architectural guidance, risk assessment |
-| Librarian | Real API/library lookup with web search |
-| Researcher | Multi-source web research + LLM synthesis |
-| Evaluator | LLM code quality review, security analysis |
-| Synthesizer | LLM artifact fusion and conflict resolution |
-| Builder | LLM code scaffolding and generation |
-| UI Planner | UI/UX design, wireframe planning |
-| Security Auditor | Vulnerability scanning, compliance |
-| Data Engineer | Pipeline design, schema creation |
-| Documentation | API docs, README generation |
-| Cost Planner | Budget planning, model cost optimization |
-| Test Automation | Test generation, coverage analysis |
-| Experimentation Manager | A/B test management |
-| **Improvement Agent** | Self-improvement meta-analysis |
+| Agent | Modes | Capabilities |
+|-------|-------|-------------|
+| **PlannerAgent** | plan, clarify, summarise, prune, extract, consolidate | Task decomposition, ambiguity detection, context management |
+| **ResearcherAgent** | code_discovery, domain_research, api_lookup, lateral_thinking, ui_design, database, devops, git_workflow | Web search, code exploration, domain analysis, UI/DB/DevOps design |
+| **OracleAgent** | architecture, risk_assessment, ontological_analysis, contrarian_review | Architecture guidance, risk quantification, contrarian analysis |
+| **BuilderAgent** | build, image_generation | Code scaffolding, syntax validation, image generation |
+| **QualityAgent** | code_review, security_audit, test_generation, simplification | Code review, 45+ security patterns, test generation |
+| **OperationsAgent** | documentation, creative_writing, cost_analysis, experiment, error_recovery, synthesis, improvement, monitor, devops_ops | Docs, cost analysis, monitoring, error recovery, synthesis |
 
 ---
 
@@ -179,7 +176,7 @@ Execution Results
 
 ```bash
 # LM Studio
-LM_STUDIO_HOST=http://100.78.30.7:1234
+LM_STUDIO_HOST=http://localhost:1234
 
 # Cloud providers (optional)
 CLAUDE_API_KEY=your_key
@@ -190,10 +187,13 @@ OPENAI_API_KEY=your_key
 PLAN_MODE_ENABLE=true
 PLAN_DEPTH_CAP=16
 
+# Model discovery
+ENABLE_PONDER_MODEL_DISCOVERY=true
+
 # Web search
 VETINARI_SEARCH_BACKEND=duckduckgo  # duckduckgo | tavily | serpapi
-TAVILY_API_KEY=your_key             # Optional, for Tavily backend
-SERPAPI_KEY=your_key                # Optional, for SerpAPI backend
+TAVILY_API_KEY=your_key             # Optional
+SERPAPI_KEY=your_key                 # Optional
 
 # Dashboard
 VETINARI_WEB_PORT=5000
@@ -212,7 +212,7 @@ Vetinari/
 ├── cli.py                         # Root CLI shim
 ├── start.bat / start.sh           # One-click startup scripts
 ├── requirements.txt               # Dependencies
-├── setup.py                       # Package setup (v0.2.0)
+├── pyproject.toml                 # Package config (v0.4.0)
 ├── manifest/
 │   └── vetinari.yaml             # Primary manifest
 ├── config/
@@ -220,40 +220,90 @@ Vetinari/
 │   └── sandbox_policy.yaml       # Security policies
 ├── vetinari/                      # Main package
 │   ├── __main__.py               # python -m vetinari entry
-│   ├── cli.py                    # Unified CLI (16 subcommands)
-│   ├── orchestrator.py           # Main orchestrator
-│   ├── two_layer_orchestration.py # Assembly-line pipeline
-│   ├── agents/                   # 16 specialized agents
-│   │   ├── base_agent.py         # Base class with LLM + web search
+│   ├── cli.py                    # Unified CLI (10 subcommands)
+│   ├── orchestrator.py           # Legacy orchestrator (deprecated)
+│   ├── orchestration/            # Modern orchestration subsystem
+│   │   ├── two_layer.py          # Assembly-line pipeline
+│   │   ├── execution_graph.py    # DAG task execution
+│   │   ├── durable_execution.py  # Checkpoint/recovery
+│   │   └── plan_generator.py     # Plan generation
+│   ├── agents/                   # 6 consolidated multi-mode agents (33 modes)
+│   │   ├── base_agent.py         # Base class with LLM + web search + prompt framework
+│   │   ├── contracts.py          # Agent type contracts
 │   │   ├── planner_agent.py      # LLM-powered planning
 │   │   ├── researcher_agent.py   # Real web search + synthesis
-│   │   ├── improvement_agent.py  # Self-improvement meta-agent
-│   │   ├── user_interaction_agent.py # Clarification gathering
-│   │   └── ... (12 more agents)
-│   ├── learning/                  # Self-improvement system
+│   │   ├── coding_bridge.py      # Routes to CodingEngine
+│   │   ├── consolidated/         # Multi-mode agents
+│   │   │   ├── orchestrator_agent.py
+│   │   │   ├── quality_agent.py
+│   │   │   └── operations_agent.py
+│   │   └── ...
+│   ├── skills/                   # Skill tool wrappers
+│   │   ├── quality_skill.py      # Code review, security, testing
+│   │   ├── architect_skill.py    # System/UI/DB/API design
+│   │   ├── operations_skill.py   # Docs, cost, experiments
+│   │   ├── librarian/            # API/library lookup
+│   │   └── researcher/           # Multi-source research
+│   ├── learning/                 # Self-improvement system
 │   │   ├── quality_scorer.py     # LLM-as-judge quality scoring
 │   │   ├── feedback_loop.py      # Execution outcome tracking
 │   │   ├── model_selector.py     # Thompson Sampling selection
 │   │   ├── prompt_evolver.py     # Prompt A/B testing
 │   │   ├── workflow_learner.py   # Workflow strategy learning
 │   │   ├── cost_optimizer.py     # Cost-aware routing
-│   │   └── auto_tuner.py        # SLA-driven auto-adjustment
-│   ├── tools/                    # 14 skill tool wrappers
+│   │   └── auto_tuner.py         # SLA-driven auto-adjustment (persistent)
+│   ├── analytics/                # Analytics subsystem
+│   │   ├── cost.py               # Cost tracking per model/provider
+│   │   ├── sla.py                # SLA compliance monitoring
+│   │   ├── anomaly.py            # Anomaly detection (Z-score + IQR)
+│   │   └── forecasting.py        # Time-series forecasting (SMA, ES, OLS, seasonal)
 │   ├── adapters/                 # Multi-provider adapter system
-│   ├── analytics/                # Anomaly, cost, SLA, forecasting
-│   ├── dashboard/                # Flask web dashboard
-│   └── ... (many more modules)
-├── docs/                          # 30+ documentation files
-├── tests/                         # 60+ test files
-└── ui/                            # Web UI (HTML/CSS/JS)
+│   │   ├── lmstudio_adapter.py   # LM Studio (local, with streaming)
+│   │   ├── openai_adapter.py     # OpenAI
+│   │   ├── anthropic_adapter.py  # Anthropic (prompt caching)
+│   │   ├── gemini_adapter.py     # Google Gemini
+│   │   └── ...
+│   ├── coding_agent/             # Code generation engine
+│   ├── constraints/              # Architecture + quality gate constraints
+│   ├── dashboard/                # Flask web dashboard + log aggregation
+│   ├── drift/                    # Contract drift detection
+│   ├── memory/                   # Dual-layer memory (short + long term)
+│   ├── safety/                   # Safety guardrails
+│   ├── tools/                    # Tool registry integration
+│   ├── web/                      # Web route modules + preferences API
+│   ├── blackboard.py             # Inter-agent communication
+│   ├── dynamic_model_router.py   # SLA/anomaly/cost-aware model routing
+│   ├── plan_mode.py              # LLM-powered plan generation engine
+│   ├── benchmarks/               # Agent benchmark suite
+│   └── ...
+├── tests/                        # 96 test files, 6000+ tests
+├── docs/                         # Documentation
+└── ui/                           # Web UI (HTML/CSS/JS)
 ```
+
+---
+
+## Testing
+
+```bash
+# Full test suite
+python -m pytest tests/ -x -q
+
+# Skip slow tests
+python -m pytest tests/ -x -q -m "not slow"
+
+# Verbose with traceback
+python -m pytest tests/ -v --tb=short
+```
+
+96 test files with 6000+ tests covering all modules, agents, skills, analytics, and web routes.
 
 ---
 
 ## Requirements
 
-- Python 3.9+
-- LM Studio running at configured host (default: http://100.78.30.7:1234)
+- Python 3.10+
+- LM Studio running at configured host (default: http://localhost:1234)
 - Windows 10/11 recommended (64-bit)
 - 16GB+ RAM (64GB+ recommended for large models)
 

@@ -420,12 +420,11 @@ if __name__ == "__main__":
         return artifact
     
     def _run_via_bridge(self, task: CodeTask) -> CodeArtifact:
-        """Run task via external bridge (placeholder)."""
-        
+        """Run task via external bridge, falling back to in-process execution."""
+
         logger.info("Delegating task %s to external bridge at %s", task.task_id, self.bridge_endpoint)
-        
-        # Placeholder for external bridge integration
-        # In production, this would make HTTP calls to the bridge service
+
+        # Graceful fallback: run in-process when no external bridge is configured
         return self._run_in_process(task)
     
     def run_multi_step_task(self, tasks: List[CodeTask]) -> List[CodeArtifact]:

@@ -16,8 +16,7 @@ __all__ = [
     "utils",
     # New components
     "dynamic_model_router",
-    "two_layer_orchestration",
-    "enhanced_memory",
+    "model_discovery",
     "code_sandbox",
     "tool_interface",
     "token_optimizer",

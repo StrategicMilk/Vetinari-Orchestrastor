@@ -187,6 +187,8 @@ class SLATracker:
         # keyed by SLO name → deque of _Obs within a rolling window
         self._obs:    Dict[str, Deque[_Obs]] = {}
         self._breaches: List[SLABreach] = []
+        # Per-model latency observations for model-level compliance queries
+        self._model_obs: Dict[str, Deque[_Obs]] = {}
 
     # ------------------------------------------------------------------
     # SLO management
@@ -220,6 +222,13 @@ class SLATracker:
             for slo in self._slos.values():
                 if slo.slo_type in (SLOType.LATENCY_P50, SLOType.LATENCY_P95, SLOType.LATENCY_P99):
                     self._push(slo.name, _Obs(value=latency_ms, timestamp=now, success=success))
+            # Also track per-model for model-level compliance queries
+            q = self._model_obs.setdefault(key, deque())
+            q.append(_Obs(value=latency_ms, timestamp=now, success=success))
+            # Evict observations older than 1 hour
+            cutoff = now - 3600
+            while q and q[0].timestamp < cutoff:
+                q.popleft()
 
     def record_request(self, success: bool) -> None:
         """Feed a success/failure observation to success/error-rate SLOs."""
@@ -334,6 +343,21 @@ class SLATracker:
             names = list(self._slos.keys())
         return [r for name in names if (r := self.get_report(name)) is not None]
 
+    def get_model_compliance(self, model_id: str, budget_ms: float = 500.0) -> Optional[float]:
+        """Get latency SLA compliance % for a specific model.
+
+        Computes the percentage of recorded latency observations that were
+        under *budget_ms*.  Returns ``None`` if no observations exist for
+        the model.
+        """
+        with self._lock:
+            q = self._model_obs.get(model_id)
+            if not q:
+                return None
+            vals = list(q)
+        good = sum(1 for o in vals if o.value <= budget_ms)
+        return (good / len(vals)) * 100.0 if vals else None
+
     def record_breach(self, breach: SLABreach) -> None:
         with self._lock:
             self._breaches.append(breach)
@@ -354,6 +378,7 @@ class SLATracker:
         with self._lock:
             self._obs.clear()
             self._breaches.clear()
+            self._model_obs.clear()
             for name in self._slos:
                 self._obs[name] = deque()
 

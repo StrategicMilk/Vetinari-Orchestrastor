@@ -104,7 +104,7 @@ class TestIntegrationCloudRanking:
         ]
         
         # Mock search to return high relevance for cloud model
-        with patch("vetinari.ponder._get_model_search_candidates", return_value={
+        with patch("vetinari.ponder._get_model_discovery_candidates", return_value={
             "cloud:claude": 0.9,  # High relevance
             "local-model": 0.3   # Low relevance
         }):
@@ -128,7 +128,7 @@ class TestIntegrationAPIFlow:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
-            "enable_model_search": True,
+            "enable_model_discovery": True,
             "cloud_weight": 0.3,
             "providers": {
                 "huggingface_inference": True,
@@ -143,7 +143,7 @@ class TestIntegrationAPIFlow:
         assert response.status_code == 200
         data = response.json()
 
-        assert "enable_model_search" in data
+        assert "enable_model_discovery" in data
         assert "cloud_weight" in data
         assert "providers" in data
         for provider in ["huggingface_inference", "replicate", "claude", "gemini"]:
@@ -191,7 +191,7 @@ class TestSecurityAndSecrets:
         mock_resp.status_code = 200
         # Simulate a safe response — no raw keys in payload
         mock_resp.json.return_value = {
-            "enable_model_search": True,
+            "enable_model_discovery": True,
             "cloud_weight": 0.3,
             "providers": {"huggingface_inference": True},
         }
@@ -231,7 +231,7 @@ class TestPerformanceAndCaching:
     
     def test_caching_reduces_calls(self):
         """Caching should reduce repeated API calls"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {"CLAUDE_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -248,7 +248,7 @@ class TestPerformanceAndCaching:
     
     def test_cache_ttl_respected(self):
         """Cache should respect TTL"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         from datetime import datetime, timedelta
         import json
         

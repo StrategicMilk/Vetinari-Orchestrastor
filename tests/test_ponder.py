@@ -223,7 +223,7 @@ class TestModelSearchCloud:
     
     def test_search_claude_no_token(self):
         """Should return empty when no Claude token"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("CLAUDE_API_KEY", None)
@@ -235,7 +235,7 @@ class TestModelSearchCloud:
     
     def test_search_claude_with_token(self):
         """Should return candidates when Claude token present"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {"CLAUDE_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -246,7 +246,7 @@ class TestModelSearchCloud:
     
     def test_search_gemini_no_token(self):
         """Should return empty when no Gemini token"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("GEMINI_API_KEY", None)
@@ -258,7 +258,7 @@ class TestModelSearchCloud:
     
     def test_search_gemini_with_token(self):
         """Should return candidates when Gemini token present"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             engine = ModelSearchEngine()
@@ -269,7 +269,7 @@ class TestModelSearchCloud:
     
     def test_search_cloud_providers(self):
         """Should search all cloud providers"""
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
         
         with patch.dict(os.environ, {
             "CLAUDE_API_KEY": "test-key",
@@ -374,9 +374,9 @@ class TestPonderConfig:
             import vetinari.ponder
             importlib.reload(vetinari.ponder)
             
-            from vetinari.ponder import ENABLE_PONDER_MODEL_SEARCH
+            from vetinari.ponder import ENABLE_PONDER_MODEL_DISCOVERY
             # Default should be True
-            assert ENABLE_PONDER_MODEL_SEARCH == True
+            assert ENABLE_PONDER_MODEL_DISCOVERY == True
     
     def test_ponder_cloud_weight_default(self):
         """Should default to 0.20"""
@@ -410,7 +410,7 @@ class TestPonderAPI:
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "providers": {"huggingface_inference": True, "replicate": False},
-            "enable_model_search": True,
+            "enable_model_discovery": True,
             "cloud_weight": 0.3,
         }
         mock_get.return_value = mock_resp
@@ -419,7 +419,7 @@ class TestPonderAPI:
         assert response.status_code == 200
         data = response.json()
         assert "providers" in data
-        assert "enable_model_search" in data
+        assert "enable_model_discovery" in data
         assert "cloud_weight" in data
 
     @patch("requests.post")
@@ -496,9 +496,9 @@ class TestFallbackBehavior:
     
     def test_score_models_with_cloud_no_search(self):
         """Should work when model search disabled"""
-        from vetinari.ponder import score_models_with_cloud, ENABLE_PONDER_MODEL_SEARCH
+        from vetinari.ponder import score_models_with_cloud, ENABLE_PONDER_MODEL_DISCOVERY
         
-        with patch("vetinari.ponder.ENABLE_PONDER_MODEL_SEARCH", False):
+        with patch("vetinari.ponder.ENABLE_PONDER_MODEL_DISCOVERY", False):
             models = [
                 {"id": "local-model", "name": "Local", "context_length": 4096, "quantization": "q4_k_m", "tags": []}
             ]
@@ -509,11 +509,11 @@ class TestFallbackBehavior:
     
     def test_cloud_fallback_graceful(self):
         """Should handle cloud provider errors gracefully"""
-        from vetinari.ponder import _get_model_search_candidates
+        from vetinari.ponder import _get_model_discovery_candidates
         
         # Should return empty dict on error
-        with patch("vetinari.model_search.ModelSearchEngine", side_effect=Exception("Simulated error")):
-            result = _get_model_search_candidates("test", [])
+        with patch("vetinari.model_discovery.ModelDiscovery", side_effect=Exception("Simulated error")):
+            result = _get_model_discovery_candidates("test", [])
             assert result == {}
 
 

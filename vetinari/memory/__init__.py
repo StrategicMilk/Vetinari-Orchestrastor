@@ -46,21 +46,16 @@ from .dual_memory import DualMemoryStore, get_dual_memory_store, init_dual_memor
 # Availability flag — True since both backends are always importable
 DUAL_MEMORY_AVAILABLE = True
 
-# Backwards compatibility - import old MemoryStore
+# Plan execution tracking store (distinct from DualMemoryStore agent memory)
 class MemoryStore:
-    """Legacy memory store for backwards compatibility.
-    
-    Use DualMemoryStore instead for new code.
+    """Plan execution tracking store (PlanHistory, SubtaskMemory, ModelPerformance).
+
+    Note: This is *not* the same system as DualMemoryStore (agent episodic/semantic
+    memory).  MemoryStore tracks plan execution history, subtask outcomes, and
+    model performance metrics in SQLite/JSON.  Used by FeedbackLoop and PlanModeEngine.
     """
-    
+
     def __init__(self, db_path: str = PLAN_MEMORY_DB_PATH, use_json_fallback: bool = False):
-        import warnings
-        warnings.warn(
-            "MemoryStore is deprecated. Use DualMemoryStore instead: "
-            "from vetinari.memory import get_dual_memory_store",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.db_path = db_path
         self.use_json_fallback = use_json_fallback
         self._conn = None
@@ -576,7 +571,7 @@ def init_memory_store(db_path: str = None, use_json_fallback: bool = False) -> M
 
 
 __all__ = [
-    # New package exports
+    # Agent memory (episodic/semantic)
     "IMemoryStore",
     "MemoryEntry",
     "MemoryStats", 
@@ -595,7 +590,7 @@ __all__ = [
     "MEMORY_DEDUP_ENABLED",
     "MEMORY_MERGE_LIMIT",
     "DUAL_MEMORY_AVAILABLE",
-    # Legacy exports
+    # Plan execution tracking
     "MemoryStore",
     "get_memory_store",
     "init_memory_store",

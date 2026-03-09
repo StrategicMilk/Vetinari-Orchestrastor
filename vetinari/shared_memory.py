@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import warnings
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
@@ -10,9 +11,16 @@ import uuid
 
 from vetinari.types import MemoryType  # canonical enum from types.py
 
+warnings.warn(
+    "vetinari.shared_memory is deprecated. Use vetinari.memory.dual_memory.DualMemoryStore instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 logger = logging.getLogger(__name__)
 
 class AgentName(Enum):
+    """Legacy agent names — kept for backward compatibility."""
     PLAN = "plan"
     BUILD = "build"
     ASK = "ask"
@@ -49,26 +57,68 @@ class MemoryEntry:
     def to_dict(self) -> Dict:
         return asdict(self)
 
+
+def _to_dual_entry(entry: MemoryEntry):
+    """Convert a legacy MemoryEntry to a DualMemoryStore MemoryEntry."""
+    try:
+        from vetinari.memory.interfaces import MemoryEntry as DualEntry, MemoryEntryType
+        entry_type = MemoryEntryType.FACT
+        if entry.memory_type in ("decision", "choice"):
+            entry_type = MemoryEntryType.DECISION
+        elif entry.memory_type in ("insight", "learning"):
+            entry_type = MemoryEntryType.INSIGHT
+        return DualEntry(
+            entry_id=entry.entry_id,
+            entry_type=entry_type,
+            content=entry.content,
+            summary=entry.summary,
+            tags=entry.tags,
+            source_agent=entry.agent_name,
+            plan_id=entry.plan_id,
+            task_id=entry.task_id,
+            confidence=entry.confidence,
+            metadata=entry.metadata,
+        )
+    except Exception:
+        return None
+
+
 class SharedMemory:
+    """Legacy SharedMemory — delegates to DualMemoryStore when available.
+
+    All public methods first try the modern DualMemoryStore backend.
+    If DualMemoryStore is not importable (e.g. during isolated tests),
+    the class falls back to its original JSON-file implementation.
+    """
+
     _instance = None
-    
+
     @classmethod
     def get_instance(cls, storage_path: str = None) -> "SharedMemory":
         """Get or create singleton instance."""
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
-    
+
     def __init__(self, storage_path: str = None):
         if storage_path is None:
             storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "memory"
-        
+
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.memory_file = self.storage_path / "memory.json"
         self.entries: List[MemoryEntry] = []
-        
+
+        # Try to delegate to DualMemoryStore
+        self._dual: Any = None
+        try:
+            from vetinari.memory.dual_memory import get_dual_memory_store
+            self._dual = get_dual_memory_store()
+            logger.info("SharedMemory delegating to DualMemoryStore")
+        except Exception:
+            logger.debug("DualMemoryStore unavailable, using JSON fallback")
+
         self._load()
 
     def _load(self):
@@ -123,12 +173,21 @@ class SharedMemory:
             task_id=task_id,
             provenance=provenance
         )
-        
+
+        # Delegate to DualMemoryStore
+        if self._dual is not None:
+            try:
+                dual_entry = _to_dual_entry(entry)
+                if dual_entry is not None:
+                    self._dual.remember(dual_entry)
+            except Exception as exc:
+                logger.debug("DualMemoryStore delegation failed: %s", exc)
+
         self.entries.append(entry)
         self._save()
-        
+
         logger.info("Memory entry added: %s (%s) by %s", entry.entry_id, memory_type, agent_name)
-        
+
         return entry
 
     def search(
@@ -139,22 +198,22 @@ class SharedMemory:
         limit: int = 10
     ) -> List[MemoryEntry]:
         results = self.entries
-        
+
         if agent_name:
             results = [e for e in results if e.agent_name == agent_name]
-        
+
         if memory_type:
             results = [e for e in results if e.memory_type == memory_type]
-        
+
         if query:
             query_lower = query.lower()
             results = [
-                e for e in results 
+                e for e in results
                 if query_lower in e.summary.lower() or query_lower in e.content.lower()
             ]
-        
+
         results = sorted(results, key=lambda x: x.timestamp, reverse=True)
-        
+
         return results[:limit]
 
     def get_recent(self, limit: int = 20) -> List[MemoryEntry]:
@@ -173,18 +232,18 @@ class SharedMemory:
 
     def get_stats(self) -> Dict:
         total = len(self.entries)
-        
+
         by_type = {}
         for entry in self.entries:
             by_type[entry.memory_type] = by_type.get(entry.memory_type, 0) + 1
-        
+
         by_agent = {}
         for entry in self.entries:
             by_agent[entry.agent_name] = by_agent.get(entry.agent_name, 0) + 1
-        
+
         oldest = min([e.timestamp for e in self.entries]) if self.entries else None
         newest = max([e.timestamp for e in self.entries]) if self.entries else None
-        
+
         return {
             "total_entries": total,
             "by_type": by_type,
@@ -192,17 +251,17 @@ class SharedMemory:
             "oldest_entry": oldest,
             "newest_entry": newest
         }
-    
+
     def get_all(self, limit: int = 100) -> List[Dict]:
         """Get all memories as dicts (for API compatibility)."""
         sorted_entries = sorted(self.entries, key=lambda x: x.timestamp, reverse=True)
         return [e.to_dict() for e in sorted_entries[:limit]]
-    
+
     def get_memories_by_type(self, memory_type: str, limit: int = 20) -> List[Dict]:
         """Get memories by type (for API compatibility)."""
         results = self.get_by_type(memory_type, limit)
         return [e.to_dict() for e in results]
-    
+
     def resolve_decision(self, decision_id: str, choice: str):
         """Mark a decision as resolved with the chosen option."""
         for entry in self.entries:
@@ -227,28 +286,28 @@ class SharedMemory:
             from datetime import timedelta
             cutoff = datetime.now() - timedelta(days=max_age_days)
             self.entries = [
-                e for e in self.entries 
+                e for e in self.entries
                 if datetime.fromisoformat(e.timestamp) > cutoff
             ]
             self._save()
 
     # Phase 1: Plan-aware methods
-    
+
     def get_by_plan(self, plan_id: str, limit: int = 50) -> List[MemoryEntry]:
         """Get all memories linked to a specific plan."""
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
-    
+
     def get_by_task(self, task_id: str, limit: int = 20) -> List[MemoryEntry]:
         """Get all memories linked to a specific task."""
         results = [e for e in self.entries if e.task_id == task_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
-    
+
     def get_plan_timeline(self, plan_id: str) -> List[MemoryEntry]:
         """Get timeline of all events for a plan (waves, tasks, decisions)."""
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp)
-    
+
     def add_plan_memory(
         self,
         plan_id: str,
@@ -277,6 +336,27 @@ class SharedMemory:
     def get_model_selections(self, limit: int = 20) -> List[MemoryEntry]:
         """Get all model selection memories."""
         return self.get_by_type("model_selection", limit)
+
+    def migrate_to_dual_memory(self) -> int:
+        """Migrate all legacy entries to DualMemoryStore.
+
+        Returns the number of entries successfully migrated.
+        """
+        if self._dual is None:
+            logger.warning("DualMemoryStore not available for migration")
+            return 0
+
+        migrated = 0
+        for entry in self.entries:
+            try:
+                dual_entry = _to_dual_entry(entry)
+                if dual_entry is not None:
+                    self._dual.remember(dual_entry)
+                    migrated += 1
+            except Exception as exc:
+                logger.debug("Migration failed for %s: %s", entry.entry_id, exc)
+        logger.info("Migrated %d/%d entries to DualMemoryStore", migrated, len(self.entries))
+        return migrated
 
 
 # Global singleton instance

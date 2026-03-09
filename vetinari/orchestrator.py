@@ -3,7 +3,7 @@ Orchestrator — LEGACY manifest-based task execution engine.
 
 .. deprecated::
     This module handles YAML-manifest execution. For goal-based orchestration,
-    use ``vetinari.two_layer_orchestration.TwoLayerOrchestrator``.
+    use ``vetinari.orchestration.two_layer.TwoLayerOrchestrator``.
     A future release will unify all orchestrators into a single module.
 """
 
@@ -15,7 +15,7 @@ import warnings
 
 warnings.warn(
     "vetinari.orchestrator is deprecated. Use "
-    "vetinari.two_layer_orchestration.TwoLayerOrchestrator instead.",
+    "vetinari.orchestration.two_layer.TwoLayerOrchestrator instead.",
     DeprecationWarning,
     stacklevel=2,
 )

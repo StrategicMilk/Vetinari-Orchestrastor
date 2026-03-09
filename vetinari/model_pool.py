@@ -250,14 +250,14 @@ class ModelPool:
         latency = model.get("latency_estimate", 1000)
         latency_norm = max(0.0, 1.0 - (latency / 2000.0))
 
-        # Phase 5: Use real reliability from cost tracker data instead of placeholder
+        # Reliability sourced from cost tracker analytics
         reliability = self._get_model_reliability(model.get("id", ""))
 
         ctx_len = model.get("context_len", 2048)
         data_size = sum(len(str(x)) for x in task.get("inputs", []))
         context_fit = 1.0 if data_size <= ctx_len else max(0.0, ctx_len / max(1, data_size))
 
-        # Phase 5: Use cost-efficiency score from analytics
+        # Cost-efficiency score from analytics
         cost_efficiency = self._get_cost_efficiency(model.get("id", ""))
 
         w_cap = 0.30

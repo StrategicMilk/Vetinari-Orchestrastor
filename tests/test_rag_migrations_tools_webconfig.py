@@ -668,9 +668,10 @@ class TestToolWrappers:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
                 import vetinari.tools.tool_registry_integration  # noqa: F811
-                dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-                assert len(dep_warnings) >= 1
-                assert "deprecated" in str(dep_warnings[0].message).lower()
+                # Module is no longer deprecated — verify no deprecation warning
+                dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)
+                                and "tool_registry_integration" in str(x.message)]
+                assert len(dep_warnings) == 0
         finally:
             sys.modules.pop("vetinari.tools.tool_registry_integration", None)
             if saved_ti is None:
@@ -787,7 +788,7 @@ class TestToolWrappers:
         mock_mem = MagicMock()
         entry = MagicMock()
         entry.to_dict.return_value = {"id": "1", "content": "recalled"}
-        mock_mem.recall.return_value = [entry]
+        mock_mem.search.return_value = [entry]
         w._memory = mock_mem
         result = w.execute(query="test", limit=3)
         assert result.success is True
@@ -797,7 +798,7 @@ class TestToolWrappers:
         tri_mod, _ = tool_registry_env
         w = tri_mod.MemoryRecallToolWrapper()
         mock_mem = MagicMock()
-        mock_mem.recall.side_effect = Exception("db error")
+        mock_mem.search.side_effect = Exception("db error")
         w._memory = mock_mem
         result = w.execute(query="fail")
         assert result.success is False
@@ -816,11 +817,7 @@ class TestToolWrappers:
         mock_mem.remember.return_value = "entry_123"
         w._memory = mock_mem
 
-        # Mock the MemoryType import inside execute
-        mock_enhanced = MagicMock()
-        mock_enhanced.MemoryType.return_value = "context"
-        with patch.dict(sys.modules, {"vetinari.enhanced_memory": mock_enhanced}):
-            result = w.execute(content="remember this", memory_type="context", tags=["test"])
+        result = w.execute(content="remember this", memory_type="context", tags=["test"])
         assert result.success is True
         assert result.output["entry_id"] == "entry_123"
 
@@ -830,8 +827,7 @@ class TestToolWrappers:
         mock_mem = MagicMock()
         mock_mem.remember.side_effect = ValueError("bad type")
         w._memory = mock_mem
-        with patch.dict(sys.modules, {"vetinari.enhanced_memory": MagicMock()}):
-            result = w.execute(content="x")
+        result = w.execute(content="x")
         assert result.success is False
 
     # -- ModelSelectToolWrapper ---------------------------------------------
@@ -932,8 +928,8 @@ class TestToolWrappers:
         w = tri_mod.MemoryRecallToolWrapper()
         assert w._memory is None
         mock_module = MagicMock()
-        mock_module.get_memory_manager.return_value = MagicMock()
-        with patch.dict(sys.modules, {"vetinari.enhanced_memory": mock_module}):
+        mock_module.get_dual_memory_store.return_value = MagicMock()
+        with patch.dict(sys.modules, {"vetinari.memory": mock_module}):
             mem = w._get_memory()
             assert mem is not None
 

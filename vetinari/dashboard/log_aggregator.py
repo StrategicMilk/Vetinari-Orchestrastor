@@ -341,6 +341,55 @@ class DatadogBackend(BackendBase):
 
 
 # ---------------------------------------------------------------------------
+# Webhook backend (generic HTTP POST)
+# ---------------------------------------------------------------------------
+
+class WebhookBackend(BackendBase):
+    """POST aggregated logs to an external webhook URL."""
+
+    name = "webhook"
+
+    def __init__(self) -> None:
+        self._url: Optional[str] = None
+        self._headers: Dict[str, str] = {"Content-Type": "application/json"}
+        self._timeout: int = 10
+
+    def configure(self, url: str = "", headers: Optional[Dict[str, str]] = None,
+                  timeout: int = 10, **_: Any) -> None:
+        self._url = url
+        if headers:
+            self._headers.update(headers)
+        self._timeout = timeout
+
+    def send(self, records: List[LogRecord]) -> bool:
+        if not self._url:
+            logger.warning("WebhookBackend not configured (url missing).")
+            return False
+        try:
+            import requests
+        except ImportError:
+            logger.error("'requests' package is required for WebhookBackend.")
+            return False
+
+        payload = [rec.to_dict() for rec in records]
+        try:
+            resp = requests.post(
+                self._url, json=payload, headers=self._headers,
+                timeout=self._timeout,
+            )
+            if not resp.ok:
+                logger.error(
+                    "WebhookBackend received HTTP %s: %s",
+                    resp.status_code, resp.text[:200],
+                )
+                return False
+            return True
+        except Exception as exc:
+            logger.error("WebhookBackend.send error: %s", exc)
+            return False
+
+
+# ---------------------------------------------------------------------------
 # Backend registry
 # ---------------------------------------------------------------------------
 
@@ -349,6 +398,7 @@ _BACKEND_CLASSES: Dict[str, type] = {
     "elasticsearch": ElasticsearchBackend,
     "splunk":        SplunkBackend,
     "datadog":       DatadogBackend,
+    "webhook":       WebhookBackend,
 }
 
 

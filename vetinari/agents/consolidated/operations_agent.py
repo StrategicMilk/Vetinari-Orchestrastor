@@ -1,9 +1,8 @@
 """
-Consolidated Operations Agent (Phase 3)
+Consolidated Operations Agent (v0.4.0)
 ========================================
 Replaces: SYNTHESIZER + DOCUMENTATION_AGENT + COST_PLANNER +
-          EXPERIMENTATION_MANAGER + IMPROVEMENT + ERROR_RECOVERY +
-          IMAGE_GENERATOR
+          EXPERIMENTATION_MANAGER + IMPROVEMENT + ERROR_RECOVERY
 
 Modes:
 - documentation: API docs, user guides, changelogs (from DOCUMENTATION_AGENT)
@@ -12,8 +11,8 @@ Modes:
 - experiment: A/B testing, experiment tracking (from EXPERIMENTATION_MANAGER)
 - error_recovery: Failure analysis, retry strategies (from ERROR_RECOVERY)
 - synthesis: Multi-source artifact fusion (from SYNTHESIZER)
-- image_generation: Logo, icon, diagram generation (from IMAGE_GENERATOR)
 - improvement: System performance analysis (from IMPROVEMENT)
+- monitor: System health and performance tracking (from ORCHESTRATOR)
 """
 
 from __future__ import annotations
@@ -99,7 +98,7 @@ _MODEL_PRICING: Dict[str, Dict[str, float]] = {
 
 class OperationsAgent(MultiModeAgent):
     """Unified operations agent for docs, cost analysis, experiments,
-    error recovery, synthesis, image generation, and system improvement."""
+    error recovery, synthesis, system improvement, and monitoring."""
 
     MODES = {
         "documentation": "_execute_documentation",
@@ -108,8 +107,8 @@ class OperationsAgent(MultiModeAgent):
         "experiment": "_execute_experiment",
         "error_recovery": "_execute_error_recovery",
         "synthesis": "_execute_synthesis",
-        "image_generation": "_execute_image_generation",
         "improvement": "_execute_improvement",
+        "monitor": "_execute_monitor",
     }
     DEFAULT_MODE = "documentation"
     MODE_KEYWORDS = {
@@ -119,8 +118,8 @@ class OperationsAgent(MultiModeAgent):
         "experiment": ["experiment", "a/b test", "hypothesis", "metric", "telemetry", "variant"],
         "error_recovery": ["error", "failure", "crash", "exception", "retry", "recover", "circuit break"],
         "synthesis": ["synthesiz", "synthesise", "merge", "fusion", "consolidat", "combin"],
-        "image_generation": ["image", "logo", "icon", "diagram", "mockup", "visual", "generate image"],
         "improvement": ["improv", "optimiz", "performance", "bottleneck", "tune", "enhance"],
+        "monitor": ["monitor", "status", "health", "performance check", "system check"],
     }
     LEGACY_TYPE_TO_MODE = {
         "DOCUMENTATION_AGENT": "documentation",
@@ -129,7 +128,6 @@ class OperationsAgent(MultiModeAgent):
         "EXPERIMENTATION_MANAGER": "experiment",
         "IMPROVEMENT": "improvement",
         "ERROR_RECOVERY": "error_recovery",
-        "IMAGE_GENERATOR": "image_generation",
     }
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -138,8 +136,8 @@ class OperationsAgent(MultiModeAgent):
     def _get_base_system_prompt(self) -> str:
         return (
             "You are Vetinari's Operations Agent. You handle documentation, "
-            "cost analysis, experiments, error recovery, synthesis, image generation, "
-            "and system improvement."
+            "cost analysis, experiments, error recovery, synthesis, "
+            "system improvement, and monitoring."
         )
 
     def _get_mode_system_prompt(self, mode: str) -> str:
@@ -150,6 +148,8 @@ class OperationsAgent(MultiModeAgent):
                 "- User guides (audience-aware)\n"
                 "- Changelogs (semantic versioning)\n"
                 "- README files\n\n"
+                "Use imperative mood for instructions. Include: purpose, usage, parameters, "
+                "examples, error handling. Keep README under 500 lines.\n"
                 "Use clear, professional Markdown formatting."
             ),
             "error_recovery": (
@@ -158,6 +158,8 @@ class OperationsAgent(MultiModeAgent):
                 "- Design retry strategies (exponential backoff, circuit breaking)\n"
                 "- Create fallback plans for degraded operation\n"
                 "- Generate post-mortem analysis\n\n"
+                "Classify errors: transient (retry with backoff), permanent (escalate), "
+                "configuration (suggest fix). Include recovery code snippets.\n"
                 "Prioritize system stability and data integrity."
             ),
             "cost_analysis": (
@@ -166,7 +168,25 @@ class OperationsAgent(MultiModeAgent):
                 "- Recommend cost-efficient model selections\n"
                 "- Analyze ROI of different approaches\n"
                 "- Track and forecast spending\n\n"
+                "Compare local vs cloud costs. Include: per-token pricing, latency trade-offs, "
+                "quality differences. Recommend the cheapest option meeting quality threshold.\n"
                 "Include concrete numbers and comparisons."
+            ),
+            "experiment": (
+                "You are Vetinari's Experimentation Manager. Your role is to:\n"
+                "- Design and execute controlled experiments\n"
+                "- Measure impact of changes with proper baselines\n"
+                "- Analyze results and recommend actions\n\n"
+                "Define hypothesis, metrics, success criteria before starting. "
+                "Use statistical significance threshold p<0.05."
+            ),
+            "monitor": (
+                "You are Vetinari's System Monitor. Your role is to:\n"
+                "- Track system health and performance metrics\n"
+                "- Detect anomalies and degraded performance\n"
+                "- Alert on actionable issues only\n\n"
+                "Report only actionable anomalies. Use thresholds: latency >2x baseline, "
+                "error rate >5%, queue depth >10."
             ),
         }
         return prompts.get(mode, "")
@@ -226,7 +246,10 @@ class OperationsAgent(MultiModeAgent):
 
             comparisons = []
             for model_id in models:
-                pricing = _MODEL_PRICING.get(model_id, {"input_per_1k": 0.001, "output_per_1k": 0.002, "tier": "unknown"})
+                pricing = _MODEL_PRICING.get(
+                    model_id,
+                    {"input_per_1k": 0.001, "output_per_1k": 0.002, "tier": "unknown"},
+                )
                 input_cost = (estimated_tokens / 1000) * pricing["input_per_1k"]
                 output_cost = (estimated_tokens / 1000) * pricing["output_per_1k"]
                 comparisons.append({
@@ -249,13 +272,28 @@ class OperationsAgent(MultiModeAgent):
                 metadata={"mode": "cost_analysis", "analysis_type": analysis_type},
             )
 
-        # General cost analysis via LLM
+        # General cost analysis via LLM — heuristic fallback
+        description = task.description or ""
+        word_count = len(description.split())
+        estimated_tokens = int(word_count * 1.3)
+        recommendations = []
+        for model_id, pricing in sorted(_MODEL_PRICING.items(), key=lambda x: x[1].get("input_per_1k", 0)):
+            cost = (estimated_tokens / 1000) * (pricing["input_per_1k"] + pricing["output_per_1k"])
+            recommendations.append({
+                "model": model_id, "tier": pricing["tier"],
+                "estimated_cost": round(cost, 6),
+            })
+
         prompt = (
-            f"Perform cost analysis for:\n{task.description[:4000]}\n\n"
+            f"Perform cost analysis for:\n{description[:4000]}\n\n"
             "Respond as JSON:\n"
             '{"analysis": "...", "recommendations": [...], "estimated_savings": "..."}'
         )
-        result = self._infer_json(prompt, fallback={"analysis": "", "recommendations": []})
+        result = self._infer_json(prompt, fallback={
+            "analysis": f"Estimated {estimated_tokens} tokens based on {word_count} words",
+            "recommendations": recommendations[:3],
+            "estimated_savings": "Use local models for 10-100x cost reduction vs cloud APIs",
+        })
         return AgentResult(success=True, output=result, metadata={"mode": "cost_analysis"})
 
     # ------------------------------------------------------------------
@@ -321,12 +359,16 @@ class OperationsAgent(MultiModeAgent):
         result = self._infer_json(prompt, fallback={
             "root_cause": "Analysis unavailable",
             "matched_patterns": matched_patterns,
-            "recovery_strategy": {"immediate": matched_patterns[0]["quick_fix"] if matched_patterns else "Manual investigation required"},
+            "recovery_strategy": {
+                "immediate": matched_patterns[0]["quick_fix"] if matched_patterns else "Manual investigation required",
+            },
         })
         if result and isinstance(result, dict):
             result["matched_patterns"] = matched_patterns
-        return AgentResult(success=True, output=result,
-                           metadata={"mode": "error_recovery", "patterns_matched": len(matched_patterns)})
+        return AgentResult(
+            success=True, output=result,
+            metadata={"mode": "error_recovery", "patterns_matched": len(matched_patterns)},
+        )
 
     # ------------------------------------------------------------------
     # Synthesis (from SynthesizerAgent)
@@ -346,60 +388,6 @@ class OperationsAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"synthesis": "", "sources_used": []})
         return AgentResult(success=True, output=result, metadata={"mode": "synthesis"})
-
-    # ------------------------------------------------------------------
-    # Image Generation (from ImageGeneratorAgent)
-    # ------------------------------------------------------------------
-
-    def _execute_image_generation(self, task: AgentTask) -> AgentResult:
-        description = task.context.get("description", task.description)
-        style = task.context.get("style", "logo")
-        width = task.context.get("width", 512)
-        height = task.context.get("height", 512)
-
-        # Try Stable Diffusion WebUI API
-        try:
-            import requests
-            sd_host = task.context.get("sd_host", "http://localhost:7860")
-            payload = {
-                "prompt": description,
-                "negative_prompt": "blurry, low quality, distorted",
-                "width": width, "height": height,
-                "steps": 30, "cfg_scale": 7.5,
-            }
-            resp = requests.post(f"{sd_host}/sdapi/v1/txt2img", json=payload, timeout=60)
-            if resp.status_code == 200:
-                images = resp.json().get("images", [])
-                return AgentResult(
-                    success=True,
-                    output={"images": images, "prompt": description, "style": style,
-                            "dimensions": f"{width}x{height}", "generator": "stable_diffusion"},
-                    metadata={"mode": "image_generation", "generator": "stable_diffusion"},
-                )
-        except Exception as e:
-            logger.debug("Stable Diffusion unavailable: %s", e)
-
-        # SVG fallback
-        svg = self._generate_svg_fallback(description, style, width, height)
-        return AgentResult(
-            success=True,
-            output={"svg": svg, "prompt": description, "style": style,
-                    "dimensions": f"{width}x{height}", "generator": "svg_fallback"},
-            metadata={"mode": "image_generation", "generator": "svg_fallback"},
-        )
-
-    def _generate_svg_fallback(self, desc: str, style: str, w: int, h: int) -> str:
-        colors = {"logo": "#2563EB", "icon": "#10B981", "diagram": "#6366F1", "ui_mockup": "#8B5CF6"}
-        color = colors.get(style, "#3B82F6")
-        label = desc[:20] if desc else style
-        return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
-            f'<rect width="{w}" height="{h}" fill="#f8fafc" rx="8"/>'
-            f'<rect x="{w//4}" y="{h//4}" width="{w//2}" height="{h//2}" fill="{color}" rx="12" opacity="0.8"/>'
-            f'<text x="{w//2}" y="{h//2}" text-anchor="middle" dy=".3em" fill="white" '
-            f'font-family="system-ui" font-size="16" font-weight="600">{label}</text>'
-            f'</svg>'
-        )
 
     # ------------------------------------------------------------------
     # Improvement (from ImprovementAgent)
@@ -422,6 +410,41 @@ class OperationsAgent(MultiModeAgent):
         result = self._infer_json(prompt, fallback={"analysis": {"summary": ""}, "recommendations": []})
         return AgentResult(success=True, output=result, metadata={"mode": "improvement", "focus": focus})
 
+    # ------------------------------------------------------------------
+    # Monitor (absorbed from OrchestratorAgent)
+    # ------------------------------------------------------------------
+
+    def _execute_monitor(self, task: AgentTask) -> AgentResult:
+        """Track system health and performance metrics."""
+        context = task.context or {}
+
+        # Try to gather real metrics from telemetry
+        metrics = {"status": "healthy"}
+        try:
+            from vetinari.telemetry import get_telemetry_collector
+            telemetry = get_telemetry_collector()
+            if hasattr(telemetry, "get_summary"):
+                metrics.update(telemetry.get_summary())
+        except Exception:
+            logger.debug("Telemetry unavailable for monitoring", exc_info=True)
+
+        # If we have a prompt, use LLM for analysis
+        if task.description and len(task.description) > 20:
+            prompt = (
+                f"Analyze system status:\n{task.description[:4000]}\n\n"
+                "Respond as JSON:\n"
+                '{"status": "healthy|degraded|unhealthy", "issues": [...], '
+                '"recommendations": [...], "metrics_summary": {...}}'
+            )
+            result = self._infer_json(prompt, fallback=metrics)
+            if result and isinstance(result, dict):
+                return AgentResult(success=True, output=result, metadata={"operation": "monitor"})
+
+        return AgentResult(
+            success=True, output=metrics,
+            metadata={"operation": "monitor"},
+        )
+
     def get_capabilities(self) -> List[str]:
         return [
             "documentation", "api_docs", "user_guides", "changelog",
@@ -430,8 +453,8 @@ class OperationsAgent(MultiModeAgent):
             "experiment_design", "ab_testing", "metrics_tracking",
             "error_recovery", "failure_analysis", "retry_strategy",
             "multi_source_synthesis", "conflict_resolution",
-            "image_generation", "svg_generation",
             "performance_analysis", "system_improvement",
+            "system_monitoring", "health_check",
         ]
 
 

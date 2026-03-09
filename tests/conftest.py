@@ -67,3 +67,56 @@ def config_dir(tmp_path):
 def temp_db(tmp_path):
     """Temporary SQLite database path string."""
     return str(tmp_path / "test.db")
+
+
+# ---------------------------------------------------------------------------
+# Shared Agent / Orchestrator / Planning Mocks
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_base_agent():
+    """Reusable BaseAgent mock with standard interface."""
+    agent = MagicMock()
+    agent.execute.return_value = MagicMock(success=True, output="mock result")
+    agent.verify.return_value = MagicMock(passed=True, score=0.9)
+    agent.get_system_prompt.return_value = "You are a test agent."
+    agent.get_capabilities.return_value = ["test_capability"]
+    return agent
+
+
+@pytest.fixture
+def mock_orchestrator():
+    """Reusable orchestrator mock."""
+    orch = MagicMock()
+    orch.execute_goal.return_value = {"status": "completed", "output": "mock"}
+    orch.model_pool.models = [
+        {"id": "test-model", "name": "Test Model", "capabilities": ["code_gen"],
+         "context_len": 4096, "memory_gb": 4, "version": "1.0"}
+    ]
+    orch.adapter.chat.return_value = {
+        "output": "mock response", "latency_ms": 10, "tokens_used": 5,
+    }
+    return orch
+
+
+@pytest.fixture
+def mock_plan_engine():
+    """Reusable PlanModeEngine mock."""
+    engine = MagicMock()
+    mock_plan = MagicMock()
+    mock_plan.subtasks = []
+    mock_plan.plan_candidates = []
+    mock_plan.plan_justification = "test justification"
+    mock_plan.to_dict.return_value = {
+        "subtasks": [], "plan_candidates": [], "goal": "test",
+    }
+    engine.generate_plan.return_value = mock_plan
+    return engine
+
+
+@pytest.fixture
+def mock_adapter_response():
+    """Factory fixture for adapter inference responses."""
+    def _make(output="mock output", latency_ms=10, tokens_used=5):
+        return {"output": output, "latency_ms": latency_ms, "tokens_used": tokens_used}
+    return _make

@@ -28,6 +28,6 @@
     "citations": "list - Sources"
   },
   "contexts": ["sample_docs_url", "sample_github_repo"],
-  "external_endpoints": {"allowed": true, "endpoints": ["https://docs.example.com", "https://api.example.com", "https://github.com"]},
+  "external_endpoints": {"allowed": true, "endpoints": ["https://github.com"]},
   "metadata": {"author": "Vetinari", "category": "SEARCH_ANALYSIS", "tags": ["research", "documentation", "libraries", "examples", "api"]}
 }

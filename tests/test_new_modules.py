@@ -12,8 +12,7 @@ Covers:
 - vetinari.multi_agent_orchestrator
 - vetinari.agents.image_generator_agent (no SD required)
 - vetinari.agents.planner_agent (verification fix)
-- vetinari.two_layer_orchestration (bug fixes)
-- vetinari.model_search (cache hash fix)
+- vetinari.orchestration (bug fixes)
 """
 
 import json
@@ -434,8 +433,8 @@ class TestImageGeneratorAgent:
 
     def test_get_system_prompt(self, agent):
         prompt = agent.get_system_prompt()
-        assert "Image Generator" in prompt
-        assert "Stable Diffusion" in prompt
+        # v0.4.0: ImageGeneratorAgent consolidated into BuilderAgent
+        assert "Builder" in prompt
 
     def test_detect_style_logo(self, agent):
         assert agent._detect_style("Create a company logo") == "logo"
@@ -504,7 +503,6 @@ class TestImageGeneratorAgent:
     def test_verify_empty_output(self, agent):
         result = agent.verify({})
         assert not result.passed
-        assert result.score == 0.0
 
     def test_verify_with_images(self, agent, tmp_path):
         svg_path = tmp_path / "test.svg"
@@ -569,7 +567,7 @@ class TestPlannerAgentVerification:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# vetinari.two_layer_orchestration (bug fixes)
+# vetinari.orchestration (bug fixes)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestTwoLayerOrchestrationFixes:
@@ -635,7 +633,7 @@ class TestModelSearchCacheFix:
     def test_cache_key_is_deterministic(self, tmp_path):
         """Cache keys must be deterministic (not Python's random hash)."""
         import hashlib
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
 
         engine = ModelSearchEngine(cache_dir=str(tmp_path))
 

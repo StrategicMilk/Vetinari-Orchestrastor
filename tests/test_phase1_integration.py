@@ -288,31 +288,31 @@ class Phase1AgentCapabilityTests(unittest.TestCase):
         self.graph.initialize()
     
     def test_explorer_capabilities(self):
-        """Test Explorer agent has correct capabilities."""
+        """Test Explorer agent (now ConsolidatedResearcher) has capabilities."""
         explorer = self.graph.get_agent(AgentType.EXPLORER)
         capabilities = explorer.get_capabilities()
-        
-        self.assertIn("code_search", capabilities)
-        self.assertIn("pattern_discovery", capabilities)
+
+        self.assertIn("code_discovery", capabilities)
+        self.assertIn("domain_research", capabilities)
         self.assertGreater(len(capabilities), 0)
-    
+
     def test_librarian_capabilities(self):
-        """Test Librarian agent has correct capabilities."""
+        """Test Librarian agent (now ConsolidatedResearcher) has capabilities."""
         librarian = self.graph.get_agent(AgentType.LIBRARIAN)
         capabilities = librarian.get_capabilities()
-        
-        self.assertIn("api_documentation_lookup", capabilities)
-        self.assertIn("library_discovery", capabilities)
+
+        self.assertIn("api_lookup", capabilities)
+        self.assertIn("library_evaluation", capabilities)
         self.assertGreater(len(capabilities), 0)
-    
+
     def test_researcher_capabilities(self):
-        """Test Researcher agent has correct capabilities."""
+        """Test Researcher agent (now ConsolidatedResearcher) has capabilities."""
         researcher = self.graph.get_agent(AgentType.RESEARCHER)
         capabilities = researcher.get_capabilities()
-        
-        self.assertIn("domain_analysis", capabilities)
-        self.assertIn("feasibility_assessment", capabilities)
-        self.assertIn("competitor_analysis", capabilities)
+
+        self.assertIn("domain_research", capabilities)
+        self.assertIn("feasibility_analysis", capabilities)
+        self.assertIn("competitive_analysis", capabilities)
         self.assertGreater(len(capabilities), 0)
     
     def test_all_agents_have_capabilities(self):

@@ -156,6 +156,52 @@ class LMStudioProviderAdapter(ProviderAdapter):
             self._record_telemetry(request, resp)
             return resp
 
+    def infer_stream(self, request: InferenceRequest):
+        """Stream inference tokens from LM Studio.
+
+        Yields content strings as they arrive via SSE.
+        Falls back to non-streaming ``infer()`` on error.
+        """
+        import json as _json
+
+        payload = {
+            "model": request.model_id,
+            "messages": [
+                {"role": "system", "content": request.system_prompt or ""},
+                {"role": "user", "content": request.prompt},
+            ],
+            "temperature": request.temperature,
+            "top_p": request.top_p,
+            "max_tokens": request.max_tokens,
+            "stream": True,
+        }
+        try:
+            resp = self.session.post(
+                f"{self.endpoint}/v1/chat/completions",
+                json=payload,
+                stream=True,
+                timeout=self.timeout_seconds,
+            )
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                line_str = line.decode("utf-8") if isinstance(line, bytes) else line
+                if line_str.startswith("data: "):
+                    data = line_str[6:]
+                    if data.strip() == "[DONE]":
+                        break
+                    try:
+                        chunk = _json.loads(data)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except _json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error("[LMStudio] Streaming failed: %s", e)
+
     def get_capabilities(self) -> Dict[str, List[str]]:
         """Get capabilities of all models."""
         return {m.id: m.capabilities for m in self.models}

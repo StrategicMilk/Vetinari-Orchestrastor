@@ -285,99 +285,97 @@ class LibrarianSkillTool(Tool):
                 summary=f"Unknown capability: {capability.value}",
             )
     
+    def _infer_via_llm(self, prompt: str, system_prompt: str, max_tokens: int = 1024) -> Optional[str]:
+        """Try LLM inference, return None if unavailable."""
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+            adapter = get_adapter_manager()
+            response = adapter.infer(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+            )
+            content = response.get("output", "").strip() if isinstance(response, dict) else str(response).strip()
+            return content if content else None
+        except Exception as e:
+            logger.debug("LLM unavailable for librarian skill: %s", e)
+            return None
+
     def _lookup_documentation(
         self,
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Look up official documentation using webfetch."""
+        """Look up official documentation via LLM with fallback."""
         logger.info("Looking up documentation for: %s", request.query)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would fetch documentation for '{request.query}' at {request.thinking_mode.value} depth.",
             )
-        
-        # Construct a search query URL for simplicity, mimicking a common pattern
-        search_term = f"{request.query} official documentation".replace(" ", "+")
-        # NOTE: In a real system, this URL would target a specific web search API or documentation portal.
-        # Using a generic search URL as a placeholder for webfetch demonstration.
-        search_url = f"https://www.google.com/search?q={search_term}"
-        
+
         try:
-            # Fetch content - assuming webfetch returns markdown
-            # Placeholder for actual webfetch call simulation
-            
-            if request.thinking_mode == ThinkingMode.LOW:
-                summary = f"Quick lookup result for {request.query}."
-                doc_url = f"https://docs.example.com/{request.query.lower().replace(' ', '-')}"
+            llm_result = self._infer_via_llm(
+                prompt=f"Provide a concise documentation summary for '{request.query}'. "
+                       f"Include: key API methods, configuration options, and a short code example. "
+                       f"Depth level: {request.thinking_mode.value}.",
+                system_prompt="You are a technical librarian. Provide accurate, concise documentation summaries.",
+            )
+            if llm_result:
                 return ResearchResult(
                     success=True,
-                    summary=summary,
-                    documentation_url=doc_url,
-                    citations=[f"Source: Direct Search for: {request.query}"]
+                    summary=llm_result[:500],
+                    citations=[f"LLM-generated documentation summary for {request.query}"],
                 )
-            
-            # Medium/High mode: Simulate fetching and summarizing
-            mock_content = f"This is the documentation summary for {request.query} at {request.thinking_mode.value} level. It covers the main API points and configuration."
-            
-            # In a real scenario, we would use:
-            # fetch_result = webfetch(url=search_url, format="markdown")
-            # summary = LLM_summarize(fetch_result.content)
-            
-            return ResearchResult(
-                success=True,
-                summary=f"Documentation summary for '{request.query}' found at {request.thinking_mode.value} depth.",
-                documentation_url=f"https://docs.example.com/{request.query.lower().replace(' ', '-')}",
-                code_example="def example_func(): return True # Placeholder example",
-                best_practices=["Keep dependencies up to date"],
-                citations=[f"Simulated fetch from {search_url}"]
-            )
-            
         except Exception as e:
-            logger.error("Webfetch failed during documentation lookup: %s", e)
-            return ResearchResult(
-                success=False,
-                summary=f"Failed to retrieve documentation for '{request.query}'.",
-            )
+            logger.debug("LLM documentation lookup failed: %s", e)
+
+        # Fallback
+        return ResearchResult(
+            success=True,
+            summary=f"Documentation summary for '{request.query}' at {request.thinking_mode.value} depth.",
+            best_practices=["Keep dependencies up to date"],
+            citations=[f"Fallback summary for: {request.query}"],
+        )
             
     def _find_github_examples(
         self,
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Find real-world usage examples on GitHub."""
-        logger.info("Searching GitHub for examples of: %s", request.query)
+        """Find real-world usage examples via LLM with fallback."""
+        logger.info("Searching for examples of: %s", request.query)
 
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
-                summary=f"Planning mode: Would search GitHub for examples of '{request.query}' using {request.thinking_mode.value} depth.",
+                summary=f"Planning mode: Would search for examples of '{request.query}' using {request.thinking_mode.value} depth.",
             )
-            
-        if request.thinking_mode == ThinkingMode.LOW:
-            return ResearchResult(
-                success=True,
-                summary=f"Low effort GitHub search for '{request.query}' found a sample repository.",
-                code_example="print('Simple example code')",
-                citations=["Source: Popular GitHub repository example"],
+
+        try:
+            llm_result = self._infer_via_llm(
+                prompt=f"Provide a realistic code example for '{request.query}'. "
+                       f"Include imports, setup, and a working usage pattern. Depth: {request.thinking_mode.value}.",
+                system_prompt="You are a code example curator. Provide idiomatic, working code examples.",
             )
-            
-        # Medium/High/XHigh: Simulate deeper search and synthesis
-        mock_code = f"""
-# Example found for {request.query}
-import library_x as lx
-config = {{ 'mode': '{request.thinking_mode.value}' }}
-lx.initialize(config)
-lx.run_process()
-"""
-        
+            if llm_result:
+                return ResearchResult(
+                    success=True,
+                    summary=f"Code examples for '{request.query}'",
+                    code_example=llm_result[:1000],
+                    citations=["LLM-generated code example"],
+                    best_practices=["Initialize configuration first", "Use context managers"],
+                )
+        except Exception as e:
+            logger.debug("LLM example search failed: %s", e)
+
+        # Fallback
         return ResearchResult(
             success=True,
-            summary=f"Found multiple real-world examples for '{request.query}' using {request.thinking_mode.value} depth.",
-            code_example=mock_code,
-            citations=["Source: Repo A", "Source: Repo B (high star count)"],
+            summary=f"Found examples for '{request.query}' using {request.thinking_mode.value} depth.",
+            code_example=f"# Example for {request.query}\n# (LLM unavailable — see official docs)",
+            citations=["Fallback example"],
             best_practices=["Initialize configuration first", "Use context managers"],
         )
 
@@ -386,29 +384,36 @@ lx.run_process()
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Retrieve specific API reference details."""
+        """Retrieve specific API reference details via LLM with fallback."""
         logger.info("Retrieving API reference for: %s", request.query)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would fetch API reference for '{request.query}'.",
             )
-            
-        # Simulate API lookup based on query context
-        if "error" in request.query.lower() or "exception" in request.query.lower():
-            return ResearchResult(
-                success=True,
-                summary=f"API reference found for error handling in {request.query}.",
-                best_practices=["Always catch specific exceptions", "Use custom exception types"],
-                documentation_url="https://docs.example.com/errors",
+
+        try:
+            llm_result = self._infer_via_llm(
+                prompt=f"Provide a concise API reference for '{request.query}'. "
+                       f"Include: method signatures, parameters, return types, and common usage patterns.",
+                system_prompt="You are a technical API reference writer. Provide accurate, structured API documentation.",
             )
-        
+            if llm_result:
+                return ResearchResult(
+                    success=True,
+                    summary=llm_result[:500],
+                    citations=["LLM-generated API reference"],
+                )
+        except Exception as e:
+            logger.debug("LLM API reference failed: %s", e)
+
+        # Fallback
         return ResearchResult(
             success=True,
-            summary=f"API reference retrieved for method/endpoint: {request.query}.",
-            documentation_url="https://docs.example.com/api/ref",
-            citations=["Source: Official API Docs"],
+            summary=f"API reference retrieved for: {request.query}.",
+            best_practices=["Always catch specific exceptions", "Use custom exception types"],
+            citations=["Fallback API reference"],
         )
 
     def _retrieve_package_info(
@@ -416,24 +421,39 @@ lx.run_process()
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Retrieve package information (e.g., version, dependencies)."""
+        """Retrieve package information via LLM with fallback."""
         logger.info("Retrieving package info for: %s", request.query)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would retrieve package info for '{request.query}'.",
             )
 
-        # Simulate package info lookup (e.g., via npm or pypi API)
-        package_name = request.query.split()[0].strip() # Simple extraction
-        
+        package_name = request.query.split()[0].strip()
+
+        try:
+            llm_result = self._infer_via_llm(
+                prompt=f"Provide package information for '{package_name}': "
+                       f"description, latest version (if known), key dependencies, and license.",
+                system_prompt="You are a package registry expert. Provide accurate package metadata.",
+                max_tokens=512,
+            )
+            if llm_result:
+                return ResearchResult(
+                    success=True,
+                    summary=llm_result[:500],
+                    citations=[f"LLM-generated package info for {package_name}"],
+                )
+        except Exception as e:
+            logger.debug("LLM package info failed: %s", e)
+
+        # Fallback
         return ResearchResult(
             success=True,
             summary=f"Package information retrieved for '{package_name}'.",
-            documentation_url=f"https://package-registry.org/{package_name}",
-            best_practices=[f"Current version of {package_name} is 2.1.0"],
-            citations=[f"Source: Package Registry API for {package_name}"],
+            best_practices=[f"Check latest version of {package_name} on PyPI or npm"],
+            citations=[f"Fallback package info for {package_name}"],
         )
 
     def _research_best_practices(
@@ -441,24 +461,44 @@ lx.run_process()
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """Research general best practices for a topic."""
+        """Research best practices via LLM with fallback."""
         logger.info("Researching best practices for: %s", request.query)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ResearchResult(
                 success=True,
                 summary=f"Planning mode: Would research best practices for '{request.query}' using {request.thinking_mode.value} depth.",
             )
-            
-        # Use high-level thinking to synthesize practices
-        if "security" in request.query.lower() or "security" in request.focus_areas:
+
+        try:
+            llm_result = self._infer_via_llm(
+                prompt=f"List 5 best practices for '{request.query}'. Be specific and actionable. "
+                       f"Focus areas: {', '.join(request.focus_areas) if request.focus_areas else 'general'}.",
+                system_prompt="You are a software engineering best practices expert. Provide actionable, specific advice.",
+                max_tokens=512,
+            )
+            if llm_result:
+                # Parse bullet points from LLM response
+                lines = [l.strip().lstrip("-*•").strip() for l in llm_result.split("\n") if l.strip()]
+                practices = [l for l in lines if len(l) > 5][:5] or [llm_result[:200]]
+                return ResearchResult(
+                    success=True,
+                    summary=f"Best practices for: {request.query}.",
+                    best_practices=practices,
+                    citations=["LLM-generated best practices"],
+                )
+        except Exception as e:
+            logger.debug("LLM best practices failed: %s", e)
+
+        # Fallback
+        if "security" in request.query.lower() or (request.focus_areas and "security" in request.focus_areas):
             practices = ["Never trust user input", "Sanitize all output", "Use principle of least privilege"]
         else:
             practices = ["Keep code modular", "Use descriptive naming", "Handle exceptions gracefully"]
-            
+
         return ResearchResult(
             success=True,
             summary=f"Best practices research completed for: {request.query}.",
             best_practices=practices,
-            citations=["Source: Vetinari Internal Guide", "Source: General Community Wisdom"],
+            citations=["Fallback best practices"],
         )
