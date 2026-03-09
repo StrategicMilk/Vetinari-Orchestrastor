@@ -21,9 +21,10 @@ Usage:
 from __future__ import annotations
 
 import ast
+import json
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -311,3 +312,274 @@ def get_repo_map() -> RepoMap:
     if _repo_map is None:
         _repo_map = RepoMap()
     return _repo_map
+
+
+# ---------------------------------------------------------------------------
+# AST Indexer
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SymbolInfo:
+    """Information about a code symbol (class, function, variable)."""
+    name: str
+    kind: str  # "class", "function", "method", "variable", "import"
+    file_path: str
+    line_start: int
+    line_end: int
+    docstring: str = ""
+    parent: str = ""  # parent class/function name
+    decorators: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class FileIndex:
+    """Index of a single Python file."""
+    file_path: str
+    mtime: float
+    symbols: List[SymbolInfo] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "file_path": self.file_path,
+            "mtime": self.mtime,
+            "symbols": [s.to_dict() for s in self.symbols],
+            "imports": self.imports,
+        }
+
+
+class ASTIndexer:
+    """AST-based Python code indexer.
+
+    Parses Python files with the ast module to extract:
+    - Classes and their methods
+    - Top-level functions
+    - Imports (what modules are used)
+    - Docstrings
+
+    Caches index to disk, invalidates on file mtime change.
+    """
+
+    CACHE_FILE = ".vetinari/ast_index.json"
+
+    def __init__(self, root_path: str = "."):
+        self._root = Path(root_path)
+        self._index: Dict[str, FileIndex] = {}
+        self._symbol_table: Dict[str, List[SymbolInfo]] = {}  # name -> locations
+        self._loaded = False
+
+    def index_project(self, force: bool = False) -> int:
+        """Index all Python files in the project. Returns count of indexed files."""
+        if not force:
+            self._load_cache()
+
+        indexed_count = 0
+        for py_file in self._iter_python_files():
+            rel_path = str(py_file.relative_to(self._root))
+            mtime = py_file.stat().st_mtime
+
+            # Skip if cached and not modified
+            if not force and rel_path in self._index:
+                if self._index[rel_path].mtime >= mtime:
+                    continue
+
+            file_index = self._index_file(py_file, rel_path, mtime)
+            if file_index:
+                self._index[rel_path] = file_index
+                indexed_count += 1
+
+        # Build symbol table
+        self._build_symbol_table()
+
+        # Save cache
+        self._save_cache()
+
+        return indexed_count
+
+    def _iter_python_files(self):
+        """Iterate over Python files, skipping hidden dirs and venvs."""
+        skip_dirs = {
+            ".git", ".venv", "venv", "__pycache__", "node_modules",
+            ".tox", ".eggs", "build", "dist",
+        }
+        for py_file in self._root.rglob("*.py"):
+            parts = py_file.relative_to(self._root).parts
+            if any(p in skip_dirs or p.startswith(".") for p in parts[:-1]):
+                continue
+            yield py_file
+
+    def _index_file(self, file_path: Path, rel_path: str, mtime: float) -> Optional[FileIndex]:
+        """Parse a single Python file and extract symbols."""
+        try:
+            source = file_path.read_text(encoding="utf-8", errors="ignore")
+            tree = ast.parse(source, filename=str(file_path))
+        except (SyntaxError, Exception):
+            return None
+
+        symbols = []
+        imports = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                symbols.append(SymbolInfo(
+                    name=node.name,
+                    kind="class",
+                    file_path=rel_path,
+                    line_start=node.lineno,
+                    line_end=node.end_lineno or node.lineno,
+                    docstring=ast.get_docstring(node) or "",
+                    decorators=[self._decorator_name(d) for d in node.decorator_list],
+                ))
+                # Index methods
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        symbols.append(SymbolInfo(
+                            name=item.name,
+                            kind="method",
+                            file_path=rel_path,
+                            line_start=item.lineno,
+                            line_end=item.end_lineno or item.lineno,
+                            docstring=ast.get_docstring(item) or "",
+                            parent=node.name,
+                            decorators=[self._decorator_name(d) for d in item.decorator_list],
+                        ))
+
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Only top-level functions (not methods — those are caught above)
+                if not any(
+                    isinstance(parent, ast.ClassDef)
+                    for parent in ast.walk(tree)
+                    if hasattr(parent, "body") and node in getattr(parent, "body", [])
+                ):
+                    symbols.append(SymbolInfo(
+                        name=node.name,
+                        kind="function",
+                        file_path=rel_path,
+                        line_start=node.lineno,
+                        line_end=node.end_lineno or node.lineno,
+                        docstring=ast.get_docstring(node) or "",
+                        decorators=[self._decorator_name(d) for d in node.decorator_list],
+                    ))
+
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append(alias.name)
+
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.append(node.module)
+
+        return FileIndex(
+            file_path=rel_path,
+            mtime=mtime,
+            symbols=symbols,
+            imports=list(set(imports)),
+        )
+
+    def _decorator_name(self, node) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Attribute):
+            return f"{self._decorator_name(node.value)}.{node.attr}"
+        elif isinstance(node, ast.Call):
+            return self._decorator_name(node.func)
+        return ""
+
+    def _build_symbol_table(self):
+        """Build a reverse lookup: symbol name -> list of SymbolInfo."""
+        self._symbol_table.clear()
+        for file_index in self._index.values():
+            for symbol in file_index.symbols:
+                self._symbol_table.setdefault(symbol.name, []).append(symbol)
+
+    def find_symbol(self, name: str) -> List[SymbolInfo]:
+        """Find all definitions of a symbol by name."""
+        if not self._loaded and not self._index:
+            self.index_project()
+        return self._symbol_table.get(name, [])
+
+    def find_usages(self, name: str) -> List[str]:
+        """Find files that import or reference a symbol name."""
+        if not self._loaded and not self._index:
+            self.index_project()
+        files: Set[str] = set()
+        for file_path, file_index in self._index.items():
+            # Check imports
+            for imp in file_index.imports:
+                if name in imp:
+                    files.add(file_path)
+            # Check symbol references
+            for sym in file_index.symbols:
+                if name in sym.docstring or name == sym.parent:
+                    files.add(file_path)
+        return sorted(files)
+
+    def get_file_symbols(self, file_path: str) -> List[SymbolInfo]:
+        """Get all symbols in a specific file."""
+        if not self._loaded and not self._index:
+            self.index_project()
+        fi = self._index.get(file_path)
+        return fi.symbols if fi else []
+
+    def get_import_graph(self) -> Dict[str, List[str]]:
+        """Get the import dependency graph."""
+        if not self._loaded and not self._index:
+            self.index_project()
+        graph = {}
+        for file_path, file_index in self._index.items():
+            graph[file_path] = [imp for imp in file_index.imports if imp.startswith("vetinari")]
+        return graph
+
+    def get_stats(self) -> Dict[str, int]:
+        return {
+            "files_indexed": len(self._index),
+            "total_symbols": sum(len(fi.symbols) for fi in self._index.values()),
+            "total_classes": sum(
+                1 for fi in self._index.values() for s in fi.symbols if s.kind == "class"
+            ),
+            "total_functions": sum(
+                1 for fi in self._index.values() for s in fi.symbols if s.kind in ("function", "method")
+            ),
+        }
+
+    def _load_cache(self):
+        cache_file = self._root / self.CACHE_FILE
+        if cache_file.exists():
+            try:
+                data = json.loads(cache_file.read_text(encoding="utf-8"))
+                for entry in data:
+                    symbols = [SymbolInfo(**s) for s in entry.get("symbols", [])]
+                    fi = FileIndex(
+                        file_path=entry["file_path"],
+                        mtime=entry["mtime"],
+                        symbols=symbols,
+                        imports=entry.get("imports", []),
+                    )
+                    self._index[fi.file_path] = fi
+                self._build_symbol_table()
+                self._loaded = True
+            except Exception as e:
+                logger.debug(f"AST index cache load error: {e}")
+
+    def _save_cache(self):
+        try:
+            cache_file = self._root / self.CACHE_FILE
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            data = [fi.to_dict() for fi in self._index.values()]
+            cache_file.write_text(json.dumps(data), encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"AST index cache save error: {e}")
+
+
+_indexer: Optional[ASTIndexer] = None
+
+
+def get_ast_indexer(root_path: str = ".") -> ASTIndexer:
+    global _indexer
+    if _indexer is None:
+        _indexer = ASTIndexer(root_path)
+    return _indexer

@@ -26,7 +26,7 @@ class TestAutomationSkill(Tool):
         metadata = ToolMetadata(
             name="test_automation",
             description="Generate test suites, improve test coverage, validate code correctness, and run tests",
-            category=ToolCategory.TESTING,
+            category=ToolCategory.CODE_EXECUTION,
             parameters=[
                 ToolParameter("target_code", "str", "Code to generate tests for", required=True),
                 ToolParameter("test_type", "str", "Test type: unit|integration|e2e|all", required=False),

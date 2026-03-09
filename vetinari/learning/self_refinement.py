@@ -232,11 +232,13 @@ class SelfRefinementLoop:
     ) -> Optional[str]:
         """Call LM Studio directly."""
         host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
+        resolved_model = resolve_lmstudio_model(model_id, host)
         import requests as _req
         resp = _req.post(
             f"{host}/v1/chat/completions",
             json={
-                "model": model_id,
+                "model": resolved_model,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -244,6 +246,7 @@ class SelfRefinementLoop:
                 "max_tokens": max_tokens,
                 "temperature": temperature,
             },
+            headers=get_lmstudio_headers(),
             timeout=180,  # Local models can be slow
         )
         if resp.status_code == 200:

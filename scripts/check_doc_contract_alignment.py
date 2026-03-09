@@ -102,7 +102,7 @@ def check_agent_registry() -> bool:
         "SECURITY_AUDITOR", "DATA_ENGINEER", "DOCUMENTATION_AGENT",
         "COST_PLANNER", "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER",
     }
-    found = {spec.agent_type.value for spec in AGENT_REGISTRY}
+    found = {at.value for at in AGENT_REGISTRY}
     missing = expected - found
     extra   = found - expected
 

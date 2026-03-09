@@ -95,6 +95,8 @@ class AgentGraph:
         self._agents: Dict[AgentType, Any] = {}
         self._execution_plans: Dict[str, ExecutionPlan] = {}
         self._initialized = False
+        self._goal_tracker: Optional[Any] = None
+        self._milestone_manager = None
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -293,6 +295,22 @@ class AgentGraph:
         exec_plan.status = TaskStatus.RUNNING
         exec_plan.started_at = datetime.now().isoformat()
 
+        # Initialize goal tracker for drift detection
+        goal_text = getattr(plan, "goal", "") or ""
+        if goal_text:
+            try:
+                from vetinari.drift.goal_tracker import GoalTracker
+                self._goal_tracker = GoalTracker(goal_text)
+            except Exception:
+                self._goal_tracker = None
+
+        # Initialize milestone manager
+        try:
+            from vetinari.orchestration.milestones import MilestoneManager
+            self._milestone_manager = MilestoneManager()
+        except Exception:
+            self._milestone_manager = None
+
         results: Dict[str, AgentResult] = {}
 
         try:
@@ -310,6 +328,41 @@ class AgentGraph:
                         layer, exec_plan, results
                     )
                     results.update(layer_results)
+                    # Check milestones after each layer
+                    if self._milestone_manager:
+                        for tid, res in layer_results.items():
+                            node = exec_plan.nodes.get(tid)
+                            if node and node.task:
+                                approval = self._milestone_manager.check_and_wait(
+                                    node.task, res,
+                                    [t for t, r in results.items() if r.success],
+                                )
+                                if hasattr(approval, 'action'):
+                                    from vetinari.orchestration.milestones import MilestoneAction
+                                    if approval.action == MilestoneAction.ABORT:
+                                        raise RuntimeError("Execution aborted at milestone checkpoint")
+
+            # Post-execution suggestions (non-blocking)
+            if AgentType.ARCHITECT in self._agents:
+                try:
+                    from vetinari.agents.contracts import AgentTask as _AT
+                    suggest_task = _AT(
+                        task_id="suggestion",
+                        agent_type=AgentType.ARCHITECT,
+                        description="suggest improvements for project",
+                        prompt=f"Suggest improvements for: {plan.goal}",
+                        context={
+                            "insertion_point": "post_execution",
+                            "completed_outputs": [
+                                str(r.output)[:200] for r in results.values() if r.success
+                            ][:5],
+                        },
+                    )
+                    suggestion_result = self._agents[AgentType.ARCHITECT].execute(suggest_task)
+                    if suggestion_result.success:
+                        results["_suggestions"] = suggestion_result
+                except Exception as e:
+                    logger.debug(f"[AgentGraph] Suggestion generation failed: {e}")
 
             exec_plan.status = TaskStatus.COMPLETED
 
@@ -531,6 +584,41 @@ class AgentGraph:
                     f"(attempt {attempt + 1}/{node.max_retries + 1})"
                 )
                 result = agent.execute(agent_task)
+
+                # Check goal adherence
+                if self._goal_tracker and result.success:
+                    try:
+                        output_str = str(result.output)[:500] if result.output else ""
+                        adherence = self._goal_tracker.check_adherence(
+                            output_str, task.description or ""
+                        )
+                        if adherence.score < 0.4:
+                            logger.warning(
+                                f"[AgentGraph] Goal drift in {task.id}: "
+                                f"score={adherence.score:.2f} — {adherence.deviation_description}"
+                            )
+                            result.metadata["drift_warning"] = adherence.to_dict()
+                    except Exception:
+                        pass
+
+                # Handle explicit delegation: agent says "not my domain"
+                if result.metadata.get("delegation_requested"):
+                    reason = result.metadata.get("delegation_reason", "no reason given")
+                    logger.info(
+                        "[AgentGraph] %s delegated task '%s': %s — finding substitute",
+                        agent_type.value, task.id, reason,
+                    )
+                    delegate_type = self._find_delegate(task, exclude=agent_type)
+                    if delegate_type and delegate_type in self._agents:
+                        delegate_agent = self._agents[delegate_type]
+                        result = delegate_agent.execute(agent_task)
+                    else:
+                        return AgentResult(
+                            success=False,
+                            output=None,
+                            errors=[f"Task delegated by {agent_type.value} but no substitute found: {reason}"],
+                        )
+
                 verification = agent.verify(result.output)
 
                 if result.success and verification.passed:
@@ -817,6 +905,50 @@ class AgentGraph:
                 output=failed_result.output,
                 errors=[f"Recovery failed: {e}"],
             )
+
+    def _find_delegate(self, task: Task, exclude: "AgentType" = None) -> Optional["AgentType"]:
+        """Find the best available agent to handle a delegated task.
+
+        Strategy:
+        1. Query each registered agent's can_handle() method.
+        2. Among willing agents, prefer the one whose capabilities best match
+           the task description keywords.
+        3. Fall back to PLANNER (which can re-route) if nothing else fits.
+
+        Args:
+            task: The task needing a substitute handler.
+            exclude: The agent type that just delegated (skip it).
+
+        Returns:
+            Best-matching AgentType, or None if no substitute found.
+        """
+        candidates = []
+        task_lower = (task.description or "").lower()
+
+        for agent_type, agent in self._agents.items():
+            if agent_type == exclude:
+                continue
+            try:
+                agent_task = AgentTask.from_task(task, task.description)
+                if agent.can_handle(agent_task):
+                    # Score by capability keyword overlap
+                    caps = [c.lower() for c in agent.get_capabilities()]
+                    score = sum(1 for cap in caps if cap in task_lower)
+                    candidates.append((score, agent_type))
+            except Exception:
+                pass
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_type = candidates[0]
+
+        # If no candidate has any keyword match, fall back to PLANNER for re-routing
+        if best_score == 0 and AgentType.PLANNER in self._agents:
+            return AgentType.PLANNER
+
+        return best_type
 
     # ------------------------------------------------------------------
     # Output schema validation (Phase 8.2 deferred)

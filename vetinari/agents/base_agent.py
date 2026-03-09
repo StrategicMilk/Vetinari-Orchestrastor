@@ -402,6 +402,37 @@ class BaseAgent(ABC):
             self._log("warning", f"Web search failed for '{query}': {e}")
             return []
         
+    def _extract_code_context(
+        self, file_paths: List[str], keywords: List[str],
+        budget_chars: int = 2000,
+    ) -> str:
+        """Extract only relevant code context using grep.
+
+        Use instead of reading whole files to reduce token usage by 40-60%.
+        """
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        parts = []
+        remaining = budget_chars
+        for fp in file_paths:
+            if remaining <= 0:
+                break
+            chunk = gc.extract_relevant_context(fp, keywords, budget_chars=remaining)
+            if chunk:
+                parts.append(chunk)
+                remaining -= len(chunk)
+        return "\n\n".join(parts)
+
+    def _grep_patterns(
+        self, file_paths: List[str], patterns: List[str],
+        context_lines: int = 3,
+    ) -> str:
+        """Extract lines matching patterns with surrounding context."""
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        matches = gc.extract_patterns(file_paths, patterns, context_lines)
+        return gc.format_for_prompt(matches)
+
     def _log(self, level: str, message: str, **kwargs) -> None:
         """Emit structured log with agent context."""
         log_data = {
@@ -770,6 +801,120 @@ class BaseAgent(ABC):
 
         return task
     
+    # ------------------------------------------------------------------
+    # Inter-agent communication via Blackboard
+    # ------------------------------------------------------------------
+
+    def request_help(
+        self,
+        content: str,
+        request_type: str,
+        priority: int = 5,
+        ttl_seconds: int = 3600,
+    ) -> str:
+        """Post a help request on the shared Blackboard.
+
+        Use this when the agent encounters a sub-task outside its expertise.
+        The Blackboard routes it to the most capable available agent.
+
+        Returns:
+            entry_id: Use with get_help_result() to retrieve the answer.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        entry_id = board.post(
+            content=content,
+            request_type=request_type,
+            requested_by=self._agent_type,
+            priority=priority,
+            ttl_seconds=ttl_seconds,
+        )
+        logger.debug("[%s] posted help request %s: %r", self.name, entry_id, request_type)
+        return entry_id
+
+    def get_help_result(self, entry_id: str, timeout: float = 30.0) -> Optional[Any]:
+        """Wait for and retrieve the result of a help request.
+
+        Args:
+            entry_id: ID returned by request_help().
+            timeout: Maximum seconds to wait.
+
+        Returns:
+            The result posted by the helper agent, or None if timed out / failed.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        return board.get_result(entry_id, timeout=timeout)
+
+    def publish_finding(self, key: str, value: Any, finding_type: str = "general") -> None:
+        """Publish a discovery or intermediate result on the Blackboard.
+
+        Other agents can query these findings via query_findings().
+
+        Args:
+            key: Unique name for this finding (e.g. "security_issues").
+            value: The data to share.
+            finding_type: Category for filtering (e.g. "security", "architecture").
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        board.post(
+            content=value,
+            request_type=f"finding:{finding_type}",
+            requested_by=self._agent_type,
+            priority=3,
+            metadata={"finding_key": key, "agent": self._agent_type.value},
+        )
+        logger.debug("[%s] published finding '%s' (%s)", self.name, key, finding_type)
+
+    def query_findings(self, finding_type: str = None) -> List[Dict[str, Any]]:
+        """Query published findings from the Blackboard.
+
+        Args:
+            finding_type: Filter by category, or None for all findings.
+
+        Returns:
+            List of dicts with keys: content, agent, finding_key.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        prefix = f"finding:{finding_type}" if finding_type else "finding:"
+        entries = board.get_pending(request_type_prefix=prefix)
+        return [
+            {
+                "content": e.content,
+                "agent": e.metadata.get("agent", "unknown"),
+                "finding_key": e.metadata.get("finding_key", ""),
+            }
+            for e in entries
+        ]
+
+    def delegate_task(self, task: "AgentTask", reason: str) -> "AgentResult":
+        """Signal that this task is outside the agent's domain.
+
+        Returns an AgentResult with delegation_requested=True so the
+        orchestrator (AgentGraph) reassigns it to an appropriate agent.
+        """
+        logger.info("[%s] delegating task '%s': %s", self.name, task.task_id, reason)
+        return AgentResult(
+            success=False,
+            output="",
+            errors=[f"Task delegated: {reason}"],
+            metadata={
+                "delegation_requested": True,
+                "delegation_reason": reason,
+                "delegating_agent": self._agent_type.value,
+            },
+        )
+
+    def can_handle(self, task: "AgentTask") -> bool:
+        """Return True if this agent can handle the given task.
+
+        Default: always True. Override in subclasses for smarter routing.
+        AgentGraph queries this before assignment to find capable agents.
+        """
+        return True
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(type={self._agent_type.value}, name={self.name})>"
 
