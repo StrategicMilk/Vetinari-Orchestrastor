@@ -289,6 +289,16 @@ class TwoLayerOrchestrator:
         exec_results = self.execution_engine.execute_plan(graph, effective_handler)
         stages["execution"] = exec_results
 
+        # P3.5: Check AutoTuner recommendations after execution completes
+        try:
+            from vetinari.learning.auto_tuner import get_auto_tuner
+            tuner = get_auto_tuner()
+            actions = tuner.run_cycle()
+            if actions:
+                logger.info("[AutoTuner] Applied %d tuning actions after execution", len(actions))
+        except Exception:
+            pass  # Non-fatal
+
         # ── C2: Stage-boundary validation (execution → review) ────────
         exec_valid, exec_issues = self._validate_stage_boundary(
             "execution", exec_results, min_keys=["completed"],

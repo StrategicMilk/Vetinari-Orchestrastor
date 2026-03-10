@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from vetinari.web.shared import PROJECT_ROOT, current_config, get_orchestrator, _is_admin_user
+from vetinari.web import require_admin
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ def api_admin_permissions():
 # ============ AGENT ORCHESTRATION ENDPOINTS ============
 
 @admin_bp.route('/api/agents/status', methods=['GET'])
+@require_admin
 def api_agents_status():
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
@@ -149,6 +151,7 @@ def api_agents_status():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/agents/initialize', methods=['POST'])
+@require_admin
 def api_agents_initialize():
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
@@ -168,6 +171,7 @@ def api_agents_initialize():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/agents/active', methods=['GET'])
+@require_admin
 def api_agents_active():
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
@@ -210,6 +214,7 @@ def api_agents_active():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/agents/tasks', methods=['GET'])
+@require_admin
 def api_agents_tasks():
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
@@ -235,6 +240,7 @@ def api_agents_tasks():
 # ============ SHARED MEMORY ENDPOINTS ============
 
 @admin_bp.route('/api/memory', methods=['GET'])
+@require_admin
 def api_memory():
     try:
         from vetinari.shared_memory import SharedMemory
@@ -250,6 +256,7 @@ def api_memory():
 # ============ DECISION ENDPOINTS ============
 
 @admin_bp.route('/api/decisions/pending', methods=['GET'])
+@require_admin
 def api_decisions_pending():
     try:
         from vetinari.shared_memory import SharedMemory
@@ -272,6 +279,7 @@ def api_decisions_pending():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/decisions', methods=['POST'])
+@require_admin
 def api_decisions_submit():
     try:
         data = request.json
@@ -291,6 +299,7 @@ def api_decisions_submit():
 # ============ MODEL RELAY ENDPOINTS ============
 
 @admin_bp.route('/api/model-catalog', methods=['GET'])
+@require_admin
 def api_models_list():
     """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery."""
     try:
@@ -304,6 +313,7 @@ def api_models_list():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/models/<model_id>', methods=['GET'])
+@require_admin
 def api_model_get(model_id):
     try:
         from vetinari.model_relay import model_relay
@@ -317,6 +327,7 @@ def api_model_get(model_id):
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/models/select', methods=['POST'])
+@require_admin
 def api_model_select():
     try:
         from vetinari.model_relay import model_relay
@@ -332,6 +343,7 @@ def api_model_select():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/models/policy', methods=['GET'])
+@require_admin
 def api_model_policy_get():
     try:
         from vetinari.model_relay import model_relay
@@ -342,6 +354,7 @@ def api_model_policy_get():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/models/policy', methods=['PUT'])
+@require_admin
 def api_model_policy_update():
     try:
         from vetinari.model_relay import model_relay, RoutingPolicy
@@ -355,6 +368,7 @@ def api_model_policy_update():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/models/reload', methods=['POST'])
+@require_admin
 def api_models_reload():
     try:
         from vetinari.model_relay import model_relay
@@ -371,6 +385,7 @@ def api_models_reload():
 # ============ SANDBOX ENDPOINTS ============
 
 @admin_bp.route('/api/sandbox/execute', methods=['POST'])
+@require_admin
 def api_sandbox_execute():
     try:
         from vetinari.sandbox import sandbox_manager
@@ -388,6 +403,7 @@ def api_sandbox_execute():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/sandbox/status', methods=['GET'])
+@require_admin
 def api_sandbox_status():
     try:
         from vetinari.sandbox import sandbox_manager
@@ -398,6 +414,7 @@ def api_sandbox_status():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/sandbox/audit', methods=['GET'])
+@require_admin
 def api_sandbox_audit():
     try:
         from vetinari.sandbox import sandbox_manager
@@ -413,6 +430,7 @@ def api_sandbox_audit():
 # ============ SEARCH ENDPOINTS ============
 
 @admin_bp.route('/api/code-search', methods=['GET'])
+@require_admin
 def api_code_search():
     """Search within project code using CocoIndex/ripgrep backends."""
     try:
@@ -438,6 +456,7 @@ def api_code_search():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/search/index', methods=['POST'])
+@require_admin
 def api_search_index():
     try:
         from vetinari.code_search import code_search_registry
@@ -462,6 +481,7 @@ def api_search_index():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/search/status', methods=['GET'])
+@require_admin
 def api_search_status():
     try:
         from vetinari.code_search import code_search_registry
@@ -484,6 +504,7 @@ def api_search_status():
 # ============ ADR ENDPOINTS ============
 
 @admin_bp.route('/api/adr', methods=['GET'])
+@require_admin
 def api_adr_list():
     try:
         from vetinari.adr import adr_system
@@ -502,6 +523,7 @@ def api_adr_list():
 
 
 @admin_bp.route('/api/adr/<adr_id>', methods=['GET'])
+@require_admin
 def api_adr_get(adr_id):
     try:
         from vetinari.adr import adr_system
@@ -516,6 +538,7 @@ def api_adr_get(adr_id):
 
 
 @admin_bp.route('/api/adr', methods=['POST'])
+@require_admin
 def api_adr_create():
     try:
         from vetinari.adr import adr_system
@@ -545,6 +568,7 @@ def api_adr_create():
 
 
 @admin_bp.route('/api/adr/<adr_id>', methods=['PUT'])
+@require_admin
 def api_adr_update(adr_id):
     try:
         from vetinari.adr import adr_system
@@ -561,6 +585,7 @@ def api_adr_update(adr_id):
 
 
 @admin_bp.route('/api/adr/<adr_id>/deprecate', methods=['POST'])
+@require_admin
 def api_adr_deprecate(adr_id):
     try:
         from vetinari.adr import adr_system
@@ -579,6 +604,7 @@ def api_adr_deprecate(adr_id):
 
 
 @admin_bp.route('/api/adr/propose', methods=['POST'])
+@require_admin
 def api_adr_propose():
     try:
         from vetinari.adr import adr_system, ADRProposal
@@ -600,6 +626,7 @@ def api_adr_propose():
 
 
 @admin_bp.route('/api/adr/propose/accept', methods=['POST'])
+@require_admin
 def api_adr_propose_accept():
     try:
         from vetinari.adr import adr_system
@@ -626,6 +653,7 @@ def api_adr_propose_accept():
 
 
 @admin_bp.route('/api/adr/statistics', methods=['GET'])
+@require_admin
 def api_adr_statistics():
     try:
         from vetinari.adr import adr_system
@@ -636,6 +664,7 @@ def api_adr_statistics():
 
 
 @admin_bp.route('/api/adr/is-high-stakes', methods=['GET'])
+@require_admin
 def api_adr_is_high_stakes():
     try:
         from vetinari.adr import adr_system
@@ -649,6 +678,7 @@ def api_adr_is_high_stakes():
 # ============ PONDER ENDPOINTS ============
 
 @admin_bp.route('/api/ponder/choose-model', methods=['POST'])
+@require_admin
 def api_ponder_choose_model():
     try:
         from vetinari.ponder import rank_models, get_available_models
@@ -668,6 +698,7 @@ def api_ponder_choose_model():
 
 
 @admin_bp.route('/api/ponder/templates', methods=['GET'])
+@require_admin
 def api_ponder_templates():
     try:
         from vetinari.ponder import PonderEngine
@@ -686,6 +717,7 @@ def api_ponder_templates():
 
 
 @admin_bp.route('/api/ponder/models', methods=['GET'])
+@require_admin
 def api_ponder_models():
     try:
         from vetinari.ponder import get_available_models
@@ -700,6 +732,7 @@ def api_ponder_models():
 
 
 @admin_bp.route('/api/ponder/plan/<plan_id>', methods=['POST'])
+@require_admin
 def api_ponder_run_plan(plan_id):
     try:
         from vetinari.ponder import ponder_project_for_plan
@@ -715,6 +748,7 @@ def api_ponder_run_plan(plan_id):
 
 
 @admin_bp.route('/api/ponder/plan/<plan_id>', methods=['GET'])
+@require_admin
 def api_ponder_get_plan(plan_id):
     try:
         from vetinari.ponder import get_ponder_results_for_plan
@@ -726,6 +760,7 @@ def api_ponder_get_plan(plan_id):
 
 
 @admin_bp.route('/api/ponder/health', methods=['GET'])
+@require_admin
 def api_ponder_health():
     try:
         from vetinari.ponder import get_ponder_health
@@ -739,6 +774,7 @@ def api_ponder_health():
 # ============ RULES CONFIGURATION ENDPOINTS ============
 
 @admin_bp.route('/api/rules', methods=['GET'])
+@require_admin
 def api_rules_get():
     """Get all rules configuration."""
     try:
@@ -750,6 +786,7 @@ def api_rules_get():
 
 
 @admin_bp.route('/api/rules/global', methods=['GET', 'POST'])
+@require_admin
 def api_rules_global():
     """Get or set global rules."""
     try:
@@ -768,6 +805,7 @@ def api_rules_global():
 
 
 @admin_bp.route('/api/rules/global-prompt', methods=['GET', 'POST'])
+@require_admin
 def api_rules_global_prompt():
     """Get or set the global system prompt override."""
     try:
@@ -783,6 +821,7 @@ def api_rules_global_prompt():
 
 
 @admin_bp.route('/api/rules/project/<project_id>', methods=['GET', 'POST'])
+@require_admin
 def api_rules_project(project_id):
     """Get or set rules for a specific project."""
     try:
@@ -801,6 +840,7 @@ def api_rules_project(project_id):
 
 
 @admin_bp.route('/api/rules/model/<path:model_id>', methods=['GET', 'POST'])
+@require_admin
 def api_rules_model(model_id):
     """Get or set rules for a specific model."""
     try:
@@ -821,6 +861,7 @@ def api_rules_model(model_id):
 # ============ IMAGE GENERATION ENDPOINTS ============
 
 @admin_bp.route('/api/generate-image', methods=['POST'])
+@require_admin
 def api_generate_image():
     """Generate an image asset via the ImageGeneratorAgent."""
     try:
@@ -858,6 +899,7 @@ def api_generate_image():
 
 
 @admin_bp.route('/api/sd-status', methods=['GET'])
+@require_admin
 def api_sd_status():
     """Check Stable Diffusion WebUI connection status."""
     try:
@@ -874,6 +916,7 @@ def api_sd_status():
 # ============ TRAINING ENDPOINTS ============
 
 @admin_bp.route('/api/training/stats', methods=['GET'])
+@require_admin
 def api_training_stats():
     """Get training data statistics."""
     try:
@@ -886,6 +929,7 @@ def api_training_stats():
 
 
 @admin_bp.route('/api/training/export', methods=['POST'])
+@require_admin
 def api_training_export():
     """Export training data for a given format."""
     try:
@@ -911,6 +955,7 @@ def api_training_export():
 
 
 @admin_bp.route('/api/training/start', methods=['POST'])
+@require_admin
 def api_training_start():
     """Start a training run (async)."""
     try:

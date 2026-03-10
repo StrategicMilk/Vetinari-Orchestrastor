@@ -902,10 +902,11 @@ class TestGoalVerifierVerify:
         assert report.security_passed is False
 
     def test_llm_failure_uses_default_quality_score(self, verifier):
+        # P2.4: LLM failure must default to 0.3 (failing), not 0.7 (passing).
         with patch.object(verifier, "_llm_evaluation", side_effect=Exception("fail")):
             with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
                 report = verifier.verify(project_id="p", goal="g", final_output="code")
-        assert report.quality_score == pytest.approx(0.7)
+        assert report.quality_score == pytest.approx(0.3)
 
     def test_expected_outputs_missing_adds_quality_issue(self, verifier):
         report = self._run_verify(
@@ -992,6 +993,8 @@ class TestGoalVerifierVerify:
 
 class TestComplianceScoreFormula:
     def test_perfect_score_when_everything_passes(self):
+        # P2.4: feature_score defaults to 0.5 when no features are provided.
+        # Supply a matching feature so feature_score reaches 1.0 for a perfect result.
         verifier = GoalVerifier(quality_threshold=0.5)
         with patch.object(
             verifier, "_llm_evaluation",
@@ -1002,6 +1005,7 @@ class TestComplianceScoreFormula:
                 report = verifier.verify(
                     project_id="p", goal="g",
                     final_output="import pytest\ndef test_foo(): pass",
+                    required_features=["pytest test"],
                 )
         assert report.compliance_score == pytest.approx(1.0, abs=0.01)
 

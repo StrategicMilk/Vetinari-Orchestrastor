@@ -677,14 +677,12 @@ class TestCredential:
 
 
 class TestCredentialVault:
-    """Tests for CredentialVault with crypto mocked out."""
+    """Tests for CredentialVault (requires cryptography package)."""
 
     @pytest.fixture
     def vault(self, tmp_path):
-        with patch("vetinari.credentials.CRYPTO_AVAILABLE", False):
-            from vetinari.credentials import CredentialVault
-            v = CredentialVault(vault_path=str(tmp_path / "vault"))
-        return v
+        from vetinari.credentials import CredentialVault
+        return CredentialVault(vault_path=str(tmp_path / "vault"))
 
     @pytest.fixture
     def make_cred(self):
@@ -702,9 +700,8 @@ class TestCredentialVault:
 
     def test_vault_creates_directory(self, tmp_path):
         path = tmp_path / "new_vault"
-        with patch("vetinari.credentials.CRYPTO_AVAILABLE", False):
-            from vetinari.credentials import CredentialVault
-            CredentialVault(vault_path=str(path))
+        from vetinari.credentials import CredentialVault
+        CredentialVault(vault_path=str(path))
         assert path.exists()
 
     def test_set_and_get_credential(self, vault, make_cred):
@@ -803,18 +800,16 @@ class TestCredentialVault:
         data = json.loads(admins_file.read_text())
         assert data["admins"].count("user1") == 1
 
-    def test_save_and_reload_plaintext(self, tmp_path, make_cred):
-        vault_path = str(tmp_path / "vault_reload")
+    def test_save_without_encryption_raises(self, tmp_path, make_cred):
+        # P1.H9: Vault must refuse to save credentials when encryption is unavailable.
+        vault_path = str(tmp_path / "vault_no_crypto")
         with patch("vetinari.credentials.CRYPTO_AVAILABLE", False):
             from vetinari.credentials import CredentialVault
-            v1 = CredentialVault(vault_path=vault_path)
-            v1.set_credential("gh", make_cred())
-
-        # Reload from disk
-        with patch("vetinari.credentials.CRYPTO_AVAILABLE", False):
-            from vetinari.credentials import CredentialVault
-            v2 = CredentialVault(vault_path=vault_path)
-        assert v2.get_token("gh") == "tok123"
+            v = CredentialVault(vault_path=vault_path)
+        # _fernet is None because crypto was unavailable at init time
+        import pytest as _pytest
+        with _pytest.raises(RuntimeError, match="encryption is unavailable"):
+            v.set_credential("gh", make_cred())
 
     def test_load_empty_credentials_file(self, tmp_path):
         vault_path = tmp_path / "vault_empty"

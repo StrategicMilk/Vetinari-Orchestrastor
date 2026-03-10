@@ -20,6 +20,8 @@ from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request
 
+from vetinari.web import require_admin
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("analytics", __name__, url_prefix="/api/analytics")
@@ -54,6 +56,7 @@ def _forecaster():
 # ---------------------------------------------------------------------------
 
 @bp.route("/cost")
+@require_admin
 def analytics_cost():
     """Return cost attribution report, optionally filtered by agent or task_id."""
     try:
@@ -74,6 +77,7 @@ def analytics_cost():
 # ---------------------------------------------------------------------------
 
 @bp.route("/sla")
+@require_admin
 def analytics_sla():
     """Return SLA compliance reports for all registered SLOs."""
     try:
@@ -96,6 +100,7 @@ def analytics_sla():
 # ---------------------------------------------------------------------------
 
 @bp.route("/anomalies")
+@require_admin
 def analytics_anomalies():
     """Return detected anomalies, optionally filtered by metric name."""
     try:
@@ -120,6 +125,7 @@ def analytics_anomalies():
 # ---------------------------------------------------------------------------
 
 @bp.route("/forecast")
+@require_admin
 def analytics_forecast():
     """Return capacity forecasts for tracked metrics.
 
@@ -164,6 +170,7 @@ def analytics_forecast():
 # ---------------------------------------------------------------------------
 
 @bp.route("/models")
+@require_admin
 def analytics_models():
     """Return per-model performance statistics."""
     try:
@@ -208,6 +215,7 @@ def analytics_models():
 # ---------------------------------------------------------------------------
 
 @bp.route("/agents")
+@require_admin
 def analytics_agents():
     """Return per-agent cost and quality metrics."""
     try:
@@ -245,6 +253,7 @@ def analytics_agents():
 # ---------------------------------------------------------------------------
 
 @bp.route("/summary")
+@require_admin
 def analytics_summary():
     """Return a dashboard summary combining all analytics dimensions."""
     try:

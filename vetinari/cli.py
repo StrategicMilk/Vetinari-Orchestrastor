@@ -177,6 +177,8 @@ def cmd_start(args) -> int:
 
     # Start web dashboard in background thread
     port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
+    # P1.H6: Default to loopback — require explicit opt-in for network binding
+    web_host = getattr(args, "web_host", None) or "127.0.0.1"
     dashboard_started = False
 
     if not args.no_dashboard:

@@ -25,6 +25,7 @@ from vetinari.web.shared import (
     _get_models_cached, trigger_light_search,
     _is_admin_user, _project_external_model_enabled,
 )
+from vetinari.web import require_admin
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,14 @@ def api_project_stream(project_id):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": request.headers.get("Origin", "http://localhost:5000"),
         },
     )
 
 
 # API: Cancel a running project task
 @projects_bp.route('/api/project/<project_id>/cancel', methods=['POST'])
+@require_admin
 def api_cancel_project(project_id):
     """Cancel a running project execution."""
     cancelled = _cancel_project_task(project_id)
@@ -91,6 +93,7 @@ def api_cancel_project(project_id):
 
 
 @projects_bp.route('/api/new-project', methods=['POST'])
+@require_admin
 def api_new_project():
     data = request.json
     goal = data.get('goal', '')
@@ -428,6 +431,7 @@ Implement this task. Output the code as code blocks with filenames."""
 
 # API: List all projects
 @projects_bp.route('/api/projects')
+@require_admin
 def api_projects():
     try:
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
@@ -505,6 +509,7 @@ def api_projects():
 
 # API: Get single project details
 @projects_bp.route('/api/project/<project_id>')
+@require_admin
 def api_project(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -594,6 +599,7 @@ def api_project(project_id):
 
 # API: Send message to existing project
 @projects_bp.route('/api/project/<project_id>/message', methods=['POST'])
+@require_admin
 def api_project_message(project_id):
     try:
         data = request.json
@@ -657,6 +663,7 @@ def api_project_message(project_id):
 
 # API: Add task to project
 @projects_bp.route('/api/project/<project_id>/task', methods=['POST'])
+@require_admin
 def api_add_task(project_id):
     try:
         data = request.json
@@ -704,6 +711,7 @@ def api_add_task(project_id):
 
 # API: Update task
 @projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['PUT'])
+@require_admin
 def api_update_task(project_id, task_id):
     try:
         data = request.json
@@ -754,6 +762,7 @@ def api_update_task(project_id, task_id):
 
 # API: Delete task
 @projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['DELETE'])
+@require_admin
 def api_delete_task(project_id, task_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -789,6 +798,7 @@ def api_delete_task(project_id, task_id):
 
 # API: Get project outputs for review
 @projects_bp.route('/api/project/<project_id>/review')
+@require_admin
 def api_project_review(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -858,6 +868,7 @@ def api_project_review(project_id):
 
 # API: Approve outputs and trigger merge
 @projects_bp.route('/api/project/<project_id>/approve', methods=['POST'])
+@require_admin
 def api_approve_outputs(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -877,6 +888,7 @@ def api_approve_outputs(project_id):
 
 # API: Merge project to final project space
 @projects_bp.route('/api/project/<project_id>/merge', methods=['POST'])
+@require_admin
 def api_merge_project(project_id):
     try:
         import shutil
@@ -983,6 +995,7 @@ Run the generated code from the artifacts folder.
 
 # API: Get task output by project and task ID
 @projects_bp.route('/api/project/<project_id>/task/<task_id>/output')
+@require_admin
 def api_task_output(project_id, task_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1015,6 +1028,7 @@ def api_task_output(project_id, task_id):
 
 # API: Rename a project
 @projects_bp.route('/api/project/<project_id>/rename', methods=['POST'])
+@require_admin
 def api_rename_project(project_id):
     data = request.json
     new_name = data.get('name', '')
@@ -1049,6 +1063,7 @@ def api_rename_project(project_id):
 
 # API: Archive/unarchive a project
 @projects_bp.route('/api/project/<project_id>/archive', methods=['POST'])
+@require_admin
 def api_archive_project(project_id):
     data = request.json
     archive = data.get('archive', True)
@@ -1079,6 +1094,7 @@ def api_archive_project(project_id):
 
 # API: Delete a project
 @projects_bp.route('/api/project/<project_id>', methods=['DELETE'])
+@require_admin
 def api_delete_project(project_id):
     try:
         import shutil
@@ -1099,6 +1115,7 @@ def api_delete_project(project_id):
 
 # API: Assemble final deliverable from task outputs
 @projects_bp.route('/api/project/<project_id>/assemble', methods=['POST'])
+@require_admin
 def api_project_assemble(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1190,6 +1207,7 @@ def api_project_assemble(project_id):
 
 # API: Get build artifacts
 @projects_bp.route('/api/artifacts')
+@require_admin
 def api_artifacts():
     build_dir = PROJECT_ROOT / 'build' / 'artifacts'
     artifacts = []
@@ -1206,6 +1224,7 @@ def api_artifacts():
 
 # API: Safe file read for agent (OpenCode-like)
 @projects_bp.route('/api/project/<project_id>/files/read', methods=['POST'])
+@require_admin
 def api_read_file(project_id):
     try:
         data = request.json
@@ -1255,6 +1274,7 @@ def api_read_file(project_id):
 
 # API: Safe file write for agent (OpenCode-like)
 @projects_bp.route('/api/project/<project_id>/files/write', methods=['POST'])
+@require_admin
 def api_write_file(project_id):
     try:
         data = request.json
@@ -1302,6 +1322,7 @@ def api_write_file(project_id):
 
 # API: List workspace files
 @projects_bp.route('/api/project/<project_id>/files/list')
+@require_admin
 def api_list_files(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1327,6 +1348,7 @@ def api_list_files(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/model-search', methods=['POST'])
+@require_admin
 def api_model_search(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1368,6 +1390,7 @@ def api_model_search(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/task/<task_id>/override', methods=['POST'])
+@require_admin
 def api_task_override(project_id, task_id):
     try:
         data = request.json or {}
@@ -1401,6 +1424,7 @@ def api_task_override(project_id, task_id):
 
 
 @projects_bp.route('/api/project/<project_id>/refresh-models', methods=['POST'])
+@require_admin
 def api_refresh_models(project_id):
     try:
         from vetinari.live_model_search import LiveModelSearchAdapter
@@ -1414,6 +1438,7 @@ def api_refresh_models(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/verify-goal', methods=['POST'])
+@require_admin
 def api_verify_goal(project_id):
     """Verify the final deliverable against the original project goal."""
     try:

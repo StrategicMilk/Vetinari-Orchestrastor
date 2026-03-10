@@ -447,6 +447,32 @@ class BaseAgent(ABC):
     # Phase 2.0b: Template method helpers for concrete agents
     # ------------------------------------------------------------------
 
+    def _recall_relevant_memories(self, task_description: str) -> list[dict]:
+        """Query shared memory for context relevant to the current task.
+
+        P2.6: Read relevant memories before execution so agents can build on
+        prior work rather than repeating or contradicting it.
+
+        Args:
+            task_description: Description of the task about to be executed.
+
+        Returns:
+            List of memory entry dicts, empty list if unavailable or on error.
+        """
+        try:
+            from vetinari.shared_memory import SharedMemory
+            memory = SharedMemory.get_instance()
+            if memory is None:
+                return []
+            if hasattr(memory, "search"):
+                results = memory.search(task_description, limit=5)
+                return results if results else []
+            if hasattr(memory, "get_recent"):
+                return memory.get_recent(limit=5)
+        except Exception as e:
+            logger.debug("Memory recall failed (non-fatal): %s", e)
+        return []
+
     def _execute_safely(self, task: AgentTask, execute_fn) -> AgentResult:
         """Template method for safe agent execution with validation and error handling.
 
@@ -468,6 +494,14 @@ class BaseAgent(ABC):
             )
         task = self.prepare_task(task)
         try:
+            # P2.6: Inject relevant memories into task context before execution
+            prior_memories = self._recall_relevant_memories(task.description or "")
+            if prior_memories:
+                ctx = getattr(task, "context", None) or {}
+                ctx["prior_memories"] = prior_memories
+                task.context = ctx
+                self._log("debug", f"Injected {len(prior_memories)} prior memories into task context")
+
             result = execute_fn(task)
             if result.success:
                 self.complete_task(task, result)
