@@ -158,8 +158,20 @@ class TestRESTAPIContract(unittest.TestCase):
         self.assertIn(b"dashboard.js", r.data)
 
     def test_cors_headers_present(self):
-        r = self.client.get("/api/v1/health")
-        self.assertIn("Access-Control-Allow-Origin", r.headers)
+        # P1.H2: CORS is restricted to localhost origins; no wildcard.
+        # A request without Origin should NOT get Access-Control-Allow-Origin.
+        r_no_origin = self.client.get("/api/v1/health")
+        self.assertNotIn("Access-Control-Allow-Origin", r_no_origin.headers)
+        # A request from an allowed localhost origin should get the header.
+        r_localhost = self.client.get(
+            "/api/v1/health",
+            headers={"Origin": "http://localhost:5000"},
+        )
+        self.assertIn("Access-Control-Allow-Origin", r_localhost.headers)
+        self.assertEqual(
+            r_localhost.headers["Access-Control-Allow-Origin"],
+            "http://localhost:5000",
+        )
 
 
 # ─── AlertEngine ──────────────────────────────────────────────────────────────

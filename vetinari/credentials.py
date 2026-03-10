@@ -95,14 +95,14 @@ class CredentialVault:
     def _load(self):
         if not self.credentials_file.exists():
             return
-        
+
         try:
             with open(self.credentials_file, 'rb') as f:
                 encrypted = f.read()
-            
+
             if not encrypted:
                 return
-                
+
             # Try to decrypt if fernet is available
             if self._fernet:
                 try:
@@ -113,10 +113,16 @@ class CredentialVault:
                     return
                 except Exception as e:
                     logger.warning("Failed to decrypt credentials: %s", e)
-            
-            # Fallback: try to load as plain JSON (for migration)
+
+            # Fallback: try to load as plain JSON (for migration from unencrypted store).
+            # Log a warning so operators know the vault is unencrypted (P1.H9).
             try:
                 data = json.loads(encrypted.decode('utf-8'))
+                logger.warning(
+                    "Loaded credentials from unencrypted store at %s — "
+                    "re-save credentials to encrypt them with the current key.",
+                    self.credentials_file,
+                )
                 for source_type, cred_data in data.items():
                     self._credentials[source_type] = Credential(**cred_data)
             except Exception:
@@ -127,20 +133,19 @@ class CredentialVault:
     def _save(self):
         data = {k: asdict(v) for k, v in self._credentials.items()}
         json_str = json.dumps(data)
-        
-        # Encrypt if fernet is available
+
+        # Encrypt if fernet is available (P1.H9: never silently fall back to plaintext)
         if self._fernet:
-            try:
-                encrypted = self._fernet.encrypt(json_str.encode())
-                with open(self.credentials_file, 'wb') as f:
-                    f.write(encrypted)
-            except Exception as e:
-                logger.warning("Encryption failed, falling back to plain JSON: %s", e)
-                # Fallback to plain JSON
-                with open(self.credentials_file, 'w') as f:
-                    f.write(json_str)
+            # Let the exception propagate — a failed save is safer than a plaintext save.
+            encrypted = self._fernet.encrypt(json_str.encode())
+            with open(self.credentials_file, 'wb') as f:
+                f.write(encrypted)
         else:
-            # Save as plain JSON if encryption not available
+            # cryptography library not installed; save as plain JSON and warn loudly.
+            logger.warning(
+                "Saving credentials as plain JSON because the cryptography library "
+                "is not available. Install 'cryptography' to enable encryption."
+            )
             with open(self.credentials_file, 'w') as f:
                 f.write(json_str)
         

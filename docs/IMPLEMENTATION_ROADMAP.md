@@ -1,339 +1,261 @@
-# Implementation Roadmap for OpenCode Integration
+# Vetinari Implementation Roadmap
 
-## Phase 1: Foundation (COMPLETED ✅)
+**Version:** v0.5.0 | **Updated:** 2026-03-10
 
-### Completed Components
+---
 
-1. ✅ **ExecutionContext System** (`vetinari/execution_context.py`)
+## Completed Phases
+
+### Phase 1: Foundation (v0.1.0)
+
+1. **ExecutionContext System** (`vetinari/execution_context.py`)
    - ExecutionMode enum (PLANNING, EXECUTION, SANDBOX)
    - ToolPermission enum with 12 permission types
    - ContextManager with context stacking and enforcement
    - Pre/post-execution hooks and audit trails
 
-2. ✅ **Tool Interface** (`vetinari/tool_interface.py`)
-   - Abstract Tool base class
-   - ToolMetadata and ToolParameter dataclasses
-   - ToolCategory enum
-   - ToolRegistry for tool management
+2. **Tool Interface** (`vetinari/tool_interface.py`)
+   - Abstract Tool base class, ToolMetadata, ToolParameter dataclasses
+   - ToolCategory enum, ToolRegistry for management
    - VerificationResult and ToolResult dataclasses
 
-3. ✅ **AdapterManager** (`vetinari/adapter_manager.py`)
-   - Multi-provider adapter management
-   - ProviderMetrics tracking
-   - Intelligent model selection
-   - Fallback provider support
-   - Health monitoring and discovery
+3. **AdapterManager** (`vetinari/adapter_manager.py`)
+   - Multi-provider adapter management (LMStudio, OpenAI, Anthropic, Gemini, Cohere, Ollama)
+   - ProviderMetrics tracking, intelligent model selection, fallback support
 
-4. ✅ **Enhanced CLI** (`cli.py`)
-   - Execution mode selection (--mode)
-   - Provider status display (--providers)
-   - Health checks (--health-check)
-   - Context status (--context)
-   - Rich visual feedback with emoji indicators
+4. **Verification Pipeline** (`vetinari/verification.py`)
+   - CodeSyntaxVerifier, SecurityVerifier, ImportVerifier, JSONStructureVerifier
 
-5. ✅ **Verification Pipeline** (`vetinari/verification.py`)
-   - CodeSyntaxVerifier
-   - SecurityVerifier with secret scanning
-   - ImportVerifier for safe imports
-   - JSONStructureVerifier
-   - Customizable verification levels
-   - Comprehensive issue reporting
+5. **Enhanced CLI** (`cli.py`) -- 16 subcommands with rich visual feedback
 
-6. ✅ **Documentation** (`docs/OPENCODE_INTEGRATION.md`)
-   - Complete integration guide
-   - Usage examples for all systems
-   - Security best practices
-   - Migration guide for existing code
+### Phase 2: Agent System (v0.2.0-v0.3.0)
 
----
+1. **22 Specialized Agents** -- Full agent ecosystem built
+   - Planner, Explorer, Oracle, Librarian, Researcher, Evaluator, Synthesizer, Builder
+   - UI Planner, Security Auditor, Data Engineer, Documentation, Cost Planner
+   - Test Automation, Experimentation Manager, Improvement Agent
+   - DevOps, Version Control, Error Recovery, Context Manager, Image Generator, Ponder
 
-## Phase 2: Integration (NEXT)
+2. **Assembly-Line Pipeline** (`vetinari/two_layer_orchestration.py`)
+   - 7-stage pipeline: Input Analysis > Plan > Decompose > Assign > Execute > Review > Assemble
+   - DAG scheduler with ThreadPoolExecutor for parallel execution
+   - Recursive task decomposition with depth cap (16)
 
-### 2.1 Update Orchestrator
-**File:** `vetinari/orchestrator.py`
+3. **Self-Improvement System** (`vetinari/learning/`)
+   - QualityScorer (LLM-as-judge + heuristics)
+   - FeedbackLoop with EMA updates to ModelPerformance
+   - Thompson Sampling model selection with Beta distributions
+   - PromptEvolver for A/B testing prompt variants
+   - WorkflowLearner for domain-specific decomposition strategies
+   - CostOptimizer for cost-aware routing
+   - AutoTuner for SLA-driven adjustment
 
-**Tasks:**
-- [ ] Import ExecutionContext and AdapterManager
-- [ ] Initialize context manager at startup
-- [ ] Initialize adapter manager with configured providers
-- [ ] Switch execution mode based on task requirements
-- [ ] Record operations in audit trail
-- [ ] Run verification pipeline on task outputs
-- [ ] Handle permission errors gracefully
+4. **Dashboard & Observability**
+   - Flask web dashboard with Chart.js, dark mode
+   - SSE streaming for real-time task progress
+   - Structured JSON logging with trace correlation
+   - OpenTelemetry distributed tracing
+   - Alert system with deduplication and webhook channels
+   - Performance test suite with p50/p95/p99 benchmarks
 
-**Example Changes:**
-```python
-from vetinari.execution_context import get_context_manager, ExecutionMode
-from vetinari.adapter_manager import get_adapter_manager
-from vetinari.verification import get_verifier_pipeline
+5. **Memory & Communication**
+   - DualMemoryStore (SharedMemory consolidation)
+   - Blackboard system with request_help(), claim_entry(), publish_finding()
+   - Consensus voting via request_consensus()
 
-class Orchestrator:
-    def __init__(self, manifest_path: str):
-        # Existing initialization...
-        self.context_manager = get_context_manager()
-        self.adapter_manager = get_adapter_manager()
-        self.verifier = get_verifier_pipeline()
-        
-    def run_task(self, task_id: str):
-        # Switch to execution mode for this task
-        self.context_manager.switch_mode(ExecutionMode.EXECUTION, task_id)
-        
-        # Run task...
-        result = self.executor.execute_task(task_id)
-        
-        # Verify output
-        verification = self.verifier.verify(result.output)
-        
-        # Pop context
-        self.context_manager.pop_context()
-```
+### Phase 3: Agent Consolidation (v0.4.0)
 
-### 2.2 Migrate Skills to Tools
-**Files:** `skills/` directory → Implement Tool interface
+1. **22 Agents Consolidated to 6** (ADR-001)
+   - PlannerAgent (6 modes): plan, clarify, summarise, prune, extract, consolidate
+   - ResearcherAgent (8 modes): code_discovery, domain_research, api_lookup, lateral_thinking, ui_design, database, devops, git_workflow
+   - OracleAgent (4 modes): architecture, risk_assessment, ontological_analysis, contrarian_review
+   - BuilderAgent (2 modes): build, image_generation
+   - QualityAgent (4 modes): code_review, security_audit, test_generation, simplification
+   - OperationsAgent (9 modes): documentation, creative_writing, cost_analysis, experiment, error_recovery, synthesis, improvement, monitor, devops_ops
 
-**Tasks:**
-- [ ] Identify all existing skills
-- [ ] Create Tool wrapper for each skill
-- [ ] Define ToolMetadata with parameters and permissions
-- [ ] Implement Tool.execute() method
-- [ ] Register tools in ToolRegistry
-- [ ] Add unit tests for each tool
+2. **Agent Infrastructure**
+   - Typed Pydantic output schemas for all 33 modes
+   - Circuit breakers per-agent (CLOSED/OPEN/HALF_OPEN states)
+   - Per-agent token budgeting with warn/truncate
+   - Context window management with token tracking
+   - Quality gates per agent type with thresholds
 
-**Skill Candidates for Migration:**
-- [ ] `skills/builder` → BuilderTool
-- [ ] `skills/evaluator` → EvaluatorTool
-- [ ] `skills/explorer` → ExplorerTool
-- [ ] `skills/librarian` → LibrarianTool
-- [ ] `skills/oracle` → OracleTool
-- [ ] `skills/researcher` → ResearcherTool
-- [ ] `skills/synthesizer` → SynthesizerTool
-- [ ] `skills/ui-planner` → UIPlannerTool
+3. **Model Layer Enhancements**
+   - DynamicModelRouter with Thompson Sampling + capability matching
+   - SLM/LLM hybrid routing, dynamic complexity routing
+   - Speculative decoding (draft-verify pattern)
+   - Continuous batching (thread-safe inference queue)
+   - SQLite-backed cost tracking
+   - Benchmark framework (BenchmarkRunner/Case/Report)
 
-### 2.3 Update Model Selection
-**File:** `vetinari/orchestrator.py` → model selection logic
+4. **Stub Remediations** (B1-B8)
+   - Sandbox hooks, log aggregator send(), verification base, cost estimation
+   - MODES validation, CWE patterns, SVG metadata, upgrader install
 
-**Tasks:**
-- [ ] Integrate AdapterManager for provider selection
-- [ ] Use task requirements to select best provider/model
-- [ ] Handle provider fallback automatically
-- [ ] Track provider metrics during execution
-- [ ] Log provider decisions in audit trail
+### Phase 4: Security Hardening (v0.5.0)
 
-### 2.4 Add Permission Enforcement to Executor
-**File:** `vetinari/executor.py`
+1. **Critical Security Fixes** (P1.C1-C4, P1.H1-H10)
+   - `hmac.compare_digest` for constant-time token comparison (`vetinari/web/__init__.py`)
+   - `require_admin` decorator on mutating web endpoints
+   - `validate_json_fields` helper for API input validation
+   - Trusted proxy configuration for X-Forwarded-For validation
+   - Auth decorators on ADR, decomposition, ponder, rules, training routes
 
-**Tasks:**
-- [ ] Check permissions before tool execution
-- [ ] Prompt for confirmation on dangerous operations
-- [ ] Deny operations based on execution mode
-- [ ] Log permission checks in audit trail
-- [ ] Handle permission errors gracefully
+2. **Rate Limiting** (`vetinari/sandbox.py`)
+   - 10 requests per 60 seconds per client on sandbox execution paths
+   - Per-client tracking with automatic window expiry
 
----
+3. **Credential Vault** (`vetinari/credentials.py`)
+   - Fail-closed Fernet encryption (refuses plaintext fallback)
+   - Secure key derivation and storage
 
-## Phase 3: Testing & Validation (NEXT AFTER PHASE 2)
+4. **Dashboard REST API Auth** (`vetinari/dashboard/rest_api.py`)
+   - Auth token validation on admin endpoints
+   - Consistent error responses for unauthorized access
 
-### 3.1 Unit Tests
-**Location:** `tests/`
+### Phase 5: Analytics Pipeline (v0.5.0)
 
-**Test Files to Create:**
-- [ ] `test_execution_context.py`
-  - Test mode switching
-  - Test permission checking
-  - Test context stacking
-  - Test audit trail recording
+1. **7 Analytics REST Endpoints** (`vetinari/web/analytics_routes.py`)
+   - `/api/analytics/cost` -- Cost breakdown by model, agent, time period
+   - `/api/analytics/sla` -- SLA compliance metrics and violations
+   - `/api/analytics/anomalies` -- Detected anomalies in system behavior
+   - `/api/analytics/forecast` -- Cost and usage forecasting
+   - `/api/analytics/models` -- Per-model performance and cost stats
+   - `/api/analytics/agents` -- Per-agent utilization and quality metrics
+   - `/api/analytics/summary` -- System-wide analytics summary
 
-- [ ] `test_tool_interface.py`
-  - Test tool registration
-  - Test input validation
-  - Test permission enforcement
-  - Test execution hooks
+### Phase 6: Cost-Optimised Routing (v0.5.0)
 
-- [ ] `test_adapter_manager.py`
-  - Test provider registration
-  - Test model discovery
-  - Test provider selection
-  - Test fallback behavior
+1. **Cascade Router** (`vetinari/cascade_router.py`)
+   - CascadeRouter with tiered model escalation (small > medium > large)
+   - CascadeTier and CascadeResult dataclasses
+   - Heuristic confidence estimation per response
+   - Configurable confidence threshold (default: 0.7)
+   - Automatic escalation on low confidence
 
-- [ ] `test_verification.py`
-  - Test syntax verification
-  - Test security scanning
-  - Test custom verifiers
-  - Test verification summary
+2. **Batch Processor** (`vetinari/adapters/batch_processor.py`)
+   - BatchProcessor with Anthropic and OpenAI batch API backends
+   - Queue non-urgent inference for 50% cost discount
+   - Configurable batch window and max batch size
 
-### 3.2 Integration Tests
-**Location:** `tests/`
+### Phase 7: Agent Governance (v0.5.0)
 
-**Test Scenarios:**
-- [ ] End-to-end workflow in planning mode
-- [ ] End-to-end workflow in execution mode
-- [ ] Mode switching during execution
-- [ ] Provider fallback on error
-- [ ] Multi-provider inference
-- [ ] Audit trail completeness
-- [ ] Permission enforcement across all tools
+1. **File-Based Agent Definitions** (`.claude/agents/`)
+   - 6 governance files: planner.md, researcher.md, oracle.md, builder.md, quality.md, operations.md
+   - YAML frontmatter with name, description, tools, model, permissions
+   - Mode definitions, file jurisdiction, collaboration rules
 
-### 3.3 Example Workflows
-**Location:** `examples/` (create new directory)
+2. **Root AGENTS.md**
+   - Architecture overview, agent roster, file jurisdiction map
+   - Three-role pattern, delegation rules, quality gates
+   - Resource constraints, collaboration matrix, legacy deprecation
 
-**Example Scripts:**
-- [ ] `01_planning_mode_example.py` - Demonstrate planning mode
-- [ ] `02_execution_mode_example.py` - Demonstrate execution mode
-- [ ] `03_multi_provider_example.py` - Multiple providers
-- [ ] `04_custom_tool_example.py` - Creating custom tools
-- [ ] `05_verification_example.py` - Verification pipeline
+3. **Project CLAUDE.md**
+   - Build/test commands, project conventions, architecture overview
+   - Key file locations, development workflow
+
+### Phase 8: Registry & Configuration (v0.5.0)
+
+1. **Agent Skill Map** (`vetinari/config/agent_skill_map.json`)
+   - 6 consolidated agent entries with modes, absorbs, skills
+   - 20 legacy agent entries preserved for backward compatibility
+   - 12 workflow pipelines (8 legacy + 4 consolidated)
+   - Environment overrides (dev, staging, prod)
+
+2. **Skills Registry** (`vetinari/skills_registry.json`)
+   - 8 skills with capabilities, triggers, contexts
+   - agent_skill_mapping section mapping 6 agents to skills/modes
+   - cascade_routing and batch_processing configuration
+   - Workflow templates, orchestration features, skill dependencies
+
+3. **AgentSpec Expansion** (`vetinari/agents/contracts.py`)
+   - 28 AGENT_REGISTRY entries (22 legacy + 6 consolidated)
+   - AgentInterface contracts for all 6 target agents
+
+### Phase 9: Operations Agent Enrichment (v0.5.0)
+
+1. **Error Pattern Registry** (`vetinari/agents/consolidated/operations_agent.py`)
+   - Enriched error_recovery mode with pattern-based diagnostics
+   - Error classification and remediation strategies
 
 ---
 
-## Phase 4: Documentation & Polish (AFTER PHASE 3)
+## Remaining Work
 
-### 4.1 User Documentation
-- [ ] Update main README.md
-- [ ] Create quick start guide
-- [ ] Create execution mode guide
-- [ ] Create tool development guide
-- [ ] Create provider setup guide
-- [ ] Create troubleshooting guide
+### Priority 2: Architecture Fixes
+- P2.1: Web task execution bypasses agent pipeline
+- P2.2: Duplicate enum definitions (TaskStatus, AgentType)
+- P2.3: Plan approval not enforced in web flow
+- P2.7: Web UI frontend bugs (20 issues)
+- P2.8: Five coexisting planning systems consolidation
+- P2.9: ModelSearchEngine returns hardcoded data
 
-### 4.2 API Documentation
-- [ ] Generate docstring documentation
-- [ ] Create architecture diagrams
-- [ ] Create sequence diagrams for workflows
-- [ ] Create permission matrix documentation
-- [ ] Create provider comparison table
+### Priority 4: Model Configuration
+- P4.1-P4.4: Per-task inference profiles with hot-reload
+- P4.5: Sampling parameter gaps across adapters
 
-### 4.3 Video & Visual Content
-- [ ] Create demo video for planning vs execution mode
-- [ ] Create tool development walkthrough
-- [ ] Create multi-provider setup tutorial
+### Priority 5: Code Quality (Remaining)
+- P5.1: Bare except clause audit
+- P5.2: Replace 5 LLM calls with algorithms
+- P5.7: Agent prompt quality improvement (40+ lines/mode target)
+- P5.8: 16 unaddressed Python files
+- P5.9: 6 missing package dependencies
 
-### 4.4 Performance Optimization
-- [ ] Profile context switching overhead
-- [ ] Optimize permission checking
-- [ ] Optimize verification pipeline
-- [ ] Cache provider discovery results
-- [ ] Implement lazy loading where appropriate
+### Priority 6: Safety & Guardrails
+- P6.1: Input/output guardrails at trust boundaries
+- P6.2: Sensitive data detection in output (PII, API keys)
 
----
-
-## Phase 5: Advanced Features (FUTURE)
-
-### 5.1 Interactive CLI
-- [ ] Add interactive mode with REPL
-- [ ] Add task scheduling and monitoring
-- [ ] Add real-time execution visualization
-- [ ] Add interactive confirmation prompts
-
-### 5.2 Distributed Execution
-- [ ] Add remote executor support
-- [ ] Add task queue and worker system
-- [ ] Add result aggregation
-- [ ] Add distributed tracing
-
-### 5.3 Advanced Verification
-- [ ] ML-based code quality scoring
-- [ ] Automated test generation
-- [ ] Coverage analysis
-- [ ] Performance profiling
-
-### 5.4 Provider Intelligence
-- [ ] Cost optimization algorithms
-- [ ] Performance prediction
-- [ ] Automatic load balancing
-- [ ] Provider recommendation engine
-
-### 5.5 Observability
-- [ ] Real-time monitoring dashboard
-- [ ] Advanced analytics
-- [ ] Cost reporting
-- [ ] Usage patterns analysis
+### Priority 7: Structural Cleanup
+- P7.1: Merge duplicate planning modules
+- P7.5: Consolidate 5 planning systems into single path
+- P7.6: Project directory reorganization
 
 ---
 
-## Development Guidelines
+## Future Roadmap
 
-### Code Standards
-- Follow PEP 8 style guide
-- Use type hints everywhere
-- Include docstrings for all public methods
-- Add logging at appropriate levels
-- Write tests for new code
+### v0.6.0 -- Observability & Evaluation
+| Item | Description |
+|------|-------------|
+| P10.1 | OpenTelemetry GenAI semantic conventions |
+| P10.10 | Intermediate step evaluation (PlanQualityMetric, PlanAdherenceMetric) |
+| P10.12 | CI/CD continuous evaluation pipeline |
+| P10.11 | Safety-specific benchmark suite (ToolEmu-style) |
+| P10.17 | Session replay for debugging |
 
-### Git Workflow
-1. Create feature branch: `git checkout -b feature/component-name`
-2. Make changes in small, focused commits
-3. Run tests before committing
-4. Push and create pull request
-5. Address review feedback
-6. Merge when approved
-
-### Testing Requirements
-- New code must have unit tests
-- Integration tests for multi-component changes
-- All tests must pass before merge
-- Aim for >80% code coverage
-
-### Documentation Requirements
-- Update docstrings
-- Update relevant guide documents
-- Add example code if applicable
-- Update changelog
+### v0.7.0 -- Advanced Architecture
+| Item | Description |
+|------|-------------|
+| P9.1 | Async/await pipeline stages |
+| P9.2 | Multi-turn conversation memory |
+| P9.3 | Streaming pipeline with backpressure |
+| P10.2 | Google A2A protocol support |
+| P10.9 | Temporal knowledge graph memory |
+| P10.13 | Structured reflection/self-correction pattern |
+| P10.14 | Cyclical state machine graphs |
+| P10.16 | Progressive autonomy spectrum |
 
 ---
 
-## Success Metrics
+## Architecture Decision Records
 
-By completion of Phase 2, Vetinari should:
-
-✅ Support multiple execution modes with clear permission boundaries
-✅ Manage tools through a unified, safe interface
-✅ Support multiple LLM providers seamlessly
-✅ Provide rich, informative CLI feedback
-✅ Verify outputs for security and correctness
-✅ Maintain complete audit trails
-✅ Deliver products with minimal user effort
-
----
-
-## Quick Reference
-
-### Key Files Created
-- `vetinari/execution_context.py` - Execution modes and permissions
-- `vetinari/tool_interface.py` - Tool interface and registry
-- `vetinari/adapter_manager.py` - Provider management
-- `vetinari/verification.py` - Output verification
-- `cli.py` - Enhanced CLI
-- `docs/OPENCODE_INTEGRATION.md` - Integration guide
-
-### Key Directories
-- `vetinari/adapters/` - Provider adapters
-- `vetinari/agents/` - Agent implementations
-- `skills/` - Available skills/tools
-- `tests/` - Test suite
-- `docs/` - Documentation
-- `examples/` - Example usage
-
-### Quick Start Commands
-```bash
-# View help
-python -m vetinari.cli --help
-
-# Run in planning mode
-python -m vetinari.cli --mode planning --task t1
-
-# Check providers
-python -m vetinari.cli --providers
-
-# Check context
-python -m vetinari.cli --context
-```
+| ADR | Decision | Rationale |
+|-----|----------|-----------|
+| ADR-001 | 6-Agent Consolidation | 22 merged to 6 (5-7 optimal per research) |
+| ADR-002 | Flat Ensemble over Hierarchy | TwoLayerOrchestrator coordinates directly |
+| ADR-003 | Code Mode Orchestration | LLM generates agent API chains in sandbox |
+| ADR-004 | Circuit Breaker Pattern | Per-agent CLOSED/OPEN/HALF_OPEN states |
+| ADR-005 | MultiModeAgent Pattern | Internal mode routing within agents |
+| ADR-006 | File-Based Agent Jurisdiction | .claude/agents/ + root AGENTS.md |
+| ADR-007 | Context Engineering | Just-in-time context, few-shot examples |
 
 ---
 
-## Questions & Support
+## Verification Strategy
 
-Refer to:
-1. `docs/OPENCODE_INTEGRATION.md` - Comprehensive guide
-2. OpenCode documentation - Original patterns
-3. Code comments and docstrings
-4. Tests for usage examples
+After each phase:
+1. `python -m pytest tests/ -x -q` -- all tests pass
+2. `python -c "import vetinari; print('Import OK')"` -- clean import
+3. For security: targeted security tests
+4. For UI: manual dashboard smoke test
+5. For architecture: integration test with sample project

@@ -1,12 +1,15 @@
 """Ponder (model deliberation) API routes."""
 
 from flask import Blueprint, jsonify, request
+from vetinari.web import is_admin_user
 
 bp = Blueprint('ponder', __name__)
 
 
 @bp.route('/api/ponder/choose-model', methods=['POST'])
 def api_ponder_choose_model():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.ponder import rank_models
 
@@ -58,6 +61,8 @@ def api_ponder_models():
 
 @bp.route('/api/ponder/plan/<plan_id>', methods=['POST'])
 def api_ponder_run_plan(plan_id):
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.ponder import ponder_project_for_plan
 

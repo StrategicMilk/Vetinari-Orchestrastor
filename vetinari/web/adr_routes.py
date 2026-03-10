@@ -1,6 +1,7 @@
 """ADR (Architecture Decision Records) API routes."""
 
 from flask import Blueprint, jsonify, request
+from vetinari.web import is_admin_user, validate_json_fields
 
 bp = Blueprint('adr', __name__)
 
@@ -39,25 +40,22 @@ def api_adr_get(adr_id):
 
 @bp.route('/api/adr', methods=['POST'])
 def api_adr_create():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data = request.json or {}
 
-        title = data.get('title')
-        category = data.get('category', 'architecture')
-        context = data.get('context', '')
-        decision = data.get('decision', '')
-        consequences = data.get('consequences', '')
-
-        if not title:
-            return jsonify({"error": "title required"}), 400
+        ok, err = validate_json_fields(data, ['title'])
+        if not ok:
+            return err
 
         adr = adr_system.create_adr(
-            title=title,
-            category=category,
-            context=context,
-            decision=decision,
-            consequences=consequences,
+            title=data.get('title'),
+            category=data.get('category', 'architecture'),
+            context=data.get('context', ''),
+            decision=data.get('decision', ''),
+            consequences=data.get('consequences', ''),
             created_by=data.get('created_by', 'user')
         )
 
@@ -68,9 +66,11 @@ def api_adr_create():
 
 @bp.route('/api/adr/<adr_id>', methods=['PUT'])
 def api_adr_update(adr_id):
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data = request.json or {}
 
         adr = adr_system.update_adr(adr_id, data)
 
@@ -84,6 +84,8 @@ def api_adr_update(adr_id):
 
 @bp.route('/api/adr/<adr_id>/deprecate', methods=['POST'])
 def api_adr_deprecate(adr_id):
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.adr import adr_system
         data = request.json or {}
@@ -102,9 +104,11 @@ def api_adr_deprecate(adr_id):
 
 @bp.route('/api/adr/propose', methods=['POST'])
 def api_adr_propose():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data = request.json or {}
 
         context = data.get('context', '')
         num_options = int(data.get('num_options', 3))
@@ -123,9 +127,11 @@ def api_adr_propose():
 
 @bp.route('/api/adr/propose/accept', methods=['POST'])
 def api_adr_propose_accept():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.adr import adr_system
-        data = request.json
+        data = request.json or {}
 
         question = data.get('question', '')
         options = data.get('options', [])

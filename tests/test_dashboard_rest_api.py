@@ -317,11 +317,19 @@ class TestFlaskRestAPI:
     # === CORS Headers ===
     
     def test_cors_headers_present(self, client):
-        """Test that CORS headers are present."""
+        """Test that CORS headers are restricted to localhost origins (P1.H2)."""
+        # No Origin header — no CORS headers should be returned (no wildcard)
         response = client.get('/api/v1/health')
-        
-        assert 'Access-Control-Allow-Origin' in response.headers
-        assert 'Access-Control-Allow-Methods' in response.headers
+        assert 'Access-Control-Allow-Origin' not in response.headers
+
+        # Allowed localhost origin — should get specific ACAO header
+        response_local = client.get(
+            '/api/v1/health',
+            headers={'Origin': 'http://localhost:5000'},
+        )
+        assert 'Access-Control-Allow-Origin' in response_local.headers
+        assert response_local.headers['Access-Control-Allow-Origin'] == 'http://localhost:5000'
+        assert 'Access-Control-Allow-Methods' in response_local.headers
 
 
 if __name__ == "__main__":

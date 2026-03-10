@@ -1,6 +1,7 @@
 """Task decomposition API routes."""
 
 from flask import Blueprint, jsonify, request
+from vetinari.web import is_admin_user
 
 bp = Blueprint('decomposition', __name__)
 
@@ -44,9 +45,11 @@ def api_decomposition_dod_dor():
 
 @bp.route('/api/decomposition/decompose', methods=['POST'])
 def api_decomposition_decompose():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.decomposition import decomposition_engine
-        data = request.json
+        data = request.json or {}
 
         task_prompt = data.get('task_prompt', '')
         parent_task_id = data.get('parent_task_id', 'root')
@@ -79,10 +82,12 @@ def api_decomposition_decompose():
 
 @bp.route('/api/decomposition/decompose-agent', methods=['POST'])
 def api_decomposition_decompose_agent():
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.decomposition_agent import decomposition_agent
         from vetinari.planning import plan_manager
-        data = request.json
+        data = request.json or {}
 
         plan_id = data.get('plan_id')
         prompt = data.get('prompt', '')
