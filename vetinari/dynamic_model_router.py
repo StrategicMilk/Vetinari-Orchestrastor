@@ -409,10 +409,24 @@ class DynamicModelRouter:
         if not candidates:
             # Fallback: return any available model
             available = [m for m in self.models.values() if m.is_available]
+            # Filter out models with recent anomalies
+            try:
+                from vetinari.analytics.anomaly import get_anomaly_detector
+                detector = get_anomaly_detector()
+                healthy = []
+                for m in available:
+                    history = detector.get_history(metric=f"model.{m.id}.latency")
+                    recent = [r for r in history if r.timestamp > time.time() - 600]
+                    if not recent:
+                        healthy.append(m)
+                if healthy:
+                    available = healthy
+            except Exception:
+                pass  # Anomaly detector unavailable
             if not available:
                 logger.warning("No models available!")
                 return None
-            
+
             # Pick random available model as fallback
             fallback = random.choice(available)
             return ModelSelection(
@@ -492,6 +506,29 @@ class DynamicModelRouter:
                 score += ts_bonus
         except Exception:
             logger.debug("Failed to compute Thompson Sampling bonus for model %s", model.id, exc_info=True)
+
+        # SLA compliance penalty (up to -0.15)
+        try:
+            from vetinari.analytics.sla import get_sla_tracker
+            tracker = get_sla_tracker()
+            compliance = tracker.get_model_compliance(model.id)
+            if compliance is not None and compliance < 90.0:
+                sla_penalty = (90.0 - compliance) / 100.0 * 0.15
+                score -= sla_penalty
+        except Exception:
+            pass
+
+        # Cost efficiency bonus (up to +0.05)
+        try:
+            from vetinari.learning.cost_optimizer import get_cost_optimizer
+            co = get_cost_optimizer()
+            task_type_str = task_type.value if hasattr(task_type, 'value') else str(task_type)
+            efficiencies = co._get_efficiencies(task_type_str, [model.id])
+            if efficiencies and efficiencies[0].quality_per_dollar > 0:
+                cost_bonus = min(efficiencies[0].quality_per_dollar / 100.0, 0.05)
+                score += cost_bonus
+        except Exception:
+            pass
 
         # Provider preference (10%)
         if self.prefer_local:

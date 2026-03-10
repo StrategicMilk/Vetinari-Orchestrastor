@@ -27,6 +27,7 @@ htmlcov/
 test_collection.txt
 test_results.txt
 TEST_REPORT.md
+training_data.jsonl
 
 # Logs
 server.log
@@ -69,3 +70,7 @@ nul
 # OS
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
+*.db
+.vetinari/

@@ -247,6 +247,16 @@ ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Loop prevention and cost-aware delegation constraints
+# ---------------------------------------------------------------------------
+
+MAX_AGENT_RETRIES_PER_TASK = 3   # Prevent infinite retry loops
+MAX_DELEGATION_CHAIN_LENGTH = 5  # Max depth already enforced per-agent above
+PREFER_LOCAL_FOR_SIMPLE_TASKS = True   # Route simple tasks to local models
+CLOUD_ESCALATION_THRESHOLD = 0.7       # Escalate to cloud when local quality < 0.7
+
+
 def validate_delegation(
     from_agent: str, to_agent: str, current_depth: int = 0
 ) -> Tuple[bool, str]:

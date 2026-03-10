@@ -3,7 +3,7 @@ Orchestrator — LEGACY manifest-based task execution engine.
 
 .. deprecated::
     This module handles YAML-manifest execution. For goal-based orchestration,
-    use ``vetinari.two_layer_orchestration.TwoLayerOrchestrator``.
+    use ``vetinari.orchestration.two_layer.TwoLayerOrchestrator``.
     A future release will unify all orchestrators into a single module.
 """
 
@@ -15,7 +15,7 @@ import warnings
 
 warnings.warn(
     "vetinari.orchestrator is deprecated. Use "
-    "vetinari.two_layer_orchestration.TwoLayerOrchestrator instead.",
+    "vetinari.orchestration.two_layer.TwoLayerOrchestrator instead.",
     DeprecationWarning,
     stacklevel=2,
 )
@@ -56,6 +56,9 @@ class Orchestrator:
         # Resolve host from env if not provided
         if host is None:
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        # Auto-read API token from environment when not explicitly provided
+        if api_token is None:
+            api_token = os.environ.get("LM_STUDIO_API_TOKEN", "")
 
         # Make manifest_path absolute if it's relative
         manifest_path_obj = Path(manifest_path)

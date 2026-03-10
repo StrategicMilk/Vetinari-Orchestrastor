@@ -5,9 +5,11 @@ Monitors SLA compliance and anomaly patterns, then automatically adjusts
 system configuration to maintain performance targets.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -44,15 +46,39 @@ class AutoTuner:
 
     MAX_AUTO_CONCURRENT = 8
     MIN_AUTO_CONCURRENT = 1
+    _CONFIG_PATH = Path(".vetinari/auto_tuner_config.json")
+    _DEFAULTS: Dict[str, Any] = {
+        "max_concurrent": 4,
+        "anomaly_threshold": 3.0,
+        "retry_backoff_cap": 30,
+        "min_quality_threshold": 0.65,
+    }
 
     def __init__(self):
         self._actions: List[TuningAction] = []
-        self._current_config: Dict[str, Any] = {
-            "max_concurrent": 4,
-            "anomaly_threshold": 3.0,
-            "retry_backoff_cap": 30,
-            "min_quality_threshold": 0.65,
-        }
+        self._current_config: Dict[str, Any] = self._load_config()
+
+    def _load_config(self) -> Dict[str, Any]:
+        """Load persisted config or return defaults."""
+        config = dict(self._DEFAULTS)
+        try:
+            if self._CONFIG_PATH.exists():
+                with open(self._CONFIG_PATH) as f:
+                    saved = json.load(f)
+                config.update(saved)
+                logger.info("[AutoTuner] Loaded persisted config from %s", self._CONFIG_PATH)
+        except Exception as e:
+            logger.warning("[AutoTuner] Failed to load config, using defaults: %s", e)
+        return config
+
+    def _persist_config(self) -> None:
+        """Save current config to disk."""
+        try:
+            self._CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._CONFIG_PATH, "w") as f:
+                json.dump(self._current_config, f, indent=2)
+        except Exception as e:
+            logger.warning("[AutoTuner] Failed to persist config: %s", e)
 
     def run_cycle(self) -> List[TuningAction]:
         """
@@ -76,6 +102,7 @@ class AutoTuner:
 
         if applied:
             logger.info("[AutoTuner] Applied %s tuning actions", len(applied))
+            self._persist_config()
         return applied
 
     def _tune_from_sla(self) -> List[TuningAction]:

@@ -1170,6 +1170,26 @@ class TestValidator:
 class TestUpgrader:
     """Tests for Upgrader.check_for_upgrades and install_upgrade."""
 
+    SAMPLE_MODELS = [
+        {"name": "model-a", "version": "1.0", "memory_gb": 8},
+        {"name": "model-b", "version": "2.0", "memory_gb": 12},
+    ]
+
+    def _mock_fetch(self, data, status=200):
+        """Return a patch context that mocks requests.get to return *data*."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = status
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = data
+        return patch("vetinari.upgrader.requests.get", return_value=mock_resp)
+
+    def _mock_install(self, status=200):
+        """Return a patch context that mocks requests.post for install_upgrade."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = status
+        mock_resp.text = "OK"
+        return patch("vetinari.upgrader.requests.post", return_value=mock_resp)
+
     def test_upgrader_init(self):
         from vetinari.upgrader import Upgrader
 
@@ -1180,69 +1200,103 @@ class TestUpgrader:
         from vetinari.upgrader import Upgrader
 
         u = Upgrader({"benchmarks_source": ["http://example.com"]})
-        result = u.check_for_upgrades()
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            result = u.check_for_upgrades()
         assert isinstance(result, list)
 
     def test_check_for_upgrades_filters_by_memory(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
+        models = [
+            {"name": "small", "version": "1.0", "memory_gb": 4},
+            {"name": "huge", "version": "1.0", "memory_gb": 200},
+        ]
+        u = Upgrader({"benchmarks_source": ["http://example.com"], "memory_budget_gb": 96})
+        with self._mock_fetch(models):
+            candidates = u.check_for_upgrades()
         for c in candidates:
             assert c.get("memory_gb", 0) <= 96
+        assert len(candidates) == 1
+        assert candidates[0]["name"] == "small"
 
-    def test_check_for_upgrades_default_returns_two_candidates(self):
+    def test_check_for_upgrades_with_endpoint_returns_candidates(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": ["http://example.com/benchmarks"]})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            candidates = u.check_for_upgrades()
         assert len(candidates) == 2
 
     def test_check_for_upgrades_candidate_has_name(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            candidates = u.check_for_upgrades()
         for c in candidates:
             assert "name" in c
 
     def test_check_for_upgrades_candidate_has_version(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            candidates = u.check_for_upgrades()
         for c in candidates:
             assert "version" in c
 
     def test_check_for_upgrades_candidate_has_memory_gb(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            candidates = u.check_for_upgrades()
         for c in candidates:
             assert "memory_gb" in c
 
-    def test_check_for_upgrades_exception_handling(self):
+    def test_check_for_upgrades_string_source(self):
+        """benchmarks_source as a plain string (not list) is accepted."""
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({"benchmarks_source": "not_a_list"})
-        # benchmarks_source is not a list, indexing [0] will work on string
-        # but overall the function should not crash
-        result = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": "http://example.com/bench"})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            result = u.check_for_upgrades()
         assert isinstance(result, list)
+        assert len(result) == 2
+
+    def test_check_for_upgrades_network_error(self):
+        from vetinari.upgrader import Upgrader
+        import requests as req
+
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with patch("vetinari.upgrader.requests.get", side_effect=req.exceptions.ConnectionError("refused")):
+            result = u.check_for_upgrades()
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_check_for_upgrades_no_config_returns_empty(self):
+        """No benchmarks_source configured returns empty list."""
+        from vetinari.upgrader import Upgrader
+
+        u = Upgrader({})
+        candidates = u.check_for_upgrades()
+        assert isinstance(candidates, list)
+        assert len(candidates) == 0
 
     def test_install_upgrade_returns_true(self):
         from vetinari.upgrader import Upgrader
 
         u = Upgrader({})
-        result = u.install_upgrade({"name": "test-model", "version": "1.0"})
+        with self._mock_install(200):
+            result = u.install_upgrade({"name": "test-model", "version": "1.0"})
         assert result is True
 
     def test_install_upgrade_empty_candidate(self):
         from vetinari.upgrader import Upgrader
 
         u = Upgrader({})
-        result = u.install_upgrade({})
+        with self._mock_install(200):
+            result = u.install_upgrade({})
         assert result is True
 
     def test_install_upgrade_with_full_candidate(self):
@@ -1250,7 +1304,8 @@ class TestUpgrader:
 
         u = Upgrader({})
         candidate = {"name": "glm-flash", "version": "4.7", "memory_gb": 8}
-        result = u.install_upgrade(candidate)
+        with self._mock_install(200):
+            result = u.install_upgrade(candidate)
         assert result is True
 
     def test_upgrader_config_stored(self):
@@ -1263,10 +1318,10 @@ class TestUpgrader:
     def test_check_for_upgrades_benchmarks_source_used(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({"benchmarks_source": ["custom_url"]})
-        # The URL is accessed via config but not actually fetched
-        candidates = u.check_for_upgrades()
-        assert len(candidates) >= 0  # should not crash
+        u = Upgrader({"benchmarks_source": ["http://custom.example.com"]})
+        with self._mock_fetch([]) as mock_get:
+            u.check_for_upgrades()
+        mock_get.assert_called_once_with("http://custom.example.com", timeout=10)
 
     def test_check_for_upgrades_empty_config(self):
         from vetinari.upgrader import Upgrader
@@ -1274,29 +1329,71 @@ class TestUpgrader:
         u = Upgrader({})
         candidates = u.check_for_upgrades()
         assert isinstance(candidates, list)
+        assert len(candidates) == 0
 
-    def test_install_upgrade_prints_name(self, capsys):
+    def test_install_upgrade_logs_name(self, caplog):
+        """install_upgrade logs the model name and version."""
         from vetinari.upgrader import Upgrader
+        import logging
 
         u = Upgrader({})
-        u.install_upgrade({"name": "my-model", "version": "2.0"})
-        captured = capsys.readouterr()
-        assert "my-model" in captured.out
-        assert "2.0" in captured.out
+        with caplog.at_level(logging.INFO, logger="vetinari.upgrader"):
+            with self._mock_install(200):
+                u.install_upgrade({"name": "my-model", "version": "2.0"})
+        assert "my-model" in caplog.text
+        assert "2.0" in caplog.text
 
-    def test_check_for_upgrades_with_high_memory_candidates(self):
-        """Verify the built-in data has candidates with <= 96 GB."""
+    def test_check_for_upgrades_filters_high_memory(self):
+        """Candidates exceeding memory budget are filtered out."""
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        candidates = u.check_for_upgrades()
-        # Both built-in candidates (8 GB and 12 GB) are under 96 GB
+        models = [
+            {"name": "small", "version": "1.0", "memory_gb": 8},
+            {"name": "huge", "version": "1.0", "memory_gb": 200},
+        ]
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch(models):
+            candidates = u.check_for_upgrades()
         assert all(c["memory_gb"] <= 96 for c in candidates)
 
     def test_upgrader_multiple_calls_idempotent(self):
         from vetinari.upgrader import Upgrader
 
-        u = Upgrader({})
-        r1 = u.check_for_upgrades()
-        r2 = u.check_for_upgrades()
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            r1 = u.check_for_upgrades()
+        with self._mock_fetch(self.SAMPLE_MODELS):
+            r2 = u.check_for_upgrades()
         assert len(r1) == len(r2)
+
+    def test_check_for_upgrades_dict_response_models_key(self):
+        """Handles response wrapped in {\"models\": [...]}."""
+        from vetinari.upgrader import Upgrader
+
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch({"models": self.SAMPLE_MODELS}):
+            candidates = u.check_for_upgrades()
+        assert len(candidates) == 2
+
+    def test_check_for_upgrades_dict_response_data_key(self):
+        """Handles response wrapped in {\"data\": [...]}."""
+        from vetinari.upgrader import Upgrader
+
+        u = Upgrader({"benchmarks_source": ["http://example.com"]})
+        with self._mock_fetch({"data": self.SAMPLE_MODELS}):
+            candidates = u.check_for_upgrades()
+        assert len(candidates) == 2
+
+    def test_memory_budget_from_config(self):
+        """Memory budget is read from config."""
+        from vetinari.upgrader import Upgrader
+
+        u = Upgrader({"memory_budget_gb": 4, "benchmarks_source": ["http://example.com"]})
+        models = [
+            {"name": "tiny", "version": "1.0", "memory_gb": 2},
+            {"name": "medium", "version": "1.0", "memory_gb": 8},
+        ]
+        with self._mock_fetch(models):
+            candidates = u.check_for_upgrades()
+        assert len(candidates) == 1
+        assert candidates[0]["name"] == "tiny"

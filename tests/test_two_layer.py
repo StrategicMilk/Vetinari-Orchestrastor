@@ -411,47 +411,47 @@ class TestGetGoalRouting(unittest.TestCase):
     def test_code_routing(self):
         agent, mode, tier = get_goal_routing("implement the feature")
         self.assertEqual(agent, "BUILDER")
-        self.assertEqual(mode, "implement")
+        self.assertEqual(mode, "build")
         self.assertEqual(tier, "coder")
 
     def test_research_routing(self):
         agent, mode, tier = get_goal_routing("research the topic")
-        self.assertEqual(agent, "RESEARCHER")
+        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
         self.assertEqual(mode, "domain_research")
 
     def test_docs_routing(self):
         agent, mode, tier = get_goal_routing("write readme")
-        self.assertEqual(agent, "DOCUMENTATION_AGENT")
+        self.assertEqual(agent, "OPERATIONS")
 
     def test_creative_routing(self):
         agent, mode, tier = get_goal_routing("write a story")
-        self.assertEqual(agent, "SYNTHESIZER")
+        self.assertEqual(agent, "OPERATIONS")
         self.assertEqual(mode, "creative_writing")
 
     def test_security_routing(self):
         agent, mode, tier = get_goal_routing("security audit")
-        self.assertEqual(agent, "SECURITY_AUDITOR")
+        self.assertEqual(agent, "QUALITY")
 
     def test_data_routing(self):
         agent, mode, tier = get_goal_routing("design database")
-        self.assertEqual(agent, "DATA_ENGINEER")
+        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
 
     def test_devops_routing(self):
         agent, mode, tier = get_goal_routing("deploy to kubernetes")
-        self.assertEqual(agent, "DEVOPS")
+        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
 
     def test_ui_routing(self):
         agent, mode, tier = get_goal_routing("build ui component")
-        self.assertEqual(agent, "UI_PLANNER")
+        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
 
     def test_image_routing(self):
         agent, mode, tier = get_goal_routing("create a logo")
-        self.assertEqual(agent, "IMAGE_GENERATOR")
+        self.assertEqual(agent, "BUILDER")
 
     def test_general_fallback(self):
         agent, mode, tier = get_goal_routing("do something unknown xyz")
         self.assertEqual(agent, "PLANNER")
-        self.assertEqual(mode, "decompose")
+        self.assertEqual(mode, "plan")
 
     def test_all_categories_in_routing_table(self):
         for cat in _GOAL_CATEGORY_KEYWORDS:
@@ -679,8 +679,9 @@ class TestGetAgent(unittest.TestCase):
             result = self.orch._get_agent("PLANNER")
         self.assertIsNone(result)
 
-    def test_agent_module_map_has_22_entries(self):
-        self.assertEqual(len(TwoLayerOrchestrator._AGENT_MODULE_MAP), 22)
+    def test_agent_module_map_has_entries(self):
+        # v0.4.0: 26 entries (6 consolidated + 20 legacy redirects)
+        self.assertEqual(len(TwoLayerOrchestrator._AGENT_MODULE_MAP), 26)
 
     def test_agent_module_map_all_values_are_2_tuples(self):
         for key, val in TwoLayerOrchestrator._AGENT_MODULE_MAP.items():
@@ -692,9 +693,12 @@ class TestGetAgent(unittest.TestCase):
             self.assertTrue(fn.startswith("get_"), f"{key}: getter '{fn}' must start with 'get_'")
 
     def test_all_expected_agent_types_present(self):
+        # v0.4.0: 6 consolidated + legacy redirects
         expected = {
-            "PLANNER", "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER",
-            "EVALUATOR", "SYNTHESIZER", "BUILDER", "UI_PLANNER",
+            "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
+            "BUILDER", "QUALITY", "OPERATIONS",
+            "EXPLORER", "ORACLE", "LIBRARIAN", "RESEARCHER",
+            "EVALUATOR", "SYNTHESIZER", "UI_PLANNER",
             "SECURITY_AUDITOR", "DATA_ENGINEER", "DOCUMENTATION_AGENT",
             "COST_PLANNER", "TEST_AUTOMATION", "EXPERIMENTATION_MANAGER",
             "IMPROVEMENT", "USER_INTERACTION", "DEVOPS", "VERSION_CONTROL",

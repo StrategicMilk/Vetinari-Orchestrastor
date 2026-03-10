@@ -19,6 +19,13 @@ The evaluator skill specializes in:
    Will be removed in a future release.
 """
 
+import warnings
+warnings.warn(
+    "vetinari.skills.evaluator is deprecated. Use vetinari.skills.quality_skill instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 import logging

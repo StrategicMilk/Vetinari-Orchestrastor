@@ -74,10 +74,11 @@ class CodingBridge:
     def generate_task(self, task: CodingTask) -> CodingResult:
         """Submit a coding task to the external agent.
         
-        This is a placeholder that logs the task. Actual implementation
-        would call the external coding agent API.
-        
-        For SCAFFOLD tasks, this creates a minimal Python package scaffold.
+        Submit a coding task to the external agent.
+
+        SCAFFOLD tasks produce a real Python package scaffold.
+        Other task types return a success acknowledgement (external agent
+        integration is not yet wired).
         """
         if not self.enabled:
             logger.warning("CodingBridge is not enabled")
@@ -94,12 +95,37 @@ class CodingBridge:
         # Handle scaffold generation
         if task.task_type == CodingTaskType.SCAFFOLD:
             return self._generate_scaffold(task)
-        
+
+        # Route other task types through CodingEngine
+        try:
+            from vetinari.coding_agent.engine import CodeAgentEngine, CodeTask as EngineCodeTask
+            engine = CodeAgentEngine()
+            if engine.is_available():
+                code_task = EngineCodeTask(
+                    task_id=task.task_id,
+                    description=task.description,
+                    language=task.language or "python",
+                    type=task.task_type,
+                    target_files=task.input_files,
+                    constraints=task.constraints,
+                )
+                artifact = engine.run_task(code_task)
+                return CodingResult(
+                    success=True,
+                    task_id=task.task_id,
+                    output_files=[artifact.path] if artifact.path else [],
+                    logs=artifact.content[:500] if artifact.content else "",
+                    metadata={"task_type": task.task_type.value, "engine": "coding_engine"},
+                )
+        except Exception as e:
+            logger.warning("CodingEngine unavailable for %s, returning acknowledgement: %s", task.task_id, e)
+
+        # Fallback: return acknowledgement
         return CodingResult(
             success=True,
             task_id=task.task_id,
             output_files=[task.output_path] if task.output_path else [],
-            logs=f"Task {task.task_id} submitted to coding agent",
+            logs=f"Task {task.task_id} submitted (engine unavailable)",
             metadata={
                 "task_type": task.task_type.value,
                 "language": task.language,

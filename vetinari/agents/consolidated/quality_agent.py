@@ -5,7 +5,7 @@ Replaces: EVALUATOR + SECURITY_AUDITOR + TEST_AUTOMATION
 
 Modes:
 - code_review: General code quality, design patterns, maintainability
-- security_audit: Vulnerability detection with 40+ heuristic patterns + LLM
+- security_audit: Vulnerability detection with 45+ heuristic patterns + LLM
 - test_generation: pytest-aware test generation with coverage analysis
 - simplification: Code simplification and refactoring recommendations
 """
@@ -53,6 +53,38 @@ _SECURITY_PATTERNS: List[Tuple[str, str, str]] = [
     (r"random\.random\(|random\.randint\(", "Non-cryptographic random", "LOW"),
     (r"urllib\.request\.urlopen\(", "Unvalidated URL open", "MEDIUM"),
     (r"exec\s*\(|compile\s*\(", "Dynamic code execution", "HIGH"),
+    # ── B6: Expanded CWE patterns (15 new) ──
+    # CWE-434: Unrestricted file upload
+    (r"\.save\(.*filename\)|\bsave_file\b.*request\.", "Unrestricted file upload (CWE-434)", "HIGH"),
+    # CWE-611: XML External Entity (XXE)
+    (r"xml\.etree\.ElementTree\.parse\(|lxml\.etree\.parse\(", "Potential XXE — use defusedxml (CWE-611)", "HIGH"),
+    (r"xml\.sax\.parse\(|xml\.parsers\.expat", "Potential XXE via SAX/expat (CWE-611)", "HIGH"),
+    # CWE-918: Server-Side Request Forgery (SSRF)
+    (r"requests\.(?:get|post|put|delete|patch|head)\(.*(?:user|param|arg|input|query)", "Potential SSRF — validate URLs (CWE-918)", "HIGH"),
+    # CWE-502: Insecure deserialization — detect usage of unsafe deserializers
+    (r"shelve\.open\(|jsonpickle\.decode\(|dill\.loads?\(", "Insecure deserialization (CWE-502)", "CRITICAL"),
+    # CWE-732: Incorrect permission assignment
+    (r"os\.chmod\(.*0o?[67][67][67]", "Overly permissive file mode (CWE-732)", "MEDIUM"),
+    (r"umask\s*\(\s*0\s*\)", "Umask disabled — files world-accessible (CWE-732)", "HIGH"),
+    # CWE-295: Improper certificate validation
+    (r"ssl\._create_unverified_context|ssl\.CERT_NONE", "SSL cert validation disabled (CWE-295)", "HIGH"),
+    # CWE-327: Use of broken cryptographic algorithm
+    (r"DES\b|Blowfish|RC4|RC2|ARC4", "Weak/broken cipher algorithm (CWE-327)", "HIGH"),
+    # CWE-798: Hardcoded credentials
+    (r"(?:db_pass|database_password|mysql_pwd)\s*=\s*['\"]", "Hardcoded database password (CWE-798)", "CRITICAL"),
+    # CWE-89: SQL injection (additional patterns)
+    (r"%s.*(?:SELECT|INSERT|UPDATE|DELETE|DROP).*%\s*\(", "SQL injection via percent formatting (CWE-89)", "HIGH"),
+    (r"cursor\.execute\(.*\+", "SQL injection via string concatenation (CWE-89)", "HIGH"),
+    # CWE-22: Path traversal
+    (r"open\(.*(?:request|user_input|params).*\)", "Potential path traversal (CWE-22)", "HIGH"),
+    # CWE-400: Uncontrolled resource consumption
+    (r"while\s+True.*(?:recv|read|accept)", "Unbounded I/O loop — potential DoS (CWE-400)", "MEDIUM"),
+    # CWE-312: Cleartext storage/logging of sensitive data
+    (r"log(?:ger)?\.(?:info|debug|warning|error).*(?:password|secret|token|api.?key)", "Logging sensitive data in cleartext (CWE-312)", "HIGH"),
+    # CWE-942: CSRF protection disabled
+    (r"csrf_exempt|WTF_CSRF_ENABLED\s*=\s*False", "CSRF protection disabled (CWE-942)", "HIGH"),
+    # CWE-1004: Sensitive cookie without HttpOnly
+    (r"set_cookie\(.*secure\s*=\s*False", "Cookie without Secure flag (CWE-1004)", "MEDIUM"),
 ]
 
 
@@ -99,6 +131,8 @@ class QualityAgent(MultiModeAgent):
                 "- Check SOLID principles adherence\n"
                 "- Evaluate error handling and edge cases\n"
                 "- Score quality 0.0-1.0\n\n"
+                "Check for: logic errors, race conditions, resource leaks, missing error "
+                "handling, API contract violations. Rate severity per finding.\n"
                 "Be constructive. Prioritize issues by impact."
             ),
             "security_audit": (
@@ -108,6 +142,8 @@ class QualityAgent(MultiModeAgent):
                 "- Assess severity (CRITICAL/HIGH/MEDIUM/LOW/INFO)\n"
                 "- Provide remediation code examples\n"
                 "- Check for hardcoded secrets, injection flaws, unsafe deserialization\n\n"
+                "Map findings to OWASP Top 10 categories. Include CWE IDs. "
+                "Provide remediation code snippets.\n"
                 "Be thorough. False negatives are worse than false positives."
             ),
             "test_generation": (
@@ -117,6 +153,8 @@ class QualityAgent(MultiModeAgent):
                 "- Target coverage gaps and edge cases\n"
                 "- Include both positive and negative test cases\n"
                 "- Generate integration tests when appropriate\n\n"
+                "Target 80% branch coverage. Include: happy path, error path, edge cases, "
+                "boundary values. Use Arrange-Act-Assert pattern.\n"
                 "Tests must be runnable and follow pytest conventions."
             ),
             "simplification": (
@@ -126,6 +164,8 @@ class QualityAgent(MultiModeAgent):
                 "- Reduce cyclomatic complexity\n"
                 "- Extract reusable patterns\n"
                 "- Improve naming and structure\n\n"
+                "Preserve all behavior. Reduce cyclomatic complexity. Extract only when "
+                "reuse is proven (>=3 call sites).\n"
                 "Preserve functionality. Simplify without losing clarity."
             ),
         }

@@ -272,7 +272,38 @@ class ExternalPluginSandbox:
         ))
 
         try:
-            result = {"status": "simulated", "hook": hook_name}
+            # Load plugin module if not cached
+            if plugin_name not in self.loaded_plugins:
+                plugin_path = self.plugin_dir / plugin_name
+                init_file = plugin_path / "__init__.py"
+                main_file = plugin_path / "main.py"
+                target = main_file if main_file.exists() else init_file
+
+                if not target.exists():
+                    logger.error("Plugin %r has no loadable module at %s", plugin_name, target)
+                    return {"error": f"Plugin {plugin_name} not found"}
+
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(
+                    f"vetinari_plugin_{plugin_name}", str(target)
+                )
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                self.loaded_plugins[plugin_name] = mod
+
+            plugin_mod = self.loaded_plugins[plugin_name]
+
+            # Look up the hook function
+            hook_fn = getattr(plugin_mod, hook_name, None)
+            if hook_fn is None or not callable(hook_fn):
+                logger.warning("Plugin %r has no callable %r", plugin_name, hook_name)
+                return {"error": f"Hook {hook_name} not found in plugin {plugin_name}"}
+
+            # Execute within timeout using threading
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(hook_fn, params)
+                result = future.result(timeout=self.timeout_sec)
 
             self._log_audit(AuditEntry(
                 timestamp=datetime.now().isoformat(),

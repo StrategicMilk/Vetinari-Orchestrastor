@@ -26,7 +26,7 @@ class DocumentationSkill(Tool):
         metadata = ToolMetadata(
             name="documentation",
             description="Generate API documentation, user guides, README files, and technical specifications",
-            category=ToolCategory.DOCUMENTATION,
+            category=ToolCategory.SEARCH_ANALYSIS,
             parameters=[
                 ToolParameter("target", "str", "Code or system to document", required=True),
                 ToolParameter("doc_type", "str", "Documentation type: api|user_guide|readme|spec|all", required=False),

@@ -274,6 +274,168 @@ class CodeBridge:
         return []
 
 
+    # ── Phase 2 enhancements ─────────────────────────────────────────
+
+    def batch_edit(self, edits: List[Dict[str, Any]]) -> BridgeTaskResult:
+        """Apply multiple edits as a single atomic operation.
+
+        Each edit dict has keys: ``path``, ``old`` (text to replace), ``new``.
+        All edits are validated for syntax before any file is written.
+        """
+        import ast
+
+        task_id = f"batch_{uuid.uuid4().hex[:8]}"
+        errors: List[str] = []
+
+        for i, edit in enumerate(edits):
+            path = edit.get("path", "")
+            new_text = edit.get("new", "")
+            if path.endswith(".py") and new_text.strip():
+                try:
+                    ast.parse(new_text)
+                except SyntaxError as exc:
+                    errors.append(f"Edit #{i} ({path}): {exc}")
+
+        if errors:
+            return BridgeTaskResult(
+                task_id=task_id,
+                status=BridgeTaskStatus.FAILED,
+                success=False,
+                error=f"Syntax validation failed: {'; '.join(errors)}",
+            )
+
+        applied: List[str] = []
+        for edit in edits:
+            path = edit.get("path", "")
+            old_text = edit.get("old", "")
+            new_text = edit.get("new", "")
+            try:
+                if os.path.isfile(path):
+                    with open(path, "r", encoding="utf-8") as fh:
+                        content = fh.read()
+                    if old_text and old_text in content:
+                        content = content.replace(old_text, new_text, 1)
+                    else:
+                        content = new_text
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(content)
+                    applied.append(path)
+                else:
+                    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(new_text)
+                    applied.append(path)
+            except Exception as exc:
+                errors.append(f"{path}: {exc}")
+
+        return BridgeTaskResult(
+            task_id=task_id,
+            status=BridgeTaskStatus.COMPLETED if not errors else BridgeTaskStatus.FAILED,
+            success=len(errors) == 0,
+            output_files=applied,
+            error="; ".join(errors) if errors else None,
+        )
+
+    def diff_preview(self, edits: List[Dict[str, Any]]) -> str:
+        """Generate a unified-diff preview of proposed edits without writing.
+
+        Each edit dict has keys: ``path``, ``old`` (text to replace), ``new``.
+        Returns a multi-file unified diff string.
+        """
+        import difflib
+
+        diffs: List[str] = []
+        for edit in edits:
+            path = edit.get("path", "unknown")
+            old_text = edit.get("old", "")
+            new_text = edit.get("new", "")
+
+            if os.path.isfile(path) and old_text:
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        original = fh.read()
+                    modified = original.replace(old_text, new_text, 1)
+                except Exception:
+                    original = old_text
+                    modified = new_text
+            else:
+                original = old_text
+                modified = new_text
+
+            diff = difflib.unified_diff(
+                original.splitlines(keepends=True),
+                modified.splitlines(keepends=True),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+            )
+            diffs.append("".join(diff))
+
+        return "\n".join(diffs)
+
+    def rollback(self, checkpoint_id: str = "HEAD") -> bool:
+        """Rollback to a git checkpoint.
+
+        Uses ``git checkout`` to restore files to the specified commit.
+        Creates a safety stash of current changes before rolling back.
+        """
+        import subprocess
+
+        try:
+            # Stash current changes as safety net
+            subprocess.run(
+                ["git", "stash", "push", "-m", f"codebrige_rollback_{checkpoint_id}"],
+                capture_output=True, text=True, timeout=30,
+            )
+            # Restore to checkpoint
+            result = subprocess.run(
+                ["git", "checkout", checkpoint_id, "--", "."],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode == 0:
+                logger.info("Rolled back to checkpoint %s", checkpoint_id)
+                return True
+            else:
+                logger.warning("Rollback failed: %s", result.stderr)
+                # Try to restore stash
+                subprocess.run(
+                    ["git", "stash", "pop"],
+                    capture_output=True, text=True, timeout=30,
+                )
+                return False
+        except Exception as exc:
+            logger.error("Rollback error: %s", exc)
+            return False
+
+    def create_checkpoint(self, message: str = "auto-checkpoint") -> Optional[str]:
+        """Create a git checkpoint (commit) for later rollback.
+
+        Returns the commit SHA or None on failure.
+        """
+        import subprocess
+
+        try:
+            subprocess.run(
+                ["git", "add", "-A"],
+                capture_output=True, text=True, timeout=30,
+            )
+            result = subprocess.run(
+                ["git", "commit", "-m", f"[codebrige] {message}", "--allow-empty"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode == 0:
+                sha_result = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                sha = sha_result.stdout.strip()
+                logger.info("Checkpoint created: %s", sha[:8])
+                return sha
+            return None
+        except Exception as exc:
+            logger.error("Checkpoint creation failed: %s", exc)
+            return None
+
+
 _code_bridge: Optional[CodeBridge] = None
 
 

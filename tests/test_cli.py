@@ -71,14 +71,6 @@ sys.modules["vetinari.orchestration.two_layer"] = _two_layer_stub
 # vetinari.orchestration.types  (imported by two_layer_orchestration shim)
 sys.modules["vetinari.orchestration.types"] = _make_stub("vetinari.orchestration.types")
 
-# vetinari.two_layer_orchestration (legacy shim in the installed package)
-_two_layer_compat_stub = _make_stub(
-    "vetinari.two_layer_orchestration",
-    get_two_layer_orchestrator=_mock_get_two_layer,
-    init_two_layer_orchestrator=_mock_init_two_layer,
-)
-sys.modules["vetinari.two_layer_orchestration"] = _two_layer_compat_stub
-
 # vetinari.types — load REAL module (stdlib-only) so execution_graph & durable_execution resolve
 import importlib.util as _cli_ilu
 _vtypes_path = os.path.join(_CLI_ROOT, "vetinari", "types.py")
@@ -328,7 +320,6 @@ class TestCmdRun(unittest.TestCase):
         with patch.object(cli, "_build_orchestrator", side_effect=Exception("no config")):
             # Also ensure the two_layer compat shim returns our mock
             with patch.dict(sys.modules, {
-                "vetinari.two_layer_orchestration": _two_layer_compat_stub,
                 "vetinari.orchestration.two_layer": _two_layer_stub,
             }):
                 args = _args(goal="Wiring failure goal")

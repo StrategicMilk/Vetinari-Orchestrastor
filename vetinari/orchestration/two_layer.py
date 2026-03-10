@@ -43,17 +43,18 @@ _GOAL_CATEGORY_KEYWORDS: Dict[str, List[str]] = {
 }
 
 # Maps GoalCategory value -> (primary agent type, default mode, model tier hint)
+# v0.4.0: Updated to use 6 consolidated agent types
 _GOAL_ROUTING_TABLE: Dict[str, tuple] = {
-    "code":     ("BUILDER",           "implement",       "coder"),
-    "research": ("RESEARCHER",        "domain_research", "general"),
-    "docs":     ("DOCUMENTATION_AGENT", "documentation", "general"),
-    "creative": ("SYNTHESIZER",       "creative_writing", "general"),
-    "security": ("SECURITY_AUDITOR",  "security_audit",  "coder"),
-    "data":     ("DATA_ENGINEER",     "database",        "general"),
-    "devops":   ("DEVOPS",            "devops",          "coder"),
-    "ui":       ("UI_PLANNER",        "ui_design",       "vision"),
-    "image":    ("IMAGE_GENERATOR",   "image_generation", "general"),
-    "general":  ("PLANNER",           "decompose",       "general"),
+    "code":     ("BUILDER",                "build",            "coder"),
+    "research": ("CONSOLIDATED_RESEARCHER", "domain_research", "general"),
+    "docs":     ("OPERATIONS",             "documentation",    "general"),
+    "creative": ("OPERATIONS",             "creative_writing", "general"),
+    "security": ("QUALITY",                "security_audit",   "coder"),
+    "data":     ("CONSOLIDATED_RESEARCHER", "database",        "general"),
+    "devops":   ("CONSOLIDATED_RESEARCHER", "devops",          "coder"),
+    "ui":       ("CONSOLIDATED_RESEARCHER", "ui_design",       "vision"),
+    "image":    ("BUILDER",                "image_generation", "general"),
+    "general":  ("PLANNER",                "plan",             "general"),
 }
 
 
@@ -113,66 +114,48 @@ class TwoLayerOrchestrator:
         self.agent_context = context
         self._agents.clear()
 
-    # Complete mapping from agent type string to (module, getter_function)
+    # v0.4.0: 6 consolidated agents + legacy aliases via compat shim
     _AGENT_MODULE_MAP = {
+        # ── 6 active agents ──
         "PLANNER": ("vetinari.agents.planner_agent", "get_planner_agent"),
-        "EXPLORER": ("vetinari.agents.explorer_agent", "get_explorer_agent"),
-        "ORACLE": ("vetinari.agents.oracle_agent", "get_oracle_agent"),
-        "LIBRARIAN": ("vetinari.agents.librarian_agent", "get_librarian_agent"),
-        "RESEARCHER": ("vetinari.agents.researcher_agent", "get_researcher_agent"),
-        "EVALUATOR": ("vetinari.agents.evaluator_agent", "get_evaluator_agent"),
-        "SYNTHESIZER": ("vetinari.agents.synthesizer_agent", "get_synthesizer_agent"),
         "BUILDER": ("vetinari.agents.builder_agent", "get_builder_agent"),
-        "UI_PLANNER": ("vetinari.agents.ui_planner_agent", "get_ui_planner_agent"),
-        "SECURITY_AUDITOR": (
-            "vetinari.agents.security_auditor_agent",
-            "get_security_auditor_agent",
+        "CONSOLIDATED_RESEARCHER": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
         ),
-        "DATA_ENGINEER": (
-            "vetinari.agents.data_engineer_agent",
-            "get_data_engineer_agent",
+        "CONSOLIDATED_ORACLE": (
+            "vetinari.agents.consolidated.oracle_agent",
+            "get_consolidated_oracle_agent",
         ),
-        "DOCUMENTATION_AGENT": (
-            "vetinari.agents.documentation_agent",
-            "get_documentation_agent",
+        "QUALITY": (
+            "vetinari.agents.consolidated.quality_agent",
+            "get_quality_agent",
         ),
-        "COST_PLANNER": (
-            "vetinari.agents.cost_planner_agent",
-            "get_cost_planner_agent",
+        "OPERATIONS": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
         ),
-        "TEST_AUTOMATION": (
-            "vetinari.agents.test_automation_agent",
-            "get_test_automation_agent",
-        ),
-        "EXPERIMENTATION_MANAGER": (
-            "vetinari.agents.experimentation_manager_agent",
-            "get_experimentation_manager_agent",
-        ),
-        "IMPROVEMENT": (
-            "vetinari.agents.improvement_agent",
-            "get_improvement_agent",
-        ),
-        "USER_INTERACTION": (
-            "vetinari.agents.user_interaction_agent",
-            "get_user_interaction_agent",
-        ),
-        "DEVOPS": ("vetinari.agents.devops_agent", "get_devops_agent"),
-        "VERSION_CONTROL": (
-            "vetinari.agents.version_control_agent",
-            "get_version_control_agent",
-        ),
-        "ERROR_RECOVERY": (
-            "vetinari.agents.error_recovery_agent",
-            "get_error_recovery_agent",
-        ),
-        "CONTEXT_MANAGER": (
-            "vetinari.agents.context_manager_agent",
-            "get_context_manager_agent",
-        ),
-        "IMAGE_GENERATOR": (
-            "vetinari.agents.image_generator_agent",
-            "get_image_generator_agent",
-        ),
+        # ── Legacy aliases (routed via compat shim) ──
+        "EXPLORER": ("vetinari.agents.compat", "get_explorer_agent"),
+        "LIBRARIAN": ("vetinari.agents.compat", "get_librarian_agent"),
+        "RESEARCHER": ("vetinari.agents.compat", "get_researcher_agent"),
+        "ORACLE": ("vetinari.agents.compat", "get_oracle_agent"),
+        "EVALUATOR": ("vetinari.agents.compat", "get_evaluator_agent"),
+        "SYNTHESIZER": ("vetinari.agents.compat", "get_synthesizer_agent"),
+        "UI_PLANNER": ("vetinari.agents.compat", "get_ui_planner_agent"),
+        "SECURITY_AUDITOR": ("vetinari.agents.compat", "get_security_auditor_agent"),
+        "DATA_ENGINEER": ("vetinari.agents.compat", "get_data_engineer_agent"),
+        "DOCUMENTATION_AGENT": ("vetinari.agents.compat", "get_documentation_agent"),
+        "COST_PLANNER": ("vetinari.agents.compat", "get_cost_planner_agent"),
+        "TEST_AUTOMATION": ("vetinari.agents.compat", "get_test_automation_agent"),
+        "EXPERIMENTATION_MANAGER": ("vetinari.agents.compat", "get_experimentation_manager_agent"),
+        "IMPROVEMENT": ("vetinari.agents.compat", "get_improvement_agent"),
+        "USER_INTERACTION": ("vetinari.agents.compat", "get_user_interaction_agent"),
+        "DEVOPS": ("vetinari.agents.compat", "get_devops_agent"),
+        "VERSION_CONTROL": ("vetinari.agents.compat", "get_version_control_agent"),
+        "ERROR_RECOVERY": ("vetinari.agents.compat", "get_error_recovery_agent"),
+        "CONTEXT_MANAGER": ("vetinari.agents.compat", "get_context_manager_agent"),
+        "IMAGE_GENERATOR": ("vetinari.agents.compat", "get_image_generator_agent"),
     }
 
     def _get_agent(self, agent_type_str: str):
@@ -278,6 +261,18 @@ class TwoLayerOrchestrator:
         graph = self.plan_generator.generate_plan(enriched_goal, constraints)
         stages["plan"] = {"plan_id": graph.plan_id, "tasks": len(graph.nodes)}
 
+        # ── C2: Stage-boundary validation (plan → model assignment) ───
+        plan_valid, plan_issues = self._validate_stage_boundary(
+            "plan", stages["plan"], min_keys=["plan_id", "tasks"],
+        )
+        if not plan_valid:
+            logger.warning("[Pipeline] Plan validation failed: %s", plan_issues)
+            return {
+                "plan_id": graph.plan_id, "goal": goal, "completed": 0,
+                "failed": 1, "error": f"Plan validation failed: {plan_issues}",
+                "stages": stages, "total_time_ms": int((time.time() - start_time) * 1000),
+            }
+
         # STAGE 4: Model Assignment
         logger.info("[Pipeline] Stage 4: Model Assignment")
         for node in graph.nodes.values():
@@ -293,6 +288,13 @@ class TwoLayerOrchestrator:
         effective_handler = task_handler or self._make_default_handler()
         exec_results = self.execution_engine.execute_plan(graph, effective_handler)
         stages["execution"] = exec_results
+
+        # ── C2: Stage-boundary validation (execution → review) ────────
+        exec_valid, exec_issues = self._validate_stage_boundary(
+            "execution", exec_results, min_keys=["completed"],
+        )
+        if not exec_valid:
+            logger.warning("[Pipeline] Execution validation failed: %s", exec_issues)
 
         # STAGE 6: Output Review
         logger.info("[Pipeline] Stage 6: Output Review")
@@ -316,6 +318,44 @@ class TwoLayerOrchestrator:
             "stages": stages,
             "total_time_ms": total_time,
         }
+
+    # ── C2: Stage-boundary validation helper ─────────────────────────
+
+    @staticmethod
+    def _validate_stage_boundary(
+        stage_name: str,
+        stage_output: Any,
+        min_keys: List[str] = None,
+    ) -> tuple:
+        """Validate the output of a pipeline stage before passing to the next.
+
+        Returns ``(is_valid, issues_list)``.
+        """
+        issues: List[str] = []
+
+        if stage_output is None:
+            issues.append(f"Stage '{stage_name}' produced None output")
+            return False, issues
+
+        if isinstance(stage_output, dict):
+            if min_keys:
+                missing = [k for k in min_keys if k not in stage_output]
+                if missing:
+                    issues.append(
+                        f"Stage '{stage_name}' missing required keys: {missing}"
+                    )
+            # Check for error indicators
+            if stage_output.get("error"):
+                issues.append(
+                    f"Stage '{stage_name}' has error: {stage_output['error']}"
+                )
+            if stage_output.get("failed", 0) > 0 and stage_output.get("completed", 0) == 0:
+                issues.append(
+                    f"Stage '{stage_name}': all tasks failed "
+                    f"({stage_output['failed']} failures, 0 completed)"
+                )
+
+        return (len(issues) == 0, issues)
 
     @staticmethod
     def _enrich_goal(goal: str, context: Dict[str, Any]) -> str:
@@ -415,6 +455,35 @@ class TwoLayerOrchestrator:
                     temperature = 0.3
 
                 task_type_label = task.task_type or "general"
+
+                # Post task to blackboard for inter-agent visibility
+                try:
+                    from vetinari.blackboard import get_blackboard
+                    board = get_blackboard()
+                    board.post(
+                        content=task.description[:500],
+                        request_type=task_type_label,
+                        requested_by="orchestrator",
+                        priority=5,
+                        metadata={"task_id": task.id},
+                    )
+                except Exception:
+                    pass  # Blackboard unavailable, continue without
+
+                # Augment with web search for research/exploration tasks
+                if task_type_label in ("research", "exploration", "documentation", "fact_finding"):
+                    try:
+                        from vetinari.tools.web_search import web_search
+                        search_query = task.description[:200]
+                        results = web_search(search_query, max_results=3)
+                        if results:
+                            web_context = "\nRelevant web search results:\n"
+                            for r in results[:3]:
+                                web_context += f"- [{r.get('title','')}]({r.get('url','')}): {r.get('snippet','')}\n"
+                            optimised_prompt = web_context + "\n" + optimised_prompt
+                    except Exception:
+                        pass  # Web search unavailable
+
                 system_prompt = (
                     f"You are Vetinari, an AI orchestration system executing "
                     f"a {task_type_label} task. "
@@ -477,21 +546,22 @@ class TwoLayerOrchestrator:
     def _review_outputs(
         self, exec_results: Dict[str, Any], goal: str
     ) -> Dict[str, Any]:
-        """Use EvaluatorAgent to review execution outputs for quality."""
+        """Use QualityAgent to review execution outputs for quality."""
         try:
-            evaluator = self._get_agent("EVALUATOR")
-            if evaluator:
+            quality = self._get_agent("QUALITY")
+            if quality:
                 from vetinari.agents.contracts import AgentTask, AgentType
 
                 task_results = exec_results.get("task_results", {})
                 artifacts = [str(v) for v in task_results.values() if v]
                 eval_task = AgentTask(
                     task_id="review-0",
-                    agent_type=AgentType.EVALUATOR,
+                    agent_type=AgentType.QUALITY,
                     description=f"Review outputs for goal: {goal}",
-                    context={"artifacts": artifacts[:5], "focus": "all"},
+                    prompt=f"Review outputs for goal: {goal}",
+                    context={"artifacts": artifacts[:5], "focus": "all", "mode": "code_review"},
                 )
-                result = evaluator.execute(eval_task)
+                result = quality.execute(eval_task)
                 if result.success:
                     return result.output
         except Exception as e:
@@ -499,7 +569,7 @@ class TwoLayerOrchestrator:
         return {
             "verdict": "inconclusive",
             "quality_score": 0.5,
-            "summary": "Review skipped (evaluator unavailable)",
+            "summary": "Review skipped (quality agent unavailable)",
         }
 
     def _assemble_final_output(
@@ -508,10 +578,10 @@ class TwoLayerOrchestrator:
         review_result: Dict[str, Any],
         goal: str,
     ) -> str:
-        """Use SynthesizerAgent to assemble a final coherent output."""
+        """Use OperationsAgent (synthesis mode) to assemble a final coherent output."""
         try:
-            synthesizer = self._get_agent("SYNTHESIZER")
-            if synthesizer:
+            operations = self._get_agent("OPERATIONS")
+            if operations:
                 from vetinari.agents.contracts import AgentTask, AgentType
 
                 task_results = exec_results.get("task_results", {})
@@ -525,11 +595,12 @@ class TwoLayerOrchestrator:
                 )
                 synth_task = AgentTask(
                     task_id="assemble-0",
-                    agent_type=AgentType.SYNTHESIZER,
+                    agent_type=AgentType.OPERATIONS,
                     description=f"Final assembly for goal: {goal}",
-                    context={"sources": sources, "type": "final_report"},
+                    prompt=f"Final assembly for goal: {goal}",
+                    context={"sources": sources, "type": "final_report", "mode": "synthesis"},
                 )
-                result = synthesizer.execute(synth_task)
+                result = operations.execute(synth_task)
                 if result.success and result.output:
                     return result.output.get(
                         "synthesized_artifact", str(result.output)

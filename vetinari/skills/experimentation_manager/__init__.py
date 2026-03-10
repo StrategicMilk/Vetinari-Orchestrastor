@@ -26,7 +26,7 @@ class ExperimentationManagerSkill(Tool):
         metadata = ToolMetadata(
             name="experimentation_manager",
             description="Track experiments, manage A/B tests, version models, and analyze experiment results",
-            category=ToolCategory.ANALYSIS,
+            category=ToolCategory.SEARCH_ANALYSIS,
             parameters=[
                 ToolParameter("experiment_name", "str", "Name of the experiment", required=True),
                 ToolParameter("hypothesis", "str", "What is being tested", required=False),

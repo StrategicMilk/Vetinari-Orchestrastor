@@ -445,10 +445,17 @@ class TestDriftMonitor(unittest.TestCase):
 
     def setUp(self):
         _reset_all()
+        # Use a temp dir for snapshots so CI alignment-checker files don't
+        # leak into the test (different dummy data → different hashes).
+        self._tmp = tempfile.mkdtemp()
         from vetinari.drift.monitor import get_drift_monitor
         self.monitor = get_drift_monitor()
+        from pathlib import Path
+        self.monitor._registry._snapshot_path = Path(self._tmp) / "contracts.json"
 
     def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
         _reset_all()
 
     def test_singleton(self):

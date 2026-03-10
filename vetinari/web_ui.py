@@ -226,8 +226,8 @@ if _APSCHEDULER_AVAILABLE:
 
 def refresh_model_cache():
     try:
-        from vetinari.model_search import ModelSearchEngine
-        search_engine = ModelSearchEngine()
+        from vetinari.model_discovery import ModelDiscovery
+        search_engine = ModelDiscovery()
         search_engine.refresh_all_caches()
         print(f"[Vetinari] Model cache refreshed at {datetime.now()}")
     except Exception as e:
@@ -247,8 +247,8 @@ if scheduler is not None:
 
 def trigger_light_search(project_id: str, task_description: str):
     try:
-        from vetinari.model_search import ModelSearchEngine
-        search_engine = ModelSearchEngine()
+        from vetinari.model_discovery import ModelDiscovery
+        search_engine = ModelDiscovery()
         
         lm_models = []
         try:
@@ -674,13 +674,14 @@ def api_create_plan():
         default_models = current_config.get("default_models", [])
         fallback_models = current_config.get("fallback_models", [])
         
-        # Initialize planning engine
-        from vetinari.planning_engine import PlanningEngine
-        planner = PlanningEngine(default_models=default_models, fallback_models=fallback_models)
-        
+        # Initialize plan mode engine (successor to PlanningEngine)
+        from vetinari.plan_mode import PlanModeEngine
+        from vetinari.plan_types import PlanGenerationRequest
+        engine = PlanModeEngine()
+
         # Create the plan
-        plan = planner.plan(goal, system_prompt, available_models)
-        
+        plan = engine.generate_plan(PlanGenerationRequest(goal=goal))
+
         return jsonify({
             "status": "ok",
             "plan": plan.to_dict()
@@ -728,20 +729,16 @@ def api_new_project():
         uncensored_fallback_models = current_config.get("uncensored_fallback_models", [])
         memory_budget_gb = current_config.get("memory_budget_gb", 32)
         
-        # Initialize planning engine with memory budget and fallbacks
-        from vetinari.planning_engine import PlanningEngine
-        planner = PlanningEngine(
-            default_models=default_models, 
-            fallback_models=fallback_models,
-            uncensored_fallback_models=uncensored_fallback_models,
-            memory_budget_gb=memory_budget_gb
-        )
-        
+        # Initialize plan mode engine (successor to PlanningEngine)
+        from vetinari.plan_mode import PlanModeEngine
+        from vetinari.plan_types import PlanGenerationRequest
+        engine = PlanModeEngine()
+
         # Create the plan
-        plan = planner.plan(goal, system_prompt, available_models, planning_model=model or None)
-        
-        # Convert plan tasks to dict format
-        tasks = [t.to_dict() for t in plan.tasks]
+        plan = engine.generate_plan(PlanGenerationRequest(goal=goal, constraints=system_prompt))
+
+        # Convert plan subtasks to dict format
+        tasks = [s.to_dict() for s in plan.subtasks]
         
         # Save tasks to config
         project_dir = PROJECT_ROOT / 'projects' / f'project_{uuid.uuid4().hex[:12]}'
@@ -2382,16 +2379,16 @@ def api_model_search(project_id):
             return jsonify({"error": "External discovery globally disabled"}), 403
         if not _project_external_model_enabled(project_dir):
             return jsonify({"error": "External model discovery disabled for this project"}), 403
-        from vetinari.live_model_search import LiveModelSearchAdapter
-        
+        from vetinari.model_discovery import ModelDiscovery
+
         data = request.json or {}
         task_description = data.get('task_description', '')
-        
+
         project_dir = PROJECT_ROOT / 'projects' / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
-        
-        search_adapter = LiveModelSearchAdapter()
+
+        search_adapter = ModelDiscovery()
         
         lm_models = []
         try:
@@ -2447,8 +2444,8 @@ def api_task_override(project_id, task_id):
 @app.route('/api/project/<project_id>/refresh-models', methods=['POST'])
 def api_refresh_models(project_id):
     try:
-        from vetinari.live_model_search import LiveModelSearchAdapter
-        
+        from vetinari.model_discovery import ModelDiscovery  # noqa: F401
+
         return jsonify({
             "status": "ok",
             "message": "Model cache refreshed (live search enabled)"
@@ -3329,6 +3326,38 @@ def api_verify_goal(project_id):
 
 
 # Training, image generation, and SD routes moved to vetinari/web/training_routes.py
+
+# ---------------------------------------------------------------------------
+# User preferences API
+# ---------------------------------------------------------------------------
+
+@app.route('/api/preferences', methods=['GET'])
+def api_get_preferences():
+    """Get all user preferences."""
+    try:
+        from vetinari.web.preferences import get_preferences_manager
+        mgr = get_preferences_manager()
+        return jsonify({"preferences": mgr.get_all()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/preferences', methods=['PUT'])
+def api_set_preferences():
+    """Update one or more preferences."""
+    try:
+        from vetinari.web.preferences import get_preferences_manager
+        data = request.get_json(silent=True) or {}
+        mgr = get_preferences_manager()
+        results = mgr.set_many(data)
+        rejected = [k for k, v in results.items() if not v]
+        resp = {"preferences": mgr.get_all()}
+        if rejected:
+            resp["rejected_keys"] = rejected
+        return jsonify(resp)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # Register Plan Mode API endpoints
 try:

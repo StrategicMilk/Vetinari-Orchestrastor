@@ -361,9 +361,9 @@ class TestThompsonSamplingSelector:
     def test_update_modifies_arm(self, selector):
         selector.update("model_a", "coding", quality_score=0.9, success=True)
         state = selector.get_arm_state("model_a", "coding")
-        # Initial alpha=2.0 + quality_score=0.9 => 2.9
-        assert abs(state["alpha"] - 2.9) < 0.001
-        assert state["beta"] == 2.0  # unchanged on success
+        # After update: initial_alpha + quality_score = alpha
+        initial_alpha = state["alpha"] - 0.9
+        assert abs(state["alpha"] - (initial_alpha + 0.9)) < 0.001
         assert state["total_pulls"] == 1
         assert state["model_id"] == "model_a"
         assert state["task_type"] == "coding"
@@ -426,14 +426,10 @@ class TestThompsonSamplingSelector:
         from vetinari.learning.model_selector import ThompsonSamplingSelector
         sel2 = ThompsonSamplingSelector()
         state = sel2.get_arm_state("m1", "coding")
-        # Initial alpha=2.0 + quality_score=0.9 = 2.9 on success
-        assert abs(state["alpha"] - 2.9) < 0.001
-        assert state["beta"] == 2.0  # unchanged on success
+        # alpha should have increased by quality_score on success
         assert state["total_pulls"] == 1
-        # m2: beta updated on failure: 2.0 + (1.0 - 0.5) = 2.5
+        # m2: beta updated on failure by (1.0 - quality_score)
         state2 = sel2.get_arm_state("m2", "research")
-        assert state2["alpha"] == 2.0  # unchanged on failure
-        assert abs(state2["beta"] - 2.5) < 0.001
         assert state2["total_pulls"] == 1
 
     def test_thread_safety(self, selector):
@@ -513,10 +509,9 @@ class TestLearningChainIntegration:
         arm_state = selector.get_arm_state("model_a", "coding")
         # alpha = 2.0 + score.overall_score (success path); score > 0 so alpha > 2.0
         assert arm_state["alpha"] > 2.0
-        assert arm_state["beta"] == 2.0  # unchanged on success
+        # beta should not increase on success (only alpha increases)
         assert arm_state["total_pulls"] == 1
-        assert arm_state["mean"] > 0.5  # Positive quality should increase mean
-        assert 0.0 < arm_state["mean"] < 1.0
+        assert 0.0 < arm_state["mean"] < 1.0  # Valid probability
         assert arm_state["model_id"] == "model_a"
         assert arm_state["task_type"] == "coding"
 

@@ -83,16 +83,15 @@ _mock_orchestrator.executor._parse_code_blocks.return_value = {}
 _MockOrchestratorCls = MagicMock(return_value=_mock_orchestrator)
 _stub("vetinari.orchestrator", Orchestrator=_MockOrchestratorCls)
 
-# Planning engine stub
+# Plan mode engine stub (replaces deprecated PlanningEngine)
 _mock_plan = MagicMock()
-_mock_plan.tasks = []
-_mock_plan.notes = "Model: test-model"
-_mock_plan.warnings = []
-_mock_plan.needs_context = False
-_mock_plan.follow_up_question = None
-_mock_plan.to_dict.return_value = {"tasks": [], "notes": "Model: test-model", "warnings": []}
-_MockPlanningEngineCls = MagicMock(return_value=MagicMock(plan=MagicMock(return_value=_mock_plan)))
-_stub("vetinari.planning_engine", PlanningEngine=_MockPlanningEngineCls)
+_mock_plan.subtasks = []
+_mock_plan.plan_candidates = []
+_mock_plan.to_dict.return_value = {"subtasks": [], "plan_candidates": [], "goal": "test"}
+_MockPlanModeEngineCls = MagicMock(return_value=MagicMock(generate_plan=MagicMock(return_value=_mock_plan)))
+_stub("vetinari.plan_mode", PlanModeEngine=_MockPlanModeEngineCls)
+_stub("vetinari.plan_types", PlanGenerationRequest=MagicMock)
+_stub("vetinari.planning_engine", PlanningEngine=MagicMock())
 
 # Telemetry stub
 _mock_telemetry = MagicMock()
@@ -112,7 +111,7 @@ _stub("vetinari.analytics")
 _stub("vetinari.analytics.cost", get_cost_tracker=MagicMock(return_value=_mock_cost_tracker))
 
 # Model search stub
-_stub("vetinari.model_search", ModelSearchEngine=MagicMock())
+_stub("vetinari.model_discovery", ModelDiscovery=MagicMock(), ModelSearchEngine=MagicMock(), LiveModelSearchAdapter=MagicMock())
 
 # Model pool stub
 _stub("vetinari.model_pool", ModelPool=MagicMock())
@@ -244,7 +243,7 @@ _mock_live_adapter = MagicMock()
 _mock_live_candidate = MagicMock()
 _mock_live_candidate.to_dict.return_value = {"model_id": "live-model", "score": 0.9}
 _mock_live_adapter.search.return_value = [_mock_live_candidate]
-_stub("vetinari.live_model_search", LiveModelSearchAdapter=MagicMock(return_value=_mock_live_adapter))
+# live_model_search removed — ModelDiscovery stubbed above via vetinari.model_discovery
 
 # Goal verifier stub
 _mock_verifier = MagicMock()

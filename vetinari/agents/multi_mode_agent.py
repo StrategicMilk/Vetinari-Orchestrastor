@@ -56,6 +56,14 @@ class MultiModeAgent(BaseAgent):
     def __init__(self, agent_type: AgentType, config: Optional[Dict[str, Any]] = None):
         super().__init__(agent_type, config)
         self._current_mode: Optional[str] = None
+        # B5: Validate MODES at init — catch misconfigurations early
+        for mode_name, method_name in self.MODES.items():
+            handler = getattr(self, method_name, None)
+            if handler is None or not callable(handler):
+                raise TypeError(
+                    f"{self.__class__.__name__}: MODES[{mode_name!r}] references "
+                    f"{method_name!r} which is not a callable method on this class."
+                )
 
     @property
     def current_mode(self) -> Optional[str]:

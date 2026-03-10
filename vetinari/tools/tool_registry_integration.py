@@ -1,20 +1,15 @@
 """
 Tool Registry Integration for Vetinari
 
-.. deprecated::
-    This module is deprecated. Use ``vetinari.tool_interface.get_tool_registry()``
-    directly instead.
-
-Registers all tools in the tool registry including:
+Provides convenience wrappers that register tools in the tool registry:
 - Web Search Tool
 - Code Sandbox
 - Memory Tools
 - Model Router Tools
-- Two-Layer Orchestration Tools
+- Orchestration Tools
 """
 
 import logging
-import warnings
 from typing import Dict, Any, List, Optional
 
 from vetinari.tool_interface import (
@@ -27,13 +22,6 @@ from vetinari.tool_interface import (
 )
 
 from vetinari.execution_context import ToolPermission, ExecutionMode
-
-warnings.warn(
-    "vetinari.tools.tool_registry_integration is deprecated. "
-    "Use vetinari.tool_interface.get_tool_registry() directly instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -280,10 +268,10 @@ class MemoryRecallToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
-            self._memory = get_memory_manager()
+            from vetinari.memory import get_dual_memory_store
+            self._memory = get_dual_memory_store()
         return self._memory
-    
+
     def execute(self, **kwargs) -> ToolResult:
         query = kwargs.get("query", "")
         memory_type = kwargs.get("memory_type")
@@ -291,7 +279,7 @@ class MemoryRecallToolWrapper(Tool):
         
         try:
             memory = self._get_memory()
-            results = memory.recall(query=query, limit=limit)
+            results = memory.search(query=query, limit=limit)
             
             return ToolResult(
                 success=True,
@@ -349,27 +337,28 @@ class MemoryRememberToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
-            self._memory = get_memory_manager()
+            from vetinari.memory import get_dual_memory_store
+            self._memory = get_dual_memory_store()
         return self._memory
-    
+
     def execute(self, **kwargs) -> ToolResult:
         content = kwargs.get("content", "")
         memory_type = kwargs.get("memory_type", "context")
         tags = kwargs.get("tags", [])
-        
+
         try:
             memory = self._get_memory()
-            
-            # Import MemoryType
-            from vetinari.enhanced_memory import MemoryType
+
+            from vetinari.types import MemoryType
+            from vetinari.memory import MemoryEntry
             mem_type = MemoryType(memory_type)
-            
-            entry_id = memory.remember(
+
+            entry = MemoryEntry(
                 content=content,
-                memory_type=mem_type,
-                tags=tags,
+                entry_type=mem_type,
+                metadata={"tags": tags} if tags else None,
             )
+            entry_id = memory.remember(entry)
             
             return ToolResult(
                 success=True,

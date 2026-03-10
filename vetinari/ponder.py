@@ -15,7 +15,7 @@ POLICY_SENSITIVE_KEYWORDS = [
     "explicit", "violence", "hate", "discriminat", "terroris"
 ]
 
-ENABLE_PONDER_MODEL_SEARCH = os.environ.get("ENABLE_PONDER_MODEL_SEARCH", "true").lower() in ("1", "true", "yes")
+ENABLE_PONDER_MODEL_DISCOVERY = os.environ.get("ENABLE_PONDER_MODEL_DISCOVERY", "true").lower() in ("1", "true", "yes")
 PONDER_CLOUD_WEIGHT = float(os.environ.get("PONDER_CLOUD_WEIGHT", "0.20"))
 
 
@@ -332,14 +332,14 @@ def get_all_models_with_cloud() -> List[Dict]:
     return local_models + cloud_models
 
 
-def _get_model_search_candidates(task_description: str, models: List[Dict]) -> Dict[str, float]:
+def _get_model_discovery_candidates(task_description: str, models: List[Dict]) -> Dict[str, float]:
     """Get model relevance scores from ModelSearchEngine."""
-    if not ENABLE_PONDER_MODEL_SEARCH:
+    if not ENABLE_PONDER_MODEL_DISCOVERY:
         return {}
     
     try:
-        from .model_search import ModelSearchEngine
-        search_engine = ModelSearchEngine()
+        from .model_discovery import ModelDiscovery
+        search_engine = ModelDiscovery()
         candidates = search_engine.search_for_task(task_description, models)
         
         relevance = {}
@@ -357,7 +357,7 @@ def score_models_with_cloud(available_models: List[Dict], task_description: str,
     """Score models with cloud provider augmentation."""
     engine = PonderEngine()
     
-    search_relevance = _get_model_search_candidates(task_description, available_models)
+    search_relevance = _get_model_discovery_candidates(task_description, available_models)
     
     requirements = engine._get_task_capability_requirements(task_description)
     scored_models = []
@@ -510,7 +510,7 @@ def get_ponder_health() -> Dict[str, Any]:
     cloud_health = ModelPool.get_cloud_provider_health()
     
     return {
-        "enable_model_search": ENABLE_PONDER_MODEL_SEARCH,
+        "enable_model_discovery": ENABLE_PONDER_MODEL_DISCOVERY,
         "cloud_weight": PONDER_CLOUD_WEIGHT,
         "providers": cloud_health
     }

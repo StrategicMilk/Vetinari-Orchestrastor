@@ -80,9 +80,24 @@ def _print_banner(mode: str, host: str) -> None:
 # Subcommand handlers
 # ============================================================
 
+def _check_drift_at_startup() -> None:
+    """Run contract drift check at startup (non-fatal)."""
+    try:
+        from vetinari.drift.contract_registry import ContractRegistry
+        registry = ContractRegistry()
+        drift = registry.check_drift()
+        if drift:
+            for item in drift if isinstance(drift, list) else [drift]:
+                logger.warning("[Drift] %s", item)
+            print(f"[Vetinari] WARNING: Contract drift detected. Run 'vetinari drift-check' for details.")
+    except Exception as e:
+        logger.debug("Drift check skipped: %s", e)
+
+
 def cmd_run(args) -> int:
     """Execute a goal or manifest task."""
     _setup_logging(args.verbose)
+    _check_drift_at_startup()
     host = _get_host(args.host)
 
     if args.goal:
@@ -156,6 +171,7 @@ def cmd_serve(args) -> int:
 def cmd_start(args) -> int:
     """Start CLI + optional web dashboard."""
     _setup_logging(args.verbose)
+    _check_drift_at_startup()
     host = _get_host(args.host)
     _print_banner(args.mode, host)
 
@@ -352,6 +368,48 @@ def cmd_review(args) -> int:
         return 1
 
 
+def cmd_benchmark(args) -> int:
+    """Run agent benchmarks."""
+    _setup_logging(args.verbose)
+    print("[Vetinari] Running agent benchmarks...")
+    try:
+        from vetinari.benchmarks.suite import BenchmarkSuite
+        suite = BenchmarkSuite()
+        agent_filter = getattr(args, "agents", None)
+        results = suite.run_all(agent_filter=agent_filter)
+        suite.print_report(results)
+        regressions = suite.check_regression(results)
+        if regressions:
+            print("\nREGRESSIONS DETECTED:")
+            for r in regressions:
+                print(f"  {r}")
+            return 1
+        return 0
+    except Exception as e:
+        print(f"[Vetinari] Benchmark failed: {e}")
+        return 1
+
+
+def cmd_drift_check(args) -> int:
+    """Check for contract drift across agents."""
+    _setup_logging(args.verbose)
+    print("[Vetinari] Checking for contract drift...")
+    try:
+        from vetinari.drift.contract_registry import ContractRegistry
+        registry = ContractRegistry()
+        report = registry.check_drift()
+        if not report:
+            print("[Vetinari] No drift detected. All contracts satisfied.")
+            return 0
+        print(f"[Vetinari] Drift detected in {len(report)} contracts:")
+        for item in report:
+            print(f"  - {item}")
+        return 1
+    except Exception as e:
+        print(f"[Vetinari] Drift check failed: {e}")
+        return 1
+
+
 def cmd_interactive(args) -> int:
     """Enter interactive REPL mode."""
     _setup_logging(args.verbose)
@@ -479,6 +537,13 @@ Examples:
     # interactive
     subparsers.add_parser("interactive", help="Enter interactive REPL mode")
 
+    # benchmark
+    p_bench = subparsers.add_parser("benchmark", help="Run agent benchmarks")
+    p_bench.add_argument("--agents", nargs="*", help="Specific agent types to benchmark")
+
+    # drift-check
+    subparsers.add_parser("drift-check", help="Check for contract drift across agents")
+
     args = parser.parse_args()
 
     # Default command: start (interactive)
@@ -503,6 +568,8 @@ Examples:
         "upgrade": cmd_upgrade,
         "review": cmd_review,
         "interactive": cmd_interactive,
+        "benchmark": cmd_benchmark,
+        "drift-check": cmd_drift_check,
     }
 
     handler = dispatch.get(args.command)

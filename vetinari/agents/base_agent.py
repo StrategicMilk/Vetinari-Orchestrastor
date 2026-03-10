@@ -112,6 +112,41 @@ class BaseAgent(ABC):
         self._log("info", f"Agent {self.name} initialized")
 
     # ------------------------------------------------------------------
+    # Base prompt framework (modern best practices)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _get_base_prompt_framework(cls) -> str:
+        """Universal prompt framework applied to all agents."""
+        return (
+            "## Core Operating Principles\n\n"
+            "REASONING: Think step-by-step before producing output. For complex decisions:\n"
+            "1. Identify the key question or requirement\n"
+            "2. Consider 2-3 approaches with trade-offs\n"
+            "3. Choose the best approach and explain why\n"
+            "4. Execute with verification\n\n"
+            "CONFIDENCE: Rate your confidence in each major output:\n"
+            "- HIGH (>80%): Well-understood domain, clear requirements, verified data\n"
+            "- MEDIUM (50-80%): Some ambiguity, partial information, reasonable inference\n"
+            "- LOW (<50%): Significant uncertainty — flag for human review\n\n"
+            "VERIFICATION: Before finalizing output:\n"
+            "- Does this directly address the task requirements?\n"
+            "- Are there logical contradictions or unsupported claims?\n"
+            "- Would a domain expert find obvious errors?\n"
+            "- Is the output format correct and complete?\n\n"
+            "ERROR HANDLING:\n"
+            "- If requirements are ambiguous, state your assumptions explicitly\n"
+            "- If you lack information, say so rather than fabricating data\n"
+            "- If a subtask fails, provide partial results with clear error context\n"
+            "- Never silently drop errors — always surface them\n\n"
+            "QUALITY:\n"
+            "- Cite sources or reasoning for factual claims\n"
+            "- Prefer specific, actionable output over vague generalities\n"
+            "- If output exceeds expected scope, summarize and offer details on request\n"
+            "- Maintain consistent terminology throughout"
+        )
+
+    # ------------------------------------------------------------------
     # LLM Inference helper
     # ------------------------------------------------------------------
 
@@ -142,6 +177,24 @@ class BaseAgent(ABC):
         Returns:
             The generated text string, or an empty string on error.
         """
+        # ── C1: Circuit breaker pre-check ─────────────────────────────
+        try:
+            from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+            _cb = get_circuit_breaker_registry().get(self._agent_type.value)
+            if not _cb.allow_request():
+                self._log("warning", f"Circuit breaker OPEN for {self._agent_type.value}")
+                return ""
+        except ImportError:
+            pass  # resilience module not available
+        except Exception as _cb_err:
+            logger.debug("Circuit breaker check failed: %s", _cb_err)
+
+        # ── C5: Token budget pre-check ────────────────────────────────
+        _budget_remaining = getattr(self, '_token_budget_remaining', None)
+        if _budget_remaining is not None and _budget_remaining <= 0:
+            self._log("warning", f"Token budget exhausted for {self._agent_type.value}")
+            return ""
+
         if self._adapter_manager is None:
             # No adapter: try to use the singleton if available
             try:
@@ -164,8 +217,9 @@ class BaseAgent(ABC):
                 self._log("error", f"LLM inference failed (no adapter_manager): {e}")
                 return ""
 
-        # Apply evolved system prompt if available (A/B test routing)
-        _active_system_prompt = system_prompt or self.get_system_prompt()
+        # Prepend base prompt framework to agent-specific system prompt
+        _agent_system = system_prompt or self.get_system_prompt()
+        _active_system_prompt = self._get_base_prompt_framework() + "\n\n" + _agent_system
         _variant_id = "default"
         try:
             from vetinari.learning.prompt_evolver import get_prompt_evolver
@@ -240,12 +294,35 @@ class BaseAgent(ABC):
                     if result.startswith("```"):
                         lines = result.split("\n")
                         result = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+                # ── C1: Record success ────────────────────────────────
+                try:
+                    from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+                    get_circuit_breaker_registry().get(self._agent_type.value).record_success()
+                except Exception:
+                    pass
+
+                # ── C5: Track token usage ─────────────────────────────
+                _estimated_tokens = len(result.split()) if result else 0
+                if hasattr(self, '_token_budget_remaining') and self._token_budget_remaining is not None:
+                    self._token_budget_remaining -= _estimated_tokens
+
                 return result
             else:
                 self._log("warning", f"Inference failed: {response.error}")
+                try:
+                    from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+                    get_circuit_breaker_registry().get(self._agent_type.value).record_failure()
+                except Exception:
+                    pass
                 return ""
         except Exception as e:
             self._log("error", f"Inference exception: {e}")
+            try:
+                from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+                get_circuit_breaker_registry().get(self._agent_type.value).record_failure()
+            except Exception:
+                pass
             return ""
 
     def _infer_json(
@@ -325,6 +402,37 @@ class BaseAgent(ABC):
             self._log("warning", f"Web search failed for '{query}': {e}")
             return []
         
+    def _extract_code_context(
+        self, file_paths: List[str], keywords: List[str],
+        budget_chars: int = 2000,
+    ) -> str:
+        """Extract only relevant code context using grep.
+
+        Use instead of reading whole files to reduce token usage by 40-60%.
+        """
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        parts = []
+        remaining = budget_chars
+        for fp in file_paths:
+            if remaining <= 0:
+                break
+            chunk = gc.extract_relevant_context(fp, keywords, budget_chars=remaining)
+            if chunk:
+                parts.append(chunk)
+                remaining -= len(chunk)
+        return "\n\n".join(parts)
+
+    def _grep_patterns(
+        self, file_paths: List[str], patterns: List[str],
+        context_lines: int = 3,
+    ) -> str:
+        """Extract lines matching patterns with surrounding context."""
+        from vetinari.grep_context import get_grep_context
+        gc = get_grep_context()
+        matches = gc.extract_patterns(file_paths, patterns, context_lines)
+        return gc.format_for_prompt(matches)
+
     def _log(self, level: str, message: str, **kwargs) -> None:
         """Emit structured log with agent context."""
         log_data = {
@@ -491,6 +599,20 @@ class BaseAgent(ABC):
             raise  # Permission denied — propagate to caller
 
         task.started_at = datetime.now().isoformat()
+
+        # ── C5: Initialize per-agent token budget ─────────────────────
+        _TOKEN_BUDGETS = {
+            "PLANNER": 16384,
+            "CONSOLIDATED_RESEARCHER": 24576,
+            "CONSOLIDATED_ORACLE": 16384,
+            "BUILDER": 32768,
+            "QUALITY": 16384,
+            "OPERATIONS": 24576,
+        }
+        _budget = _TOKEN_BUDGETS.get(self._agent_type.value, 16384)
+        if not hasattr(self, '_token_budget_remaining') or self._token_budget_remaining is None:
+            self._token_budget_total = _budget
+            self._token_budget_remaining = _budget
 
         # ----- Phase 8.10: Enforce resource constraints -----
         constraints = _get_agent_constraints(self._agent_type.value)
@@ -679,6 +801,120 @@ class BaseAgent(ABC):
 
         return task
     
+    # ------------------------------------------------------------------
+    # Inter-agent communication via Blackboard
+    # ------------------------------------------------------------------
+
+    def request_help(
+        self,
+        content: str,
+        request_type: str,
+        priority: int = 5,
+        ttl_seconds: int = 3600,
+    ) -> str:
+        """Post a help request on the shared Blackboard.
+
+        Use this when the agent encounters a sub-task outside its expertise.
+        The Blackboard routes it to the most capable available agent.
+
+        Returns:
+            entry_id: Use with get_help_result() to retrieve the answer.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        entry_id = board.post(
+            content=content,
+            request_type=request_type,
+            requested_by=self._agent_type,
+            priority=priority,
+            ttl_seconds=ttl_seconds,
+        )
+        logger.debug("[%s] posted help request %s: %r", self.name, entry_id, request_type)
+        return entry_id
+
+    def get_help_result(self, entry_id: str, timeout: float = 30.0) -> Optional[Any]:
+        """Wait for and retrieve the result of a help request.
+
+        Args:
+            entry_id: ID returned by request_help().
+            timeout: Maximum seconds to wait.
+
+        Returns:
+            The result posted by the helper agent, or None if timed out / failed.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        return board.get_result(entry_id, timeout=timeout)
+
+    def publish_finding(self, key: str, value: Any, finding_type: str = "general") -> None:
+        """Publish a discovery or intermediate result on the Blackboard.
+
+        Other agents can query these findings via query_findings().
+
+        Args:
+            key: Unique name for this finding (e.g. "security_issues").
+            value: The data to share.
+            finding_type: Category for filtering (e.g. "security", "architecture").
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        board.post(
+            content=value,
+            request_type=f"finding:{finding_type}",
+            requested_by=self._agent_type,
+            priority=3,
+            metadata={"finding_key": key, "agent": self._agent_type.value},
+        )
+        logger.debug("[%s] published finding '%s' (%s)", self.name, key, finding_type)
+
+    def query_findings(self, finding_type: str = None) -> List[Dict[str, Any]]:
+        """Query published findings from the Blackboard.
+
+        Args:
+            finding_type: Filter by category, or None for all findings.
+
+        Returns:
+            List of dicts with keys: content, agent, finding_key.
+        """
+        from vetinari.blackboard import get_blackboard
+        board = get_blackboard()
+        prefix = f"finding:{finding_type}" if finding_type else "finding:"
+        entries = board.get_pending(request_type_prefix=prefix)
+        return [
+            {
+                "content": e.content,
+                "agent": e.metadata.get("agent", "unknown"),
+                "finding_key": e.metadata.get("finding_key", ""),
+            }
+            for e in entries
+        ]
+
+    def delegate_task(self, task: "AgentTask", reason: str) -> "AgentResult":
+        """Signal that this task is outside the agent's domain.
+
+        Returns an AgentResult with delegation_requested=True so the
+        orchestrator (AgentGraph) reassigns it to an appropriate agent.
+        """
+        logger.info("[%s] delegating task '%s': %s", self.name, task.task_id, reason)
+        return AgentResult(
+            success=False,
+            output="",
+            errors=[f"Task delegated: {reason}"],
+            metadata={
+                "delegation_requested": True,
+                "delegation_reason": reason,
+                "delegating_agent": self._agent_type.value,
+            },
+        )
+
+    def can_handle(self, task: "AgentTask") -> bool:
+        """Return True if this agent can handle the given task.
+
+        Default: always True. Override in subclasses for smarter routing.
+        AgentGraph queries this before assignment to find capable agents.
+        """
+        return True
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(type={self._agent_type.value}, name={self.name})>"
 

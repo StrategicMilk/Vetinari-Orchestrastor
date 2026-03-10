@@ -548,11 +548,102 @@ class PlanModeEngine:
     
     def _generate_candidates(self, goal: str, constraints: str, domain: TaskDomain,
                             max_candidates: int, depth_cap: int) -> List[PlanCandidate]:
-        """Generate multiple plan candidates."""
-        candidates = []
-        
+        """Generate multiple plan candidates, using LLM when available."""
         templates = self._domain_templates.get(domain, self._domain_templates[TaskDomain.GENERAL])
-        
+
+        # Gather quality history for calibrated estimates
+        quality_context = ""
+        try:
+            from vetinari.learning.quality_scorer import get_quality_scorer
+            scorer = get_quality_scorer()
+            for tpl in templates:
+                task_type = tpl.get("task_type", domain.value) if isinstance(tpl, dict) else domain.value
+                history = scorer.get_history(task_type=task_type)
+                if history:
+                    recent = history[:5]
+                    avg_score = sum(h.overall_score for h in recent) / len(recent)
+                    quality_context += f"\n- {task_type}: avg quality={avg_score:.2f} over {len(recent)} recent tasks"
+        except Exception:
+            pass
+
+        # Try LLM-powered candidate generation
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+            adapter = get_adapter_manager()
+            quality_section = f"\n\nHistorical quality data:{quality_context}" if quality_context else ""
+            response = adapter.infer(
+                prompt=(
+                    f"Generate {min(max_candidates, 3)} plan variants for this goal:\n"
+                    f"Goal: {goal}\n"
+                    f"Domain: {domain.value}\n"
+                    f"Constraints: {constraints or 'none'}\n"
+                    f"{quality_section}\n\n"
+                    f"For each variant, provide on a single line: summary|risk(0.0-1.0)|hours|cost_usd|subtask_count\n"
+                    f"Variant 1 should be conservative (low risk), variant 2 balanced, variant 3 aggressive (fast but riskier)."
+                ),
+                system_prompt="You are a project planner. Output exactly the requested format, one variant per line.",
+                max_tokens=256,
+            )
+            content = response.get("output", "").strip() if isinstance(response, dict) else str(response).strip()
+            if content:
+                return self._parse_llm_candidates(content, goal, domain, depth_cap, templates, max_candidates)
+        except Exception as e:
+            logger.debug("LLM candidate generation unavailable, using fallback: %s", e)
+
+        # Fallback: hardcoded candidate generation
+        return self._generate_fallback_candidates(goal, domain, templates, max_candidates, depth_cap)
+
+    def _parse_llm_candidates(self, content: str, goal: str, domain: TaskDomain,
+                              depth_cap: int, templates: list, max_candidates: int) -> List[PlanCandidate]:
+        """Parse LLM output into PlanCandidate objects."""
+        candidates = []
+        for i, line in enumerate(content.strip().split("\n")):
+            if i >= min(max_candidates, 3):
+                break
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 5:
+                try:
+                    summary = parts[0]
+                    risk = max(0.0, min(1.0, float(parts[1])))
+                    hours = max(0.5, float(parts[2]))
+                    cost = max(1.0, float(parts[3]))
+                    subtasks = max(1, int(float(parts[4])))
+                except (ValueError, IndexError):
+                    continue
+            else:
+                # Couldn't parse — use fallback values for this variant
+                summary = f"Plan variant {i+1} for: {goal[:50]}..."
+                risk = 0.15 + (i * 0.1)
+                hours = 1.0 + i * 0.5
+                cost = 10.0 * (1 + i * 0.3)
+                subtasks = len(templates) + i * 2
+
+            candidate = PlanCandidate(
+                plan_id=f"plan_{uuid.uuid4().hex[:8]}",
+                plan_version=1,
+                summary=summary,
+                description=f"Implementation plan for: {goal}",
+                justification=f"LLM-analyzed {domain.value} plan variant",
+                risk_score=risk,
+                estimated_duration_seconds=hours * 3600.0,
+                estimated_cost=cost,
+                subtask_count=subtasks,
+                max_depth=min(depth_cap, 3 + i),
+                domains=[domain],
+            )
+            self._assign_risk_level(candidate)
+            candidate.dependencies = self._generate_dependencies(subtasks)
+            candidates.append(candidate)
+
+        # If parsing failed entirely, fall back
+        if not candidates:
+            return self._generate_fallback_candidates(goal, domain, templates, max_candidates, depth_cap)
+        return candidates
+
+    def _generate_fallback_candidates(self, goal: str, domain: TaskDomain,
+                                      templates: list, max_candidates: int, depth_cap: int) -> List[PlanCandidate]:
+        """Generate candidates with hardcoded heuristics (original behavior)."""
+        candidates = []
         for i in range(min(max_candidates, 3)):
             candidate = PlanCandidate(
                 plan_id=f"plan_{uuid.uuid4().hex[:8]}",
@@ -565,23 +656,24 @@ class PlanModeEngine:
                 estimated_cost=10.0 * (1 + i * 0.3),
                 subtask_count=len(templates) + i * 2,
                 max_depth=min(depth_cap, 3 + i),
-                domains=[domain]
+                domains=[domain],
             )
-            
-            if candidate.risk_score >= 0.75:
-                candidate.risk_level = PlanRiskLevel.CRITICAL
-            elif candidate.risk_score >= 0.5:
-                candidate.risk_level = PlanRiskLevel.HIGH
-            elif candidate.risk_score >= 0.25:
-                candidate.risk_level = PlanRiskLevel.MEDIUM
-            else:
-                candidate.risk_level = PlanRiskLevel.LOW
-            
+            self._assign_risk_level(candidate)
             candidate.dependencies = self._generate_dependencies(len(templates) + i * 2)
-            
             candidates.append(candidate)
-        
         return candidates
+
+    @staticmethod
+    def _assign_risk_level(candidate: PlanCandidate):
+        """Set risk_level based on risk_score."""
+        if candidate.risk_score >= 0.75:
+            candidate.risk_level = PlanRiskLevel.CRITICAL
+        elif candidate.risk_score >= 0.5:
+            candidate.risk_level = PlanRiskLevel.HIGH
+        elif candidate.risk_score >= 0.25:
+            candidate.risk_level = PlanRiskLevel.MEDIUM
+        else:
+            candidate.risk_level = PlanRiskLevel.LOW
     
     def _generate_dependencies(self, subtask_count: int) -> Dict[str, List[str]]:
         """Generate task dependencies."""

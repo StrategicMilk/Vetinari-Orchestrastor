@@ -10,6 +10,11 @@ import sys
 import types
 import unittest
 from unittest.mock import MagicMock, patch
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="Legacy DevOpsAgent/DocumentationAgent/ErrorRecoveryAgent consolidated into ResearcherAgent/OperationsAgent in v0.4.0"
+)
 
 
 # ---------------------------------------------------------------------------

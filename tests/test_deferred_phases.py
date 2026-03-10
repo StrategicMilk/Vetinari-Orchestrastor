@@ -437,8 +437,8 @@ class TestPlannerConsolidatedAgents(unittest.TestCase):
         from vetinari.agents.planner_agent import PlannerAgent
         planner = PlannerAgent()
         prompt = planner.get_system_prompt()
-        for agent in ["PLANNER", "ORCHESTRATOR", "RESEARCHER", "ORACLE",
-                       "BUILDER", "ARCHITECT", "QUALITY", "OPERATIONS"]:
+        for agent in ["PLANNER", "RESEARCHER", "ORACLE",
+                       "BUILDER", "QUALITY", "OPERATIONS"]:
             self.assertIn(agent, prompt,
                           f"Consolidated agent {agent} missing from planner prompt")
 
@@ -452,30 +452,31 @@ class TestPlannerConsolidatedAgents(unittest.TestCase):
         self.assertIn("research/explore/discover", prompt)
         self.assertIn("review/test/security", prompt)
 
-    def test_system_prompt_still_lists_legacy_agents(self):
+    def test_system_prompt_lists_active_agents(self):
+        """System prompt lists the active consolidated agents."""
         from vetinari.agents.planner_agent import PlannerAgent
         planner = PlannerAgent()
         prompt = planner.get_system_prompt()
-        self.assertIn("Legacy agents", prompt)
-        self.assertIn("EXPLORER", prompt)
-        self.assertIn("EVALUATOR", prompt)
+        self.assertIn("Active agents", prompt)
+        self.assertIn("PLANNER", prompt)
+        self.assertIn("BUILDER", prompt)
 
     def test_decompose_available_agents_includes_consolidated(self):
         """_decompose_goal_llm available_agents includes consolidated types."""
         from vetinari.agents.planner_agent import PlannerAgent
         import inspect
         source = inspect.getsource(PlannerAgent._decompose_goal_llm)
-        for agent in ["PLANNER", "ORCHESTRATOR", "RESEARCHER", "ORACLE",
-                       "BUILDER", "ARCHITECT", "QUALITY", "OPERATIONS"]:
+        for agent in ["PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
+                       "BUILDER", "QUALITY", "OPERATIONS"]:
             self.assertIn(f'"{agent}"', source,
                           f"{agent} missing from _decompose_goal_llm available_agents")
 
     def test_planner_prefers_consolidated_agents_rule(self):
-        """System prompt rule 9 directs LLM to prefer consolidated agents."""
+        """System prompt lists only the 6 consolidated agents."""
         from vetinari.agents.planner_agent import PlannerAgent
         planner = PlannerAgent()
         prompt = planner.get_system_prompt()
-        self.assertIn("Prefer consolidated agent types", prompt)
+        self.assertIn("6 consolidated", prompt)
 
 
 # ---------------------------------------------------------------------------

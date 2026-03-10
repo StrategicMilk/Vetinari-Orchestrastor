@@ -174,6 +174,25 @@ QUALITY_GATES: Dict[str, QualityGate] = {
 _DEFAULT_GATE = QualityGate(agent_type="DEFAULT", min_verification_score=0.4)
 
 
+# ---------------------------------------------------------------------------
+# Criticality-based adaptive quality thresholds
+# ---------------------------------------------------------------------------
+
+QUALITY_GATES_BY_CRITICALITY: Dict[str, Dict] = {
+    "critical": {"min_score": 0.85, "require_human_review": True, "max_retries": 1},
+    "high":     {"min_score": 0.75, "require_human_review": False, "max_retries": 2},
+    "medium":   {"min_score": 0.60, "require_human_review": False, "max_retries": 2},
+    "low":      {"min_score": 0.40, "require_human_review": False, "max_retries": 3},
+}
+
+
+def get_criticality_gate(criticality: str) -> Dict:
+    """Get quality gate thresholds for a given task criticality level."""
+    return QUALITY_GATES_BY_CRITICALITY.get(
+        criticality.lower(), QUALITY_GATES_BY_CRITICALITY["medium"]
+    )
+
+
 def get_quality_gate(agent_type: str, mode: Optional[str] = None) -> QualityGate:
     """Get the quality gate for an agent (optionally for a specific mode).
 
