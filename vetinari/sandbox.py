@@ -339,6 +339,10 @@ class ExternalPluginSandbox:
 class SandboxManager:
     _instance = None
 
+    # Rate-limit: max executions per client per window (P1.C2)
+    _RATE_LIMIT_MAX = 10       # max calls
+    _RATE_LIMIT_WINDOW = 60.0  # seconds
+
     @classmethod
     def get_instance(cls) -> "SandboxManager":
         if cls._instance is None:
@@ -350,14 +354,49 @@ class SandboxManager:
         self.external = ExternalPluginSandbox()
         self.current_load = 0.0
         self.max_concurrent = 5
+        # Per-client rate-limit state: {client_id: [timestamp, ...]}
+        self._rate_limit_log: Dict[str, list] = {}
+        self._rate_limit_lock = threading.Lock()
+
+    def _check_rate_limit(self, client_id: str) -> bool:
+        """
+        Return True if the client is within the rate limit, False if exceeded.
+
+        Slides a window of _RATE_LIMIT_WINDOW seconds and allows at most
+        _RATE_LIMIT_MAX executions within that window per client_id.
+        """
+        now = time.time()
+        cutoff = now - self._RATE_LIMIT_WINDOW
+        with self._rate_limit_lock:
+            timestamps = self._rate_limit_log.get(client_id, [])
+            # Prune old entries
+            timestamps = [t for t in timestamps if t > cutoff]
+            if len(timestamps) >= self._RATE_LIMIT_MAX:
+                self._rate_limit_log[client_id] = timestamps
+                return False
+            timestamps.append(now)
+            self._rate_limit_log[client_id] = timestamps
+            return True
 
     def execute(
         self,
         code: str,
         sandbox_type: str = "in_process",
         timeout: int = 30,
-        context: Dict = None
+        context: Dict = None,
+        client_id: str = "default",
     ) -> SandboxResult:
+        # Rate-limit enforcement (P1.C2)
+        if not self._check_rate_limit(client_id):
+            execution_id = f"exec_{uuid.uuid4().hex[:8]}"
+            return SandboxResult(
+                execution_id=execution_id,
+                success=False,
+                error=f"Rate limit exceeded: max {self._RATE_LIMIT_MAX} executions "
+                      f"per {int(self._RATE_LIMIT_WINDOW)}s per client",
+                execution_time_ms=0,
+            )
+
         if sandbox_type == "in_process":
             return self.in_process.execute(code, context)
         elif sandbox_type == "subprocess":

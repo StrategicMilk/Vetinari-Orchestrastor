@@ -58,8 +58,66 @@ from vetinari.web.ponder_routes import bp as ponder_bp
 from vetinari.web.rules_routes import bp as rules_bp
 from vetinari.web.admin_routes import bp as admin_bp
 from vetinari.web.training_routes import bp as training_bp
+try:
+    from vetinari.web.analytics_routes import bp as analytics_bp
+    app.register_blueprint(analytics_bp)
+except ImportError:
+    logger.debug("analytics_routes not yet available")
+
 for _bp in (adr_bp, decomposition_bp, ponder_bp, rules_bp, admin_bp, training_bp):
     app.register_blueprint(_bp)
+
+# Register default SLO targets at startup
+try:
+    from vetinari.analytics.sla import register_default_slos
+    register_default_slos()
+except Exception as _slo_err:
+    logger.debug("Failed to register default SLOs at startup: %s", _slo_err)
+
+
+
+# ── Security headers (P1.M1) ──────────────────────────────────────────────────
+@app.after_request
+def _add_security_headers(response):
+    """Add defensive HTTP headers to every response (P1.M1)."""
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+    )
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # HSTS — only meaningful over HTTPS, harmless over HTTP
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+    )
+    return response
+
+
+# ── CORS restriction (P1.H2) ─────────────────────────────────────────────────
+_ALLOWED_ORIGINS = {
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+}
+
+@app.after_request
+def _restrict_cors(response):
+    """Restrict CORS to localhost origins only — no wildcard (P1.H2)."""
+    origin = request.headers.get("Origin", "")
+    if origin in _ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, Authorization, X-Admin-Token"
+        )
+        response.headers["Vary"] = "Origin"
+    elif "Access-Control-Allow-Origin" in response.headers:
+        # Remove any wildcard CORS that lower layers may have set
+        del response.headers["Access-Control-Allow-Origin"]
+    return response
+
 
 # Global state
 orchestrator = None
@@ -274,14 +332,19 @@ def api_project_stream(project_id):
                 # Heartbeat to keep connection alive
                 yield f"data: {_json.dumps({'type': 'heartbeat'})}\n\n"
 
+    # CORS for SSE: restrict to localhost origins only (P1.H2)
+    origin = request.headers.get("Origin", "")
+    sse_headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    }
+    if origin in _ALLOWED_ORIGINS:
+        sse_headers["Access-Control-Allow-Origin"] = origin
+
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
-        },
+        headers=sse_headers,
     )
 
 
@@ -480,6 +543,8 @@ def api_tasks():
 # API: Run a task
 @app.route('/api/run-task', methods=['POST'])
 def api_run_task():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     task_id = data.get('task_id')
     
@@ -502,6 +567,8 @@ def api_run_task():
 # API: Run all tasks
 @app.route('/api/run-all', methods=['POST'])
 def api_run_all():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         orb = get_orchestrator()
         
@@ -518,6 +585,8 @@ def api_run_all():
 # API: Run custom prompt
 @app.route('/api/run-prompt', methods=['POST'])
 def api_run_prompt():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     prompt = data.get('prompt', '')
     model = data.get('model', '')
@@ -581,6 +650,8 @@ def api_run_prompt():
 # API: Create a plan using the planning engine
 @app.route('/api/plan', methods=['POST'])
 def api_create_plan():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     goal = data.get('goal', '')
     system_prompt = data.get('system_prompt', DEFAULT_SYSTEM_PROMPT)
@@ -622,11 +693,13 @@ def api_create_plan():
 # API: Create new project from prompt - uses planning engine to create and execute tasks
 @app.route('/api/new-project', methods=['POST'])
 def api_new_project():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     goal = data.get('goal', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', DEFAULT_SYSTEM_PROMPT)
-    auto_run = data.get('auto_run', True)
+    auto_run = data.get('auto_run', False)  # Default False — plans show for review before execution
     project_name = data.get('project_name', '')
     project_rules = data.get('project_rules', '')
     required_features = data.get('required_features', [])
@@ -731,9 +804,38 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
         
         model_response = ""
         try:
-            # Send the user's actual goal to the model and get its response
-            result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
-            model_response = result.get('output', '')
+            # Route initial planning response through the orchestrator pipeline
+            # instead of calling the adapter directly.
+            try:
+                from vetinari.orchestration.two_layer import TwoLayerOrchestrator
+                _tlo = TwoLayerOrchestrator(
+                    model_router=getattr(orb, 'model_router', None),
+                    agent_context={"adapter_manager": getattr(orb, 'adapter_manager', None)},
+                )
+                from vetinari.agents.contracts import AgentTask, AgentType
+                _plan_task = AgentTask(
+                    task_id=f"plan_{project_dir.name}",
+                    agent_type=AgentType.PLANNER,
+                    description="Generate initial plan response",
+                    prompt=goal,
+                    context={"system_prompt": agent_system_prompt, "model_id": planning_model_id},
+                )
+                _plan_agent = _tlo._get_agent("PLANNER")
+                if _plan_agent is not None:
+                    _plan_result = _plan_agent.execute(_plan_task)
+                    if _plan_result.success and _plan_result.output:
+                        model_response = (
+                            _plan_result.output
+                            if isinstance(_plan_result.output, str)
+                            else str(_plan_result.output)
+                        )
+            except Exception as _orch_err:
+                logger.warning("Orchestrator pipeline unavailable for planning (%s), falling back to adapter", _orch_err)
+
+            if not model_response:
+                # Fallback: call adapter directly only when orchestrator unavailable
+                result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
+                model_response = result.get('output', '')
             logger.info("Model response received: %d chars", len(model_response))
         except Exception as e:
             logger.error("Error getting model response: %s", e)
@@ -800,9 +902,45 @@ Outputs: {', '.join(task['outputs'])}
 
 Implement this task. Output the code as code blocks with filenames."""
 
-                        task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
-                        task_output = task_result.get('output', '')
-                        tokens_used = task_result.get('tokens_used', 0)
+                        # Route through orchestrator agent pipeline
+                        task_output = ''
+                        tokens_used = 0
+                        _agent_type_str = task.get('agent_type', 'BUILDER').upper()
+                        try:
+                            from vetinari.orchestration.two_layer import TwoLayerOrchestrator
+                            from vetinari.agents.contracts import AgentTask as _AgentTask, AgentType as _AgentType
+                            _tlo_exec = TwoLayerOrchestrator(
+                                model_router=getattr(orb, 'model_router', None),
+                                agent_context={"adapter_manager": getattr(orb, 'adapter_manager', None)},
+                            )
+                            try:
+                                _at = _AgentType[_agent_type_str]
+                            except KeyError:
+                                _at = _AgentType.BUILDER
+                            _exec_task = _AgentTask(
+                                task_id=task_id,
+                                agent_type=_at,
+                                description=task['description'],
+                                prompt=task_prompt,
+                                context={"model_id": task_model, "system_prompt": system_prompt},
+                            )
+                            _exec_agent = _tlo_exec._get_agent(_agent_type_str) or _tlo_exec._get_agent("BUILDER")
+                            if _exec_agent is not None:
+                                _exec_result = _exec_agent.execute(_exec_task)
+                                if _exec_result.success and _exec_result.output:
+                                    task_output = (
+                                        _exec_result.output
+                                        if isinstance(_exec_result.output, str)
+                                        else str(_exec_result.output)
+                                    )
+                        except Exception as _te:
+                            logger.warning("Orchestrator agent unavailable for task %s (%s), falling back to adapter", task_id, _te)
+
+                        if not task_output:
+                            # Fallback: adapter.chat only when orchestrator unavailable
+                            task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
+                            task_output = task_result.get('output', '')
+                            tokens_used = task_result.get('tokens_used', 0)
 
                         # Save task output
                         task_output_dir = project_dir / 'outputs' / task_id
@@ -1118,6 +1256,8 @@ def api_project(project_id):
 # API: Send message to existing project
 @app.route('/api/project/<project_id>/message', methods=['POST'])
 def api_project_message(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         data = request.json
         message = data.get('message', '')
@@ -1180,10 +1320,12 @@ def api_project_message(project_id):
 # API: Add task to project
 @app.route('/api/project/<project_id>/task', methods=['POST'])
 def api_add_task(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         data = request.json
         project_dir = PROJECT_ROOT / 'projects' / project_id
-        
+
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
         
@@ -1226,6 +1368,8 @@ def api_add_task(project_id):
 # API: Update task
 @app.route('/api/project/<project_id>/task/<task_id>', methods=['PUT'])
 def api_update_task(project_id, task_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         data = request.json
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1275,6 +1419,8 @@ def api_update_task(project_id, task_id):
 # API: Delete task
 @app.route('/api/project/<project_id>/task/<task_id>', methods=['DELETE'])
 def api_delete_task(project_id, task_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
         
@@ -1377,6 +1523,8 @@ def api_project_review(project_id):
 # API: Approve outputs and trigger merge
 @app.route('/api/project/<project_id>/approve', methods=['POST'])
 def api_approve_outputs(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
         
@@ -1395,6 +1543,8 @@ def api_approve_outputs(project_id):
 # API: Merge project to final project space
 @app.route('/api/project/<project_id>/merge', methods=['POST'])
 def api_merge_project(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         import shutil
         from datetime import datetime
@@ -1517,6 +1667,8 @@ def api_system_prompts():
 
 @app.route('/api/system-prompts', methods=['POST'])
 def api_save_system_prompt():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         data = request.json
         name = data.get('name', '')
@@ -1537,6 +1689,8 @@ def api_save_system_prompt():
 
 @app.route('/api/system-prompts/<name>', methods=['DELETE'])
 def api_delete_system_prompt(name):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         prompt_file = PROJECT_ROOT / 'system_prompts' / f"{name}.txt"
         if prompt_file.exists():
@@ -1625,6 +1779,32 @@ def api_task_output(project_id, task_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# API: Download a generated file from a project task
+@app.route('/api/download')
+def api_download():
+    """Download a generated file by project_id, task_id, and filename."""
+    from flask import send_file, abort as flask_abort
+    project_id = request.args.get('project_id', '')
+    task_id = request.args.get('task_id', '')
+    filename = request.args.get('filename', '')
+
+    if not project_id or not task_id or not filename:
+        return jsonify({"error": "project_id, task_id, and filename are required"}), 400
+
+    projects_dir = PROJECT_ROOT / 'projects'
+    file_path = (projects_dir / project_id / 'outputs' / task_id / 'generated' / filename).resolve()
+
+    try:
+        file_path.relative_to(projects_dir.resolve())
+    except ValueError:
+        flask_abort(403)
+
+    if not file_path.exists() or not file_path.is_file():
+        return jsonify({"error": "File not found"}), 404
+
+    return send_file(str(file_path), as_attachment=True, download_name=filename)
+
+
 # API: Trigger model discovery and refresh the cache
 @app.route('/api/discover')
 def api_discover():
@@ -1641,6 +1821,8 @@ def api_discover():
 # API: Update configuration
 @app.route('/api/config', methods=['POST'])
 def api_config():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     global orchestrator
     data = request.json
     
@@ -1770,8 +1952,10 @@ def api_model_config():
 # API: Update model configuration
 @app.route('/api/model-config', methods=['POST'])
 def api_update_model_config():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
-    
+
     if 'default_models' in data:
         current_config["default_models"] = data['default_models']
     if 'fallback_models' in data:
@@ -1792,6 +1976,8 @@ def api_update_model_config():
 # API: Swap to a different model (per-project)
 @app.route('/api/swap-model', methods=['POST'])
 def api_swap_model():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     project_id = data.get('project_id')
     new_model = data.get('model_id', '')
@@ -1832,6 +2018,8 @@ def api_swap_model():
 # API: Rename a project
 @app.route('/api/project/<project_id>/rename', methods=['POST'])
 def api_rename_project(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     new_name = data.get('name', '')
     new_description = data.get('description', '')
@@ -1865,6 +2053,8 @@ def api_rename_project(project_id):
 # API: Archive/unarchive a project
 @app.route('/api/project/<project_id>/archive', methods=['POST'])
 def api_archive_project(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
     archive = data.get('archive', True)
     
@@ -1894,6 +2084,8 @@ def api_archive_project(project_id):
 # API: Delete a project
 @app.route('/api/project/<project_id>', methods=['DELETE'])
 def api_delete_project(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         import shutil
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1911,6 +2103,8 @@ def api_delete_project(project_id):
 # API: Assemble final deliverable from task outputs
 @app.route('/api/project/<project_id>/assemble', methods=['POST'])
 def api_project_assemble(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
         if not project_dir.exists():
@@ -2064,6 +2258,8 @@ def api_read_file(project_id):
 # API: Safe file write for agent (OpenCode-like)
 @app.route('/api/project/<project_id>/files/write', methods=['POST'])
 def api_write_file(project_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         data = request.json
         file_path = data.get('path', '')
@@ -2135,18 +2331,25 @@ def api_list_files(project_id):
 def _is_admin_user() -> bool:
     """
     Check if the current request comes from an admin user.
-    For local deployments, localhost requests are always admin.
-    For network deployments, check VETINARI_ADMIN_TOKEN env var.
+
+    Uses constant-time hmac.compare_digest to prevent timing attacks (P1.C1/H10).
+    Uses request.remote_addr instead of X-Forwarded-For by default to prevent
+    IP-spoofing (P1.H8); opt in to proxy trust via VETINARI_TRUSTED_PROXY=true.
     """
+    import hmac as _hmac
     admin_token = os.environ.get("VETINARI_ADMIN_TOKEN", "")
     if admin_token:
-        # Token-based auth
         auth_header = request.headers.get("Authorization", "")
         req_token = request.headers.get("X-Admin-Token", "")
         provided = req_token or auth_header.replace("Bearer ", "")
-        return provided == admin_token
-    # No token configured -- allow local requests
-    remote = request.remote_addr or ""
+        return _hmac.compare_digest(provided, admin_token)
+    # No token configured — fall back to TCP-peer IP check.
+    trusted_proxy = os.environ.get("VETINARI_TRUSTED_PROXY", "").lower() in ("1", "true", "yes")
+    if trusted_proxy:
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        remote = (forwarded.split(",")[0].strip() if forwarded else request.remote_addr) or ""
+    else:
+        remote = request.remote_addr or ""
     return remote in ("127.0.0.1", "::1", "localhost")
 
 
@@ -2406,10 +2609,12 @@ def api_decisions_submit():
 
 @app.route('/api/plans', methods=['POST'])
 def api_plan_create():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         data = request.json
-        
+
         plan = plan_manager.create_plan(
             title=data.get('title', ''),
             prompt=data.get('prompt', ''),
@@ -2455,6 +2660,8 @@ def api_plan_get(plan_id):
 
 @app.route('/api/plans/<plan_id>', methods=['PUT'])
 def api_plan_update(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         data = request.json
@@ -2470,6 +2677,8 @@ def api_plan_update(plan_id):
 
 @app.route('/api/plans/<plan_id>', methods=['DELETE'])
 def api_plan_delete(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         
@@ -2481,6 +2690,8 @@ def api_plan_delete(plan_id):
 
 @app.route('/api/plans/<plan_id>/start', methods=['POST'])
 def api_plan_start(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         plan = plan_manager.start_plan(plan_id)
@@ -2498,6 +2709,8 @@ def api_plan_start(plan_id):
 
 @app.route('/api/plans/<plan_id>/pause', methods=['POST'])
 def api_plan_pause(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         plan = plan_manager.pause_plan(plan_id)
@@ -2515,6 +2728,8 @@ def api_plan_pause(plan_id):
 
 @app.route('/api/plans/<plan_id>/resume', methods=['POST'])
 def api_plan_resume(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         plan = plan_manager.resume_plan(plan_id)
@@ -2532,6 +2747,8 @@ def api_plan_resume(plan_id):
 
 @app.route('/api/plans/<plan_id>/cancel', methods=['POST'])
 def api_plan_cancel(plan_id):
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.planning import plan_manager
         plan = plan_manager.cancel_plan(plan_id)
@@ -2624,6 +2841,8 @@ def api_model_policy_get():
 
 @app.route('/api/models/policy', methods=['PUT'])
 def api_model_policy_update():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.model_relay import model_relay, RoutingPolicy
         data = request.json
@@ -2637,6 +2856,8 @@ def api_model_policy_update():
 
 @app.route('/api/models/reload', methods=['POST'])
 def api_models_reload():
+    if not _is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.model_relay import model_relay
         model_relay.reload_catalog()
@@ -2659,11 +2880,14 @@ def api_sandbox_execute():
         from vetinari.sandbox import sandbox_manager
         data = request.json
 
+        # Pass client_id for per-client rate limiting (P1.C2)
+        client_id = request.remote_addr or "unknown"
         result = sandbox_manager.execute(
             code=data.get('code', ''),
             sandbox_type=data.get('sandbox_type', 'in_process'),
             timeout=data.get('timeout', 30),
-            context=data.get('context')
+            context=data.get('context'),
+            client_id=client_id,
         )
 
         return jsonify(result.to_dict())

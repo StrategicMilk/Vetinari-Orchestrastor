@@ -5,6 +5,7 @@ import os
 import uuid
 
 from flask import Blueprint, jsonify, request
+from vetinari.web import is_admin_user
 
 bp = Blueprint('training', __name__)
 logger = logging.getLogger(__name__)
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 @bp.route('/api/generate-image', methods=['POST'])
 def api_generate_image():
     """Generate an image asset via the ImageGeneratorAgent."""
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.agents.image_generator_agent import get_image_generator_agent
         from vetinari.agents.contracts import AgentTask
@@ -78,6 +81,8 @@ def api_training_stats():
 @bp.route('/api/training/export', methods=['POST'])
 def api_training_export():
     """Export training data for a given format."""
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.learning.training_data import get_training_collector
         data = request.json or {}
@@ -103,6 +108,8 @@ def api_training_export():
 @bp.route('/api/training/start', methods=['POST'])
 def api_training_start():
     """Start a training run (async)."""
+    if not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.training.pipeline import TrainingPipeline
         data = request.json or {}

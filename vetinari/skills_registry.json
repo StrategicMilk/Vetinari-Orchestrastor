@@ -316,5 +316,60 @@
     "oracle": ["researcher", "librarian"],
     "synthesizer": ["builder", "evaluator", "researcher", "oracle"],
     "ui-planner": ["explorer"]
+  },
+  "agent_skill_mapping": {
+    "description": "Maps 6 consolidated agents (ADR-001) to skills and modes",
+    "consolidated_agents": {
+      "PlannerAgent": {
+        "modes": ["plan", "clarify", "summarise", "prune", "extract", "consolidate"],
+        "primary_skills": ["oracle", "researcher", "synthesizer"],
+        "absorbs_legacy": ["planner_agent", "user_interaction_agent", "context_manager_agent"]
+      },
+      "ResearcherAgent": {
+        "modes": ["code_discovery", "domain_research", "api_lookup", "lateral_thinking", "ui_design", "database", "devops", "git_workflow"],
+        "primary_skills": ["explorer", "researcher", "librarian", "ui-planner"],
+        "absorbs_legacy": ["explorer_agent", "research_agent", "ui_agent", "data_engineer_agent", "devops_agent", "version_control_agent"]
+      },
+      "OracleAgent": {
+        "modes": ["architecture", "risk_assessment", "ontological_analysis", "contrarian_review"],
+        "primary_skills": ["oracle"],
+        "absorbs_legacy": ["oracle_agent"]
+      },
+      "BuilderAgent": {
+        "modes": ["build", "image_generation"],
+        "primary_skills": ["builder"],
+        "absorbs_legacy": ["builder_agent"]
+      },
+      "QualityAgent": {
+        "modes": ["code_review", "security_audit", "test_generation", "simplification"],
+        "primary_skills": ["evaluator", "builder"],
+        "absorbs_legacy": ["evaluator_agent", "security_auditor_agent", "test_automation_agent"]
+      },
+      "OperationsAgent": {
+        "modes": ["documentation", "creative_writing", "cost_analysis", "experiment", "error_recovery", "synthesis", "improvement", "monitor", "devops_ops"],
+        "primary_skills": ["synthesizer", "researcher"],
+        "absorbs_legacy": ["synthesizer_agent", "documentation_agent", "cost_planner_agent", "experimentation_manager_agent", "improvement_agent", "error_recovery_agent"]
+      }
+    },
+    "total_modes": 33,
+    "total_agents": 6
+  },
+  "cascade_routing": {
+    "enabled": true,
+    "description": "Cost-optimised routing: start with cheapest model, escalate on low confidence",
+    "tiers": [
+      {"name": "small", "models": ["qwen2.5-coder-7b"], "max_tokens": 2048, "cost_multiplier": 1.0},
+      {"name": "medium", "models": ["qwen3-30b-a3b"], "max_tokens": 4096, "cost_multiplier": 3.0},
+      {"name": "large", "models": ["qwen2.5-72b"], "max_tokens": 8192, "cost_multiplier": 8.0}
+    ],
+    "confidence_threshold": 0.7,
+    "escalation_policy": "auto"
+  },
+  "batch_processing": {
+    "enabled": true,
+    "description": "Queue non-urgent inference for batch API endpoints (50% discount)",
+    "supported_providers": ["anthropic", "openai"],
+    "max_batch_size": 100,
+    "batch_window_seconds": 60
   }
 }

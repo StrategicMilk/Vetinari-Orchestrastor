@@ -1,6 +1,7 @@
 """Rules configuration API routes."""
 
 from flask import Blueprint, jsonify, request
+from vetinari.web import is_admin_user
 
 bp = Blueprint('rules', __name__)
 
@@ -19,6 +20,8 @@ def api_rules_get():
 @bp.route('/api/rules/global', methods=['GET', 'POST'])
 def api_rules_global():
     """Get or set global rules."""
+    if request.method == 'POST' and not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
@@ -37,6 +40,8 @@ def api_rules_global():
 @bp.route('/api/rules/global-prompt', methods=['GET', 'POST'])
 def api_rules_global_prompt():
     """Get or set the global system prompt override."""
+    if request.method == 'POST' and not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
@@ -52,6 +57,8 @@ def api_rules_global_prompt():
 @bp.route('/api/rules/project/<project_id>', methods=['GET', 'POST'])
 def api_rules_project(project_id):
     """Get or set rules for a specific project."""
+    if request.method == 'POST' and not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()
@@ -70,6 +77,8 @@ def api_rules_project(project_id):
 @bp.route('/api/rules/model/<path:model_id>', methods=['GET', 'POST'])
 def api_rules_model(model_id):
     """Get or set rules for a specific model."""
+    if request.method == 'POST' and not is_admin_user():
+        return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
         rm = get_rules_manager()

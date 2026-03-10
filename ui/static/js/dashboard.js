@@ -35,6 +35,10 @@ const fmtTs  = (iso) => {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleTimeString(); } catch { return iso; }
 };
+const fmtUnixTs = (epoch) => {
+    if (epoch == null) return '—';
+    try { return new Date(epoch * 1000).toLocaleTimeString(); } catch { return String(epoch); }
+};
 
 function pill(text, type) {
     return `<span class="dash-pill dash-pill-${type}">${text}</span>`;
@@ -343,15 +347,16 @@ function renderSLASection(reports) {
         return;
     }
     body.innerHTML = reports.map(r => {
-        const compliant = r.compliance_pct >= r.budget;
+        const slo = r.slo || {};
+        const compliant = r.is_compliant != null ? r.is_compliant : (r.compliance_pct >= (slo.budget || 0));
         const statusCls = compliant ? 'success' : 'error';
         return `<tr>
-            <td>${r.name}</td>
-            <td>${r.slo_type || '—'}</td>
-            <td>${(+r.budget).toFixed(1)}</td>
+            <td>${slo.name || '—'}</td>
+            <td>${slo.slo_type || '—'}</td>
+            <td>${slo.budget != null ? (+slo.budget).toFixed(1) : '—'}</td>
             <td>${r.current_value != null ? (+r.current_value).toFixed(2) : '—'}</td>
             <td>${fmtPct(r.compliance_pct)}</td>
-            <td>${fmtNum(r.samples)}</td>
+            <td>${fmtNum(r.total_samples)}</td>
             <td>${pill(compliant ? 'OK' : 'BREACH', statusCls)}</td>
         </tr>`;
     }).join('');
@@ -366,7 +371,7 @@ function renderAnomalySection(data) {
         return;
     }
     body.innerHTML = anomalies.map(a => `<tr>
-        <td>${fmtTs(a.timestamp)}</td>
+        <td>${fmtUnixTs(a.timestamp)}</td>
         <td>${a.metric}</td>
         <td>${(+a.value).toFixed(2)}</td>
         <td>${a.method || '—'}</td>
@@ -408,6 +413,24 @@ async function runForecast() {
         $('forecastTableBody').innerHTML = `<tr><td colspan="4" class="dash-empty">${e.message}</td></tr>`;
         $('forecastMeta').textContent = '';
     }
+}
+
+async function populateForecastMetrics() {
+    try {
+        const data = await apiFetch('/analytics/forecast?metric=latency_p95&horizon=1');
+        const sel = $('forecastMetric');
+        if (!sel || !data) return;
+        const available = data.available_metrics || [];
+        if (!available.length) return;
+        const current = sel.value;
+        sel.innerHTML = '';
+        available.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            sel.appendChild(opt);
+        });
+        if (current && available.includes(current)) sel.value = current;
+    } catch { /* ignore — forecast endpoint may not expose available_metrics */ }
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -468,6 +491,8 @@ async function refresh() {
         apiFetch('/analytics/anomalies').then(data => {
             renderAnomalySection(data);
         }).catch(() => {});
+
+        populateForecastMetrics();
 
     } catch (e) {
         setStatus(false);

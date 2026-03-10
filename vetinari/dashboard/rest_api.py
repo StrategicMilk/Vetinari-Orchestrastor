@@ -348,12 +348,24 @@ def create_app(debug: bool = False) -> 'Flask':
         """Log incoming requests."""
         logger.debug("%s %s", request.method, request.path)
     
+    _DASHBOARD_ALLOWED_ORIGINS = {
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:5000",
+        "http://127.0.0.1:5000",
+    }
+
     @app.after_request
     def add_cors_headers(response: Any) -> Any:
-        """Add CORS headers for development."""
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        """Add CORS headers restricted to localhost origins (P1.H2)."""
+        origin = request.headers.get("Origin", "")
+        if origin in _DASHBOARD_ALLOWED_ORIGINS:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Admin-Token'
+            response.headers['Vary'] = 'Origin'
+        elif 'Access-Control-Allow-Origin' in response.headers:
+            del response.headers['Access-Control-Allow-Origin']
         return response
     
     return app

@@ -159,9 +159,100 @@
     },
     "context_manager_agent": {
       "description": "Long-term context management, memory consolidation, session summarisation",
+      "status": "legacy",
+      "replaced_by": "consolidated_planner_agent",
       "default_skills": [
         {"skill_id": "synthesizer", "default_capability": "summarization"},
         {"skill_id": "oracle", "default_capability": "architecture_analysis"}
+      ]
+    },
+
+    "consolidated_planner_agent": {
+      "description": "Central orchestration: plan generation, clarification, summarisation, pruning, extraction, consolidation",
+      "agent_type": "PlannerAgent",
+      "status": "active",
+      "modes": ["plan", "clarify", "summarise", "prune", "extract", "consolidate"],
+      "absorbs": ["planner_agent", "user_interaction_agent", "context_manager_agent"],
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"},
+        {"skill_id": "synthesizer", "default_capability": "summarization"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "explorer", "default_capability": "project_mapping"}
+      ]
+    },
+    "consolidated_researcher_agent": {
+      "description": "Code discovery, domain research, API lookup, lateral thinking, UI design, database, devops, git workflow",
+      "agent_type": "ResearcherAgent",
+      "status": "active",
+      "modes": ["code_discovery", "domain_research", "api_lookup", "lateral_thinking", "ui_design", "database", "devops", "git_workflow"],
+      "absorbs": ["explorer_agent", "research_agent", "ui_agent", "data_engineer_agent", "devops_agent", "version_control_agent"],
+      "default_skills": [
+        {"skill_id": "explorer", "default_capability": "grep_search"},
+        {"skill_id": "researcher", "default_capability": "deep_dive"},
+        {"skill_id": "librarian", "default_capability": "docs_lookup"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "ui-planner", "default_capability": "css_design"},
+        {"skill_id": "builder", "default_capability": "code_generation"}
+      ]
+    },
+    "consolidated_oracle_agent": {
+      "description": "Architecture decisions, risk assessment, ontological analysis, contrarian review",
+      "agent_type": "OracleAgent",
+      "status": "active",
+      "modes": ["architecture", "risk_assessment", "ontological_analysis", "contrarian_review"],
+      "absorbs": ["oracle_agent"],
+      "default_skills": [
+        {"skill_id": "oracle", "default_capability": "architecture_analysis"},
+        {"skill_id": "oracle", "default_capability": "trade_off_evaluation"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "researcher", "default_capability": "comparative_analysis"}
+      ]
+    },
+    "consolidated_builder_agent": {
+      "description": "Code scaffolding, implementation, and image generation",
+      "agent_type": "BuilderAgent",
+      "status": "active",
+      "modes": ["build", "image_generation"],
+      "absorbs": ["builder_agent"],
+      "default_skills": [
+        {"skill_id": "builder", "default_capability": "feature_implementation"},
+        {"skill_id": "builder", "default_capability": "code_generation"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "explorer", "default_capability": "grep_search"},
+        {"skill_id": "librarian", "default_capability": "docs_lookup"}
+      ]
+    },
+    "consolidated_quality_agent": {
+      "description": "Code review, security audit, test generation, simplification",
+      "agent_type": "QualityAgent",
+      "status": "active",
+      "modes": ["code_review", "security_audit", "test_generation", "simplification"],
+      "absorbs": ["evaluator_agent", "security_auditor_agent", "test_automation_agent"],
+      "default_skills": [
+        {"skill_id": "evaluator", "default_capability": "code_review"},
+        {"skill_id": "evaluator", "default_capability": "security_audit"},
+        {"skill_id": "builder", "default_capability": "test_writing"}
+      ]
+    },
+    "consolidated_operations_agent": {
+      "description": "Documentation, creative writing, cost analysis, experiments, error recovery, synthesis, improvement, monitoring, devops ops",
+      "agent_type": "OperationsAgent",
+      "status": "active",
+      "modes": ["documentation", "creative_writing", "cost_analysis", "experiment", "error_recovery", "synthesis", "improvement", "monitor", "devops_ops"],
+      "absorbs": ["synthesizer_agent", "documentation_agent", "cost_planner_agent", "experimentation_manager_agent", "improvement_agent", "error_recovery_agent"],
+      "default_skills": [
+        {"skill_id": "synthesizer", "default_capability": "summarization"},
+        {"skill_id": "synthesizer", "default_capability": "report_generation"},
+        {"skill_id": "researcher", "default_capability": "comparative_analysis"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "evaluator", "default_capability": "quality_assessment"},
+        {"skill_id": "oracle", "default_capability": "trade_off_evaluation"}
       ]
     }
   },
@@ -250,6 +341,37 @@
       {"skill_id": "builder", "capability": "code_generation", "purpose": "Generate migration code"},
       {"skill_id": "evaluator", "capability": "quality_assessment", "purpose": "Review migration code"},
       {"skill_id": "synthesizer", "capability": "report_generation", "purpose": "Document migration"}
+    ],
+
+    "plan_research_build": [
+      {"agent": "PlannerAgent", "mode": "plan", "purpose": "Decompose goal into tasks"},
+      {"agent": "ResearcherAgent", "mode": "code_discovery", "purpose": "Analyze existing codebase"},
+      {"agent": "ResearcherAgent", "mode": "api_lookup", "purpose": "Research best practices"},
+      {"agent": "OracleAgent", "mode": "architecture", "purpose": "Design solution architecture"},
+      {"agent": "BuilderAgent", "mode": "build", "purpose": "Implement feature"},
+      {"agent": "QualityAgent", "mode": "code_review", "purpose": "Review implementation"},
+      {"agent": "QualityAgent", "mode": "security_audit", "purpose": "Security check"},
+      {"agent": "OperationsAgent", "mode": "synthesis", "purpose": "Generate final report"}
+    ],
+    "consolidated_security_audit": [
+      {"agent": "ResearcherAgent", "mode": "code_discovery", "purpose": "Map project structure"},
+      {"agent": "QualityAgent", "mode": "security_audit", "purpose": "Audit code for vulnerabilities"},
+      {"agent": "ResearcherAgent", "mode": "domain_research", "purpose": "Check vulnerability disclosures"},
+      {"agent": "OracleAgent", "mode": "risk_assessment", "purpose": "Assess risk severity"},
+      {"agent": "OperationsAgent", "mode": "synthesis", "purpose": "Generate audit report"}
+    ],
+    "consolidated_research_report": [
+      {"agent": "ResearcherAgent", "mode": "domain_research", "purpose": "Initial research"},
+      {"agent": "ResearcherAgent", "mode": "api_lookup", "purpose": "Find documentation"},
+      {"agent": "OracleAgent", "mode": "architecture", "purpose": "Evaluate options"},
+      {"agent": "OperationsAgent", "mode": "synthesis", "purpose": "Generate report"}
+    ],
+    "devops_pipeline": [
+      {"agent": "ResearcherAgent", "mode": "devops", "purpose": "Analyze infrastructure"},
+      {"agent": "OracleAgent", "mode": "architecture", "purpose": "Design pipeline"},
+      {"agent": "BuilderAgent", "mode": "build", "purpose": "Implement CI/CD"},
+      {"agent": "QualityAgent", "mode": "code_review", "purpose": "Review configuration"},
+      {"agent": "OperationsAgent", "mode": "devops_ops", "purpose": "Deploy and monitor"}
     ]
   }
 }
