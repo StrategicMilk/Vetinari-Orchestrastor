@@ -504,6 +504,26 @@ class BaseAgent(ABC):
 
             result = execute_fn(task)
             if result.success:
+                # P6.2: Soft-enforce output guardrails — log violations but do not block
+                try:
+                    from vetinari.safety.guardrails import get_guardrails, RailContext
+                    import json as _json
+                    _output_text = (
+                        result.output if isinstance(result.output, str)
+                        else _json.dumps(result.output, default=str)
+                    ) if result.output else ""
+                    if _output_text:
+                        _gr = get_guardrails().check_output(
+                            _output_text, context=RailContext.USER_FACING
+                        )
+                        if not _gr.allowed:
+                            self._log(
+                                "warning",
+                                f"Output guardrail flagged {len(_gr.violations)} violation(s): "
+                                + "; ".join(v.description for v in _gr.violations),
+                            )
+                except Exception as _gr_err:
+                    logger.debug("Output guardrail check failed (non-fatal): %s", _gr_err)
                 self.complete_task(task, result)
             return result
         except Exception as e:
