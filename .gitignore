@@ -60,7 +60,8 @@ subtasks/
 dry_run_demo_pkg/
 
 # Claude Code / OMC working directories
-.claude/
+.claude/*
+!.claude/agents/
 .omc/
 
 # Junk artifacts
