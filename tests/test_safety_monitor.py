@@ -182,17 +182,16 @@ class TestHealthCheck(unittest.TestCase):
         assert all(u["agent_id"] != "healthy" for u in unhealthy)
 
     def test_stale_agent_detected(self):
-        # Register with an extremely short timeout so it expires immediately
-        self.monitor.register_agent("stale", timeout_seconds=0.0001)
-        # Busy-wait long enough for the tiny timeout to expire
-        time.sleep(0.01)
+        # Register with a short timeout and sleep well past it
+        self.monitor.register_agent("stale", timeout_seconds=0.05)
+        time.sleep(0.15)
         unhealthy = self.monitor.check_health()
         ids = [u["agent_id"] for u in unhealthy]
         assert "stale" in ids
 
     def test_unhealthy_entry_has_expected_keys(self):
-        self.monitor.register_agent("expired", timeout_seconds=0.0001)
-        time.sleep(0.01)
+        self.monitor.register_agent("expired", timeout_seconds=0.05)
+        time.sleep(0.15)
         unhealthy = self.monitor.check_health()
         assert len(unhealthy) >= 1
         entry = next(u for u in unhealthy if u["agent_id"] == "expired")
