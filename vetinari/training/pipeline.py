@@ -114,7 +114,7 @@ class DataCurator:
             for item in formatted:
                 f.write(json.dumps(item) + "\n")
 
-        logger.info(f"[DataCurator] Wrote {len(formatted)} examples to {out_path}")
+        logger.info("[DataCurator] Wrote %d examples to %s", len(formatted), out_path)
         return str(out_path)
 
     def curate_dpo(
@@ -139,7 +139,7 @@ class DataCurator:
             for pair in pairs:
                 f.write(json.dumps(pair) + "\n")
 
-        logger.info(f"[DataCurator] Wrote {len(pairs)} DPO pairs to {out_path}")
+        logger.info("[DataCurator] Wrote %d DPO pairs to %s", len(pairs), out_path)
         return str(out_path)
 
 
@@ -392,7 +392,7 @@ print("Merge complete: {output_dir}/merged")
             if proc2.returncode == 0:
                 return str(out_path)
         except Exception as e:
-            logger.debug(f"[GGUFConverter] llama_cpp convert failed: {e}")
+            logger.debug("[GGUFConverter] llama_cpp convert failed: %s", e)
 
         logger.warning(
             "[GGUFConverter] GGUF conversion requires llama.cpp: "
@@ -417,7 +417,7 @@ class ModelDeployer:
         import shutil
         shutil.copy2(str(src), str(dest))
 
-        logger.info(f"[ModelDeployer] Deployed {src.name} to {dest}")
+        logger.info("[ModelDeployer] Deployed %s to %s", src.name, dest)
         return str(dest)
 
 
@@ -481,7 +481,7 @@ class TrainingPipeline:
 
         try:
             # Stage 1: Curate data
-            logger.info(f"[TrainingPipeline] {run_id}: Curating training data...")
+            logger.info("[TrainingPipeline] %s: Curating training data...", run_id)
             dataset_path = self._curator.curate(
                 task_type=task_type,
                 min_score=min_score,
@@ -491,14 +491,14 @@ class TrainingPipeline:
             # Count examples
             with open(dataset_path) as f:
                 run.training_examples = sum(1 for _ in f)
-            logger.info(f"[TrainingPipeline] {run_id}: {run.training_examples} training examples")
+            logger.info("[TrainingPipeline] %s: %d training examples", run_id, run.training_examples)
 
             if run.training_examples < 10:
                 run.error = f"Insufficient training data ({run.training_examples} examples)"
                 return run
 
             # Stage 2: Train
-            logger.info(f"[TrainingPipeline] {run_id}: Starting QLoRA training...")
+            logger.info("[TrainingPipeline] %s: Starting QLoRA training...", run_id)
             adapter_path = self._trainer.train_qlora(
                 base_model=base_model,
                 dataset_path=dataset_path,
@@ -506,10 +506,10 @@ class TrainingPipeline:
                 epochs=epochs,
             )
             run.adapter_path = adapter_path
-            logger.info(f"[TrainingPipeline] {run_id}: Training complete -> {adapter_path}")
+            logger.info("[TrainingPipeline] %s: Training complete -> %s", run_id, adapter_path)
 
             # Stage 3: Convert to GGUF
-            logger.info(f"[TrainingPipeline] {run_id}: Converting to GGUF...")
+            logger.info("[TrainingPipeline] %s: Converting to GGUF...", run_id)
             gguf_path = self._converter.convert(
                 base_model=base_model,
                 adapter_path=adapter_path,
@@ -522,11 +522,11 @@ class TrainingPipeline:
             run.output_model_path = deployed_path
 
             run.success = True
-            logger.info(f"[TrainingPipeline] {run_id}: Complete! Model at {deployed_path}")
+            logger.info("[TrainingPipeline] %s: Complete! Model at %s", run_id, deployed_path)
 
         except Exception as e:
             run.error = str(e)
-            logger.error(f"[TrainingPipeline] {run_id}: Failed: {e}")
+            logger.error("[TrainingPipeline] %s: Failed: %s", run_id, e)
 
         # Save run record
         with open(run_dir / "run.json", "w") as f:

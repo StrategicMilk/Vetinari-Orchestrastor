@@ -393,11 +393,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
                 discovered.append(model_info)
 
             self.models = discovered
-            logger.info(f"[LMStudio] Discovered {len(discovered)} models")
+            logger.info("[LMStudio] Discovered %s models", len(discovered))
             return discovered
 
         except Exception as e:
-            logger.error(f"[LMStudio] Model discovery failed: {e}")
+            logger.error("[LMStudio] Model discovery failed: %s", e)
             return []
 
     def health_check(self) -> Dict[str, Any]:
@@ -474,7 +474,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[LMStudio] Inference failed: {e}")
+            logger.error("[LMStudio] Inference failed: %s", e)
             resp = InferenceResponse(
                 model_id=request.model_id,
                 output="",
@@ -485,6 +485,52 @@ class LMStudioProviderAdapter(ProviderAdapter):
             )
             self._record_telemetry(request, resp)
             return resp
+
+    def infer_stream(self, request: InferenceRequest):
+        """Stream inference tokens from LM Studio.
+
+        Yields content strings as they arrive via SSE.
+        Falls back to non-streaming ``infer()`` on error.
+        """
+        import json as _json
+
+        payload = {
+            "model": request.model_id,
+            "messages": [
+                {"role": "system", "content": request.system_prompt or ""},
+                {"role": "user", "content": request.prompt},
+            ],
+            "temperature": request.temperature,
+            "top_p": request.top_p,
+            "max_tokens": request.max_tokens,
+            "stream": True,
+        }
+        try:
+            resp = self.session.post(
+                f"{self.endpoint}/v1/chat/completions",
+                json=payload,
+                stream=True,
+                timeout=self.timeout_seconds,
+            )
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                line_str = line.decode("utf-8") if isinstance(line, bytes) else line
+                if line_str.startswith("data: "):
+                    data = line_str[6:]
+                    if data.strip() == "[DONE]":
+                        break
+                    try:
+                        chunk = _json.loads(data)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except _json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error("[LMStudio] Streaming failed: %s", e)
 
     def get_capabilities(self) -> Dict[str, List[str]]:
         """Get capabilities of all models."""

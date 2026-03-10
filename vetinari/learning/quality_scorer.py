@@ -69,6 +69,15 @@ class QualityScorer:
         self._adapter_manager = adapter_manager
         self._scores: List[QualityScore] = []
         self._db_path = db_path
+        self._score_count: int = 0
+        try:
+            import yaml
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'ml_config.yaml')
+            with open(config_path) as f:
+                ml_config = yaml.safe_load(f)
+            self._calibration_interval: int = ml_config.get('quality_scoring', {}).get('calibration_interval', 10)
+        except Exception:
+            self._calibration_interval = 10
         self._init_db()
 
     def _init_db(self) -> None:
@@ -96,10 +105,7 @@ class QualityScorer:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_model ON quality_scores(model_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_qs_task_type ON quality_scores(task_type)")
         except Exception as e:
-            logger.debug(f"[QualityScorer] DB init failed (scores will be in-memory only): {e}")
-
-    # Benchmark blending weight: computed_score * (1 - weight) + benchmark * weight
-    BENCHMARK_BLEND_WEIGHT = 0.3
+            logger.debug("[QualityScorer] DB init failed (scores will be in-memory only): %s", e)
 
     def score(
         self,
@@ -109,7 +115,6 @@ class QualityScorer:
         task_description: str,
         output: str,
         use_llm: bool = True,
-        benchmark_score: Optional[float] = None,
     ) -> QualityScore:
         """
         Score a task output.
@@ -121,81 +126,35 @@ class QualityScorer:
             task_description: What the task asked for.
             output: The output to evaluate.
             use_llm: Whether to attempt LLM-as-judge evaluation.
-            benchmark_score: Optional benchmark score (0.0-1.0) to blend in.
-                When provided, final = computed * 0.7 + benchmark * 0.3.
 
         Returns:
             QualityScore with all dimensions populated.
         """
         dims = self.DIMENSIONS.get(task_type.lower(), self.DIMENSIONS["default"])
 
-        if use_llm and self._adapter_manager:
-            score = self._score_with_llm(task_id, model_id, task_type, task_description, output, dims)
-            if score:
-                if benchmark_score is not None:
-                    score = self._blend_benchmark(score, benchmark_score)
-                self._scores.append(score)
-                self._persist(score)
-                return score
+        self._score_count += 1
+        is_calibration = use_llm and self._adapter_manager and (self._score_count % self._calibration_interval == 0)
 
-        # Fallback: heuristic scoring
+        if is_calibration:
+            llm_score = self._score_with_llm(task_id, model_id, task_type, task_description, output, dims)
+            if llm_score:
+                # Compare LLM score with heuristic for drift monitoring
+                heuristic_score = self._score_heuristic(task_id, model_id, task_type, output, dims)
+                delta = round(llm_score.overall_score - heuristic_score.overall_score, 3)
+                logger.debug(
+                    "[QualityScorer] Calibration run: LLM=%.2f, heuristic=%.2f, delta=%.2f",
+                    llm_score.overall_score,
+                    heuristic_score.overall_score,
+                    delta,
+                )
+                self._scores.append(llm_score)
+                self._persist(llm_score)
+                return llm_score
+
+        # Non-calibration run (or LLM unavailable): use heuristic scoring
         score = self._score_heuristic(task_id, model_id, task_type, output, dims)
-        if benchmark_score is not None:
-            score = self._blend_benchmark(score, benchmark_score)
         self._scores.append(score)
         self._persist(score)
-        return score
-
-    def score_with_benchmark(
-        self,
-        task_id: str,
-        model_id: str,
-        task_type: str,
-        task_description: str,
-        output: str,
-        benchmark_score: float,
-        use_llm: bool = True,
-    ) -> QualityScore:
-        """
-        Score a task output with mandatory benchmark blending.
-
-        Convenience wrapper that ensures benchmark_score is always applied.
-        Final score = computed * 0.7 + benchmark * 0.3.
-
-        Args:
-            task_id: Unique task identifier.
-            model_id: Model that produced the output.
-            task_type: Type of task (coding, research, etc.).
-            task_description: What the task asked for.
-            output: The output to evaluate.
-            benchmark_score: Benchmark score (0.0-1.0) to blend in.
-            use_llm: Whether to attempt LLM-as-judge evaluation.
-
-        Returns:
-            QualityScore with benchmark-blended overall_score.
-        """
-        return self.score(
-            task_id=task_id,
-            model_id=model_id,
-            task_type=task_type,
-            task_description=task_description,
-            output=output,
-            use_llm=use_llm,
-            benchmark_score=benchmark_score,
-        )
-
-    def _blend_benchmark(self, score: QualityScore, benchmark_score: float) -> QualityScore:
-        """Blend a benchmark score into an existing QualityScore.
-
-        Formula: final = computed * (1 - BENCHMARK_BLEND_WEIGHT) + benchmark * BENCHMARK_BLEND_WEIGHT
-        Default weight: 0.7 computed + 0.3 benchmark.
-        """
-        clamped = max(0.0, min(1.0, benchmark_score))
-        w = self.BENCHMARK_BLEND_WEIGHT
-        blended = score.overall_score * (1.0 - w) + clamped * w
-        score.overall_score = round(blended, 3)
-        score.dimensions["benchmark_score"] = round(clamped, 3)
-        score.method = f"{score.method}+benchmark"
         return score
 
     def _score_with_llm(
@@ -236,8 +195,6 @@ class QualityScorer:
             judge_model = self._pick_judge_model(model_id)
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
-            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
-            judge_model = resolve_lmstudio_model(judge_model, host)
             import requests as _req
             resp = _req.post(
                 f"{host}/v1/chat/completions",
@@ -250,7 +207,6 @@ class QualityScorer:
                     "max_tokens": 600,
                     "temperature": 0.1,
                 },
-                headers=get_lmstudio_headers(),
                 timeout=60,
             )
             if resp.status_code != 200:
@@ -263,7 +219,13 @@ class QualityScorer:
             data = json.loads(match.group(0))
 
             dim_scores = data.get("dimensions", {})
-            overall = float(data.get("overall", sum(dim_scores.values()) / max(len(dim_scores), 1)))
+            raw_overall = data.get("overall")
+            if raw_overall is not None:
+                overall = float(raw_overall)
+            elif dim_scores:
+                overall = sum(dim_scores.values()) / len(dim_scores)
+            else:
+                overall = 0.65  # conservative default when no dimensions returned
 
             return QualityScore(
                 task_id=task_id,
@@ -279,7 +241,7 @@ class QualityScorer:
                 method="llm",
             )
         except Exception as e:
-            logger.debug(f"LLM scoring failed: {e}")
+            logger.debug("LLM scoring failed: %s", e)
             return None
 
     def _pick_judge_model(self, evaluated_model_id: str) -> str:
@@ -291,7 +253,7 @@ class QualityScorer:
                 if m.model_id != evaluated_model_id:
                     return m.model_id
         except Exception:
-            pass
+            logger.debug("Failed to pick judge model different from %s", evaluated_model_id, exc_info=True)
         # Fallback: just use whatever is loaded (slight bias, but better than nothing)
         return evaluated_model_id
 
@@ -320,7 +282,7 @@ class QualityScorer:
                     ),
                 )
         except Exception as e:
-            logger.debug(f"[QualityScorer] persist failed: {e}")
+            logger.debug("[QualityScorer] persist failed: %s", e)
 
     def _score_heuristic(
         self,
@@ -377,7 +339,7 @@ class QualityScorer:
             if d not in scores:
                 scores[d] = 0.65
 
-        overall = sum(scores.values()) / len(scores) if scores else 0.65
+        overall = sum(scores.values()) / max(len(scores), 1) if scores else 0.65
 
         return QualityScore(
             task_id=task_id, model_id=model_id, task_type=task_type,

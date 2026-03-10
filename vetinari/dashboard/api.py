@@ -260,7 +260,7 @@ class DashboardAPI:
             elif metric == "memory_latency":
                 return self._get_memory_latency_timeseries(timerange)
             else:
-                logger.warning(f"Unknown metric requested: {metric}")
+                logger.warning("Unknown metric requested: %s", metric)
                 return None
     
     def _get_adapter_latency_timeseries(self, timerange: str, 
@@ -462,10 +462,10 @@ class DashboardAPI:
                     oldest = self._trace_list.pop(0)
                     self._traces.pop(oldest.trace_id, None)
                 
-                logger.debug(f"Trace added: {trace_detail.trace_id}")
+                logger.debug("Trace added: %s", trace_detail.trace_id)
                 return True
             except Exception as e:
-                logger.error(f"Failed to add trace: {e}")
+                logger.error("Failed to add trace: %s", e)
                 return False
     
     # === Helper Methods ===

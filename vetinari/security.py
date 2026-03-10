@@ -186,7 +186,7 @@ class SecretScanner:
         
         self._sensitive_keywords_lower = [kw.lower() for kw in self.SENSITIVE_KEYWORDS]
         
-        logger.info(f"SecretScanner initialized with {len(self.patterns)} patterns")
+        logger.info("SecretScanner initialized with %s patterns", len(self.patterns))
     
     def scan(self, content: str, max_matches: int = 100) -> Dict[str, List[str]]:
         """
@@ -336,7 +336,7 @@ class SecretScanner:
                     sanitized_dict = self.sanitize_dict(asdict(obj), placeholder)
                     return type(obj)(**sanitized_dict)
             except Exception as e:
-                logger.debug(f"Could not sanitize dataclass: {e}")
+                logger.debug("Could not sanitize dataclass: %s", e)
         
         return obj
     
@@ -349,7 +349,7 @@ class SecretScanner:
         """Add a custom secret pattern."""
         self.patterns.append(pattern)
         self._compiled_patterns[pattern.name] = re.compile(pattern.pattern, re.IGNORECASE)
-        logger.info(f"Added custom pattern: {pattern.name}")
+        logger.info("Added custom pattern: %s", pattern.name)
 
 
 # Global singleton instance

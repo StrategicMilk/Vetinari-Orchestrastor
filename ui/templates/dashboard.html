@@ -37,6 +37,18 @@
             <a href="#" class="dash-nav-item" data-section="traces">
                 <i class="fas fa-project-diagram"></i><span>Traces</span>
             </a>
+            <a href="#" class="dash-nav-item" data-section="cost">
+                <i class="fas fa-dollar-sign"></i><span>Cost</span>
+            </a>
+            <a href="#" class="dash-nav-item" data-section="sla">
+                <i class="fas fa-chart-line"></i><span>SLA</span>
+            </a>
+            <a href="#" class="dash-nav-item" data-section="anomalies">
+                <i class="fas fa-exclamation-circle"></i><span>Anomalies</span>
+            </a>
+            <a href="#" class="dash-nav-item" data-section="forecast">
+                <i class="fas fa-chart-area"></i><span>Forecast</span>
+            </a>
             <a href="#" class="dash-nav-item" data-section="alerts">
                 <i class="fas fa-bell"></i><span>Alerts</span>
                 <span class="dash-badge" id="alertBadge" style="display:none">0</span>
@@ -309,6 +321,127 @@
                     </button>
                 </div>
                 <div id="traceDetailBody"></div>
+            </div>
+        </section>
+
+        <!-- ── COST ─────────────────────────────────────────── -->
+        <section class="dash-section" id="section-cost">
+            <div class="dash-kpi-grid dash-kpi-grid-3">
+                <div class="dash-kpi-card">
+                    <div class="dash-kpi-icon dash-icon-green"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="dash-kpi-body">
+                        <div class="dash-kpi-label">Total Cost</div>
+                        <div class="dash-kpi-value" id="cost-total">—</div>
+                    </div>
+                </div>
+                <div class="dash-kpi-card">
+                    <div class="dash-kpi-icon dash-icon-blue"><i class="fas fa-coins"></i></div>
+                    <div class="dash-kpi-body">
+                        <div class="dash-kpi-label">Total Tokens</div>
+                        <div class="dash-kpi-value" id="cost-tokens">—</div>
+                    </div>
+                </div>
+                <div class="dash-kpi-card">
+                    <div class="dash-kpi-icon dash-icon-purple"><i class="fas fa-exchange-alt"></i></div>
+                    <div class="dash-kpi-body">
+                        <div class="dash-kpi-label">Total Requests</div>
+                        <div class="dash-kpi-value" id="cost-requests">—</div>
+                    </div>
+                </div>
+            </div>
+            <div class="dash-charts-row">
+                <div class="dash-card">
+                    <div class="dash-card-header"><span>Top Agents by Cost</span></div>
+                    <div class="dash-table-wrap">
+                        <table class="dash-table"><thead><tr><th>Agent</th><th>Cost (USD)</th></tr></thead>
+                        <tbody id="costAgentTableBody"><tr><td colspan="2" class="dash-empty">Loading…</td></tr></tbody></table>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-header"><span>Top Models by Cost</span></div>
+                    <div class="dash-table-wrap">
+                        <table class="dash-table"><thead><tr><th>Model</th><th>Cost (USD)</th></tr></thead>
+                        <tbody id="costModelTableBody"><tr><td colspan="2" class="dash-empty">Loading…</td></tr></tbody></table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── SLA ──────────────────────────────────────────── -->
+        <section class="dash-section" id="section-sla">
+            <div class="dash-card">
+                <div class="dash-card-header"><span>SLO Compliance</span></div>
+                <div class="dash-table-wrap">
+                    <table class="dash-table" id="slaTable">
+                        <thead><tr>
+                            <th>SLO Name</th><th>Type</th><th>Budget</th>
+                            <th>Current Value</th><th>Compliance %</th>
+                            <th>Samples</th><th>Status</th>
+                        </tr></thead>
+                        <tbody id="slaTableBody">
+                            <tr><td colspan="7" class="dash-empty">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── ANOMALIES ────────────────────────────────────── -->
+        <section class="dash-section" id="section-anomalies">
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <span>Recent Anomalies</span>
+                    <span class="dash-text-muted" id="anomalyCount"></span>
+                </div>
+                <div class="dash-table-wrap">
+                    <table class="dash-table">
+                        <thead><tr>
+                            <th>Time</th><th>Metric</th><th>Value</th>
+                            <th>Method</th><th>Score</th><th>Reason</th>
+                        </tr></thead>
+                        <tbody id="anomalyTableBody">
+                            <tr><td colspan="6" class="dash-empty">No anomalies detected.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── FORECAST ─────────────────────────────────────── -->
+        <section class="dash-section" id="section-forecast">
+            <div class="dash-card" style="margin-bottom: var(--dash-space);">
+                <div class="dash-card-header"><span>Forecast Settings</span></div>
+                <div class="dash-search-row">
+                    <select class="dash-select" id="forecastMetric">
+                        <option value="adapter.latency">Adapter Latency</option>
+                        <option value="adapter.tokens">Token Usage</option>
+                    </select>
+                    <select class="dash-select" id="forecastMethod">
+                        <option value="linear_trend">Linear Trend</option>
+                        <option value="exp_smoothing">Exponential Smoothing</option>
+                        <option value="sma">Simple Moving Average</option>
+                        <option value="seasonal">Seasonal</option>
+                    </select>
+                    <button class="dash-btn dash-btn-primary" id="forecastRunBtn">
+                        <i class="fas fa-chart-area"></i> Run Forecast
+                    </button>
+                </div>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card-header"><span>Forecast Results</span></div>
+                <div class="dash-table-wrap">
+                    <table class="dash-table">
+                        <thead><tr>
+                            <th>Step</th><th>Prediction</th><th>Low (80%)</th><th>High (80%)</th>
+                        </tr></thead>
+                        <tbody id="forecastTableBody">
+                            <tr><td colspan="4" class="dash-empty">Click "Run Forecast" to generate predictions.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:0.5rem;padding:0 1rem 1rem;">
+                    <span class="dash-text-muted" id="forecastMeta"></span>
+                </div>
             </div>
         </section>
 

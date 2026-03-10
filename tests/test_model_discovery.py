@@ -12,6 +12,9 @@ import requests
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Remove incomplete stubs left by earlier test files so real modules load
+sys.modules.pop("vetinari.model_pool", None)
+
 from vetinari.model_pool import ModelPool
 
 

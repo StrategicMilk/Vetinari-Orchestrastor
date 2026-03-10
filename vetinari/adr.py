@@ -1,11 +1,11 @@
+import json
 import logging
 import uuid
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import json
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class ADRSystem:
     _instance = None
 
     @classmethod
-    def get_instance(cls, storage_path: str = None):
+    def get_instance(cls, storage_path: str = None) -> "ADRSystem":
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -119,7 +119,7 @@ class ADRSystem:
                     adr = ADR.from_dict(data)
                     self.adrs[adr.adr_id] = adr
             except Exception as e:
-                logger.error(f"Error loading ADR {file}: {e}")
+                logger.error("Error loading ADR %s: %s", file, e)
 
     def _save_adr(self, adr: ADR):
         file_path = self.storage_path / f"{adr.adr_id}.json"

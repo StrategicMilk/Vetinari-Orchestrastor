@@ -1,19 +1,90 @@
 """
-Execution graph (DAG) for the two-layer orchestration system.
+Execution Graph — Layer 1 data structures for the Two-Layer Orchestration System.
 
-Provides the ExecutionGraph class that models tasks as a directed acyclic
-graph with dependency resolution and parallel execution scheduling.
+Contains the DAG (Directed Acyclic Graph) of tasks used for plan execution.
+This is distinct from :class:`~vetinari.orchestration.agent_graph.TaskNode`
+which represents agent-level graph nodes.
 """
 
 import json
-import logging
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Set
 
-from vetinari.orchestration.types import TaskStatus, PlanStatus, TaskNode
+from vetinari.types import PlanStatus, TaskStatus
 
-logger = logging.getLogger(__name__)
+
+@dataclass
+class TaskNode:
+    """A single task node in the execution graph."""
+
+    id: str
+    description: str
+    task_type: str = "general"
+
+    # Dependencies
+    depends_on: List[str] = field(default_factory=list)
+    depended_by: List[str] = field(default_factory=list)
+
+    # Execution
+    status: TaskStatus = TaskStatus.PENDING
+    assigned_model: str = ""
+
+    # Results
+    input_data: Dict[str, Any] = field(default_factory=dict)
+    output_data: Dict[str, Any] = field(default_factory=dict)
+    error: str = ""
+
+    # Metadata
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    retry_count: int = 0
+    max_retries: int = 3
+
+    # Checkpoint
+    checkpoint_id: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "description": self.description,
+            "task_type": self.task_type,
+            "depends_on": self.depends_on,
+            "depended_by": self.depended_by,
+            "status": self.status.value,
+            "assigned_model": self.assigned_model,
+            "input_data": self.input_data,
+            "output_data": self.output_data,
+            "error": self.error,
+            "created_at": self.created_at,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "checkpoint_id": self.checkpoint_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "TaskNode":
+        return cls(
+            id=data["id"],
+            description=data["description"],
+            task_type=data.get("task_type", "general"),
+            depends_on=data.get("depends_on", []),
+            depended_by=data.get("depended_by", []),
+            status=TaskStatus(data.get("status", "pending")),
+            assigned_model=data.get("assigned_model", ""),
+            input_data=data.get("input_data", {}),
+            output_data=data.get("output_data", {}),
+            error=data.get("error", ""),
+            created_at=data.get("created_at", datetime.now().isoformat()),
+            started_at=data.get("started_at"),
+            completed_at=data.get("completed_at"),
+            retry_count=data.get("retry_count", 0),
+            max_retries=data.get("max_retries", 3),
+            checkpoint_id=data.get("checkpoint_id", ""),
+        )
 
 
 @dataclass
@@ -44,20 +115,21 @@ class ExecutionGraph:
     completed_count: int = 0
     failed_count: int = 0
 
-    def add_task(self,
-                task_id: str,
-                description: str,
-                task_type: str = "general",
-                depends_on: List[str] = None,
-                input_data: Dict[str, Any] = None) -> TaskNode:
+    def add_task(
+        self,
+        task_id: str,
+        description: str,
+        task_type: str = "general",
+        depends_on: List[str] = None,
+        input_data: Dict[str, Any] = None,
+    ) -> TaskNode:
         """Add a task to the graph."""
-        # Create node
         node = TaskNode(
             id=task_id,
             description=description,
             task_type=task_type,
             depends_on=depends_on or [],
-            input_data=input_data or {}
+            input_data=input_data or {},
         )
 
         # Update dependency links
@@ -67,7 +139,6 @@ class ExecutionGraph:
 
         self.nodes[task_id] = node
         self.updated_at = datetime.now().isoformat()
-
         return node
 
     def get_ready_tasks(self) -> List[TaskNode]:
@@ -76,56 +147,51 @@ class ExecutionGraph:
         for node in self.nodes.values():
             if node.status != TaskStatus.PENDING:
                 continue
-
-            # Check if all dependencies are completed
             deps_met = all(
-                self.nodes.get(dep_id, TaskNode(id=dep_id, description="")).status == TaskStatus.COMPLETED
+                self.nodes.get(dep_id, TaskNode(id=dep_id, description="")).status
+                == TaskStatus.COMPLETED
                 for dep_id in node.depends_on
             )
-
             if deps_met:
                 ready.append(node)
-
         return ready
 
     def get_next_layer(self) -> List[List["TaskNode"]]:
         """
-        Get the full execution schedule as layers of tasks that can run in parallel.
+        Get the full execution schedule as layers of parallel tasks.
 
-        Uses a simulation pass: tasks are "virtually completed" after being placed in
-        a layer so that subsequent layers correctly detect their dependencies as satisfied.
-
-        Returns list of layers (each layer is a list of tasks that can run in parallel).
+        Uses a simulation pass: tasks are "virtually completed" after being
+        placed in a layer so that subsequent layers correctly detect their
+        dependencies as satisfied.
         """
-        layers = []
-        # Work on copies of status so we don't mutate real node state
-        simulated_completed: set = {
-            nid for nid, n in self.nodes.items()
+        layers: List[List[TaskNode]] = []
+        simulated_completed: Set[str] = {
+            nid
+            for nid, n in self.nodes.items()
             if n.status == TaskStatus.COMPLETED
         }
         remaining = {
-            nid: n for nid, n in self.nodes.items()
+            nid: n
+            for nid, n in self.nodes.items()
             if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED)
         }
 
         while remaining:
-            current_layer = []
-            to_remove = []
+            current_layer: List[TaskNode] = []
+            to_remove: List[str] = []
 
             for task_id, node in remaining.items():
-                # A task is ready when ALL its dependencies are in the simulated-completed set
-                deps_met = all(dep_id in simulated_completed for dep_id in node.depends_on)
-
+                deps_met = all(
+                    dep_id in simulated_completed for dep_id in node.depends_on
+                )
                 if deps_met:
                     current_layer.append(node)
                     to_remove.append(task_id)
 
             if not current_layer:
-                # No progress possible -- circular dependency or all remaining tasks blocked
-                break
+                break  # circular dependency or all blocked
 
             layers.append(current_layer)
-
             for task_id in to_remove:
                 del remaining[task_id]
                 simulated_completed.add(task_id)
@@ -145,11 +211,7 @@ class ExecutionGraph:
 
     def get_blocked_tasks(self) -> List[TaskNode]:
         """Get tasks that are blocked waiting for dependencies."""
-        blocked = []
-        for node in self.nodes.values():
-            if node.status == TaskStatus.BLOCKED:
-                blocked.append(node)
-        return blocked
+        return [n for n in self.nodes.values() if n.status == TaskStatus.BLOCKED]
 
     def get_failed_tasks(self) -> List[TaskNode]:
         """Get all failed tasks."""

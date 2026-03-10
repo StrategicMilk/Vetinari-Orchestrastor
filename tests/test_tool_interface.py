@@ -4,7 +4,12 @@ Unit tests for Tool Interface System (Phase 2)
 Tests the Tool, ToolMetadata, ToolParameter, ToolResult, and ToolRegistry classes.
 """
 
+import sys
 import pytest
+
+# Remove incomplete stubs left by earlier test files so real modules load
+sys.modules.pop("vetinari.tool_interface", None)
+
 from vetinari.tool_interface import (
     Tool,
     ToolMetadata,

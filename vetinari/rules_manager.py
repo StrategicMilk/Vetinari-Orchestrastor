@@ -29,7 +29,7 @@ def _load_yaml_safe(path: Path) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except Exception as e:
-        logger.debug(f"Could not load {path}: {e}")
+        logger.debug("Could not load %s: %s", path, e)
         return {}
 
 
@@ -41,7 +41,7 @@ def _save_yaml(path: Path, data: Dict[str, Any]) -> None:
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
     except Exception as e:
-        logger.error(f"Failed to save rules to {path}: {e}")
+        logger.error("Failed to save rules to %s: %s", path, e)
 
 
 class RulesManager:

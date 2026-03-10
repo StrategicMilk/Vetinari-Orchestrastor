@@ -1,17 +1,25 @@
-"""Web UI blueprints and shared state for Vetinari.
+"""
+Vetinari Web Blueprints — modular route groups extracted from web_ui.py.
 
-Blueprints
-----------
-    projects_bp   -- project CRUD and execution routes
-    plans_bp      -- plan, subtask, decomposition routes
-    admin_bp      -- admin, agent, memory, sandbox routes
-    preferences_bp -- user preferences routes
-    learning_bp   -- learning pipeline API (Thompson, quality, training)
-    analytics_bp  -- analytics API (cost, SLA, anomaly, forecast)
+Each blueprint is a self-contained route group with lazy imports to
+avoid circular dependencies.
 """
 
-from vetinari.web.preferences import preferences_bp  # noqa: F401
-from vetinari.web.variant_system import VariantLevel, VariantManager  # noqa: F401
-from vetinari.web.learning_api import learning_bp  # noqa: F401
-from vetinari.web.analytics_api import analytics_bp  # noqa: F401
-from vetinari.web.log_stream import log_stream_bp  # noqa: F401
+import os
+from flask import request
+
+
+def is_admin_user() -> bool:
+    """
+    Check if the current request comes from an admin user.
+    For local deployments, localhost requests are always admin.
+    For network deployments, check VETINARI_ADMIN_TOKEN env var.
+    """
+    admin_token = os.environ.get("VETINARI_ADMIN_TOKEN", "")
+    if admin_token:
+        auth_header = request.headers.get("Authorization", "")
+        req_token = request.headers.get("X-Admin-Token", "")
+        provided = req_token or auth_header.replace("Bearer ", "")
+        return provided == admin_token
+    remote = request.remote_addr or ""
+    return remote in ("127.0.0.1", "::1", "localhost")

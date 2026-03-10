@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Example: Using the Librarian Skill Tool"""
 
-from vetinari.tools.librarian_skill import LibrarianSkillTool, LibrarianCapability, ThinkingMode
+from vetinari.skills.librarian import LibrarianSkillTool, LibrarianCapability, ThinkingMode
 from vetinari.execution_context import ExecutionMode
 from unittest.mock import Mock
 

@@ -1,0 +1,25 @@
+# Input Rails — Colang flow definitions for input validation
+
+define flow check jailbreak
+  """Detect prompt injection and jailbreak attempts."""
+  $is_jailbreak = execute check_jailbreak(user_input=$user_message)
+  if $is_jailbreak
+    bot refuse to respond
+    stop
+
+define flow check toxic language
+  """Detect harmful or offensive content in user input."""
+  $is_toxic = execute check_toxic(text=$user_message)
+  if $is_toxic
+    bot refuse to respond
+    stop
+
+define flow check prompt injection
+  """Detect attempts to manipulate agent behavior."""
+  $is_injection = execute check_prompt_injection(user_input=$user_message)
+  if $is_injection
+    bot refuse to respond
+    stop
+
+define bot refuse to respond
+  "I'm sorry, but I cannot process that request. Please rephrase your input."

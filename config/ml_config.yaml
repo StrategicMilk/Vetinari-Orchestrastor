@@ -1,0 +1,65 @@
+# Vetinari ML Configuration
+# ===========================
+# Centralizes ML hyperparameters that were previously hardcoded across modules.
+# Modules load from this file at startup; users can tune without code changes.
+#
+# To override at runtime, set env var VETINARI_ML_CONFIG to a custom path.
+
+thompson_sampling:
+  prior_alpha: 2.0          # Beta distribution prior (skeptical vs. naive 1.0)
+  prior_beta: 2.0
+  cost_weight: 0.15         # Additive cost penalty weight
+  exploration_bonus: 0.15   # Extra score for untested models in DynamicModelRouter
+
+quality_scoring:
+  default_score: 0.65       # Default when no data available
+  prior_weight: 5.0         # Bayesian prior strength (decays as data grows)
+  ema_alpha: 0.3            # Exponential moving average smoothing factor
+  calibration_interval: 10  # LLM-as-judge calibration every N tasks
+  min_effect_size: 0.5      # Cohen's d threshold for prompt variant promotion
+
+model_routing:
+  capability_weight: 0.40   # Weight for capability matching
+  performance_weight: 0.20  # Weight for historical performance
+  provider_weight: 0.10     # Weight for provider preference
+  context_weight: 0.10      # Weight for context fit
+  thompson_weight: 0.10     # Weight for Thompson Sampling bonus
+  preference_weight: 0.20   # Weight for user preference
+
+token_optimization:
+  chars_per_token:
+    code: 3                 # Code has short tokens (operators, keywords)
+    text: 5                 # Natural language has longer tokens
+    mixed: 4                # Default for mixed content
+  compress_threshold_chars: 6000   # Trigger local summarisation above this
+  context_window_chars: 4000       # Sliding window when truncating
+
+feedback_loop:
+  ema_alpha: 0.3            # EMA smoothing for success rate tracking
+  signal_blend: 0.5         # Weight of success (bool) vs quality (float) in signal
+
+auto_tuner:
+  cycle_interval_seconds: 900
+  max_concurrent: 8
+  anomaly_hysteresis_high: 15  # Relax threshold above this count
+  anomaly_hysteresis_low: 5    # Tighten threshold below this count
+  rollback_on_regression: true
+
+prompt_evolver:
+  min_trials: 20            # Minimum trials before promotion decision
+  min_improvement: 0.05     # Minimum mean improvement to consider promotion
+  min_effect_size: 0.5      # Cohen's d threshold (medium effect)
+  significance_level: 0.05  # p-value threshold for paired t-test
+
+decomposition:
+  max_depth: 14             # Maximum subtask nesting depth
+  seed_rate: 0.3            # Rate for template seeding
+  template_match_threshold: 0.3  # Below this -> LLM fallback
+
+ponder:
+  weights:
+    capability: 0.40
+    context: 0.20
+    memory: 0.20
+    heuristic: 0.20
+  policy_penalty: -1.0      # Relative scale (was -100.0)

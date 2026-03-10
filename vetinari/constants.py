@@ -13,7 +13,7 @@ DEFAULT_API_TOKEN: str = os.environ.get("LM_STUDIO_API_TOKEN", "")
 
 # ── Web UI ────────────────────────────────────────────────────────────────────
 DEFAULT_WEB_PORT: int = int(os.environ.get("VETINARI_WEB_PORT", 5000))
-DEFAULT_WEB_HOST: str = os.environ.get("VETINARI_WEB_HOST", "0.0.0.0")
+DEFAULT_WEB_HOST: str = os.environ.get("VETINARI_WEB_HOST", "127.0.0.1")
 FLASK_DEBUG: bool = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
 
 # ── Timeouts (seconds) ────────────────────────────────────────────────────────

@@ -315,6 +315,102 @@ function alertItemHtml(a, isActive) {
 }
 
 /* ──────────────────────────────────────────────────────────────
+   Analytics: Cost, SLA, Anomalies, Forecast
+   ────────────────────────────────────────────────────────────── */
+function renderCostSection(report, topData) {
+    $('cost-total').textContent = report.total_cost_usd != null
+        ? `$${(+report.total_cost_usd).toFixed(4)}` : '—';
+    $('cost-tokens').textContent = fmtNum(report.total_tokens);
+    $('cost-requests').textContent = fmtNum(report.total_requests);
+
+    const agentBody = $('costAgentTableBody');
+    const agents = (topData && topData.top_agents) || [];
+    agentBody.innerHTML = agents.length
+        ? agents.map(a => `<tr><td>${a.agent || '(unknown)'}</td><td>$${(+a.cost_usd).toFixed(4)}</td></tr>`).join('')
+        : '<tr><td colspan="2" class="dash-empty">No agent cost data.</td></tr>';
+
+    const modelBody = $('costModelTableBody');
+    const models = (topData && topData.top_models) || [];
+    modelBody.innerHTML = models.length
+        ? models.map(m => `<tr><td><code>${m.model}</code></td><td>$${(+m.cost_usd).toFixed(4)}</td></tr>`).join('')
+        : '<tr><td colspan="2" class="dash-empty">No model cost data.</td></tr>';
+}
+
+function renderSLASection(reports) {
+    const body = $('slaTableBody');
+    if (!reports || !reports.length) {
+        body.innerHTML = '<tr><td colspan="7" class="dash-empty">No SLA data yet.</td></tr>';
+        return;
+    }
+    body.innerHTML = reports.map(r => {
+        const compliant = r.compliance_pct >= r.budget;
+        const statusCls = compliant ? 'success' : 'error';
+        return `<tr>
+            <td>${r.name}</td>
+            <td>${r.slo_type || '—'}</td>
+            <td>${(+r.budget).toFixed(1)}</td>
+            <td>${r.current_value != null ? (+r.current_value).toFixed(2) : '—'}</td>
+            <td>${fmtPct(r.compliance_pct)}</td>
+            <td>${fmtNum(r.samples)}</td>
+            <td>${pill(compliant ? 'OK' : 'BREACH', statusCls)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderAnomalySection(data) {
+    const anomalies = data.anomalies || [];
+    $('anomalyCount').textContent = `${anomalies.length} anomaly(s)`;
+    const body = $('anomalyTableBody');
+    if (!anomalies.length) {
+        body.innerHTML = '<tr><td colspan="6" class="dash-empty">No anomalies detected.</td></tr>';
+        return;
+    }
+    body.innerHTML = anomalies.map(a => `<tr>
+        <td>${fmtTs(a.timestamp)}</td>
+        <td>${a.metric}</td>
+        <td>${(+a.value).toFixed(2)}</td>
+        <td>${a.method || '—'}</td>
+        <td>${(+a.score).toFixed(2)}</td>
+        <td>${a.reason || '—'}</td>
+    </tr>`).join('');
+}
+
+function renderForecastSection(result) {
+    const preds = result.predictions || [];
+    const lo = result.confidence_lo || [];
+    const hi = result.confidence_hi || [];
+    const body = $('forecastTableBody');
+    if (!preds.length) {
+        body.innerHTML = '<tr><td colspan="4" class="dash-empty">No forecast data.</td></tr>';
+        $('forecastMeta').textContent = '';
+        return;
+    }
+    body.innerHTML = preds.map((p, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${(+p).toFixed(2)}</td>
+        <td>${lo[i] != null ? (+lo[i]).toFixed(2) : '—'}</td>
+        <td>${hi[i] != null ? (+hi[i]).toFixed(2) : '—'}</td>
+    </tr>`).join('');
+    $('forecastMeta').textContent = `Method: ${result.method || '—'} | RMSE: ${
+        result.rmse != null ? (+result.rmse).toFixed(2) : '—'} | Samples: ${
+        fmtNum(result.samples_used)} | Slope: ${
+        result.trend_slope != null ? (+result.trend_slope).toFixed(4) : '—'}`;
+}
+
+async function runForecast() {
+    const metric = $('forecastMetric').value.trim();
+    const method = $('forecastMethod').value;
+    if (!metric) return;
+    try {
+        const result = await apiFetch(`/analytics/forecast?metric=${encodeURIComponent(metric)}&method=${encodeURIComponent(method)}&horizon=10`);
+        renderForecastSection(result);
+    } catch (e) {
+        $('forecastTableBody').innerHTML = `<tr><td colspan="4" class="dash-empty">${e.message}</td></tr>`;
+        $('forecastMeta').textContent = '';
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────
    Main refresh cycle
    ────────────────────────────────────────────────────────────── */
 async function refresh() {
@@ -355,6 +451,24 @@ async function refresh() {
 
         renderAlerts();
 
+        // 5. Analytics sections (non-blocking — failures are silently ignored)
+        Promise.allSettled([
+            apiFetch('/analytics/cost'),
+            apiFetch('/analytics/cost/top'),
+        ]).then(([costRes, topRes]) => {
+            if (costRes.status === 'fulfilled' && topRes.status === 'fulfilled') {
+                renderCostSection(costRes.value, topRes.value);
+            }
+        });
+
+        apiFetch('/analytics/sla').then(data => {
+            renderSLASection(data.reports || []);
+        }).catch(() => {});
+
+        apiFetch('/analytics/anomalies').then(data => {
+            renderAnomalySection(data);
+        }).catch(() => {});
+
     } catch (e) {
         setStatus(false);
         console.warn('Dashboard refresh error:', e);
@@ -389,7 +503,8 @@ function switchSection(name) {
 
     const titles = {
         overview: 'Overview', adapters: 'Adapters', memory: 'Memory',
-        plan: 'Plan Gate', traces: 'Traces', alerts: 'Alerts'
+        plan: 'Plan Gate', traces: 'Traces', alerts: 'Alerts',
+        cost: 'Cost', sla: 'SLA', anomalies: 'Anomalies', forecast: 'Forecast'
     };
     $('pageTitle').textContent = titles[name] || name;
 }
@@ -446,6 +561,10 @@ function bindEvents() {
     $('traceModal').addEventListener('click', (e) => {
         if (e.target === $('traceModal')) $('traceModal').style.display = 'none';
     });
+
+    // Forecast run button
+    const forecastBtn = $('forecastRunBtn');
+    if (forecastBtn) forecastBtn.addEventListener('click', runForecast);
 
     // Clear alert history (client-side)
     $('clearAlertHistory').addEventListener('click', () => {

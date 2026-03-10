@@ -49,10 +49,10 @@ _TYPE_MAP: Dict[str, type] = {
 
 
 def _to_dict(obj: Any) -> dict:
-    if is_dataclass(obj) and not isinstance(obj, type):
-        return asdict(obj)
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return asdict(obj)
     if isinstance(obj, dict):
         return obj
     return {"__value__": obj}

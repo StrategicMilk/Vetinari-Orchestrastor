@@ -1,7 +1,24 @@
+"""
+Orchestrator — LEGACY manifest-based task execution engine.
+
+.. deprecated::
+    This module handles YAML-manifest execution. For goal-based orchestration,
+    use ``vetinari.orchestration.two_layer.TwoLayerOrchestrator``.
+    A future release will unify all orchestrators into a single module.
+"""
+
 import os
 import logging
 import sys
 import time
+import warnings
+
+warnings.warn(
+    "vetinari.orchestrator is deprecated. Use "
+    "vetinari.orchestration.two_layer.TwoLayerOrchestrator instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 from pathlib import Path
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -23,7 +40,7 @@ from vetinari.execution_context import (
 )
 from vetinari.adapter_manager import get_adapter_manager
 from vetinari.tool_interface import get_tool_registry
-from vetinari.verification import get_verifier_pipeline, VerificationLevel
+from vetinari.verification import get_verifier_pipeline
 
 # Plan Mode integration
 PLAN_MODE_ENABLE = os.environ.get("PLAN_MODE_ENABLE", "true").lower() in ("1", "true", "yes")
@@ -108,7 +125,35 @@ class Orchestrator:
         # Register LM Studio as a provider in the adapter manager
         self._register_lmstudio_adapter(host, api_token)
 
+        # Phase 5: Register default SLO targets for analytics
+        self._register_default_slos()
+
         logging.info("Vetinari orchestrator initialized with Phase 2 OpenCode integration.")
+
+    def _register_default_slos(self) -> None:
+        """Register default SLO targets for the analytics SLA tracker."""
+        try:
+            from vetinari.analytics.sla import get_sla_tracker, SLOTarget, SLOType
+            tracker = get_sla_tracker()
+            defaults = [
+                SLOTarget(name="latency-p95", slo_type=SLOType.LATENCY_P95,
+                          budget=2000.0, window_seconds=3600,
+                          description="95th percentile latency under 2s"),
+                SLOTarget(name="success-rate", slo_type=SLOType.SUCCESS_RATE,
+                          budget=95.0, window_seconds=3600,
+                          description="At least 95% successful requests"),
+                SLOTarget(name="error-rate", slo_type=SLOType.ERROR_RATE,
+                          budget=5.0, window_seconds=3600,
+                          description="Error rate below 5%"),
+                SLOTarget(name="approval-rate", slo_type=SLOType.APPROVAL_RATE,
+                          budget=80.0, window_seconds=86400,
+                          description="Plan approval rate above 80%"),
+            ]
+            for slo in defaults:
+                tracker.register_slo(slo)
+            logging.info("Registered %d default SLO targets", len(defaults))
+        except Exception as e:
+            logging.warning(f"Failed to register default SLOs: {e}")
 
     def _register_lmstudio_adapter(self, host: str, api_token: Optional[str] = None):
         """Register LM Studio as a provider in the AdapterManager.
@@ -184,6 +229,16 @@ class Orchestrator:
             except Exception as e:
                 logging.warning(f"Plan Mode failed: {e}. Continuing without plan generation.")
         
+        # Phase 5: Apply AutoTuner configuration before execution
+        try:
+            from vetinari.learning.auto_tuner import get_auto_tuner
+            tuner_config = get_auto_tuner().get_config()
+            if "max_concurrent" in tuner_config:
+                self.max_concurrent = tuner_config["max_concurrent"]
+                logging.info(f"AutoTuner applied max_concurrent={self.max_concurrent}")
+        except Exception as e:
+            logging.debug(f"AutoTuner config not applied: {e}")
+
         # 1) Auto-discover models
         try:
             self.model_pool.discover_models()

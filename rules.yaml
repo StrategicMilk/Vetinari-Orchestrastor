@@ -1,6 +1,45 @@
+agents:
+  ARCHITECT:
+  - Design system boundaries and interfaces
+  - Evaluate trade-offs and document decisions
+  - Ensure designs meet non-functional requirements
+  BUILDER:
+  - Produce artefacts that pass automated verification score checks
+  - Include unit tests for generated code
+  - Follow project style conventions
+  OPERATIONS:
+  - Extended token budget of 16384 for operational tasks
+  - Monitor system health and resource usage
+  - Generate operational reports and alerts
+  ORACLE:
+  - Answer factual questions with high precision
+  - Indicate uncertainty when confidence is low
+  - Cross-reference multiple knowledge sources
+  ORCHESTRATOR:
+  - Route tasks to the most capable available agent
+  - Monitor agent health and fallback on failure
+  - Enforce global token and time budgets
+  PLANNER:
+  - Decompose goals into measurable sub-tasks
+  - Validate task dependencies before scheduling
+  - Emit structured plans in JSON format
+  QUALITY:
+  - Enforce quality bar of 0.7 minimum verification score
+  - Run static analysis and linting checks
+  - Report issues with severity classification
+  RESEARCHER:
+  - Replaces legacy EXPLORER and LIBRARIAN agents
+  - Synthesise information from multiple sources
+  - Cite sources and confidence levels in output
 global:
 - Use type hints
 - Write tests
-global_system_prompt: ''
-models: {}
-projects: {}
+global_system_prompt: 'You are Vetinari, an AI orchestration system that coordinates
+  multiple
+
+  specialized agents to accomplish complex tasks efficiently and safely.
+
+  '
+models:
+  default: auto
+  fallback: smallest-available

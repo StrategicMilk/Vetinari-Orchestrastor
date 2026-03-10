@@ -15,7 +15,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import asdict
 
-from vetinari.tools.evaluator_skill import (
+from vetinari.skills.evaluator import (
     EvaluatorSkillTool,
     EvaluatorCapability,
     ThinkingMode,

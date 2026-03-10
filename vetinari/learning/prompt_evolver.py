@@ -15,6 +15,7 @@ Enhanced in Wave 4:
 import json
 import logging
 import random
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -70,6 +71,7 @@ class PromptEvolver:
         self._variants: Dict[str, List[PromptVariant]] = {}
         # Per-variant score history for statistical testing
         self._score_history: Dict[str, List[float]] = {}
+        self._lock = threading.Lock()
         self._load_variants()
 
     def register_baseline(self, agent_type: str, prompt_text: str) -> None:
@@ -101,38 +103,40 @@ class PromptEvolver:
         Returns:
             Tuple of (prompt_text, variant_id).
         """
-        variants = self._variants.get(agent_type, [])
-        if not variants:
-            return "", "none"
+        with self._lock:
+            variants = self._variants.get(agent_type, [])
+            if not variants:
+                return "", "none"
 
-        promoted = [v for v in variants if v.status == "promoted"]
-        testing = [v for v in variants if v.status == "testing"]
+            promoted = [v for v in variants if v.status == "promoted"]
+            testing = [v for v in variants if v.status == "testing"]
 
-        if testing and random.random() < self.VARIANT_FRACTION:
-            # Route to a testing variant
-            v = random.choice(testing)
-            return v.prompt_text, v.variant_id
+            if testing and random.random() < self.VARIANT_FRACTION:
+                # Route to a testing variant
+                v = random.choice(testing)
+                return v.prompt_text, v.variant_id
 
-        if promoted:
-            # Use the best promoted variant
-            best = max(promoted, key=lambda v: v.avg_quality if v.trials > 0 else 0.5)
-            return best.prompt_text, best.variant_id
+            if promoted:
+                # Use the best promoted variant
+                best = max(promoted, key=lambda v: v.avg_quality if v.trials > 0 else 0.5)
+                return best.prompt_text, best.variant_id
 
-        return "", "default"
+            return "", "default"
 
     def record_result(self, agent_type: str, variant_id: str, quality: float) -> None:
         """Record a quality result for a variant and trigger promotion check."""
-        variants = self._variants.get(agent_type, [])
-        for v in variants:
-            if v.variant_id == variant_id:
-                v.record(quality)
-                # Also track per-variant score history for statistical testing
-                if variant_id not in self._score_history:
-                    self._score_history[variant_id] = []
-                self._score_history[variant_id].append(quality)
-                break
+        with self._lock:
+            variants = self._variants.get(agent_type, [])
+            for v in variants:
+                if v.variant_id == variant_id:
+                    v.record(quality)
+                    # Also track per-variant score history for statistical testing
+                    if variant_id not in self._score_history:
+                        self._score_history[variant_id] = []
+                    self._score_history[variant_id].append(quality)
+                    break
 
-        self._check_promotion(agent_type)
+            self._check_promotion(agent_type)
 
     def _check_promotion(self, agent_type: str) -> None:
         """Decide whether to promote, deprecate, or keep testing variants.
@@ -184,7 +188,7 @@ class PromptEvolver:
 
             elif v.avg_quality < baseline_quality - 0.1:
                 v.status = "deprecated"
-                logger.info(f"[PromptEvolver] Deprecated {v.variant_id} for {agent_type}")
+                logger.info("[PromptEvolver] Deprecated %s for %s", v.variant_id, agent_type)
 
         self._save_variants()
 
@@ -213,12 +217,12 @@ class PromptEvolver:
 
         try:
             from scipy import stats
-            _, p_value = stats.ttest_ind(baseline_scores, variant_scores)
+            _, p_value = stats.ttest_rel(baseline_scores, variant_scores)
             return p_value < 0.05, cohens_d
         except ImportError:
-            pass
+            logger.debug("scipy not available, falling back to permutation test for significance", exc_info=True)
 
-        # Bootstrap fallback (1000 samples)
+        # Permutation test fallback (1000 iterations, no-replacement shuffle)
         all_scores = baseline_scores + variant_scores
         observed_diff = mean_v - mean_b
         n_b, n_v = len(baseline_scores), len(variant_scores)
@@ -230,8 +234,8 @@ class PromptEvolver:
             perm_diff = (sum(perm_v) / n_v) - (sum(perm_b) / n_b)
             if abs(perm_diff) >= abs(observed_diff):
                 count_extreme += 1
-        p_bootstrap = count_extreme / 1000
-        return p_bootstrap < 0.05, cohens_d
+        p_perm = count_extreme / 1000
+        return p_perm < 0.05, cohens_d
 
     def _validate_variant_with_benchmark(self, variant: PromptVariant) -> bool:
         """Run a quick benchmark check before promoting a variant.
@@ -315,20 +319,21 @@ Respond with ONLY the improved prompt text, no explanations.""",
             )
             resp = self._adapter_manager.infer(req)
             if resp.status == "ok" and resp.output.strip():
-                variant_id = f"{agent_type}_v{len(self._variants.get(agent_type, []))+1}"
-                variant = PromptVariant(
-                    variant_id=variant_id,
-                    agent_type=agent_type,
-                    prompt_text=resp.output.strip(),
-                )
-                if agent_type not in self._variants:
-                    self._variants[agent_type] = []
-                self._variants[agent_type].append(variant)
-                self._save_variants()
-                logger.info(f"[PromptEvolver] Generated variant {variant_id} for {agent_type}")
+                with self._lock:
+                    variant_id = f"{agent_type}_v{len(self._variants.get(agent_type, []))+1}"
+                    variant = PromptVariant(
+                        variant_id=variant_id,
+                        agent_type=agent_type,
+                        prompt_text=resp.output.strip(),
+                    )
+                    if agent_type not in self._variants:
+                        self._variants[agent_type] = []
+                    self._variants[agent_type].append(variant)
+                    self._save_variants()
+                logger.info("[PromptEvolver] Generated variant %s for %s", variant_id, agent_type)
                 return resp.output.strip()
         except Exception as e:
-            logger.debug(f"Variant generation failed: {e}")
+            logger.debug("Variant generation failed: %s", e)
         return None
 
     def get_stats(self, agent_type: str) -> Dict[str, Any]:
@@ -356,7 +361,7 @@ Respond with ONLY the improved prompt text, no explanations.""",
                 for agent_type, variants in data.items():
                     self._variants[agent_type] = [PromptVariant(**v) for v in variants]
         except Exception as e:
-            logger.debug(f"Could not load prompt variants: {e}")
+            logger.debug("Could not load prompt variants: %s", e)
 
     def _save_variants(self) -> None:
         try:
@@ -371,7 +376,7 @@ Respond with ONLY the improved prompt text, no explanations.""",
             with open(path, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.debug(f"Could not save prompt variants: {e}")
+            logger.debug("Could not save prompt variants: %s", e)
 
 
 _prompt_evolver: Optional[PromptEvolver] = None

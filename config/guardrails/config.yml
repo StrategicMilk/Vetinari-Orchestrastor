@@ -1,0 +1,25 @@
+# NeMo Guardrails Configuration for Vetinari
+# Uses local LM Studio endpoint for guardrail model calls
+
+models:
+  - type: main
+    engine: openai
+    parameters:
+      api_base: "${LM_STUDIO_HOST:-http://localhost:1234}/v1"
+      model_name: "${GUARDRAIL_MODEL:-default}"
+
+rails:
+  input:
+    flows:
+      - check jailbreak
+      - check toxic language
+      - check prompt injection
+  output:
+    flows:
+      - check toxic language
+      - check sensitive data leakage
+
+# Reduce latency for guardrail checks
+parameters:
+  max_tokens: 100
+  temperature: 0.0

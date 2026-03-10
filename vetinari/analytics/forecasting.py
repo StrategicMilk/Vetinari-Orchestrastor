@@ -296,9 +296,20 @@ class Forecaster:
         with self._lock:
             history = list(self._history.get(request.metric, deque()))
 
+        # Validate method name early (before any fallback paths)
+        method_fn = _METHODS.get(request.method)
+        if method_fn is None:
+            raise ValueError(
+                f"Unknown forecasting method '{request.method}'. "
+                f"Valid: {sorted(_METHODS)}"
+            )
+
         if len(history) < 2:
-            placeholder = history[-1] if history else 0.0
-            preds = [placeholder] * request.horizon
+            if len(history) == 1:
+                # Single data point — repeat it
+                preds = [history[0]] * request.horizon
+            else:
+                preds = [0.0] * request.horizon
             return ForecastResult(
                 metric=request.metric, method=request.method,
                 horizon=request.horizon,
@@ -307,11 +318,22 @@ class Forecaster:
                 samples_used=len(history),
             )
 
-        method_fn = _METHODS.get(request.method)
-        if method_fn is None:
-            raise ValueError(
-                f"Unknown forecasting method '{request.method}'. "
-                f"Valid: {sorted(_METHODS)}"
+        # Simple moving average fallback for sparse data (2-4 points)
+        if len(history) < 5:
+            window = len(history)
+            avg = sum(history[-window:]) / window
+            trend = (history[-1] - history[0]) / max(window - 1, 1)
+            preds = [avg + trend * (i + 1) for i in range(request.horizon)]
+            # Simple confidence bands (widen with horizon)
+            spread = max(abs(max(history) - min(history)), abs(avg) * 0.1)
+            lo = [p - spread * (1 + 0.1 * i) for i, p in enumerate(preds)]
+            hi = [p + spread * (1 + 0.1 * i) for i, p in enumerate(preds)]
+            return ForecastResult(
+                metric=request.metric, method=request.method,
+                horizon=request.horizon,
+                predictions=preds,
+                confidence_lo=lo, confidence_hi=hi,
+                samples_used=len(history),
             )
 
         result = method_fn(history, request)

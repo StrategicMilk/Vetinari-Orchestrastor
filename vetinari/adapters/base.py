@@ -1,9 +1,12 @@
 """Base provider adapter interface for multi-LLM orchestration."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderType(Enum):
@@ -154,7 +157,7 @@ class ProviderAdapter(ABC):
         Returns:
             Score between 0 and 1 (higher is better)
         """
-        score = 0.5
+        score = 0.0
 
         # Capability match (35%)
         required_caps = set(task_requirements.get("required_capabilities", []))
@@ -202,6 +205,9 @@ class ProviderAdapter(ABC):
         Called automatically after each infer() call in concrete adapters.
         Failures are silently suppressed — telemetry must never crash inference.
         """
+        import logging
+        _log = logging.getLogger(__name__)
+
         try:
             from vetinari.telemetry import get_telemetry_collector
             get_telemetry_collector().record_adapter_latency(
@@ -212,22 +218,62 @@ class ProviderAdapter(ABC):
                 success=response.status == "ok",
             )
         except Exception:
-            pass
+            logger.debug("Failed to record adapter telemetry for %s", request.model_id, exc_info=True)
 
+        # --- Step 1: Cost tracking (fixed — construct CostEntry properly) ---
         try:
-            from vetinari.analytics.cost import get_cost_tracker
-            # Estimate input/output token split (60/40 if unavailable)
+            from vetinari.analytics.cost import get_cost_tracker, CostEntry
             total = response.tokens_used or 0
             input_tokens = int(total * 0.6)
             output_tokens = total - input_tokens
-            get_cost_tracker().record(
-                model_id=request.model_id,
+            entry = CostEntry(
                 provider=self.provider_type.value,
+                model=request.model_id,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                agent=request.metadata.get("agent") if request.metadata else None,
+                task_id=request.metadata.get("task_id") if request.metadata else None,
+                latency_ms=float(response.latency_ms),
             )
+            get_cost_tracker().record(entry)
         except Exception:
-            pass
+            logger.debug("Failed to record cost tracking entry for %s", request.model_id, exc_info=True)
+
+        # --- Step 2: SLA tracking ---
+        try:
+            from vetinari.analytics.sla import get_sla_tracker
+            tracker = get_sla_tracker()
+            tracker.record_latency(
+                f"{self.provider_type.value}:{request.model_id}",
+                latency_ms=float(response.latency_ms),
+                success=response.status == "ok",
+            )
+            tracker.record_request(success=response.status == "ok")
+        except Exception:
+            logger.debug("Failed to record SLA metrics for %s", request.model_id, exc_info=True)
+
+        # --- Step 3: Forecaster ingestion ---
+        try:
+            from vetinari.analytics.forecasting import get_forecaster
+            fc = get_forecaster()
+            fc.ingest("adapter.latency", float(response.latency_ms))
+            fc.ingest("adapter.tokens", float(response.tokens_used or 0))
+        except Exception:
+            logger.debug("Failed to ingest forecaster data for %s", request.model_id, exc_info=True)
+
+        # --- Step 4: Anomaly detection ---
+        try:
+            from vetinari.analytics.anomaly import get_anomaly_detector
+            result = get_anomaly_detector().detect(
+                "adapter.latency", float(response.latency_ms)
+            )
+            if result.is_anomaly:
+                _log.warning(
+                    "Anomaly detected: %s=%s (%s, score=%.2f)",
+                    result.metric, result.value, result.method, result.score,
+                )
+        except Exception:
+            logger.debug("Failed to run anomaly detection for %s", request.model_id, exc_info=True)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(provider={self.provider_type.value}, endpoint={self.endpoint})"

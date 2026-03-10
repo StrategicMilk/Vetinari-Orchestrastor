@@ -1,6 +1,6 @@
 """Vetinari package - Comprehensive AI Orchestration System."""
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 import os as _os
 import pathlib as _pathlib
@@ -48,10 +48,8 @@ __all__ = [
     "utils",
     # New components
     "dynamic_model_router",
-    "two_layer_orchestration",
-    "enhanced_memory",
+    "model_discovery",
     "code_sandbox",
-    "integrated_agent",
     "tool_interface",
     "token_optimizer",
 ]

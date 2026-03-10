@@ -27,6 +27,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Callable
 from functools import wraps
+
+logger = logging.getLogger(__name__)
 from enum import Enum
 import threading
 from contextvars import ContextVar
@@ -79,8 +81,8 @@ class CorrelationContext:
             try:
                 token.var.reset(token)
             except Exception:
-                pass
-    
+                logger.debug("Failed to reset ContextVar token during context exit", exc_info=True)
+
     def set_span_id(self, span_id: str):
         """Set or update the span ID within this context."""
         self.span_id = span_id

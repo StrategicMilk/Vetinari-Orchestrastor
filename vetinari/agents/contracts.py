@@ -12,127 +12,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
-__all__ = [
-    "AgentType",
-    "AGENT_CONSOLIDATION_MAP",
-    "CONSOLIDATED_AGENT_TYPES",
-    "resolve_agent_type",
-    "TaskStatus",
-    "ExecutionMode",
-    "AgentSpec",
-    "Task",
-    "AgentTask",
-    "Plan",
-    "AgentResult",
-    "VerificationResult",
-    "get_agent_spec",
-    "get_all_agent_specs",
-    "get_enabled_agents",
-    "AGENT_CAPABILITIES",
-    "get_agents_for_expertise",
-    "get_agents_for_phase",
-]
-
-
-class AgentType(Enum):
-    """Enumeration of all Vetinari agents.
-
-    Consolidated (8 primary) agents:
-        PLANNER, RESEARCHER, ARCHITECT, BUILDER, TESTER,
-        DOCUMENTER, RESILIENCE, META
-
-    Legacy agent types are preserved for backward compatibility.
-    Use AGENT_CONSOLIDATION_MAP to resolve a legacy type to its
-    consolidated parent.
-    """
-    # --- Consolidated agents (primary) ---
-    PLANNER = "PLANNER"
-    RESEARCHER = "RESEARCHER"
-    ARCHITECT = "ARCHITECT"
-    BUILDER = "BUILDER"
-    TESTER = "TESTER"
-    DOCUMENTER = "DOCUMENTER"
-    RESILIENCE = "RESILIENCE"
-    META = "META"
-
-    # --- Legacy agent types (kept for backward compat) ---
-    EXPLORER = "EXPLORER"              # → RESEARCHER
-    LIBRARIAN = "LIBRARIAN"            # → RESEARCHER
-    SYNTHESIZER = "SYNTHESIZER"        # → RESEARCHER
-    ORACLE = "ORACLE"                  # → ARCHITECT
-    COST_PLANNER = "COST_PLANNER"      # → ARCHITECT
-    UI_PLANNER = "UI_PLANNER"          # → BUILDER
-    DATA_ENGINEER = "DATA_ENGINEER"    # → BUILDER
-    DEVOPS = "DEVOPS"                  # → BUILDER
-    EVALUATOR = "EVALUATOR"            # → TESTER
-    SECURITY_AUDITOR = "SECURITY_AUDITOR"  # → TESTER
-    TEST_AUTOMATION = "TEST_AUTOMATION"    # → TESTER
-    DOCUMENTATION_AGENT = "DOCUMENTATION_AGENT"  # → DOCUMENTER
-    VERSION_CONTROL = "VERSION_CONTROL"          # → DOCUMENTER
-    ERROR_RECOVERY = "ERROR_RECOVERY"    # → RESILIENCE
-    IMAGE_GENERATOR = "IMAGE_GENERATOR"  # → RESILIENCE
-    IMPROVEMENT = "IMPROVEMENT"          # → META
-    EXPERIMENTATION_MANAGER = "EXPERIMENTATION_MANAGER"  # → META
-    USER_INTERACTION = "USER_INTERACTION"    # → PLANNER
-    CONTEXT_MANAGER = "CONTEXT_MANAGER"      # → PLANNER
-
-
-# Mapping from legacy agent types to their consolidated parent.
-AGENT_CONSOLIDATION_MAP: Dict[str, str] = {
-    "EXPLORER": "RESEARCHER",
-    "LIBRARIAN": "RESEARCHER",
-    "SYNTHESIZER": "RESEARCHER",
-    "ORACLE": "ARCHITECT",
-    "COST_PLANNER": "ARCHITECT",
-    "UI_PLANNER": "BUILDER",
-    "DATA_ENGINEER": "BUILDER",
-    "DEVOPS": "BUILDER",
-    "EVALUATOR": "TESTER",
-    "SECURITY_AUDITOR": "TESTER",
-    "TEST_AUTOMATION": "TESTER",
-    "DOCUMENTATION_AGENT": "DOCUMENTER",
-    "VERSION_CONTROL": "DOCUMENTER",
-    "ERROR_RECOVERY": "RESILIENCE",
-    "IMAGE_GENERATOR": "RESILIENCE",
-    "IMPROVEMENT": "META",
-    "EXPERIMENTATION_MANAGER": "META",
-    "USER_INTERACTION": "PLANNER",
-    "CONTEXT_MANAGER": "PLANNER",
-}
-
-CONSOLIDATED_AGENT_TYPES = frozenset({
-    AgentType.PLANNER, AgentType.RESEARCHER, AgentType.ARCHITECT,
-    AgentType.BUILDER, AgentType.TESTER, AgentType.DOCUMENTER,
-    AgentType.RESILIENCE, AgentType.META,
-})
-
-
-def resolve_agent_type(agent_type: "AgentType") -> "AgentType":
-    """Resolve a legacy agent type to its consolidated parent."""
-    consolidated = AGENT_CONSOLIDATION_MAP.get(agent_type.value)
-    if consolidated:
-        return AgentType(consolidated)
-    return agent_type
-
-
-class TaskStatus(Enum):
-    """Status of a task in the orchestration."""
-    PENDING = "pending"
-    ASSIGNED = "assigned"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    WAITING = "waiting"
-    BLOCKED = "blocked"
-
-
-class ExecutionMode(Enum):
-    """Execution mode for agents."""
-    PLANNING = "planning"
-    EXECUTION = "execution"
+from vetinari.types import AgentType, TaskStatus, ExecutionMode  # canonical source
 
 
 @dataclass
@@ -146,9 +28,6 @@ class AgentSpec:
     enabled: bool = True
     system_prompt: str = ""
     version: str = "1.0.0"
-    expertise_areas: List[str] = field(default_factory=list)  # e.g., ["code", "testing", "security"]
-    can_delegate_to: List[str] = field(default_factory=list)  # agent type names this agent can delegate to
-    phase_affinity: str = ""  # "analysis", "implementation", "quality", "devops", "documentation"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -178,12 +57,7 @@ class AgentSpec:
 
 @dataclass
 class Task:
-    """A task in the plan.
-
-    This is the single canonical Task type used across planning, orchestration,
-    and agent execution.  Fields added for planning_engine / planning
-    compatibility all carry defaults so existing call-sites are unaffected.
-    """
+    """A task in the plan."""
     id: str
     description: str
     inputs: List[str] = field(default_factory=list)
@@ -194,43 +68,6 @@ class Task:
     depth: int = 0
     parent_id: str = ""
     status: TaskStatus = TaskStatus.PENDING
-
-    # --- Fields from planning.py -------------------------------------------
-    prompt: str = ""
-    wave_id: str = ""
-    priority: int = 5
-    estimated_effort: float = 1.0
-    retry_count: int = 0
-    result: Any = None
-    error: str = ""
-
-    # --- Fields from planning_engine.py ------------------------------------
-    assigned_model_id: str = ""
-    children: List[str] = field(default_factory=list)
-    owner_id: str = ""
-
-    # --- Additional planning.py scheduling / decomposition fields ----------
-    planned_start: str = ""
-    planned_end: str = ""
-    actual_start: str = ""
-    actual_end: str = ""
-    max_depth: int = 14
-    max_depth_override: int = 0
-    subtasks: List["Task"] = field(default_factory=list)
-    decomposition_seed: str = ""
-    dod_level: str = "Standard"
-    dor_level: str = "Standard"
-
-    # --- Milestone checkpoint fields ---
-    is_milestone: bool = False
-    milestone_name: str = ""
-    requires_approval: bool = False
-
-    # Backward-compat alias used by planning.py (``task.task_id``)
-    @property
-    def task_id(self) -> str:
-        """Alias kept for backward-compatibility with planning.py callers."""
-        return self.id
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -243,81 +80,22 @@ class Task:
             "model_override": self.model_override,
             "depth": self.depth,
             "parent_id": self.parent_id,
-            "status": self.status.value,
-            "prompt": self.prompt,
-            "wave_id": self.wave_id,
-            "priority": self.priority,
-            "estimated_effort": self.estimated_effort,
-            "retry_count": self.retry_count,
-            "result": self.result,
-            "error": self.error,
-            "assigned_model_id": self.assigned_model_id,
-            "children": self.children,
-            "owner_id": self.owner_id,
-            "planned_start": self.planned_start,
-            "planned_end": self.planned_end,
-            "actual_start": self.actual_start,
-            "actual_end": self.actual_end,
-            "max_depth": self.max_depth,
-            "max_depth_override": self.max_depth_override,
-            "subtasks": [t.to_dict() for t in self.subtasks],
-            "decomposition_seed": self.decomposition_seed,
-            "dod_level": self.dod_level,
-            "dor_level": self.dor_level,
-            "is_milestone": self.is_milestone,
-            "milestone_name": self.milestone_name,
-            "requires_approval": self.requires_approval,
+            "status": self.status.value
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Task:
-        subtasks = [Task.from_dict(t) for t in data.get("subtasks", [])]
-        # Accept both enum-style ("PLANNER") and lower-case string ("explorer")
-        raw_agent = data.get("assigned_agent", data.get("agent_type", "PLANNER"))
-        try:
-            agent = AgentType(raw_agent)
-        except ValueError:
-            agent = AgentType(raw_agent.upper()) if raw_agent else AgentType.PLANNER
-        # Accept both enum-style and lower-case status strings
-        raw_status = data.get("status", "pending")
-        try:
-            status = TaskStatus(raw_status)
-        except ValueError:
-            status = TaskStatus.PENDING
         return cls(
-            id=data.get("id", data.get("task_id", "")),
-            description=data.get("description", ""),
+            id=data["id"],
+            description=data["description"],
             inputs=data.get("inputs", []),
             outputs=data.get("outputs", []),
             dependencies=data.get("dependencies", []),
-            assigned_agent=agent,
+            assigned_agent=AgentType(data.get("assigned_agent", "PLANNER")),
             model_override=data.get("model_override", ""),
             depth=data.get("depth", 0),
             parent_id=data.get("parent_id", ""),
-            status=status,
-            prompt=data.get("prompt", ""),
-            wave_id=data.get("wave_id", ""),
-            priority=data.get("priority", 5),
-            estimated_effort=data.get("estimated_effort", 1.0),
-            retry_count=data.get("retry_count", 0),
-            result=data.get("result"),
-            error=data.get("error", ""),
-            assigned_model_id=data.get("assigned_model_id", ""),
-            children=data.get("children", []),
-            owner_id=data.get("owner_id", ""),
-            planned_start=data.get("planned_start", ""),
-            planned_end=data.get("planned_end", ""),
-            actual_start=data.get("actual_start", ""),
-            actual_end=data.get("actual_end", ""),
-            max_depth=data.get("max_depth", 14),
-            max_depth_override=data.get("max_depth_override", 0),
-            subtasks=subtasks,
-            decomposition_seed=data.get("decomposition_seed", ""),
-            dod_level=data.get("dod_level", "Standard"),
-            dor_level=data.get("dor_level", "Standard"),
-            is_milestone=data.get("is_milestone", False),
-            milestone_name=data.get("milestone_name", ""),
-            requires_approval=data.get("requires_approval", False),
+            status=TaskStatus(data.get("status", "pending"))
         )
 
 
@@ -461,219 +239,215 @@ class VerificationResult:
         }
 
 
-AGENT_CAPABILITIES: Dict[str, Dict[str, Any]] = {
-    "PLANNER": {"expertise": ["planning", "decomposition", "user_interaction", "context_management"], "phase": "analysis"},
-    "RESEARCHER": {"expertise": ["search", "exploration", "synthesis", "library_lookup"], "phase": "analysis"},
-    "ARCHITECT": {"expertise": ["architecture", "risk_assessment", "cost_analysis", "tradeoff"], "phase": "analysis"},
-    "BUILDER": {"expertise": ["code", "ui", "data", "devops", "implementation"], "phase": "implementation"},
-    "TESTER": {"expertise": ["testing", "security", "evaluation", "quality"], "phase": "quality"},
-    "DOCUMENTER": {"expertise": ["documentation", "git", "technical_writing"], "phase": "documentation"},
-    "RESILIENCE": {"expertise": ["error_recovery", "image_generation", "resilience"], "phase": "implementation"},
-    "META": {"expertise": ["improvement", "experimentation", "metrics"], "phase": "analysis"},
+# ── Active agents (v0.4.0 — 6 consolidated) ─────────────────────────
+# The 6 active agents that form the production pipeline.
+ACTIVE_AGENT_TYPES = {
+    AgentType.PLANNER,
+    AgentType.BUILDER,
+    AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.CONSOLIDATED_ORACLE,
+    AgentType.QUALITY,
+    AgentType.OPERATIONS,
+}
+
+# Maps legacy AgentType values to their consolidated replacement.
+AGENT_TYPE_MAPPING: Dict[AgentType, AgentType] = {
+    AgentType.EXPLORER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.LIBRARIAN: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.RESEARCHER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.UI_PLANNER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.DATA_ENGINEER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.DEVOPS: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.VERSION_CONTROL: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.ARCHITECT: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.ORACLE: AgentType.CONSOLIDATED_ORACLE,
+    AgentType.PONDER: AgentType.CONSOLIDATED_ORACLE,
+    AgentType.EVALUATOR: AgentType.QUALITY,
+    AgentType.SECURITY_AUDITOR: AgentType.QUALITY,
+    AgentType.TEST_AUTOMATION: AgentType.QUALITY,
+    AgentType.SYNTHESIZER: AgentType.OPERATIONS,
+    AgentType.DOCUMENTATION_AGENT: AgentType.OPERATIONS,
+    AgentType.COST_PLANNER: AgentType.OPERATIONS,
+    AgentType.EXPERIMENTATION_MANAGER: AgentType.OPERATIONS,
+    AgentType.IMPROVEMENT: AgentType.OPERATIONS,
+    AgentType.ERROR_RECOVERY: AgentType.OPERATIONS,
+    AgentType.USER_INTERACTION: AgentType.PLANNER,
+    AgentType.CONTEXT_MANAGER: AgentType.PLANNER,
+    AgentType.ORCHESTRATOR: AgentType.PLANNER,
+    AgentType.IMAGE_GENERATOR: AgentType.BUILDER,
 }
 
 
-def get_agents_for_expertise(expertise: str) -> List[str]:
-    """Return agent types that have the given expertise area."""
-    return [agent for agent, caps in AGENT_CAPABILITIES.items() if expertise in caps["expertise"]]
+def resolve_agent_type(agent_type: AgentType) -> AgentType:
+    """Resolve a legacy agent type to its consolidated equivalent.
 
-
-def get_agents_for_phase(phase: str) -> List[str]:
-    """Return agent types with affinity for the given phase."""
-    return [agent for agent, caps in AGENT_CAPABILITIES.items() if caps["phase"] == phase]
+    Returns the input unchanged if it is already a consolidated type.
+    """
+    return AGENT_TYPE_MAPPING.get(agent_type, agent_type)
 
 
 # Registry of all available agents
 AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
+    # ── 6 active consolidated agents ──
     AgentType.PLANNER: AgentSpec(
         agent_type=AgentType.PLANNER,
         name="Planner",
-        description="Central orchestration and dynamic plan generation from goals",
+        description="Planning, goal decomposition, user interaction, context management",
         default_model="qwen2.5-72b",
-        thinking_variant="xhigh"
-    ),
-    AgentType.EXPLORER: AgentSpec(
-        agent_type=AgentType.EXPLORER,
-        name="Explorer",
-        description="Fast code/document/class discovery and pattern extraction",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
-    ),
-    AgentType.LIBRARIAN: AgentSpec(
-        agent_type=AgentType.LIBRARIAN,
-        name="Librarian",
-        description="Literature/library research, API/docs lookup",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
-    ),
-    AgentType.ORACLE: AgentSpec(
-        agent_type=AgentType.ORACLE,
-        name="Oracle",
-        description="Architectural decisions, risk assessment, debugging strategies",
-        default_model="qwen3-30b-a3b",
-        thinking_variant="xhigh"
-    ),
-    AgentType.RESEARCHER: AgentSpec(
-        agent_type=AgentType.RESEARCHER,
-        name="Researcher",
-        description="Domain research, feasibility analysis, competitive analysis",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
-    ),
-    AgentType.EVALUATOR: AgentSpec(
-        agent_type=AgentType.EVALUATOR,
-        name="Evaluator",
-        description="Code quality, security checks, testability evaluation",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
-    ),
-    AgentType.SYNTHESIZER: AgentSpec(
-        agent_type=AgentType.SYNTHESIZER,
-        name="Synthesizer",
-        description="Multi-source synthesis, artifact fusion",
-        default_model="qwen2.5-72b",
-        thinking_variant="high"
+        thinking_variant="xhigh",
     ),
     AgentType.BUILDER: AgentSpec(
         agent_type=AgentType.BUILDER,
         name="Builder",
-        description="Code scaffolding, boilerplate, test scaffolding",
+        description="Code scaffolding, boilerplate, test scaffolding, image generation",
         default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        thinking_variant="medium",
+    ),
+    AgentType.CONSOLIDATED_RESEARCHER: AgentSpec(
+        agent_type=AgentType.CONSOLIDATED_RESEARCHER,
+        name="Researcher",
+        description="Code discovery, domain research, API lookup, lateral thinking, "
+                    "UI/UX design, database schemas, DevOps pipelines, git workflow",
+        default_model="qwen2.5-72b",
+        thinking_variant="high",
+    ),
+    AgentType.CONSOLIDATED_ORACLE: AgentSpec(
+        agent_type=AgentType.CONSOLIDATED_ORACLE,
+        name="Oracle",
+        description="Architecture decisions, risk assessment, ontological analysis, contrarian review",
+        default_model="qwen3-30b-a3b",
+        thinking_variant="xhigh",
+    ),
+    AgentType.QUALITY: AgentSpec(
+        agent_type=AgentType.QUALITY,
+        name="Quality",
+        description="Code review, security audit, test generation, simplification",
+        default_model="qwen2.5-coder-7b",
+        thinking_variant="high",
+    ),
+    AgentType.OPERATIONS: AgentSpec(
+        agent_type=AgentType.OPERATIONS,
+        name="Operations",
+        description="Documentation, creative writing, cost analysis, experiments, "
+                    "error recovery, synthesis, improvement, monitoring",
+        default_model="qwen2.5-72b",
+        thinking_variant="medium",
+    ),
+    # ── Legacy entries (kept for registry lookups, resolve via AGENT_TYPE_MAPPING) ──
+    AgentType.EXPLORER: AgentSpec(
+        agent_type=AgentType.EXPLORER, name="Explorer",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.code_discovery",
+        default_model="qwen2.5-coder-7b", enabled=False,
+    ),
+    AgentType.LIBRARIAN: AgentSpec(
+        agent_type=AgentType.LIBRARIAN, name="Librarian",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.api_lookup",
+        default_model="qwen2.5-72b", enabled=False,
+    ),
+    AgentType.ORACLE: AgentSpec(
+        agent_type=AgentType.ORACLE, name="Oracle (legacy)",
+        description="[Legacy] -> CONSOLIDATED_ORACLE",
+        default_model="qwen3-30b-a3b", enabled=False,
+    ),
+    AgentType.RESEARCHER: AgentSpec(
+        agent_type=AgentType.RESEARCHER, name="Researcher (legacy)",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.domain_research",
+        default_model="qwen2.5-72b", enabled=False,
+    ),
+    AgentType.EVALUATOR: AgentSpec(
+        agent_type=AgentType.EVALUATOR, name="Evaluator",
+        description="[Legacy] -> QUALITY.code_review",
+        default_model="qwen2.5-coder-7b", enabled=False,
+    ),
+    AgentType.SYNTHESIZER: AgentSpec(
+        agent_type=AgentType.SYNTHESIZER, name="Synthesizer",
+        description="[Legacy] -> OPERATIONS.synthesis",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.UI_PLANNER: AgentSpec(
-        agent_type=AgentType.UI_PLANNER,
-        name="UI Planner",
-        description="UI/UX design, front-end patterns, scaffolding",
-        default_model="qwen2.5-vl-32b",
-        thinking_variant="high"
+        agent_type=AgentType.UI_PLANNER, name="UI Planner",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.ui_design",
+        default_model="qwen2.5-vl-32b", enabled=False,
     ),
     AgentType.SECURITY_AUDITOR: AgentSpec(
-        agent_type=AgentType.SECURITY_AUDITOR,
-        name="Security Auditor",
-        description="Safety, policy compliance, vulnerability checks",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
+        agent_type=AgentType.SECURITY_AUDITOR, name="Security Auditor",
+        description="[Legacy] -> QUALITY.security_audit",
+        default_model="qwen2.5-coder-7b", enabled=False,
     ),
     AgentType.DATA_ENGINEER: AgentSpec(
-        agent_type=AgentType.DATA_ENGINEER,
-        name="Data Engineer",
-        description="Data pipelines, schemas, migrations, ETL",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.DATA_ENGINEER, name="Data Engineer",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.database",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.DOCUMENTATION_AGENT: AgentSpec(
-        agent_type=AgentType.DOCUMENTATION_AGENT,
-        name="Documentation Agent",
-        description="Auto-generated docs, API docs, user guides",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.DOCUMENTATION_AGENT, name="Documentation Agent",
+        description="[Legacy] -> OPERATIONS.documentation",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.COST_PLANNER: AgentSpec(
-        agent_type=AgentType.COST_PLANNER,
-        name="Cost Planner",
-        description="Cost accounting, model selection, efficiency optimization",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        agent_type=AgentType.COST_PLANNER, name="Cost Planner",
+        description="[Legacy] -> OPERATIONS.cost_analysis",
+        default_model="qwen2.5-coder-7b", enabled=False,
     ),
     AgentType.TEST_AUTOMATION: AgentSpec(
-        agent_type=AgentType.TEST_AUTOMATION,
-        name="Test Automation",
-        description="Test generation, coverage improvement, validation",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        agent_type=AgentType.TEST_AUTOMATION, name="Test Automation",
+        description="[Legacy] -> QUALITY.test_generation",
+        default_model="qwen2.5-coder-7b", enabled=False,
     ),
     AgentType.EXPERIMENTATION_MANAGER: AgentSpec(
-        agent_type=AgentType.EXPERIMENTATION_MANAGER,
-        name="Experimentation Manager",
-        description="Experiment tracking, versioning, reproducibility",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.EXPERIMENTATION_MANAGER, name="Experimentation Manager",
+        description="[Legacy] -> OPERATIONS.experiment",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.IMPROVEMENT: AgentSpec(
-        agent_type=AgentType.IMPROVEMENT,
-        name="Improvement Agent",
-        description="Meta-analyst reviewing system performance, recommending optimizations",
-        default_model="qwen2.5-72b",
-        thinking_variant="high"
+        agent_type=AgentType.IMPROVEMENT, name="Improvement Agent",
+        description="[Legacy] -> OPERATIONS.improvement",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.USER_INTERACTION: AgentSpec(
-        agent_type=AgentType.USER_INTERACTION,
-        name="User Interaction Agent",
-        description="Ambiguity detection, clarifying question generation, context gathering",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.USER_INTERACTION, name="User Interaction Agent",
+        description="[Legacy] -> PLANNER.clarify",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.DEVOPS: AgentSpec(
-        agent_type=AgentType.DEVOPS,
-        name="DevOps Agent",
-        description="CI/CD pipeline design, containerisation, IaC, deployment, monitoring",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        agent_type=AgentType.DEVOPS, name="DevOps Agent",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.devops",
+        default_model="qwen2.5-coder-7b", enabled=False,
     ),
     AgentType.VERSION_CONTROL: AgentSpec(
-        agent_type=AgentType.VERSION_CONTROL,
-        name="Version Control Agent",
-        description="Git operations, branch strategy, PR creation, code review coordination",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="medium"
+        agent_type=AgentType.VERSION_CONTROL, name="Version Control Agent",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER.git_workflow",
+        default_model="qwen2.5-coder-7b", enabled=False,
     ),
     AgentType.ERROR_RECOVERY: AgentSpec(
-        agent_type=AgentType.ERROR_RECOVERY,
-        name="Error Recovery Agent",
-        description="Failure analysis, retry strategies, circuit breaking, fallback planning",
-        default_model="qwen2.5-72b",
-        thinking_variant="high"
+        agent_type=AgentType.ERROR_RECOVERY, name="Error Recovery Agent",
+        description="[Legacy] -> OPERATIONS.error_recovery",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.CONTEXT_MANAGER: AgentSpec(
-        agent_type=AgentType.CONTEXT_MANAGER,
-        name="Context Manager Agent",
-        description="Long-term context management, memory consolidation, session summarisation",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.CONTEXT_MANAGER, name="Context Manager Agent",
+        description="[Legacy] -> PLANNER.consolidate",
+        default_model="qwen2.5-72b", enabled=False,
     ),
     AgentType.IMAGE_GENERATOR: AgentSpec(
-        agent_type=AgentType.IMAGE_GENERATOR,
-        name="Image Generator",
-        description="Logo, icon, UI mockup, diagram, and asset generation via Stable Diffusion or SVG",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
+        agent_type=AgentType.IMAGE_GENERATOR, name="Image Generator",
+        description="[Legacy] -> BUILDER.image_generation",
+        default_model="qwen2.5-72b", enabled=False,
     ),
-    # --- Consolidated agents ---
+    AgentType.PONDER: AgentSpec(
+        agent_type=AgentType.PONDER, name="Ponder",
+        description="[Legacy] -> CONSOLIDATED_ORACLE.ontological_analysis",
+        default_model="qwen2.5-72b", enabled=False,
+    ),
+    AgentType.ORCHESTRATOR: AgentSpec(
+        agent_type=AgentType.ORCHESTRATOR, name="Orchestrator",
+        description="[Legacy] -> PLANNER (clarify, consolidate, summarise, prune, extract)",
+        default_model="qwen2.5-72b", enabled=False,
+    ),
     AgentType.ARCHITECT: AgentSpec(
-        agent_type=AgentType.ARCHITECT,
-        name="Architect",
-        description="Architecture decisions, risk assessment, cost analysis, debugging strategies (absorbs Oracle + Cost Planner)",
-        default_model="qwen3-30b-a3b",
-        thinking_variant="xhigh"
-    ),
-    AgentType.TESTER: AgentSpec(
-        agent_type=AgentType.TESTER,
-        name="Tester",
-        description="Test generation, security audits, code evaluation, coverage improvement (absorbs Test Automation + Security Auditor + Evaluator)",
-        default_model="qwen2.5-coder-7b",
-        thinking_variant="high"
-    ),
-    AgentType.DOCUMENTER: AgentSpec(
-        agent_type=AgentType.DOCUMENTER,
-        name="Documenter",
-        description="Documentation, API docs, user guides, git operations, version control (absorbs Documentation + Version Control)",
-        default_model="qwen2.5-72b",
-        thinking_variant="medium"
-    ),
-    AgentType.RESILIENCE: AgentSpec(
-        agent_type=AgentType.RESILIENCE,
-        name="Resilience",
-        description="Failure analysis, retry strategies, fallback planning, asset generation (absorbs Error Recovery + Image Generator)",
-        default_model="qwen2.5-72b",
-        thinking_variant="high"
-    ),
-    AgentType.META: AgentSpec(
-        agent_type=AgentType.META,
-        name="Meta",
-        description="System performance analysis, optimization recommendations, experiment tracking (absorbs Improvement + Experimentation Manager)",
-        default_model="qwen2.5-72b",
-        thinking_variant="high"
+        agent_type=AgentType.ARCHITECT, name="Architect",
+        description="[Legacy] -> CONSOLIDATED_RESEARCHER (ui_design, database, devops, git_workflow)",
+        default_model="qwen2.5-72b", enabled=False,
     ),
 }
 

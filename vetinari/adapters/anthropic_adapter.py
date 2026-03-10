@@ -1,6 +1,7 @@
 """Anthropic provider adapter."""
 
 import logging
+import os
 import requests
 import time
 from typing import Dict, List, Any, Optional
@@ -14,6 +15,46 @@ logger = logging.getLogger(__name__)
 
 class AnthropicProviderAdapter(ProviderAdapter):
     """Adapter for Anthropic API (Claude models)."""
+
+    # Hardcoded fallback model list — used when config/provider_models.yaml is unavailable
+    _HARDCODED_MODELS = [
+        {
+            "id": "claude-3-5-sonnet-20241022",
+            "name": "Claude 3.5 Sonnet",
+            "context_len": 200000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1000,
+            "cost_per_1k_tokens": 0.003,
+            "capabilities": ["code_gen", "chat", "reasoning", "vision"],
+        },
+        {
+            "id": "claude-3-opus-20250219",
+            "name": "Claude 3 Opus",
+            "context_len": 200000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1500,
+            "cost_per_1k_tokens": 0.015,
+            "capabilities": ["code_gen", "chat", "reasoning", "vision"],
+        },
+        {
+            "id": "claude-3-sonnet-20240229",
+            "name": "Claude 3 Sonnet",
+            "context_len": 200000,
+            "memory_gb": 32,
+            "latency_estimate_ms": 1200,
+            "cost_per_1k_tokens": 0.003,
+            "capabilities": ["code_gen", "chat", "reasoning", "vision"],
+        },
+        {
+            "id": "claude-3-haiku-20240307",
+            "name": "Claude 3 Haiku",
+            "context_len": 200000,
+            "memory_gb": 16,
+            "latency_estimate_ms": 600,
+            "cost_per_1k_tokens": 0.00025,
+            "capabilities": ["code_gen", "chat"],
+        },
+    ]
 
     # Map from friendly/config model IDs to real Anthropic API model IDs
     MODEL_ID_MAP: Dict[str, str] = {
@@ -41,48 +82,28 @@ class AnthropicProviderAdapter(ProviderAdapter):
         """Resolve a config model ID to the real Anthropic API model ID."""
         return self.MODEL_ID_MAP.get(model_id, model_id)
 
+    def _load_model_definitions(self) -> List[Dict[str, Any]]:
+        """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
+        try:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                '..', 'config', 'provider_models.yaml'
+            )
+            import yaml
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            provider_models = config.get('providers', {}).get('anthropic', {}).get('models', [])
+            if provider_models:
+                return provider_models
+        except Exception:
+            logger.debug("Config file not available, using hardcoded models")
+        return self._HARDCODED_MODELS
+
     def discover_models(self) -> List[ModelInfo]:
         """Discover available models from Anthropic."""
         try:
-            # Anthropic models are hardcoded (they don't have a discovery endpoint)
-            models_data = [
-                {
-                    "id": "claude-3-5-sonnet-20241022",
-                    "name": "Claude 3.5 Sonnet",
-                    "context_len": 200000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1000,
-                    "cost_per_1k_tokens": 0.003,
-                    "capabilities": ["code_gen", "chat", "reasoning", "vision"],
-                },
-                {
-                    "id": "claude-3-opus-20250219",
-                    "name": "Claude 3 Opus",
-                    "context_len": 200000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1500,
-                    "cost_per_1k_tokens": 0.015,
-                    "capabilities": ["code_gen", "chat", "reasoning", "vision"],
-                },
-                {
-                    "id": "claude-3-sonnet-20240229",
-                    "name": "Claude 3 Sonnet",
-                    "context_len": 200000,
-                    "memory_gb": 32,
-                    "latency_estimate_ms": 1200,
-                    "cost_per_1k_tokens": 0.003,
-                    "capabilities": ["code_gen", "chat", "reasoning", "vision"],
-                },
-                {
-                    "id": "claude-3-haiku-20240307",
-                    "name": "Claude 3 Haiku",
-                    "context_len": 200000,
-                    "memory_gb": 16,
-                    "latency_estimate_ms": 600,
-                    "cost_per_1k_tokens": 0.00025,
-                    "capabilities": ["code_gen", "chat"],
-                },
-            ]
+            # Load model list from config file (falls back to hardcoded if unavailable)
+            models_data = self._load_model_definitions()
             
             discovered = []
             for m in models_data:
@@ -102,11 +123,11 @@ class AnthropicProviderAdapter(ProviderAdapter):
                 discovered.append(model_info)
             
             self.models = discovered
-            logger.info(f"[Anthropic] Discovered {len(discovered)} models")
+            logger.info("[Anthropic] Discovered %s models", len(discovered))
             return discovered
 
         except Exception as e:
-            logger.error(f"[Anthropic] Model discovery failed: {e}")
+            logger.error("[Anthropic] Model discovery failed: %s", e)
             return []
 
     def health_check(self) -> Dict[str, Any]:
@@ -207,7 +228,7 @@ class AnthropicProviderAdapter(ProviderAdapter):
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"[Anthropic] Inference failed: {e}")
+            logger.error("[Anthropic] Inference failed: %s", e)
             resp = InferenceResponse(
                 model_id=request.model_id,
                 output="",

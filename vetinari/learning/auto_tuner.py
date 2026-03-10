@@ -5,9 +5,11 @@ Monitors SLA compliance and anomaly patterns, then automatically adjusts
 system configuration to maintain performance targets.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -44,17 +46,39 @@ class AutoTuner:
 
     MAX_AUTO_CONCURRENT = 8
     MIN_AUTO_CONCURRENT = 1
+    _CONFIG_PATH = Path(".vetinari/auto_tuner_config.json")
+    _DEFAULTS: Dict[str, Any] = {
+        "max_concurrent": 4,
+        "anomaly_threshold": 3.0,
+        "retry_backoff_cap": 30,
+        "min_quality_threshold": 0.65,
+    }
 
     def __init__(self):
         self._actions: List[TuningAction] = []
-        self._current_config: Dict[str, Any] = {
-            "max_concurrent": 4,
-            "anomaly_threshold": 3.0,
-            "retry_backoff_cap": 30,
-            "min_quality_threshold": 0.65,
-        }
-        # Set of (model_id, task_type) pairs to monitor for retraining
-        self._tracked_pairs: set = set()
+        self._current_config: Dict[str, Any] = self._load_config()
+
+    def _load_config(self) -> Dict[str, Any]:
+        """Load persisted config or return defaults."""
+        config = dict(self._DEFAULTS)
+        try:
+            if self._CONFIG_PATH.exists():
+                with open(self._CONFIG_PATH) as f:
+                    saved = json.load(f)
+                config.update(saved)
+                logger.info("[AutoTuner] Loaded persisted config from %s", self._CONFIG_PATH)
+        except Exception as e:
+            logger.warning("[AutoTuner] Failed to load config, using defaults: %s", e)
+        return config
+
+    def _persist_config(self) -> None:
+        """Save current config to disk."""
+        try:
+            self._CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._CONFIG_PATH, "w") as f:
+                json.dump(self._current_config, f, indent=2)
+        except Exception as e:
+            logger.warning("[AutoTuner] Failed to persist config: %s", e)
 
     def run_cycle(self) -> List[TuningAction]:
         """
@@ -76,11 +100,9 @@ class AutoTuner:
         # Check cost trends
         applied.extend(self._tune_from_costs())
 
-        # Check retraining needs (generates manual-approval actions only)
-        applied.extend(self._check_retraining_need())
-
         if applied:
-            logger.info(f"[AutoTuner] Applied {len(applied)} tuning actions")
+            logger.info("[AutoTuner] Applied %s tuning actions", len(applied))
+            self._persist_config()
         return applied
 
     def _tune_from_sla(self) -> List[TuningAction]:
@@ -120,7 +142,7 @@ class AutoTuner:
                                              auto=True)
                         actions.append(action)
         except Exception as e:
-            logger.debug(f"SLA tuning failed: {e}")
+            logger.debug("SLA tuning failed: %s", e)
         return actions
 
     def _tune_from_anomalies(self) -> List[TuningAction]:
@@ -156,7 +178,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Anomaly tuning failed: {e}")
+            logger.debug("Anomaly tuning failed: %s", e)
         return actions
 
     def _tune_from_costs(self) -> List[TuningAction]:
@@ -176,40 +198,7 @@ class AutoTuner:
                 )
                 actions.append(action)
         except Exception as e:
-            logger.debug(f"Cost tuning failed: {e}")
-        return actions
-
-    def _check_retraining_need(self) -> List[TuningAction]:
-        """Check tracked (model_id, task_type) pairs for retraining need.
-
-        Uses TrainingManager.should_retrain() for each pair.  When retraining
-        is recommended, creates a TuningAction with ``auto_applied=False``
-        so it surfaces as a manual-approval recommendation rather than an
-        automatic change.
-        """
-        actions: List[TuningAction] = []
-        if not self._tracked_pairs:
-            return actions
-        try:
-            from vetinari.learning.training_manager import get_training_manager
-            manager = get_training_manager()
-            for model_id, task_type in list(self._tracked_pairs):
-                try:
-                    rec = manager.should_retrain(model_id, task_type)
-                    if rec.recommended:
-                        action = self._apply(
-                            trigger=f"Quality degradation: {model_id}/{task_type}",
-                            parameter="retrain",
-                            old_val=rec.current_avg_quality,
-                            new_val=rec.recommended_method,
-                            rationale=rec.reason,
-                            auto=False,
-                        )
-                        actions.append(action)
-                except Exception as e:
-                    logger.debug(f"Retraining check failed for {model_id}/{task_type}: {e}")
-        except Exception as e:
-            logger.debug(f"Retraining check skipped: {e}")
+            logger.debug("Cost tuning failed: %s", e)
         return actions
 
     def _apply(self, trigger: str, parameter: str, old_val: Any, new_val: Any,
@@ -230,9 +219,9 @@ class AutoTuner:
         self._actions.append(action)
 
         if auto:
-            logger.info(f"[AutoTuner] {parameter}: {old_val} → {new_val} ({rationale})")
+            logger.info("[AutoTuner] %s: %s → %s (%s)", parameter, old_val, new_val, rationale)
         else:
-            logger.warning(f"[AutoTuner] MANUAL ACTION NEEDED: {parameter}: {old_val} → {new_val} ({rationale})")
+            logger.warning("[AutoTuner] MANUAL ACTION NEEDED: %s: %s → %s (%s)", parameter, old_val, new_val, rationale)
 
         # Log to memory as a DECISION entry
         try:
@@ -248,7 +237,7 @@ class AutoTuner:
                 provenance="auto_tuner",
             ))
         except Exception:
-            pass
+            logger.debug("Failed to persist auto-tuner decision for %s", parameter, exc_info=True)
 
         return action
 

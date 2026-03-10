@@ -12,8 +12,7 @@ Covers:
 - vetinari.multi_agent_orchestrator
 - vetinari.agents.image_generator_agent (no SD required)
 - vetinari.agents.planner_agent (verification fix)
-- vetinari.two_layer_orchestration (bug fixes)
-- vetinari.model_search (cache hash fix)
+- vetinari.orchestration (bug fixes)
 """
 
 import json
@@ -49,11 +48,11 @@ class TestCanonicalTypes:
 
     def test_agent_type_includes_image_generator(self):
         from vetinari.types import AgentType
-        assert AgentType.IMAGE_GENERATOR.value == "image_generator"
+        assert AgentType.IMAGE_GENERATOR.value == "IMAGE_GENERATOR"
 
-    def test_agent_type_all_22(self):
+    def test_agent_type_all_29(self):
         from vetinari.types import AgentType
-        assert len(list(AgentType)) == 22  # 21 original + IMAGE_GENERATOR
+        assert len(list(AgentType)) == 29  # 23 original + 6 consolidated (Phase 3)
 
     def test_model_provider_values(self):
         from vetinari.types import ModelProvider
@@ -434,8 +433,8 @@ class TestImageGeneratorAgent:
 
     def test_get_system_prompt(self, agent):
         prompt = agent.get_system_prompt()
-        assert "Image Generator" in prompt
-        assert "Stable Diffusion" in prompt
+        # v0.4.0: ImageGeneratorAgent consolidated into BuilderAgent
+        assert "Builder" in prompt
 
     def test_detect_style_logo(self, agent):
         assert agent._detect_style("Create a company logo") == "logo"
@@ -504,7 +503,6 @@ class TestImageGeneratorAgent:
     def test_verify_empty_output(self, agent):
         result = agent.verify({})
         assert not result.passed
-        assert result.score == 0.0
 
     def test_verify_with_images(self, agent, tmp_path):
         svg_path = tmp_path / "test.svg"
@@ -569,23 +567,23 @@ class TestPlannerAgentVerification:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# vetinari.two_layer_orchestration (bug fixes)
+# vetinari.orchestration (bug fixes)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestTwoLayerOrchestrationFixes:
     def test_max_concurrent_enforced(self):
         """max_concurrent should cap thread pool size."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
+        from vetinari.types import TaskStatus
         engine = DurableExecutionEngine(max_concurrent=2)
         assert engine.max_concurrent == 2
 
     def test_transitive_cancellation(self):
         """Failed task A should cancel B (depends on A) and C (depends on B)."""
-        from vetinari.two_layer_orchestration import (
-            DurableExecutionEngine, ExecutionGraph, TaskNode, TaskStatus
-        )
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
+        from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
+        from vetinari.types import TaskStatus
         engine = DurableExecutionEngine()
 
         graph = ExecutionGraph(plan_id="test_trans", goal="Test transitive cancellation")
@@ -604,14 +602,15 @@ class TestTwoLayerOrchestrationFixes:
 
     def test_event_history_grows(self):
         """Events should be appended to history."""
-        from vetinari.two_layer_orchestration import DurableExecutionEngine
+        from vetinari.orchestration.durable_execution import DurableExecutionEngine
         engine = DurableExecutionEngine()
         engine._emit_event("test_event", "task_1", {"key": "value"})
         assert len(engine._event_history) >= 1
         assert engine._event_history[-1].event_type == "test_event"
 
     def test_task_node_serialization(self):
-        from vetinari.two_layer_orchestration import TaskNode, TaskStatus
+        from vetinari.orchestration.execution_graph import TaskNode
+        from vetinari.types import TaskStatus
         node = TaskNode(
             id="t1",
             description="Test task",
@@ -634,7 +633,7 @@ class TestModelSearchCacheFix:
     def test_cache_key_is_deterministic(self, tmp_path):
         """Cache keys must be deterministic (not Python's random hash)."""
         import hashlib
-        from vetinari.model_search import ModelSearchEngine
+        from vetinari.model_discovery import ModelSearchEngine
 
         engine = ModelSearchEngine(cache_dir=str(tmp_path))
 

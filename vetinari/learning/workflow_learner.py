@@ -8,6 +8,7 @@ best for different goal types. Uses a simple decision tree approach
 
 import json
 import logging
+import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -43,6 +44,7 @@ class WorkflowLearner:
 
     def __init__(self):
         self._patterns: Dict[str, WorkflowPattern] = {}
+        self._lock = threading.Lock()
         self._load_patterns()
 
     def infer_domain(self, goal: str) -> str:
@@ -67,16 +69,17 @@ class WorkflowLearner:
                            preferred_agents, confidence.
         """
         domain = self.infer_domain(goal)
-        pattern = self._patterns.get(domain)
+        with self._lock:
+            pattern = self._patterns.get(domain)
 
-        if pattern and pattern.sample_count >= 3:
-            return {
-                "domain": domain,
-                "recommended_depth": int(round(pattern.avg_depth)),
-                "recommended_breadth": int(round(pattern.avg_breadth)),
-                "preferred_agents": pattern.preferred_agents[:5],
-                "confidence": min(1.0, pattern.sample_count / 20),
-            }
+            if pattern and pattern.sample_count >= 3:
+                return {
+                    "domain": domain,
+                    "recommended_depth": int(round(pattern.avg_depth)),
+                    "recommended_breadth": int(round(pattern.avg_breadth)),
+                    "preferred_agents": pattern.preferred_agents[:5],
+                    "confidence": min(1.0, pattern.sample_count / 20),
+                }
 
         # Default recommendations per domain
         defaults = {
@@ -130,35 +133,36 @@ class WorkflowLearner:
         """Update the workflow pattern for a domain based on an observed outcome."""
         EMA = 0.3
 
-        if domain in self._patterns:
-            p = self._patterns[domain]
-            p.avg_depth = (1 - EMA) * p.avg_depth + EMA * plan_depth
-            p.avg_breadth = (1 - EMA) * p.avg_breadth + EMA * plan_breadth
-            p.success_rate = (1 - EMA) * p.success_rate + EMA * float(success)
-            p.avg_quality = (1 - EMA) * p.avg_quality + EMA * quality_score
-            p.sample_count += 1
-            # Update preferred agents (frequency-based)
-            freq: Dict[str, int] = {}
-            for a in p.preferred_agents:
-                freq[a] = freq.get(a, 0) + 1
-            for a in agents_used:
-                freq[a] = freq.get(a, 0) + 1
-            p.preferred_agents = sorted(freq, key=freq.get, reverse=True)[:5]
-            p.last_updated = datetime.now().isoformat()
-        else:
-            self._patterns[domain] = WorkflowPattern(
-                pattern_id=f"pattern_{domain}",
-                domain=domain,
-                avg_depth=float(plan_depth),
-                avg_breadth=float(plan_breadth),
-                preferred_agents=agents_used[:5],
-                success_rate=float(success),
-                avg_quality=quality_score,
-                sample_count=1,
-            )
+        with self._lock:
+            if domain in self._patterns:
+                p = self._patterns[domain]
+                p.avg_depth = (1 - EMA) * p.avg_depth + EMA * plan_depth
+                p.avg_breadth = (1 - EMA) * p.avg_breadth + EMA * plan_breadth
+                p.success_rate = (1 - EMA) * p.success_rate + EMA * float(success)
+                p.avg_quality = (1 - EMA) * p.avg_quality + EMA * quality_score
+                p.sample_count += 1
+                # Update preferred agents (frequency-based)
+                freq: Dict[str, int] = {}
+                for a in p.preferred_agents:
+                    freq[a] = freq.get(a, 0) + 1
+                for a in agents_used:
+                    freq[a] = freq.get(a, 0) + 1
+                p.preferred_agents = sorted(freq, key=freq.get, reverse=True)[:5]
+                p.last_updated = datetime.now().isoformat()
+            else:
+                self._patterns[domain] = WorkflowPattern(
+                    pattern_id=f"pattern_{domain}",
+                    domain=domain,
+                    avg_depth=float(plan_depth),
+                    avg_breadth=float(plan_breadth),
+                    preferred_agents=agents_used[:5],
+                    success_rate=float(success),
+                    avg_quality=quality_score,
+                    sample_count=1,
+                )
 
-        self._save_patterns()
-        logger.debug(f"[WorkflowLearner] Updated pattern for domain '{domain}'")
+            self._save_patterns()
+        logger.debug("[WorkflowLearner] Updated pattern for domain '%s'", domain)
 
     def learn_from_benchmark(self, benchmark_result: Dict[str, Any]) -> None:
         """
@@ -301,7 +305,8 @@ class WorkflowLearner:
 
     def get_all_patterns(self) -> List[Dict[str, Any]]:
         """Get all learned patterns."""
-        return [asdict(p) for p in self._patterns.values()]
+        with self._lock:
+            return [asdict(p) for p in self._patterns.values()]
 
     def _load_patterns(self) -> None:
         try:
@@ -316,9 +321,9 @@ class WorkflowLearner:
                 for item in data:
                     p = WorkflowPattern(**item)
                     self._patterns[p.domain] = p
-                logger.debug(f"[WorkflowLearner] Loaded {len(self._patterns)} patterns")
+                logger.debug("[WorkflowLearner] Loaded %s patterns", len(self._patterns))
         except Exception as e:
-            logger.debug(f"Could not load workflow patterns: {e}")
+            logger.debug("Could not load workflow patterns: %s", e)
 
     def _save_patterns(self) -> None:
         try:
@@ -331,7 +336,7 @@ class WorkflowLearner:
             with open(path, "w") as f:
                 json.dump([asdict(p) for p in self._patterns.values()], f, indent=2)
         except Exception as e:
-            logger.debug(f"Could not save workflow patterns: {e}")
+            logger.debug("Could not save workflow patterns: %s", e)
 
 
 _workflow_learner: Optional[WorkflowLearner] = None

@@ -181,7 +181,7 @@ class RepoMap:
                 if mod:
                     modules.append(mod)
             except Exception as e:
-                logger.debug(f"[RepoMap] Could not parse {py_file}: {e}")
+                logger.debug("[RepoMap] Could not parse %s: %s", py_file, e)
 
         return modules
 

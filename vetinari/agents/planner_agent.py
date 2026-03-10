@@ -1,179 +1,233 @@
 """
-Vetinari Planner Agent
+Vetinari Planner Agent (v0.4.0)
 
-The Planner is the central orchestration agent that generates dynamic plans
-from goals and coordinates all other agents.
+The Planner is the central planning and user interaction agent. It generates
+dynamic plans from goals, coordinates agent assignment, and handles user
+clarification and context management.
+
+Absorbs: ORCHESTRATOR (clarify, consolidate, summarise, prune, extract)
+Modes: plan, clarify, consolidate, summarise, prune, extract
 """
 
-import json
-import uuid
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
-from vetinari.agents.base_agent import BaseAgent
+import json
+import logging
+import os
+import sys
+import uuid
+from typing import Any, Callable, Dict, List, Optional
+
+from vetinari.agents.multi_mode_agent import MultiModeAgent
 from vetinari.agents.contracts import (
     AgentResult,
-    AgentSpec,
     AgentTask,
     AgentType,
     Plan,
     Task,
     TaskStatus,
     VerificationResult,
-    get_enabled_agents
+    get_enabled_agents,
 )
 
+logger = logging.getLogger(__name__)
 
-class PlannerAgent(BaseAgent):
-    """Planner agent - central orchestration and dynamic plan generation."""
-    
+
+class PlannerAgent(MultiModeAgent):
+    """Planner agent - planning, user interaction, and context management.
+
+    Consolidates the former ORCHESTRATOR agent's modes into the Planner,
+    providing a unified agent for all planning and coordination tasks.
+    """
+
+    MODES = {
+        "plan": "_execute_plan",
+        "clarify": "_execute_clarify",
+        "consolidate": "_execute_consolidate",
+        "summarise": "_execute_summarise",
+        "prune": "_execute_prune",
+        "extract": "_execute_extract",
+    }
+    DEFAULT_MODE = "plan"
+    MODE_KEYWORDS = {
+        "plan": ["plan", "decompose", "schedule", "specify", "goal", "task", "breakdown"],
+        "clarify": ["ambiguous", "clarif", "question", "unclear", "vague", "user input"],
+        "consolidate": ["consolidat", "memory", "merge", "context"],
+        "summarise": ["summari", "summariz", "digest", "recap"],
+        "prune": ["prune", "trim", "reduce", "budget", "token limit"],
+        "extract": ["extract", "knowledge", "entities", "structured"],
+    }
+    LEGACY_TYPE_TO_MODE = {
+        "USER_INTERACTION": "clarify",
+        "CONTEXT_MANAGER": "consolidate",
+        "ORCHESTRATOR": "clarify",
+    }
+
+    _MAX_ENTRIES_FOR_CONSOLIDATION = 50
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(AgentType.PLANNER, config)
         self._max_depth = self._config.get("max_depth", 14)
         self._min_tasks = self._config.get("min_tasks", 5)
         self._max_tasks = self._config.get("max_tasks", 15)
-        
-    def get_system_prompt(self) -> str:
-        agent_descriptions = self._get_dynamic_agent_list()
-        return f"""You are Vetinari's Planning Master. You receive a user goal and a context.
-Your job is to produce a complete, versioned Plan (DAG) that assigns tasks to the
-appropriate agents, defines dependencies, estimates effort, and flags any context
-needs or follow-up questions.
+        # Orchestrator state (absorbed)
+        self._interaction_mode = (config or {}).get("mode", "interactive")
+        self._callback: Optional[Callable] = None
+        self._pending_questions: List[Dict[str, Any]] = []
+        self._gathered_context: Dict[str, Any] = {}
+        self._max_context_tokens = int(
+            (config or {}).get("max_context_tokens",
+                              os.environ.get("VETINARI_MAX_CONTEXT_TOKENS", "4096"))
+        )
 
-Rules:
-1. Output strictly valid JSON matching the Plan schema
-2. Every plan must include a path to final delivery
-3. Do NOT execute tasks — only plan and delegate
-4. If a subtask fails during execution, propose a re-plan for that subtask tree
-5. Include explicit acceptance criteria (Definition of Done) for each task
-6. Define a rollback trigger if critical dependencies fail
-7. Prefer parallelism: tasks that don't depend on each other should run in parallel
-8. Minimum viable plan: 3 tasks. Maximum: 20 tasks per top-level goal.
+    def _get_base_system_prompt(self) -> str:
+        return (
+            "You are Vetinari's Planning Master. You handle goal decomposition, "
+            "task scheduling, user interaction (ambiguity detection, clarifying "
+            "questions), and context management (memory consolidation, session "
+            "summarisation, knowledge extraction)."
+        )
 
-{agent_descriptions}
+    def _get_mode_system_prompt(self, mode: str) -> str:
+        prompts = {
+            "plan": (
+                "You are Vetinari's Planning Master. You receive a user goal and context.\n"
+                "Your job is to produce a complete, versioned Plan (DAG) that assigns tasks to\n"
+                "the appropriate agents, defines dependencies, estimates effort, and flags any\n"
+                "context needs or follow-up questions.\n\n"
+                "Rules:\n"
+                "1. Output strictly valid JSON matching the Plan schema\n"
+                "2. Every plan must include a path to final delivery\n"
+                "3. Do NOT execute tasks — only plan and delegate\n"
+                "4. If a subtask fails during execution, propose a re-plan for that subtask tree\n"
+                "5. Include explicit acceptance criteria (Definition of Done) for each task\n"
+                "6. Define a rollback trigger if critical dependencies fail\n"
+                "7. Prefer parallelism: tasks that don't depend on each other should run concurrently\n"
+                "8. Minimum viable plan: 3 tasks. Maximum: 20 tasks per top-level goal.\n\n"
+                "Active agents (6 consolidated):\n"
+                "- PLANNER: Goal decomposition, scheduling, user interaction, context management\n"
+                "- RESEARCHER: Code discovery, API lookup, domain research, lateral thinking,\n"
+                "  UI/UX design, database schemas, DevOps pipelines, git workflow\n"
+                "- ORACLE: Architecture decisions, risk assessment, ontological analysis, contrarian review\n"
+                "- BUILDER: Code implementation, scaffolding, image generation\n"
+                "- QUALITY: Code review, test generation, security audit, simplification\n"
+                "- OPERATIONS: Documentation, creative writing, cost analysis, experiments,\n"
+                "  error recovery, synthesis, improvement, monitoring\n\n"
+                "Affinity Table — task type to agent:\n"
+                "  code/implement/build/scaffold/refactor   -> BUILDER\n"
+                "  research/explore/discover/lookup/api     -> RESEARCHER\n"
+                "  review/test/security/audit/quality       -> QUALITY\n"
+                "  plan/decompose/schedule/specify          -> PLANNER\n"
+                "  design/ui/database/devops/git            -> RESEARCHER\n"
+                "  architecture/risk/decision/contrarian    -> ORACLE\n"
+                "  document/write/summarize/cost/recover    -> OPERATIONS\n"
+                "  clarify/interact/consolidate             -> PLANNER\n"
+                "  image/logo/icon/diagram/mockup           -> BUILDER\n\n"
+                "DECOMPOSITION QUALITY:\n"
+                "- Every subtask must have measurable completion criteria\n"
+                "- Prefer parallel execution: tasks without dependencies should run concurrently\n"
+                "- Estimate effort: XS (<5min), S (<30min), M (<2h), L (<8h), XL (>8h)\n\n"
+                "RISK ASSESSMENT:\n"
+                "- Identify the top 3 risks with likelihood and impact\n"
+                "- Include a rollback strategy for the highest-risk subtask\n\n"
+                "SELF-CHECK:\n"
+                "- Does every task have exactly one responsible agent?\n"
+                "- Are all dependencies explicit?\n"
+                "- Is there a critical path? What is the estimated total duration?\n"
+                "- Would removing any task break the plan?"
+            ),
+            "clarify": (
+                "You are Vetinari's User Interaction Specialist. Your role is to:\n"
+                "1. Detect when user goals are ambiguous or under-specified\n"
+                "2. Generate clear, targeted clarifying questions\n"
+                "3. Prioritize the most important questions (max 3)\n"
+                "4. Incorporate user responses into the task context\n\n"
+                "Ask no more than 3 clarifying questions. Rank by information value. "
+                "Stop when ambiguity drops below 20%.\n"
+                "Be concise and specific."
+            ),
+            "consolidate": (
+                "You are a context and memory management specialist. Your role is to:\n"
+                "- Summarise long interaction histories into concise digests\n"
+                "- Identify and retain the most relevant knowledge\n"
+                "- Remove redundant or stale context to stay within token budgets\n"
+                "- Build structured knowledge representations\n"
+                "- Detect contradictions or outdated information\n\n"
+                "Preserve all unique information. Flag contradictions rather than "
+                "silently resolving them.\n"
+                "Always respond with structured JSON."
+            ),
+            "summarise": (
+                "You are a session summarisation specialist. Produce concise, "
+                "structured digests of session histories, identifying goals achieved "
+                "and recommended next steps."
+            ),
+            "prune": (
+                "You are a context pruning specialist. Reduce context to fit within "
+                "token budgets while retaining the highest-relevance entries."
+            ),
+            "extract": (
+                "You are a knowledge extraction specialist. Extract structured "
+                "facts and entities from text with confidence scores."
+            ),
+        }
+        return prompts.get(mode, "")
 
-Output format: valid JSON array of task objects."""
+    def verify(self, output: Any) -> VerificationResult:
+        """Verify output — mode-aware."""
+        if not isinstance(output, dict):
+            return VerificationResult(
+                passed=False, issues=[{"message": "Output must be a dict"}], score=0.0
+            )
 
-    def _get_dynamic_agent_list(self) -> str:
-        """Build agent list dynamically from the registry."""
-        try:
-            specs = get_enabled_agents()
-            lines = ["Available agents and their roles:"]
-            for spec in specs:
-                if spec.agent_type == AgentType.PLANNER:
-                    continue  # Don't list self
-                lines.append(f"- {spec.agent_type.value}: {spec.description}")
-            return "\n".join(lines)
-        except Exception:
-            # Fallback to hardcoded list if registry unavailable
-            return """Available agents and their roles:
-- EXPLORER: Code/doc discovery, codebase analysis
-- RESEARCHER: Multi-source research, feasibility analysis
-- BUILDER: Code scaffolding, implementation, feature coding
-- TESTER: Test generation, security auditing, quality evaluation
-- ARCHITECT: Architecture guidance, risk assessment, cost planning
-- DOCUMENTER: Documentation, version control, changelogs
-- RESILIENCE: Error recovery, retry strategies, image generation
-- META: Meta-analysis, experimentation management, improvement suggestions"""
-    
+        mode = self._current_mode or self.DEFAULT_MODE
+        if mode == "plan":
+            issues = []
+            score = 1.0
+            required_fields = ["plan_id", "goal", "tasks"]
+            for f in required_fields:
+                if f not in output:
+                    issues.append({"type": "missing_field", "message": f"Missing: {f}"})
+                    score -= 0.2
+            tasks = output.get("tasks", [])
+            if len(tasks) < self._min_tasks:
+                issues.append({"type": "insufficient_tasks", "message": f"Too few tasks: {len(tasks)}"})
+                score -= 0.1
+            if not any(t.get("dependencies") for t in tasks):
+                issues.append({"type": "no_dependencies", "message": "No task dependencies"})
+                score -= 0.1
+            return VerificationResult(passed=score >= 0.7, issues=issues, score=max(0, score))
+
+        return VerificationResult(passed=True, score=0.8)
+
     def get_capabilities(self) -> List[str]:
         return [
-            "plan_generation",
-            "task_decomposition",
-            "dependency_mapping",
-            "resource_estimation",
-            "risk_assessment"
+            "plan_generation", "task_decomposition", "dependency_mapping",
+            "resource_estimation", "risk_assessment",
+            "ambiguity_detection", "clarification_generation", "context_gathering",
+            "memory_consolidation", "session_summarisation", "context_pruning",
+            "knowledge_extraction",
         ]
-    
-    def execute(self, task: AgentTask) -> AgentResult:
-        """Execute the planning task.
-        
-        Args:
-            task: The task containing the goal to plan for
-            
-        Returns:
-            AgentResult containing the generated Plan
-        """
-        if not self.validate_task(task):
-            return AgentResult(
-                success=False,
-                output=None,
-                errors=[f"Invalid task for {self._agent_type.value}"]
-            )
-        
-        task = self.prepare_task(task)
-        
-        try:
-            goal = task.prompt or task.description
-            context = task.context or {}
-            
-            # Create the plan
-            plan = self._generate_plan(goal, context)
-            
-            # Complete the task
-            task = self.complete_task(task, AgentResult(
-                success=True,
-                output=plan.to_dict(),
-                metadata={"plan_id": plan.plan_id, "task_count": len(plan.tasks)}
-            ))
-            
-            return AgentResult(
-                success=True,
-                output=plan.to_dict(),
-                metadata={
-                    "plan_id": plan.plan_id,
-                    "task_count": len(plan.tasks),
-                    "goal": goal
-                }
-            )
-            
-        except Exception as e:
-            self._log("error", f"Planning failed: {str(e)}")
-            return AgentResult(
-                success=False,
-                output=None,
-                errors=[str(e)]
-            )
-    
-    def verify(self, output: Any) -> VerificationResult:
-        """Verify the plan meets quality standards.
-        
-        Args:
-            output: The plan to verify
-            
-        Returns:
-            VerificationResult with pass/fail status
-        """
-        issues = []
-        score = 1.0
-        
-        if not isinstance(output, dict):
-            issues.append({"type": "invalid_type", "message": "Output must be a dict"})
-            score -= 0.5
-            return VerificationResult(passed=False, issues=issues, score=score)
-        
-        # Check required fields
-        required_fields = ["plan_id", "goal", "tasks"]
-        for field in required_fields:
-            if field not in output:
-                issues.append({"type": "missing_field", "message": f"Missing required field: {field}"})
-                score -= 0.2
-        
-        # Check tasks
-        tasks = output.get("tasks", [])
-        if len(tasks) < self._min_tasks:
-            issues.append({"type": "insufficient_tasks", "message": f"Too few tasks: {len(tasks)}"})
-            score -= 0.1
-        
-        # Check for dependencies
-        has_dependencies = any(t.get("dependencies") for t in tasks)
-        if not has_dependencies:
-            issues.append({"type": "no_dependencies", "message": "No task dependencies defined"})
-            score -= 0.1
-        
-        # Pass if score threshold met; issues are warnings, not automatic failures
-        passed = score >= 0.7
-        return VerificationResult(passed=passed, issues=issues, score=max(0, score))
-    
+
+    # ------------------------------------------------------------------
+    # Plan mode
+    # ------------------------------------------------------------------
+
+    def _execute_plan(self, task: AgentTask) -> AgentResult:
+        """Generate a plan from the goal."""
+        goal = task.prompt or task.description
+        context = task.context or {}
+        plan = self._generate_plan(goal, context)
+        return AgentResult(
+            success=True,
+            output=plan.to_dict(),
+            metadata={
+                "plan_id": plan.plan_id,
+                "task_count": len(plan.tasks),
+                "goal": goal,
+            },
+        )
+
     def _generate_plan(self, goal: str, context: Dict[str, Any]) -> Plan:
         """Generate a plan from the goal using LLM-powered decomposition.
 
@@ -181,127 +235,50 @@ Output format: valid JSON array of task objects."""
         """
         plan = Plan.create_new(goal)
 
-        # Step 1: Check if the goal is too vague using LLM (or simple heuristics)
-        vague_check_prompt = (
-            f"User goal: \"{goal}\"\n\n"
-            "Is this goal specific enough to begin work on, or does it need clarification?\n"
-            "Reply with JSON: {\"is_clear\": true/false, \"clarification_needed\": \"question if not clear\"}"
-        )
-        vague_result = self._infer_json(vague_check_prompt, expect_json=True)
-        if vague_result and not vague_result.get("is_clear", True):
-            plan.needs_context = True
-            plan.follow_up_question = vague_result.get(
-                "clarification_needed",
-                "Could you provide more details about what you want to build?"
-            )
-            return plan
+        # Step 1: Heuristic vagueness check
+        vague_indicators = [
+            "something", "stuff", "things", "create something", "make it work",
+            "fix it", "do something", "help me", "build something",
+        ]
+        goal_lower = goal.lower().strip()
+        goal_words = goal_lower.split()
 
-        # Heuristic clarity assessment as fallback
-        clarity = self._assess_goal_clarity(goal)
-        if clarity < 0.4:
+        is_vague = False
+        if len(goal_words) < 3:
+            is_vague = True
+        elif len(goal_words) < 5 and any(v in goal_lower for v in vague_indicators):
+            is_vague = True
+        elif not any(c.isalnum() for c in goal):
+            is_vague = True
+
+        if is_vague:
             plan.needs_context = True
             plan.follow_up_question = "Could you provide more details about what you want to build?"
             return plan
 
-        # Step 1.5: Inject similar past plans for better decomposition
-        past_plans_context = ""
-        try:
-            from vetinari.learning.episode_memory import get_episode_memory
-            episodes = get_episode_memory().recall(goal, k=3, min_score=0.6)
-            if episodes:
-                past_plans_context = "\n\nSimilar past tasks that worked well:\n"
-                for ep in episodes[:3]:
-                    past_plans_context += (
-                        f"- Task: {ep.get('task_description', '')[:100]} "
-                        f"(agent={ep.get('agent_type', '?')}, "
-                        f"quality={ep.get('quality_score', 0):.1f})\n"
-                    )
-        except Exception:
-            pass
-
         # Step 2: Use LLM to decompose the goal into tasks
-        tasks = self._decompose_goal_llm(goal, context, past_plans_context)
+        tasks = self._decompose_goal_llm(goal, context)
         if not tasks:
-            # Fallback to keyword-based decomposition
             tasks = self._decompose_goal_keyword(goal, context)
 
         plan.tasks = tasks
-
-        # Validate the DAG
-        dag_issues = self.validate_dag(tasks)
-        if dag_issues:
-            plan.warnings.extend(dag_issues)
-            self._log("warning", f"[Planner] DAG validation issues: {dag_issues}")
-
         if len(tasks) > self._max_tasks:
             plan.warnings.append(f"Generated {len(tasks)} tasks - consider breaking into smaller goals")
 
         return plan
 
-    def _assess_goal_clarity(self, goal: str) -> float:
-        """Assess how clear and actionable a goal is.
-
-        Returns:
-            Clarity score 0.0-1.0 (below 0.4 triggers clarification request).
-        """
-        score = 0.5  # Baseline
-        words = goal.split()
-
-        # Reward: longer, more specific goals
-        if len(words) >= 8:
-            score += 0.15
-        elif len(words) >= 5:
-            score += 0.1
-        elif len(words) < 3:
-            score -= 0.2
-
-        # Reward: contains technical/action terms
-        action_terms = {
-            "create", "build", "implement", "add", "fix", "remove", "update",
-            "refactor", "test", "deploy", "configure", "integrate", "migrate",
-            "design", "optimize", "analyze", "generate", "convert", "extract",
-        }
-        if any(w.lower() in action_terms for w in words):
-            score += 0.15
-
-        # Penalty: vague terms
-        vague_terms = {"something", "stuff", "things", "maybe", "possibly", "whatever", "idk"}
-        vague_count = sum(1 for w in words if w.lower() in vague_terms)
-        score -= vague_count * 0.15
-
-        # Reward: mentions specific technologies
-        tech_terms = {
-            "python", "javascript", "react", "flask", "django", "api", "rest",
-            "graphql", "database", "sql", "docker", "kubernetes", "aws", "gcp",
-            "css", "html", "typescript", "rust", "go", "java",
-        }
-        if any(w.lower() in tech_terms for w in words):
-            score += 0.1
-
-        # Reward: contains numbers (specific requirements)
-        if any(c.isdigit() for c in goal):
-            score += 0.05
-
-        return max(0.0, min(1.0, score))
-
-    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any], past_plans: str = "") -> List[Task]:
+    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any]) -> List[Task]:
         """Use LLM to intelligently decompose a goal into ordered tasks."""
-        try:
-            available_agents = [
-                spec.agent_type.value for spec in get_enabled_agents()
-                if spec.agent_type != AgentType.PLANNER
-            ]
-        except Exception:
-            available_agents = [
-                "EXPLORER", "RESEARCHER", "BUILDER", "TESTER",
-                "ARCHITECT", "DOCUMENTER", "RESILIENCE", "META",
-            ]
+        # Only the 6 active consolidated agents
+        available_agents = [
+            "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
+            "BUILDER", "QUALITY", "OPERATIONS",
+        ]
         context_str = ""
         if context:
             context_str = f"\nContext: {json.dumps(context, default=str)[:500]}"
-        past_str = past_plans if past_plans else ""
 
-        decomp_prompt = f"""Goal: {goal}{context_str}{past_str}
+        decomp_prompt = f"""Goal: {goal}{context_str}
 
 Available agents: {', '.join(available_agents)}
 
@@ -312,7 +289,7 @@ acceptance_criteria (string describing done condition).
 
 Output valid JSON array of task objects only — no prose, no markdown:
 [
-  {{"id": "t1", "description": "...", "inputs": ["goal"], "outputs": ["spec"], "dependencies": [], "assigned_agent": "EXPLORER", "acceptance_criteria": "..."}},
+  {{"id": "t1", "description": "...", "inputs": ["goal"], "outputs": ["spec"], "dependencies": [], "assigned_agent": "CONSOLIDATED_RESEARCHER", "acceptance_criteria": "..."}},
   ...
 ]"""
 
@@ -330,7 +307,6 @@ Output valid JSON array of task objects only — no prose, no markdown:
                     agent_type = AgentType[agent_str]
                 except KeyError:
                     agent_type = AgentType.BUILDER
-                # Calculate actual DAG depth rather than dependency count
                 t = Task(
                     id=item.get("id", f"t{len(tasks)+1}"),
                     description=item.get("description", "Task"),
@@ -338,7 +314,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
                     outputs=item.get("outputs", []),
                     dependencies=item.get("dependencies", []),
                     assigned_agent=agent_type,
-                    depth=0,  # Depth will be recalculated after all tasks are loaded
+                    depth=0,
                 )
                 tasks.append(t)
             except Exception:
@@ -347,73 +323,20 @@ Output valid JSON array of task objects only — no prose, no markdown:
         # Recalculate actual DAG depths
         if tasks:
             id_to_task = {t.id: t for t in tasks}
+
             def get_depth(task_id: str, visited: set) -> int:
                 if task_id in visited:
-                    return 0  # Cycle guard
+                    return 0
                 visited.add(task_id)
                 t = id_to_task.get(task_id)
                 if not t or not t.dependencies:
                     return 0
                 return 1 + max(get_depth(dep, visited) for dep in t.dependencies)
+
             for t in tasks:
                 t.depth = get_depth(t.id, set())
 
-        # Return whatever the LLM generated — don't discard valid small plans
-        # If truly empty, caller falls back to keyword decomposition
         return tasks
-
-    @staticmethod
-    def validate_dag(tasks: List[Task]) -> List[str]:
-        """Validate the task DAG for common issues.
-
-        Returns:
-            List of issue descriptions (empty if valid).
-        """
-        issues = []
-        task_ids = {t.id for t in tasks}
-
-        # Check for missing dependencies
-        for t in tasks:
-            for dep in t.dependencies:
-                if dep not in task_ids:
-                    issues.append(f"Task {t.id} depends on non-existent task {dep}")
-
-        # Check for circular dependencies via DFS
-        adj = {t.id: list(t.dependencies) for t in tasks}
-        WHITE, GRAY, BLACK = 0, 1, 2
-        color = {tid: WHITE for tid in task_ids}
-
-        def dfs(node):
-            color[node] = GRAY
-            for dep in adj.get(node, []):
-                if dep not in color:
-                    continue
-                if color[dep] == GRAY:
-                    issues.append(f"Circular dependency detected involving task {node} and {dep}")
-                    return
-                if color[dep] == WHITE:
-                    dfs(dep)
-            color[node] = BLACK
-
-        for tid in task_ids:
-            if color[tid] == WHITE:
-                dfs(tid)
-
-        # Check for orphan tasks (no outputs consumed by anyone)
-        all_deps = set()
-        for t in tasks:
-            all_deps.update(t.dependencies)
-        leaf_tasks = task_ids - all_deps
-        # Having leaf tasks is normal (they're the final outputs), but ALL tasks being leaves is suspicious
-        if len(leaf_tasks) == len(tasks) and len(tasks) > 2:
-            issues.append("No task dependencies defined — all tasks are independent (may indicate poor decomposition)")
-
-        # Check for empty descriptions
-        for t in tasks:
-            if not t.description or len(t.description.strip()) < 5:
-                issues.append(f"Task {t.id} has empty or too-short description")
-
-        return issues
 
     def _decompose_goal_keyword(self, goal: str, context: Dict[str, Any]) -> List[Task]:
         """Keyword-based fallback decomposition when LLM is unavailable."""
@@ -430,28 +353,28 @@ Output valid JSON array of task objects only — no prose, no markdown:
         t1 = Task(
             id=next_id(), description="Analyze requirements and create detailed specification",
             inputs=["goal"], outputs=["requirements_spec", "architecture_doc"],
-            dependencies=[], assigned_agent=AgentType.EXPLORER, depth=0
+            dependencies=[], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=0,
         )
         tasks.append(t1)
 
         is_code_heavy = any(kw in goal_lower for kw in [
             "code", "implement", "build", "create", "program", "agent",
-            "script", "app", "web", "software"
+            "script", "app", "web", "software",
         ])
         is_ui_needed = any(kw in goal_lower for kw in [
-            "ui", "frontend", "interface", "web", "app", "dashboard", "website"
+            "ui", "frontend", "interface", "web", "app", "dashboard", "website",
         ])
         is_research = any(kw in goal_lower for kw in [
-            "research", "analyze", "investigate", "study", "review"
+            "research", "analyze", "investigate", "study", "review",
         ])
         is_data = any(kw in goal_lower for kw in [
-            "data", "database", "sql", "query", "schema"
+            "data", "database", "sql", "query", "schema",
         ])
 
         t2 = Task(
             id=next_id(), description="Set up project structure and dependencies",
             inputs=["requirements_spec"], outputs=["project_structure", "package_files"],
-            dependencies=[t1.id], assigned_agent=AgentType.BUILDER, depth=1
+            dependencies=[t1.id], assigned_agent=AgentType.BUILDER, depth=1,
         )
         tasks.append(t2)
 
@@ -459,52 +382,265 @@ Output valid JSON array of task objects only — no prose, no markdown:
             tasks.append(Task(
                 id=next_id(), description="Conduct domain research and competitor analysis",
                 inputs=["goal"], outputs=["research_report"],
-                dependencies=[t1.id], assigned_agent=AgentType.RESEARCHER, depth=1
+                dependencies=[t1.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=1,
             ))
 
         if is_code_heavy:
             t_impl = Task(
                 id=next_id(), description="Implement core business logic and data models",
                 inputs=["requirements_spec", "project_structure"], outputs=["core_modules"],
-                dependencies=[t2.id], assigned_agent=AgentType.BUILDER, depth=1
+                dependencies=[t2.id], assigned_agent=AgentType.BUILDER, depth=1,
             )
             tasks.append(t_impl)
             if is_ui_needed:
                 tasks.append(Task(
                     id=next_id(), description="Implement user interface and interactions",
                     inputs=["core_modules"], outputs=["ui_components"],
-                    dependencies=[t_impl.id], assigned_agent=AgentType.UI_PLANNER, depth=2
+                    dependencies=[t_impl.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=2,
                 ))
             tasks.append(Task(
                 id=next_id(), description="Write unit tests and integration tests",
                 inputs=["core_modules"], outputs=["test_files"],
-                dependencies=[t_impl.id], assigned_agent=AgentType.TEST_AUTOMATION, depth=2
+                dependencies=[t_impl.id], assigned_agent=AgentType.QUALITY, depth=2,
             ))
 
         if is_data:
             tasks.append(Task(
                 id=next_id(), description="Set up database schema and data layer",
                 inputs=["requirements_spec"], outputs=["schema_files"],
-                dependencies=[t1.id], assigned_agent=AgentType.DATA_ENGINEER, depth=1
+                dependencies=[t1.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=1,
             ))
 
         last = tasks[-1]
         tasks.append(Task(
             id=next_id(), description="Code quality review and refinement",
             inputs=[last.outputs[0] if last.outputs else "result"], outputs=["code_review"],
-            dependencies=[last.id], assigned_agent=AgentType.EVALUATOR, depth=2
+            dependencies=[last.id], assigned_agent=AgentType.QUALITY, depth=2,
         ))
         tasks.append(Task(
             id=next_id(), description="Generate documentation and final summary",
             inputs=["code_review"], outputs=["documentation"],
-            dependencies=[tasks[-1].id], assigned_agent=AgentType.DOCUMENTATION_AGENT, depth=3
+            dependencies=[tasks[-1].id], assigned_agent=AgentType.OPERATIONS, depth=3,
         ))
         tasks.append(Task(
             id=next_id(), description="Security review and compliance check",
             inputs=["documentation"], outputs=["security_report"],
-            dependencies=[tasks[-1].id], assigned_agent=AgentType.SECURITY_AUDITOR, depth=4
+            dependencies=[tasks[-1].id], assigned_agent=AgentType.QUALITY, depth=4,
         ))
         return tasks
+
+    # ------------------------------------------------------------------
+    # Clarify mode (absorbed from OrchestratorAgent)
+    # ------------------------------------------------------------------
+
+    def _execute_clarify(self, task: AgentTask) -> AgentResult:
+        goal = task.context.get("goal", task.description)
+        existing_context = task.context.get("existing_context", {})
+        max_questions = task.context.get("max_questions", 3)
+
+        is_ambiguous, questions = self._detect_ambiguity(goal, existing_context)
+
+        if not is_ambiguous or not questions:
+            return AgentResult(
+                success=True, output=existing_context,
+                metadata={"questions_asked": 0, "ambiguous": False},
+            )
+
+        questions = questions[:max_questions]
+        self._pending_questions = [{"question": q, "answered": False} for q in questions]
+
+        if self._interaction_mode == "interactive":
+            responses = self._interactive_prompt(questions)
+        elif self._interaction_mode == "callback" and self._callback:
+            responses = self._callback_prompt(goal, questions)
+        else:
+            return AgentResult(
+                success=True,
+                output={"pending_questions": questions, "needs_user_input": True,
+                        "existing_context": existing_context},
+                metadata={"questions_asked": len(questions), "needs_user_input": True},
+            )
+
+        enriched = dict(existing_context)
+        for q, r in zip(questions, responses):
+            enriched[f"clarification_{len(enriched)}"] = {"question": q, "answer": r}
+        self._gathered_context = enriched
+
+        return AgentResult(
+            success=True, output=enriched,
+            metadata={"questions_asked": len(questions), "responses_gathered": len(responses)},
+        )
+
+    def _detect_ambiguity(self, goal: str, context: Dict) -> tuple:
+        prompt = (
+            f'Analyze this goal for ambiguity: "{goal}"\n'
+            f"Context available: {list(context.keys())}\n\n"
+            "Respond as JSON:\n"
+            '{"is_ambiguous": true/false, "questions": ["..."], "missing_information": ["..."]}\n\n'
+            "Only flag as ambiguous if critical information is missing."
+        )
+        result = self._infer_json(prompt)
+        if result and isinstance(result, dict):
+            return result.get("is_ambiguous", False), result.get("questions", [])
+
+        # Heuristic fallback
+        questions = []
+        g = goal.lower()
+        if len(goal.split()) < 5:
+            questions.append("Could you provide more details about what you want to accomplish?")
+        if any(w in g for w in ["something", "stuff", "things", "it"]):
+            questions.append("Can you be more specific about what 'it' refers to?")
+        if any(w in g for w in ["build", "create", "make"]):
+            if not any(w in g for w in ["python", "javascript", "web", "api", "cli"]):
+                questions.append("What technology stack should be used?")
+        return len(questions) > 0, questions
+
+    def _interactive_prompt(self, questions: List[str]) -> List[str]:
+        responses = []
+        print("\n[Vetinari] Additional context needed:")
+        for i, q in enumerate(questions, 1):
+            print(f"\n{i}. {q}")
+            try:
+                r = input("   > ").strip() if sys.stdin.isatty() else sys.stdin.readline().strip()
+                responses.append(r or "(no response)")
+            except (EOFError, KeyboardInterrupt):
+                responses.append("(skipped)")
+        return responses
+
+    def _callback_prompt(self, goal: str, questions: List[str]) -> List[str]:
+        if not self._callback:
+            return ["(no callback)"] * len(questions)
+        try:
+            result = self._callback(goal, questions)
+            return result if isinstance(result, list) else [str(result)] * len(questions)
+        except Exception:
+            return ["(callback error)"] * len(questions)
+
+    def set_interaction_mode(self, mode: str, callback: Callable = None) -> None:
+        """Set the interaction mode for clarify operations."""
+        self._interaction_mode = mode
+        self._callback = callback
+
+    # ------------------------------------------------------------------
+    # Consolidate mode (absorbed from OrchestratorAgent)
+    # ------------------------------------------------------------------
+
+    def _execute_consolidate(self, task: AgentTask) -> AgentResult:
+        ctx = task.context or {}
+        session_id = ctx.get("session_id", "")
+        project_id = ctx.get("project_id", "")
+        entries = self._load_memory_entries(session_id, project_id)
+
+        if not entries:
+            return AgentResult(
+                success=True, output=self._fallback_consolidation(task, []),
+                metadata={"operation": "consolidate", "entries_processed": 0},
+            )
+
+        entries_text = json.dumps(entries[:self._MAX_ENTRIES_FOR_CONSOLIDATION], indent=2)[:6000]
+        prompt = (
+            f"Consolidate the following {len(entries)} memory entries. "
+            f"Extract key knowledge, identify patterns, create concise summary.\n\n"
+            f"## Entries\n{entries_text}\n\n"
+            '## Output (JSON)\n'
+            '{"consolidated_summary": "...", "key_knowledge": [{"fact": "...", "confidence": 0.9}], '
+            '"patterns_identified": [...], "entries_processed": ' + str(len(entries)) + '}'
+        )
+        result = self._infer_json(prompt, fallback=self._fallback_consolidation(task, entries))
+        if result and isinstance(result, dict):
+            result.setdefault("entries_processed", len(entries))
+            return AgentResult(
+                success=True, output=result,
+                metadata={"operation": "consolidate", "entries_processed": len(entries)},
+            )
+        fb = self._fallback_consolidation(task, entries)
+        return AgentResult(success=True, output=fb, metadata={"operation": "consolidate"})
+
+    def _execute_summarise(self, task: AgentTask) -> AgentResult:
+        ctx = task.context or {}
+        history = ctx.get("history", []) or ctx.get("messages", [])
+        if not history:
+            history = self._load_memory_entries(ctx.get("session_id", ""), ctx.get("project_id", ""))
+
+        prompt = (
+            f"Summarise {len(history)} session entries for an AI orchestration system.\n\n"
+            f"## History\n{json.dumps(history[:30], indent=2)[:4000]}\n\n"
+            '## Output (JSON)\n'
+            '{"session_summary": "...", "goals_achieved": [...], "next_steps": [...], '
+            '"entries_processed": ' + str(len(history)) + '}'
+        )
+        result = self._infer_json(prompt, fallback=self._fallback_consolidation(task, history))
+        if result and isinstance(result, dict):
+            result.setdefault("entries_processed", len(history))
+            return AgentResult(success=True, output=result, metadata={"operation": "summarise"})
+        return AgentResult(success=True, output=self._fallback_consolidation(task, history))
+
+    def _execute_prune(self, task: AgentTask) -> AgentResult:
+        ctx = task.context or {}
+        entries = ctx.get("entries", [])
+        max_tokens = ctx.get("max_tokens", self._max_context_tokens)
+
+        if not entries:
+            return AgentResult(success=True, output={
+                "consolidated_summary": "No entries to prune",
+                "pruned_count": 0, "entries_processed": 0,
+            })
+
+        prompt = (
+            f"Prune context to fit within {max_tokens} tokens. "
+            f"Keep highest relevance entries.\n\n"
+            f"## Entries ({len(entries)})\n{json.dumps(entries[:40], indent=2)[:4000]}\n\n"
+            '## Output (JSON)\n'
+            '{"entries_to_retain": [...], "stale_entries": [...], "pruned_count": 0}'
+        )
+        result = self._infer_json(prompt, fallback={"pruned_count": 0, "entries_processed": len(entries)})
+        if result and isinstance(result, dict):
+            return AgentResult(success=True, output=result, metadata={"operation": "prune"})
+        return AgentResult(success=True, output={"pruned_count": 0})
+
+    def _execute_extract(self, task: AgentTask) -> AgentResult:
+        text = task.context.get("text", "") or task.description or ""
+        prompt = (
+            f"Extract structured knowledge from:\n{text[:4000]}\n\n"
+            '## Output (JSON)\n'
+            '{"key_knowledge": [{"fact": "...", "confidence": 0.9}], '
+            '"entities_discovered": [{"name": "...", "type": "..."}]}'
+        )
+        result = self._infer_json(prompt, fallback={"key_knowledge": [], "entities_discovered": []})
+        if result and isinstance(result, dict):
+            return AgentResult(success=True, output=result, metadata={"operation": "extract"})
+        return AgentResult(success=True, output={"key_knowledge": []})
+
+    # ------------------------------------------------------------------
+    # Memory helpers (absorbed from OrchestratorAgent)
+    # ------------------------------------------------------------------
+
+    def _load_memory_entries(self, session_id: str, project_id: str) -> List[Dict]:
+        entries = []
+        try:
+            from vetinari.memory.dual_memory import get_dual_memory_store
+            store = get_dual_memory_store()
+            if hasattr(store, "search"):
+                results = store.search("", limit=50)
+                for r in (results or []):
+                    entries.append(r.to_dict() if hasattr(r, "to_dict") else r)
+        except Exception:
+            logger.debug("Failed to load memory entries from dual_memory store", exc_info=True)
+        try:
+            from vetinari.shared_memory import shared_memory
+            for e in (shared_memory.get_all(limit=30) or []):
+                entries.append(e.to_dict() if hasattr(e, "to_dict") else e)
+        except Exception:
+            logger.debug("Failed to load entries from shared_memory", exc_info=True)
+        return entries
+
+    def _fallback_consolidation(self, task: AgentTask, entries: List) -> Dict[str, Any]:
+        return {
+            "consolidated_summary": f"Context consolidation for: {(task.description or 'session')[:100]}",
+            "session_summary": f"Processed {len(entries)} entries. LLM unavailable.",
+            "key_knowledge": [], "entries_processed": len(entries),
+            "retrieval_recommendations": [{"query_type": "semantic", "strategy": "hybrid"}],
+        }
 
 
 # Singleton instance

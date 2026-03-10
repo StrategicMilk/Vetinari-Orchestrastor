@@ -1,12 +1,12 @@
 """
 Tool Registry Integration for Vetinari
 
-Registers all tools in the tool registry including:
+Provides convenience wrappers that register tools in the tool registry:
 - Web Search Tool
 - Code Sandbox
 - Memory Tools
 - Model Router Tools
-- Two-Layer Orchestration Tools
+- Orchestration Tools
 """
 
 import logging
@@ -268,10 +268,10 @@ class MemoryRecallToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
-            self._memory = get_memory_manager()
+            from vetinari.memory import get_dual_memory_store
+            self._memory = get_dual_memory_store()
         return self._memory
-    
+
     def execute(self, **kwargs) -> ToolResult:
         query = kwargs.get("query", "")
         memory_type = kwargs.get("memory_type")
@@ -279,7 +279,7 @@ class MemoryRecallToolWrapper(Tool):
         
         try:
             memory = self._get_memory()
-            results = memory.recall(query=query, limit=limit)
+            results = memory.search(query=query, limit=limit)
             
             return ToolResult(
                 success=True,
@@ -337,27 +337,28 @@ class MemoryRememberToolWrapper(Tool):
     
     def _get_memory(self):
         if self._memory is None:
-            from vetinari.enhanced_memory import get_memory_manager
-            self._memory = get_memory_manager()
+            from vetinari.memory import get_dual_memory_store
+            self._memory = get_dual_memory_store()
         return self._memory
-    
+
     def execute(self, **kwargs) -> ToolResult:
         content = kwargs.get("content", "")
         memory_type = kwargs.get("memory_type", "context")
         tags = kwargs.get("tags", [])
-        
+
         try:
             memory = self._get_memory()
-            
-            # Import MemoryType
-            from vetinari.enhanced_memory import MemoryType
+
+            from vetinari.types import MemoryType
+            from vetinari.memory import MemoryEntry
             mem_type = MemoryType(memory_type)
-            
-            entry_id = memory.remember(
+
+            entry = MemoryEntry(
                 content=content,
-                memory_type=mem_type,
-                tags=tags,
+                entry_type=mem_type,
+                metadata={"tags": tags} if tags else None,
             )
+            entry_id = memory.remember(entry)
             
             return ToolResult(
                 success=True,
@@ -480,7 +481,7 @@ class GeneratePlanToolWrapper(Tool):
     
     def _get_orchestrator(self):
         if self._orchestrator is None:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             self._orchestrator = get_two_layer_orchestrator()
         return self._orchestrator
     
@@ -505,14 +506,9 @@ class GeneratePlanToolWrapper(Tool):
 
 
 def register_all_tools():
-    """Register all tools in the global registry.
-
-    In addition to the hard-coded tool wrappers defined in this module, this
-    function auto-discovers skill classes from the ``vetinari.tools`` package
-    via :func:`vetinari.tools.get_all_skills` and registers each one.
-    """
+    """Register all tools in the global registry."""
     registry = get_tool_registry()
-
+    
     # List of tool instances to register
     tools = [
         WebSearchToolWrapper(),
@@ -523,34 +519,16 @@ def register_all_tools():
         ModelSelectToolWrapper(),
         GeneratePlanToolWrapper(),
     ]
-
-    # Register each hard-coded tool
+    
+    # Register each tool
     for tool in tools:
         try:
             registry.register(tool)
-            logger.info(f"Registered tool: {tool.metadata.name}")
+            logger.info("Registered tool: %s", tool.metadata.name)
         except Exception as e:
-            logger.error(f"Failed to register tool {tool.metadata.name}: {e}")
-
-    # Auto-discover and register skill classes from vetinari.tools,
-    # excluding the hard-coded ToolWrapper classes already registered above.
-    from vetinari.tools import get_all_skills
-
-    hard_coded_types = {type(t) for t in tools}
-    discovered = 0
-    for skill_cls in get_all_skills():
-        if skill_cls in hard_coded_types:
-            continue  # Already registered above
-        try:
-            instance = skill_cls()
-            registry.register(instance)
-            logger.info(f"Registered skill: {instance.metadata.name}")
-            discovered += 1
-        except Exception as e:
-            skill_name = getattr(skill_cls, "__name__", repr(skill_cls))
-            logger.error(f"Failed to register skill {skill_name}: {e}")
-
-    return len(tools) + discovered
+            logger.error("Failed to register tool %s: %s", tool.metadata.name, e)
+    
+    return len(tools)
 
 
 # Auto-register on import
@@ -558,16 +536,16 @@ def _auto_register():
     """Auto-register tools when module is imported."""
     try:
         count = register_all_tools()
-        logger.info(f"Auto-registered {count} tools")
+        logger.info("Auto-registered %s tools", count)
     except Exception as e:
-        logger.warning(f"Auto-registration failed: {e}")
+        logger.warning("Auto-registration failed: %s", e)
 
 
 # Try to auto-register
 try:
     _auto_register()
 except Exception:
-    pass  # Silently fail if imports don't work
+    pass  # Auto-registration skipped — tool registry imports not available
 
 
 if __name__ == "__main__":
@@ -575,10 +553,10 @@ if __name__ == "__main__":
     
     # Manual registration for testing
     count = register_all_tools()
-    logger.info(f"Registered {count} tools")
-
+    print(f"Registered {count} tools")
+    
     # List registered tools
     registry = get_tool_registry()
-    logger.info("\nRegistered tools:")
+    print("\nRegistered tools:")
     for tool in registry.list_tools():
-        logger.info(f"  - {tool.metadata.name}: {tool.metadata.description}")
+        print(f"  - {tool.metadata.name}: {tool.metadata.description}")

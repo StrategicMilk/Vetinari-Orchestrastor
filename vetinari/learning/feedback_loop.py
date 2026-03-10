@@ -35,7 +35,7 @@ class FeedbackLoop:
                 from vetinari.memory import get_memory_store
                 self._memory = get_memory_store()
             except Exception:
-                pass
+                logger.debug("Failed to initialize memory store for feedback loop", exc_info=True)
         return self._memory
 
     def _get_router(self):
@@ -44,7 +44,7 @@ class FeedbackLoop:
                 from vetinari.dynamic_model_router import get_model_router
                 self._router = get_model_router()
             except Exception:
-                pass
+                logger.debug("Failed to initialize model router for feedback loop", exc_info=True)
         return self._router
 
     def record_outcome(
@@ -182,11 +182,11 @@ class FeedbackLoop:
             old_latency = existing.get("avg_latency", latency_ms or 1000)
             old_uses = existing.get("total_uses", 0)
 
-            # Exponential moving average update
-            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * (1.0 if success else 0.0)
+            # Exponential moving average update — blend success and quality into
+            # a single signal to avoid double-counting
+            signal = 0.5 * (1.0 if success else 0.0) + 0.5 * quality
+            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * signal
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
-            # Incorporate quality score into success rate
-            new_rate = (new_rate + quality) / 2
 
             # Pass dict-form update (new signature)
             mem.update_model_performance(model_id, task_type, {
@@ -195,7 +195,7 @@ class FeedbackLoop:
                 "total_uses": old_uses + 1,
             })
         except Exception as e:
-            logger.debug(f"Memory performance update failed: {e}")
+            logger.debug("Memory performance update failed: %s", e)
 
     def _update_router_cache(
         self, model_id: str, task_type: str, quality: float,
@@ -207,22 +207,22 @@ class FeedbackLoop:
             return
         try:
             cache_key = f"{model_id}:{task_type}"
-            existing = router._performance_cache.get(cache_key, {})
+            existing = router.get_performance_cache(cache_key)
             old_rate = existing.get("success_rate", 0.7)
             old_latency = existing.get("avg_latency_ms", latency_ms or 1000)
 
-            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * float(success)
-            new_rate = (new_rate + quality) / 2
+            signal = 0.5 * float(success) + 0.5 * quality
+            new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * signal
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
 
-            router._performance_cache[cache_key] = {
+            router.update_performance_cache(cache_key, {
                 "success_rate": round(new_rate, 4),
                 "avg_latency_ms": int(new_latency),
                 "quality_score": round(quality, 4),
                 "last_updated": datetime.now().isoformat(),
-            }
+            })
         except Exception as e:
-            logger.debug(f"Router cache update failed: {e}")
+            logger.debug("Router cache update failed: %s", e)
 
     def _update_subtask_quality(self, task_id: str, quality: float, success: bool) -> None:
         """Annotate the SubtaskMemory record with quality score."""
@@ -232,7 +232,7 @@ class FeedbackLoop:
         try:
             mem.update_subtask_quality(task_id, quality_score=quality, succeeded=success)
         except Exception as e:
-            logger.debug(f"Subtask quality update failed: {e}")
+            logger.debug("Subtask quality update failed: %s", e)
 
     def _update_thompson_arms(
         self, model_id: str, task_type: str, quality: float, success: bool

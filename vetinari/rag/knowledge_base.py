@@ -99,11 +99,11 @@ class KnowledgeBase:
                 metadata={"hnsw:space": "cosine"},
             )
             self._chroma_available = True
-            logger.debug(f"[KnowledgeBase] ChromaDB initialized at {self._persist_dir}")
+            logger.debug("[KnowledgeBase] ChromaDB initialized at %s", self._persist_dir)
         except ImportError:
             logger.debug("[KnowledgeBase] ChromaDB not installed; using simple text search fallback")
         except Exception as e:
-            logger.debug(f"[KnowledgeBase] ChromaDB init failed: {e}; using fallback")
+            logger.debug("[KnowledgeBase] ChromaDB init failed: %s; using fallback", e)
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -130,7 +130,7 @@ class KnowledgeBase:
                     )
                     return doc_id
                 except Exception as e:
-                    logger.debug(f"[KnowledgeBase] ChromaDB upsert failed: {e}")
+                    logger.debug("[KnowledgeBase] ChromaDB upsert failed: %s", e)
 
             # Fallback: in-memory list
             self._fallback_docs = [d for d in self._fallback_docs if d["id"] != doc_id]
@@ -154,7 +154,7 @@ class KnowledgeBase:
         extensions = extensions or [".md", ".txt", ".py", ".yaml", ".json"]
         base = Path(directory)
         if not base.exists():
-            logger.debug(f"[KnowledgeBase] Directory {directory} not found")
+            logger.debug("[KnowledgeBase] Directory %s not found", directory)
             return 0
 
         count = 0
@@ -177,9 +177,9 @@ class KnowledgeBase:
                     )
                     count += 1
             except Exception as e:
-                logger.debug(f"[KnowledgeBase] Skipped {path}: {e}")
+                logger.debug("[KnowledgeBase] Skipped %s: %s", path, e)
 
-        logger.info(f"[KnowledgeBase] Ingested {count} chunks from {directory}")
+        logger.info("[KnowledgeBase] Ingested %s chunks from %s", count, directory)
         return count
 
     # ------------------------------------------------------------------
@@ -253,7 +253,7 @@ class KnowledgeBase:
                 ))
             return docs
         except Exception as e:
-            logger.debug(f"[KnowledgeBase] ChromaDB query failed: {e}")
+            logger.debug("[KnowledgeBase] ChromaDB query failed: %s", e)
             return []
 
     def _query_fallback(
@@ -303,7 +303,7 @@ class KnowledgeBase:
             try:
                 count = self._collection.count()
             except Exception:
-                pass
+                logger.debug("Failed to get document count from ChromaDB collection", exc_info=True)
         else:
             count = len(self._fallback_docs)
         return {
@@ -340,5 +340,5 @@ def ingest_project_docs() -> int:
         p = project_root / d
         if p.exists():
             total += kb.ingest_directory(str(p))
-    logger.info(f"[KnowledgeBase] Project docs ingestion complete: {total} chunks")
+    logger.info("[KnowledgeBase] Project docs ingestion complete: %s chunks", total)
     return total

@@ -10,7 +10,6 @@ Single entry point for all Vetinari operations:
   vetinari health    -- Health check all providers
   vetinari upgrade   -- Check for model upgrades
   vetinari review    -- Run the self-improvement agent
-  vetinari watch     -- Watch files for changes and @vetinari directives
   vetinari interactive -- Enter REPL mode
 
 Global flags:
@@ -53,7 +52,7 @@ def _load_config(config_path: str) -> dict:
         pkg_root = Path(__file__).resolve().parents[1]
         p = pkg_root / config_path
     if not p.exists():
-        logger.warning(f"Config file not found: {config_path}, using defaults")
+        logger.warning("Config file not found: %s, using defaults", config_path)
         return {"project_name": "vetinari", "tasks": []}
     with open(p, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
@@ -81,23 +80,38 @@ def _print_banner(mode: str, host: str) -> None:
 # Subcommand handlers
 # ============================================================
 
+def _check_drift_at_startup() -> None:
+    """Run contract drift check at startup (non-fatal)."""
+    try:
+        from vetinari.drift.contract_registry import ContractRegistry
+        registry = ContractRegistry()
+        drift = registry.check_drift()
+        if drift:
+            for item in drift if isinstance(drift, list) else [drift]:
+                logger.warning("[Drift] %s", item)
+            print(f"[Vetinari] WARNING: Contract drift detected. Run 'vetinari drift-check' for details.")
+    except Exception as e:
+        logger.debug("Drift check skipped: %s", e)
+
+
 def cmd_run(args) -> int:
     """Execute a goal or manifest task."""
     _setup_logging(args.verbose)
+    _check_drift_at_startup()
     host = _get_host(args.host)
 
     if args.goal:
         # High-level goal → assembly-line pipeline
         print(f"[Vetinari] Running goal: {args.goal[:80]}")
         try:
-            from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+            from vetinari.orchestration.two_layer import get_two_layer_orchestrator
             orch = get_two_layer_orchestrator()
             # Wire agent context if orchestrator is available
             try:
                 base_orch = _build_orchestrator(args.config, host, args.mode)
                 orch.set_agent_context(base_orch._agent_context)
             except Exception:
-                pass
+                logger.debug("Could not wire agent context from base orchestrator", exc_info=True)
             results = orch.generate_and_execute(
                 goal=args.goal,
                 constraints={"mode": args.mode},
@@ -134,7 +148,7 @@ def cmd_serve(args) -> int:
     _setup_logging(args.verbose)
     host = _get_host(args.host)
     port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
-    web_host = args.web_host or "0.0.0.0"
+    web_host = args.web_host or "127.0.0.1"
 
     print(f"[Vetinari] Starting web dashboard on {web_host}:{port}")
     print(f"[Vetinari] Dashboard URL: http://localhost:{port}")
@@ -157,6 +171,7 @@ def cmd_serve(args) -> int:
 def cmd_start(args) -> int:
     """Start CLI + optional web dashboard."""
     _setup_logging(args.verbose)
+    _check_drift_at_startup()
     host = _get_host(args.host)
     _print_banner(args.mode, host)
 
@@ -170,7 +185,7 @@ def cmd_start(args) -> int:
             app.config["VETINARI_HOST"] = host
 
             def _run_dashboard():
-                app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+                app.run(host=web_host, port=port, debug=False, use_reloader=False)
 
             t = threading.Thread(target=_run_dashboard, daemon=True)
             t.start()
@@ -194,7 +209,7 @@ def cmd_start(args) -> int:
                 get_auto_tuner().run_cycle()
                 logger.debug("[AutoTuner] Periodic cycle complete")
             except Exception as _at_err:
-                logger.debug(f"[AutoTuner] Cycle error (non-fatal): {_at_err}")
+                logger.debug("[AutoTuner] Cycle error (non-fatal): %s", _at_err)
 
     _tuner_thread = threading.Thread(target=_auto_tuner_loop, daemon=True, name="auto-tuner")
     _tuner_thread.start()
@@ -298,7 +313,7 @@ def _health_check_quiet(host: str) -> None:
             status = "OK" if info.get("healthy") else "FAIL"
             print(f"  {name:20s}: {status}")
     except Exception:
-        pass
+        logger.debug("Adapter manager health check unavailable", exc_info=True)
 
 
 def cmd_upgrade(args) -> int:
@@ -329,7 +344,7 @@ def cmd_review(args) -> int:
             from vetinari.adapter_manager import get_adapter_manager
             agent.initialize({"adapter_manager": get_adapter_manager()})
         except Exception:
-            pass
+            logger.debug("Could not initialize improvement agent with adapter manager", exc_info=True)
 
         task = AgentTask(
             task_id="review-cli",
@@ -353,80 +368,46 @@ def cmd_review(args) -> int:
         return 1
 
 
-def cmd_train(args) -> int:
-    """Manage training data and fine-tuning jobs."""
+def cmd_benchmark(args) -> int:
+    """Run agent benchmarks."""
     _setup_logging(args.verbose)
-
-    from vetinari.learning.training_manager import get_training_manager
-    manager = get_training_manager()
-
-    # --status: list all jobs
-    if args.status:
-        jobs = manager.list_jobs()
-        if not jobs:
-            print("[Vetinari Train] No training jobs found.")
-            return 0
-        print(f"[Vetinari Train] {len(jobs)} job(s):")
-        for job in jobs:
-            result_info = ""
-            if job.result:
-                result_info = f" | loss={job.result.metrics.get('loss', '?')}"
-            print(f"  {job.job_id}  [{job.status}]  {job.provider}/{job.model_id}{result_info}")
-        return 0
-
-    # --stats: training data statistics
-    if args.stats:
-        from vetinari.learning.training_data import get_training_collector
-        stats = get_training_collector().get_stats()
-        print("[Vetinari Train] Training data statistics:")
-        print(f"  Total records  : {stats.get('total', 0)}")
-        print(f"  SFT eligible   : {stats.get('sft_eligible', 0)}")
-        print(f"  Average score  : {stats.get('avg_score', 0.0)}")
-        print(f"  Output path    : {stats.get('output_path', 'N/A')}")
-        by_type = stats.get("by_task_type", {})
-        if by_type:
-            print("  By task type:")
-            for tt, info in by_type.items():
-                print(f"    {tt}: {info.get('count', 0)} records, avg {info.get('avg_score', 0.0)}")
-        return 0
-
-    # --export: export dataset
-    if args.export:
-        fmt = args.export
-        min_score = args.min_score
-        dataset = manager.prepare_training_data(min_score=min_score, format=fmt)
-        print(f"[Vetinari Train] Exported {dataset.stats['count']} records in '{fmt}' format")
-        if dataset.records:
-            import json
-            print(json.dumps(dataset.records[0], indent=2, ensure_ascii=False))
-            if len(dataset.records) > 1:
-                print(f"  ... ({len(dataset.records) - 1} more records)")
-        return 0
-
-    # --model: start a training run
-    if args.model:
-        method = args.method or "qlora"
-        min_score = args.min_score
-        dataset = manager.prepare_training_data(min_score=min_score, format="sft")
-        print(f"[Vetinari Train] Prepared {dataset.stats['count']} SFT records")
-        print(f"[Vetinari Train] Starting local training: {args.model} ({method})")
-        result = manager.train_local(args.model, dataset, method=method)
-        if result.success:
-            print(f"[Vetinari Train] Training complete: {result.model_path}")
-            print(f"  Duration: {result.duration_seconds}s")
-        else:
-            print(f"[Vetinari Train] Training failed: {result.error}")
+    print("[Vetinari] Running agent benchmarks...")
+    try:
+        from vetinari.benchmarks.suite import BenchmarkSuite
+        suite = BenchmarkSuite()
+        agent_filter = getattr(args, "agents", None)
+        results = suite.run_all(agent_filter=agent_filter)
+        suite.print_report(results)
+        regressions = suite.check_regression(results)
+        if regressions:
+            print("\nREGRESSIONS DETECTED:")
+            for r in regressions:
+                print(f"  {r}")
             return 1
         return 0
+    except Exception as e:
+        print(f"[Vetinari] Benchmark failed: {e}")
+        return 1
 
-    # No flags — show help
-    print("[Vetinari Train] Usage:")
-    print("  vetinari train --model <model_id> --method qlora --min-score 0.85")
-    print("  vetinari train --status")
-    print("  vetinari train --export hf")
-    print("  vetinari train --export sft")
-    print("  vetinari train --stats")
-    return 0
+
+def cmd_drift_check(args) -> int:
+    """Check for contract drift across agents."""
+    _setup_logging(args.verbose)
+    print("[Vetinari] Checking for contract drift...")
+    try:
+        from vetinari.drift.contract_registry import ContractRegistry
+        registry = ContractRegistry()
+        report = registry.check_drift()
+        if not report:
+            print("[Vetinari] No drift detected. All contracts satisfied.")
+            return 0
+        print(f"[Vetinari] Drift detected in {len(report)} contracts:")
+        for item in report:
+            print(f"  - {item}")
+        return 1
+    except Exception as e:
+        print(f"[Vetinari] Drift check failed: {e}")
+        return 1
 
 
 def cmd_interactive(args) -> int:
@@ -439,13 +420,13 @@ def cmd_interactive(args) -> int:
     print("-" * 50)
 
     try:
-        from vetinari.two_layer_orchestration import get_two_layer_orchestrator
+        from vetinari.orchestration.two_layer import get_two_layer_orchestrator
         orch = get_two_layer_orchestrator()
         try:
             base_orch = _build_orchestrator(args.config, host, args.mode)
             orch.set_agent_context(base_orch._agent_context)
         except Exception:
-            pass
+            logger.debug("Could not wire agent context from base orchestrator", exc_info=True)
     except Exception:
         orch = None
 
@@ -489,138 +470,11 @@ def cmd_interactive(args) -> int:
             logger.debug("Interactive execution error", exc_info=True)
 
 
-def cmd_watch(args) -> int:
-    """Watch files for changes and @vetinari directives."""
-    _setup_logging(args.verbose)
-
-    watch_dir = getattr(args, "dir", ".") or "."
-    interval = getattr(args, "interval", 2.0) or 2.0
-
-    print(f"[Vetinari] Watch mode: monitoring {os.path.abspath(watch_dir)}")
-    print(f"[Vetinari] Poll interval: {interval}s")
-    print("[Vetinari] Press Ctrl+C to stop")
-
-    try:
-        from vetinari.watch import WatchConfig, WatchMode
-
-        config = WatchConfig(watch_dir=watch_dir, poll_interval=interval)
-        wm = WatchMode(config)
-        wm.start()
-
-        while wm.is_running:
-            time.sleep(0.5)
-    except KeyboardInterrupt:
-        print("\n[Vetinari] Watch mode stopped.")
-    except Exception as e:
-        print(f"[Vetinari] Watch error: {e}")
-        logger.exception("Watch mode failed")
-        return 1
-
-    return 0
-
-
-def cmd_switch_model(args) -> int:
-    """Switch to a different model mid-session."""
-    _setup_logging(args.verbose)
-
-    from vetinari.model_switching import get_model_switcher
-    switcher = get_model_switcher()
-
-    model_id = args.model_id
-    reason = getattr(args, "reason", "manual")
-
-    try:
-        switch = switcher.switch(model_id, reason=reason)
-        print(f"[Vetinari] Model switched: {switch.from_model} -> {switch.to_model}")
-        print(f"  Reason:  {switch.reason}")
-        print(f"  Context: {'preserved' if switch.context_preserved else 'reset'}")
-        return 0
-    except RuntimeError as e:
-        print(f"[Vetinari] Switch failed: {e}")
-        return 1
-
-
-def cmd_benchmark(args) -> int:
-    """Run benchmark suites."""
-    from vetinari.benchmarks.runner import get_default_runner
-    import tempfile, os
-
-    db_path = os.path.join(tempfile.gettempdir(), "vetinari_benchmarks.db")
-    runner = get_default_runner(db_path=db_path)
-
-    action = getattr(args, "action", "list")
-
-    if action == "list":
-        suites = runner.list_suites()
-        if not suites:
-            print("No benchmark suites registered.")
-            return 0
-        print(f"{'Name':<20} {'Layer':<15} {'Tier':<10} {'Description'}")
-        print("-" * 70)
-        for s in suites:
-            print(f"{s['name']:<20} {s['layer']:<15} {s['tier']:<10} {s['description']}")
-        return 0
-
-    elif action == "run":
-        suite_name = getattr(args, "suite", None)
-        if not suite_name:
-            print("Usage: vetinari benchmark run <suite> [--limit N] [--trials K]")
-            return 1
-        limit = getattr(args, "limit", None)
-        trials = getattr(args, "trials", 1)
-        print(f"Running benchmark: {suite_name} (limit={limit}, trials={trials})")
-        try:
-            report = runner.run_suite(suite_name, limit=limit, trials=trials)
-            summary = report.summary_dict()
-            print(f"\nResults for {suite_name}:")
-            print(f"  Run ID:     {summary['run_id']}")
-            print(f"  Total:      {summary['total']}")
-            print(f"  Passed:     {summary['passed']}")
-            print(f"  pass@1:     {summary['pass@1']:.2%}")
-            print(f"  pass^k:     {summary['pass^k']:.2%}")
-            print(f"  Avg score:  {summary['avg_score']:.4f}")
-            print(f"  Avg latency: {summary['avg_latency_ms']:.1f}ms")
-            print(f"  Tokens:     {summary['total_tokens']}")
-            return 0
-        except ValueError as e:
-            print(f"Error: {e}")
-            return 1
-
-    elif action == "report":
-        compare = getattr(args, "compare", None)
-        suite_name = getattr(args, "suite", None)
-        if compare == "last-2" and suite_name:
-            comp = runner.get_last_comparison(suite_name)
-            if comp is None:
-                print(f"Need at least 2 runs of '{suite_name}' to compare.")
-                return 1
-            print(f"Comparison: {comp.run_a} vs {comp.run_b}")
-            print(f"  Delta pass@1:   {comp.delta_pass_at_1:+.4f}")
-            print(f"  Delta score:    {comp.delta_avg_score:+.4f}")
-            print(f"  Delta latency:  {comp.delta_avg_latency_ms:+.1f}ms")
-            if comp.regressions:
-                print(f"  Regressions:    {', '.join(comp.regressions)}")
-            if comp.improvements:
-                print(f"  Improvements:   {', '.join(comp.improvements)}")
-        else:
-            runs = runner.list_runs(suite_name=suite_name, limit=10)
-            if not runs:
-                print("No benchmark runs found.")
-                return 0
-            print(f"{'Run ID':<30} {'Suite':<20} {'Pass@1':<10} {'Score':<10}")
-            print("-" * 70)
-            for r in runs:
-                print(f"{r['run_id']:<30} {r['suite_name']:<20} {r.get('pass_at_1', 0):<10.4f} {r.get('avg_score', 0):<10.4f}")
-        return 0
-
-    return 0
-
-
 # ============================================================
 # Main entry point
 # ============================================================
 
-def main():
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="vetinari",
@@ -658,7 +512,7 @@ Examples:
     # serve
     p_serve = subparsers.add_parser("serve", help="Start the web dashboard")
     p_serve.add_argument("--port", type=int, default=None, help="Web server port (default 5000)")
-    p_serve.add_argument("--web-host", default="0.0.0.0", help="Web server bind address")
+    p_serve.add_argument("--web-host", default="127.0.0.1", help="Web server bind address")
     p_serve.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
 
     # start
@@ -680,46 +534,15 @@ Examples:
     # review
     subparsers.add_parser("review", help="Run self-improvement agent review")
 
-    # watch
-    p_watch = subparsers.add_parser("watch", help="Watch files for changes and @vetinari directives")
-    p_watch.add_argument("dir", nargs="?", default=".", help="Directory to watch (default: current)")
-    p_watch.add_argument("--interval", type=float, default=2.0,
-                         help="Poll interval in seconds (default: 2.0)")
-
     # interactive
     subparsers.add_parser("interactive", help="Enter interactive REPL mode")
 
-    # train
-    p_train = subparsers.add_parser("train", help="Manage training data and fine-tuning jobs")
-    p_train.add_argument("--model", default=None, help="Model ID to fine-tune")
-    p_train.add_argument("--method", default="qlora", choices=["qlora", "full"],
-                         help="Training method (default: qlora)")
-    p_train.add_argument("--min-score", dest="min_score", type=float, default=0.85,
-                         help="Minimum quality score for dataset export (default: 0.85)")
-    p_train.add_argument("--status", action="store_true", help="Show training jobs")
-    p_train.add_argument("--export", default=None, choices=["hf", "sft", "dpo", "ranking"],
-                         help="Export dataset in the given format")
-    p_train.add_argument("--stats", action="store_true", help="Show training data statistics")
-
     # benchmark
-    p_bench = subparsers.add_parser("benchmark", help="Run benchmark suites")
-    p_bench.add_argument("action", nargs="?", default="list",
-                         choices=["run", "list", "report"],
-                         help="Benchmark action (default: list)")
-    p_bench.add_argument("suite", nargs="?", default=None,
-                         help="Benchmark suite name (for run/report)")
-    p_bench.add_argument("--limit", type=int, default=None,
-                         help="Max cases to run")
-    p_bench.add_argument("--trials", type=int, default=1,
-                         help="Trials per case for pass^k (default: 1)")
-    p_bench.add_argument("--compare", default=None,
-                         help="Compare mode: 'last-2' or 'RUN_A:RUN_B'")
+    p_bench = subparsers.add_parser("benchmark", help="Run agent benchmarks")
+    p_bench.add_argument("--agents", nargs="*", help="Specific agent types to benchmark")
 
-    # switch-model
-    p_switch = subparsers.add_parser("switch-model", help="Switch to a different model mid-session")
-    p_switch.add_argument("model_id", help="Model ID to switch to")
-    p_switch.add_argument("--reason", default="manual",
-                          help="Reason for switch (manual, fallback, context_limit, cost)")
+    # drift-check
+    subparsers.add_parser("drift-check", help="Check for contract drift across agents")
 
     args = parser.parse_args()
 
@@ -745,10 +568,8 @@ Examples:
         "upgrade": cmd_upgrade,
         "review": cmd_review,
         "interactive": cmd_interactive,
-        "watch": cmd_watch,
-        "train": cmd_train,
         "benchmark": cmd_benchmark,
-        "switch-model": cmd_switch_model,
+        "drift-check": cmd_drift_check,
     }
 
     handler = dispatch.get(args.command)

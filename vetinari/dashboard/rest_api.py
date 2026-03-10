@@ -11,7 +11,7 @@ Run the server:
     from vetinari.dashboard.rest_api import create_app
     
     app = create_app()
-    app.run(debug=True, port=5000)
+    app.run(port=5000)
 
 API Endpoints:
     GET  /api/v1/metrics/latest          - Get latest metrics snapshot
@@ -24,9 +24,6 @@ API Endpoints:
 
 import json
 import logging
-import time
-import threading
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
@@ -50,36 +47,14 @@ from vetinari.dashboard.api import get_dashboard_api
 
 logger = logging.getLogger(__name__)
 
-# Simple in-process rate limiter: max requests per IP per window
-_rate_limit_lock = threading.Lock()
-_request_counts: Dict[str, list] = defaultdict(list)
-_RATE_LIMIT_REQUESTS = int(os.environ.get("VETINARI_RATE_LIMIT_REQUESTS", "60"))
-_RATE_LIMIT_WINDOW = int(os.environ.get("VETINARI_RATE_LIMIT_WINDOW", "60"))  # seconds
 
-
-def _is_rate_limited(ip: str) -> bool:
-    """Return True if the IP has exceeded the rate limit."""
-    now = time.time()
-    cutoff = now - _RATE_LIMIT_WINDOW
-    with _rate_limit_lock:
-        timestamps = _request_counts[ip]
-        # Evict old timestamps
-        _request_counts[ip] = [t for t in timestamps if t > cutoff]
-        if len(_request_counts[ip]) >= _RATE_LIMIT_REQUESTS:
-            return True
-        _request_counts[ip].append(now)
-        return False
-
-
-def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
+def create_app(debug: bool = False) -> 'Flask':
     """
     Create and configure Flask application for dashboard.
     
     Args:
         debug: Enable debug mode
-        cors_origin: Allowed CORS origin. Defaults to localhost only in production,
-                     or VETINARI_CORS_ORIGIN env var. Set to '*' only for development.
-
+    
     Returns:
         Flask application instance
     """
@@ -93,15 +68,10 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
         static_url_path='/static',
     )
     app.config['JSON_SORT_KEYS'] = False
-    app.config['DEBUG'] = debug
-
-    # Determine allowed CORS origin — restrict to localhost by default
-    _cors_origin = (
-        cors_origin
-        or os.environ.get("VETINARI_CORS_ORIGIN")
-        or ("*" if debug else "http://localhost:5000")
-    )
-
+    
+    if debug:
+        app.config['DEBUG'] = True
+    
     dashboard = get_dashboard_api()
     
     # === Dashboard UI ===
@@ -129,7 +99,7 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
             stats = dashboard.get_stats()
             return jsonify(stats), 200
         except Exception as e:
-            logger.error(f"Error getting stats: {e}")
+            logger.error("Error getting stats: %s", e)
             return jsonify({"error": str(e)}), 500
     
     # === Metrics Endpoints ===
@@ -141,7 +111,7 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
             metrics = dashboard.get_latest_metrics()
             return jsonify(metrics.to_dict()), 200
         except Exception as e:
-            logger.error(f"Error getting latest metrics: {e}")
+            logger.error("Error getting latest metrics: %s", e)
             return jsonify({"error": str(e)}), 500
     
     @app.route('/api/v1/metrics/timeseries', methods=['GET'])
@@ -173,7 +143,7 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
             
             return jsonify(ts_data.to_dict()), 200
         except Exception as e:
-            logger.error(f"Error getting timeseries: {e}")
+            logger.error("Error getting timeseries: %s", e)
             return jsonify({"error": str(e)}), 500
     
     # === Trace Endpoints ===
@@ -201,7 +171,7 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
                 "traces": [t.to_dict() for t in traces]
             }), 200
         except Exception as e:
-            logger.error(f"Error searching traces: {e}")
+            logger.error("Error searching traces: %s", e)
             return jsonify({"error": str(e)}), 500
     
     @app.route('/api/v1/traces/<trace_id>', methods=['GET'])
@@ -215,9 +185,149 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
             
             return jsonify(trace.to_dict()), 200
         except Exception as e:
-            logger.error(f"Error getting trace detail: {e}")
+            logger.error("Error getting trace detail: %s", e)
             return jsonify({"error": str(e)}), 500
     
+    # === Analytics Endpoints (Phase 5) ===
+
+    @app.route('/api/v1/analytics/cost', methods=['GET'])
+    def get_cost_report() -> Tuple[Dict[str, Any], int]:
+        """Get cost attribution report, optionally filtered."""
+        try:
+            from vetinari.analytics.cost import get_cost_tracker
+            import time as _time
+            agent = request.args.get('agent', None)
+            task_id = request.args.get('task_id', None)
+            since_str = request.args.get('since', None)
+            since = float(since_str) if since_str else None
+            report = get_cost_tracker().get_report(agent=agent, task_id=task_id, since=since)
+            return jsonify(report.to_dict()), 200
+        except Exception as e:
+            logger.error("Error getting cost report: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/cost/top', methods=['GET'])
+    def get_cost_top() -> Tuple[Dict[str, Any], int]:
+        """Get top agents and models by cost."""
+        try:
+            from vetinari.analytics.cost import get_cost_tracker
+            n = request.args.get('n', 5, type=int)
+            tracker = get_cost_tracker()
+            return jsonify({
+                "top_agents": tracker.get_top_agents(n),
+                "top_models": tracker.get_top_models(n),
+            }), 200
+        except Exception as e:
+            logger.error("Error getting top costs: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/sla', methods=['GET'])
+    def get_sla_reports() -> Tuple[Dict[str, Any], int]:
+        """Get all SLA compliance reports."""
+        try:
+            from vetinari.analytics.sla import get_sla_tracker
+            reports = get_sla_tracker().get_all_reports()
+            return jsonify({
+                "count": len(reports),
+                "reports": [r.to_dict() for r in reports],
+            }), 200
+        except Exception as e:
+            logger.error("Error getting SLA reports: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/sla/<name>', methods=['GET'])
+    def get_sla_report(name: str) -> Tuple[Dict[str, Any], int]:
+        """Get a single SLO compliance report."""
+        try:
+            from vetinari.analytics.sla import get_sla_tracker
+            report = get_sla_tracker().get_report(name)
+            if report is None:
+                return jsonify({"error": f"SLO '{name}' not found"}), 404
+            return jsonify(report.to_dict()), 200
+        except Exception as e:
+            logger.error("Error getting SLA report: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/anomalies', methods=['GET'])
+    def get_anomalies() -> Tuple[Dict[str, Any], int]:
+        """Get recent anomaly detections."""
+        try:
+            from vetinari.analytics.anomaly import get_anomaly_detector
+            metric = request.args.get('metric', None)
+            history = get_anomaly_detector().get_history(metric)
+            return jsonify({
+                "count": len(history),
+                "anomalies": [a.to_dict() for a in history],
+            }), 200
+        except Exception as e:
+            logger.error("Error getting anomalies: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/forecast', methods=['GET'])
+    def get_forecast() -> Tuple[Dict[str, Any], int]:
+        """Get forecast for a metric."""
+        try:
+            from vetinari.analytics.forecasting import get_forecaster, ForecastRequest
+            metric = request.args.get('metric', 'adapter.latency')
+            horizon = request.args.get('horizon', 5, type=int)
+            method = request.args.get('method', 'linear_trend')
+            req = ForecastRequest(metric=metric, horizon=horizon, method=method)
+            result = get_forecaster().forecast(req)
+            return jsonify(result.to_dict()), 200
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            logger.error("Error getting forecast: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/analytics/autotuner', methods=['GET'])
+    def get_autotuner() -> Tuple[Dict[str, Any], int]:
+        """Get AutoTuner config and action history."""
+        try:
+            from vetinari.learning.auto_tuner import get_auto_tuner
+            tuner = get_auto_tuner()
+            return jsonify({
+                "config": tuner.get_config(),
+                "history": tuner.get_history(),
+            }), 200
+        except Exception as e:
+            logger.error("Error getting autotuner data: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    # === Inference Config Endpoints (Step 17) ===
+
+    @app.route('/api/v1/config/inference-profiles', methods=['GET'])
+    def get_inference_profiles() -> Tuple[Dict[str, Any], int]:
+        """Get current inference profiles and stats."""
+        try:
+            from vetinari.config.inference_config import get_inference_config
+            cfg = get_inference_config()
+            return jsonify({
+                "profiles": cfg.get_all_profiles(),
+                "stats": cfg.get_stats(),
+            }), 200
+        except Exception as e:
+            logger.error("Error getting inference profiles: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/v1/config/inference-profiles/effective', methods=['GET'])
+    def get_effective_inference_params() -> Tuple[Dict[str, Any], int]:
+        """Get effective params for a task_type + model_id combination."""
+        try:
+            from vetinari.config.inference_config import get_inference_config
+            task_type = request.args.get('task_type', 'general')
+            model_id = request.args.get('model_id', '')
+            cfg = get_inference_config()
+            params = cfg.get_effective_params(task_type, model_id)
+            return jsonify({
+                "task_type": task_type,
+                "model_id": model_id,
+                "params": params,
+            }), 200
+        except Exception as e:
+            logger.error("Error getting effective params: %s", e)
+            return jsonify({"error": str(e)}), 500
+
     # === Error Handlers ===
     
     @app.errorhandler(404)
@@ -228,23 +338,20 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
     @app.errorhandler(500)
     def internal_error(error: Any) -> Tuple[Dict[str, str], int]:
         """Handle 500 errors."""
-        logger.error(f"Internal server error: {error}")
+        logger.error("Internal server error: %s", error)
         return jsonify({"error": "Internal server error"}), 500
     
     # === Middleware ===
     
     @app.before_request
-    def log_request():
-        """Log incoming requests and enforce rate limiting."""
-        logger.debug(f"{request.method} {request.path}")
-        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
-        if _is_rate_limited(client_ip):
-            return jsonify({"error": "Rate limit exceeded", "retry_after": _RATE_LIMIT_WINDOW}), 429
+    def log_request() -> None:
+        """Log incoming requests."""
+        logger.debug("%s %s", request.method, request.path)
     
     @app.after_request
     def add_cors_headers(response: Any) -> Any:
-        """Add CORS headers. Origin restricted to localhost by default in production."""
-        response.headers['Access-Control-Allow-Origin'] = _cors_origin
+        """Add CORS headers for development."""
+        response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
@@ -252,7 +359,7 @@ def create_app(debug: bool = False, cors_origin: str = None) -> 'Flask':
     return app
 
 
-def run_server(host: str = '0.0.0.0', port: int = 5000, debug: bool = False) -> None:
+def run_server(host: str = '127.0.0.1', port: int = 5000, debug: bool = False) -> None:
     """
     Run the dashboard REST API server.
     
@@ -263,9 +370,9 @@ def run_server(host: str = '0.0.0.0', port: int = 5000, debug: bool = False) -> 
     """
     app = create_app(debug=debug)
     
-    logger.info(f"Starting Vetinari Dashboard API on {host}:{port}")
-    logger.info(f"API available at http://{host}:{port}/api/v1/")
-    logger.info(f"Health check: http://{host}:{port}/api/v1/health")
+    logger.info("Starting Vetinari Dashboard API on %s:%s", host, port)
+    logger.info("API available at http://%s:%s/api/v1/", host, port)
+    logger.info("Health check: http://%s:%s/api/v1/health", host, port)
     
     app.run(host=host, port=port, debug=debug)
 
@@ -280,7 +387,7 @@ if __name__ == '__main__':
     )
     
     # Parse arguments
-    host = sys.argv[1] if len(sys.argv) > 1 else '0.0.0.0'
+    host = sys.argv[1] if len(sys.argv) > 1 else '127.0.0.1'
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
     debug = '--debug' in sys.argv
     
