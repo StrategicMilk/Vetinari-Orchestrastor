@@ -17,29 +17,10 @@ from enum import Enum
 from pathlib import Path
 import threading
 
+# Import canonical enums from single source of truth (P2.2)
+from vetinari.types import TaskStatus, PlanStatus  # noqa: F401
+
 logger = logging.getLogger(__name__)
-
-
-class TaskStatus(Enum):
-    """Status of a task in the execution graph."""
-    PENDING = "pending"
-    BLOCKED = "blocked"  # Waiting for dependencies
-    READY = "ready"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class PlanStatus(Enum):
-    """Status of a plan."""
-    DRAFT = "draft"
-    APPROVED = "approved"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 @dataclass

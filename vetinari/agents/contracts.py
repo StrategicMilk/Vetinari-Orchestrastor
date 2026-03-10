@@ -28,6 +28,17 @@ class AgentSpec:
     enabled: bool = True
     system_prompt: str = ""
     version: str = "1.0.0"
+    # --- Extended fields (P5.5a) ---
+    deprecated: bool = False
+    replaced_by: str = ""
+    jurisdiction: List[str] = field(default_factory=list)
+    modes: List[str] = field(default_factory=list)
+    capabilities: List[str] = field(default_factory=list)
+    can_delegate_to: List[str] = field(default_factory=list)
+    max_delegation_depth: int = 3
+    quality_gate_score: float = 0.7
+    max_tokens: int = 4096
+    timeout_seconds: int = 300
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -38,7 +49,17 @@ class AgentSpec:
             "thinking_variant": self.thinking_variant,
             "enabled": self.enabled,
             "system_prompt": self.system_prompt,
-            "version": self.version
+            "version": self.version,
+            "deprecated": self.deprecated,
+            "replaced_by": self.replaced_by,
+            "jurisdiction": self.jurisdiction,
+            "modes": self.modes,
+            "capabilities": self.capabilities,
+            "can_delegate_to": self.can_delegate_to,
+            "max_delegation_depth": self.max_delegation_depth,
+            "quality_gate_score": self.quality_gate_score,
+            "max_tokens": self.max_tokens,
+            "timeout_seconds": self.timeout_seconds,
         }
 
     @classmethod
@@ -51,7 +72,17 @@ class AgentSpec:
             thinking_variant=data.get("thinking_variant", "medium"),
             enabled=data.get("enabled", True),
             system_prompt=data.get("system_prompt", ""),
-            version=data.get("version", "1.0.0")
+            version=data.get("version", "1.0.0"),
+            deprecated=data.get("deprecated", False),
+            replaced_by=data.get("replaced_by", ""),
+            jurisdiction=data.get("jurisdiction", []),
+            modes=data.get("modes", []),
+            capabilities=data.get("capabilities", []),
+            can_delegate_to=data.get("can_delegate_to", []),
+            max_delegation_depth=data.get("max_delegation_depth", 3),
+            quality_gate_score=data.get("quality_gate_score", 0.7),
+            max_tokens=data.get("max_tokens", 4096),
+            timeout_seconds=data.get("timeout_seconds", 300),
         )
 
 
@@ -295,6 +326,31 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Planning, goal decomposition, user interaction, context management",
         default_model="qwen2.5-72b",
         thinking_variant="xhigh",
+        modes=["plan", "clarify", "consolidate", "summarise", "prune", "extract"],
+        jurisdiction=[
+            "vetinari/agents/planner.py",
+            "vetinari/agents/contracts.py",
+            "vetinari/core/",
+        ],
+        capabilities=[
+            "goal_decomposition",
+            "task_sequencing",
+            "context_management",
+            "user_clarification",
+            "plan_consolidation",
+            "dependency_resolution",
+        ],
+        can_delegate_to=[
+            "CONSOLIDATED_RESEARCHER",
+            "CONSOLIDATED_ORACLE",
+            "BUILDER",
+            "QUALITY",
+            "OPERATIONS",
+        ],
+        max_delegation_depth=5,
+        quality_gate_score=0.8,
+        max_tokens=8192,
+        timeout_seconds=600,
     ),
     AgentType.BUILDER: AgentSpec(
         agent_type=AgentType.BUILDER,
@@ -302,6 +358,20 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Code scaffolding, boilerplate, test scaffolding, image generation",
         default_model="qwen2.5-coder-7b",
         thinking_variant="medium",
+        modes=["scaffold", "boilerplate", "test_scaffold", "image_generation"],
+        jurisdiction=[
+            "vetinari/agents/builder.py",
+            "vetinari/templates/",
+        ],
+        capabilities=[
+            "code_scaffolding",
+            "image_generation",
+        ],
+        can_delegate_to=["QUALITY"],
+        max_delegation_depth=2,
+        quality_gate_score=0.7,
+        max_tokens=4096,
+        timeout_seconds=300,
     ),
     AgentType.CONSOLIDATED_RESEARCHER: AgentSpec(
         agent_type=AgentType.CONSOLIDATED_RESEARCHER,
@@ -310,6 +380,37 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
                     "UI/UX design, database schemas, DevOps pipelines, git workflow",
         default_model="qwen2.5-72b",
         thinking_variant="high",
+        modes=[
+            "code_discovery",
+            "domain_research",
+            "api_lookup",
+            "lateral_thinking",
+            "ui_design",
+            "database",
+            "devops",
+            "git_workflow",
+        ],
+        jurisdiction=[
+            "vetinari/agents/researcher.py",
+            "vetinari/agents/explorer.py",
+            "vetinari/agents/librarian.py",
+            "vetinari/research/",
+        ],
+        capabilities=[
+            "code_pattern_search",
+            "domain_analysis",
+            "api_documentation_lookup",
+            "lateral_thinking",
+            "ui_ux_design",
+            "database_schema_design",
+            "devops_pipeline_design",
+            "git_workflow_analysis",
+        ],
+        can_delegate_to=["CONSOLIDATED_ORACLE", "BUILDER"],
+        max_delegation_depth=3,
+        quality_gate_score=0.75,
+        max_tokens=8192,
+        timeout_seconds=480,
     ),
     AgentType.CONSOLIDATED_ORACLE: AgentSpec(
         agent_type=AgentType.CONSOLIDATED_ORACLE,
@@ -317,6 +418,27 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Architecture decisions, risk assessment, ontological analysis, contrarian review",
         default_model="qwen3-30b-a3b",
         thinking_variant="xhigh",
+        modes=[
+            "architecture_decision",
+            "risk_assessment",
+            "ontological_analysis",
+            "contrarian_review",
+        ],
+        jurisdiction=[
+            "vetinari/agents/oracle.py",
+            "vetinari/architecture/",
+        ],
+        capabilities=[
+            "architecture_decision_support",
+            "risk_and_tradeoff_analysis",
+            "ontological_analysis",
+            "contrarian_review",
+        ],
+        can_delegate_to=["CONSOLIDATED_RESEARCHER"],
+        max_delegation_depth=2,
+        quality_gate_score=0.85,
+        max_tokens=8192,
+        timeout_seconds=480,
     ),
     AgentType.QUALITY: AgentSpec(
         agent_type=AgentType.QUALITY,
@@ -324,6 +446,24 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
         description="Code review, security audit, test generation, simplification",
         default_model="qwen2.5-coder-7b",
         thinking_variant="high",
+        modes=["code_review", "security_audit", "test_generation", "simplification"],
+        jurisdiction=[
+            "vetinari/agents/quality.py",
+            "vetinari/agents/evaluator.py",
+            "vetinari/agents/security_auditor.py",
+            "tests/",
+        ],
+        capabilities=[
+            "code_review",
+            "security_audit",
+            "test_generation",
+            "code_simplification",
+        ],
+        can_delegate_to=["CONSOLIDATED_RESEARCHER"],
+        max_delegation_depth=2,
+        quality_gate_score=0.8,
+        max_tokens=4096,
+        timeout_seconds=300,
     ),
     AgentType.OPERATIONS: AgentSpec(
         agent_type=AgentType.OPERATIONS,
@@ -332,122 +472,180 @@ AGENT_REGISTRY: Dict[AgentType, AgentSpec] = {
                     "error recovery, synthesis, improvement, monitoring",
         default_model="qwen2.5-72b",
         thinking_variant="medium",
+        modes=[
+            "documentation",
+            "creative_writing",
+            "cost_analysis",
+            "experiment",
+            "error_recovery",
+            "synthesis",
+            "improvement",
+            "monitoring",
+            "reporting",
+        ],
+        jurisdiction=[
+            "vetinari/agents/operations.py",
+            "vetinari/agents/synthesizer.py",
+            "vetinari/agents/documentation_agent.py",
+            "vetinari/agents/cost_planner.py",
+            "vetinari/agents/error_recovery.py",
+            "docs/",
+        ],
+        capabilities=[
+            "documentation_generation",
+            "creative_writing",
+            "cost_analysis",
+            "experiment_management",
+            "error_recovery",
+            "synthesis",
+            "improvement_suggestions",
+            "monitoring",
+            "reporting",
+        ],
+        can_delegate_to=["CONSOLIDATED_RESEARCHER", "QUALITY"],
+        max_delegation_depth=3,
+        quality_gate_score=0.7,
+        max_tokens=8192,
+        timeout_seconds=480,
     ),
     # ── Legacy entries (kept for registry lookups, resolve via AGENT_TYPE_MAPPING) ──
     AgentType.EXPLORER: AgentSpec(
         agent_type=AgentType.EXPLORER, name="Explorer",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.code_discovery",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.LIBRARIAN: AgentSpec(
         agent_type=AgentType.LIBRARIAN, name="Librarian",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.api_lookup",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.ORACLE: AgentSpec(
         agent_type=AgentType.ORACLE, name="Oracle (legacy)",
         description="[Legacy] -> CONSOLIDATED_ORACLE",
         default_model="qwen3-30b-a3b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_ORACLE",
     ),
     AgentType.RESEARCHER: AgentSpec(
         agent_type=AgentType.RESEARCHER, name="Researcher (legacy)",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.domain_research",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.EVALUATOR: AgentSpec(
         agent_type=AgentType.EVALUATOR, name="Evaluator",
         description="[Legacy] -> QUALITY.code_review",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="QUALITY",
     ),
     AgentType.SYNTHESIZER: AgentSpec(
         agent_type=AgentType.SYNTHESIZER, name="Synthesizer",
         description="[Legacy] -> OPERATIONS.synthesis",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.UI_PLANNER: AgentSpec(
         agent_type=AgentType.UI_PLANNER, name="UI Planner",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.ui_design",
         default_model="qwen2.5-vl-32b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.SECURITY_AUDITOR: AgentSpec(
         agent_type=AgentType.SECURITY_AUDITOR, name="Security Auditor",
         description="[Legacy] -> QUALITY.security_audit",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="QUALITY",
     ),
     AgentType.DATA_ENGINEER: AgentSpec(
         agent_type=AgentType.DATA_ENGINEER, name="Data Engineer",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.database",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.DOCUMENTATION_AGENT: AgentSpec(
         agent_type=AgentType.DOCUMENTATION_AGENT, name="Documentation Agent",
         description="[Legacy] -> OPERATIONS.documentation",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.COST_PLANNER: AgentSpec(
         agent_type=AgentType.COST_PLANNER, name="Cost Planner",
         description="[Legacy] -> OPERATIONS.cost_analysis",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.TEST_AUTOMATION: AgentSpec(
         agent_type=AgentType.TEST_AUTOMATION, name="Test Automation",
         description="[Legacy] -> QUALITY.test_generation",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="QUALITY",
     ),
     AgentType.EXPERIMENTATION_MANAGER: AgentSpec(
         agent_type=AgentType.EXPERIMENTATION_MANAGER, name="Experimentation Manager",
         description="[Legacy] -> OPERATIONS.experiment",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.IMPROVEMENT: AgentSpec(
         agent_type=AgentType.IMPROVEMENT, name="Improvement Agent",
         description="[Legacy] -> OPERATIONS.improvement",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.USER_INTERACTION: AgentSpec(
         agent_type=AgentType.USER_INTERACTION, name="User Interaction Agent",
         description="[Legacy] -> PLANNER.clarify",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="PLANNER",
     ),
     AgentType.DEVOPS: AgentSpec(
         agent_type=AgentType.DEVOPS, name="DevOps Agent",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.devops",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.VERSION_CONTROL: AgentSpec(
         agent_type=AgentType.VERSION_CONTROL, name="Version Control Agent",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER.git_workflow",
         default_model="qwen2.5-coder-7b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
     AgentType.ERROR_RECOVERY: AgentSpec(
         agent_type=AgentType.ERROR_RECOVERY, name="Error Recovery Agent",
         description="[Legacy] -> OPERATIONS.error_recovery",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="OPERATIONS",
     ),
     AgentType.CONTEXT_MANAGER: AgentSpec(
         agent_type=AgentType.CONTEXT_MANAGER, name="Context Manager Agent",
         description="[Legacy] -> PLANNER.consolidate",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="PLANNER",
     ),
     AgentType.IMAGE_GENERATOR: AgentSpec(
         agent_type=AgentType.IMAGE_GENERATOR, name="Image Generator",
         description="[Legacy] -> BUILDER.image_generation",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="BUILDER",
     ),
     AgentType.PONDER: AgentSpec(
         agent_type=AgentType.PONDER, name="Ponder",
         description="[Legacy] -> CONSOLIDATED_ORACLE.ontological_analysis",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_ORACLE",
     ),
     AgentType.ORCHESTRATOR: AgentSpec(
         agent_type=AgentType.ORCHESTRATOR, name="Orchestrator",
         description="[Legacy] -> PLANNER (clarify, consolidate, summarise, prune, extract)",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="PLANNER",
     ),
     AgentType.ARCHITECT: AgentSpec(
         agent_type=AgentType.ARCHITECT, name="Architect",
         description="[Legacy] -> CONSOLIDATED_RESEARCHER (ui_design, database, devops, git_workflow)",
         default_model="qwen2.5-72b", enabled=False,
+        deprecated=True, replaced_by="CONSOLIDATED_RESEARCHER",
     ),
 }
 

@@ -1,3 +1,4 @@
+import hmac
 import os
 import json
 import logging
@@ -25,7 +26,7 @@ def require_admin_token(f):
         elif auth_header:
             token = auth_header
         
-        if PLAN_ADMIN_TOKEN and token != PLAN_ADMIN_TOKEN:
+        if PLAN_ADMIN_TOKEN and not hmac.compare_digest(token, PLAN_ADMIN_TOKEN):
             logger.warning(f"Unauthorized plan API access attempt")
             return jsonify({"error": "Unauthorized", "message": "Invalid or missing admin token"}), 401
         

@@ -96,7 +96,7 @@ def api_new_project():
     goal = data.get('goal', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
-    auto_run = data.get('auto_run', True)
+    auto_run = data.get('auto_run', False)
     project_name = data.get('project_name', '')
     project_rules = data.get('project_rules', '')
     required_features = data.get('required_features', [])

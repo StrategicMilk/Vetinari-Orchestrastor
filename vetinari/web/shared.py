@@ -5,6 +5,7 @@ both the main ``web_ui`` module and individual Flask Blueprints can
 import them without circular dependencies.
 """
 
+import hmac
 import logging
 import os
 import queue as _queue
@@ -231,7 +232,7 @@ def _is_admin_user() -> bool:
         auth_header = request.headers.get("Authorization", "")
         req_token = request.headers.get("X-Admin-Token", "")
         provided = req_token or auth_header.replace("Bearer ", "")
-        return provided == admin_token
+        return hmac.compare_digest(provided, admin_token)
     remote = request.remote_addr or ""
     return remote in ("127.0.0.1", "::1", "localhost")
 

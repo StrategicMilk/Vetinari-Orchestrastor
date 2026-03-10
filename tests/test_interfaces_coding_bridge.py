@@ -339,7 +339,9 @@ class TestGetAgentInterface(unittest.TestCase):
         self.assertIsNone(get_agent_interface(""))
 
     def test_registry_contains_six_entries(self):
-        self.assertEqual(len(AGENT_INTERFACES), 6)
+        # 6 legacy + 5 consolidated agent interfaces (PLANNER, CONSOLIDATED_RESEARCHER,
+        # CONSOLIDATED_ORACLE, QUALITY, OPERATIONS) added in P5.5b
+        self.assertEqual(len(AGENT_INTERFACES), 11)
 
     def test_all_registered_types_return_non_none(self):
         for key in AGENT_INTERFACES:
