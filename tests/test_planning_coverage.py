@@ -19,7 +19,7 @@ class TestPlanningEnums(unittest.TestCase):
         self.assertEqual(TaskStatus.ASSIGNED.value, "assigned")
 
     def test_agent_type(self):
-        self.assertEqual(AgentType.BUILDER.value, "BUILDER")
+        self.assertEqual(AgentType.BUILDER.value, "builder")
 
 
 class TestTask(unittest.TestCase):

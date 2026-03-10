@@ -665,3 +665,66 @@ def reset_log_aggregator() -> None:
             LogAggregator._instance.flush()
         LogAggregator._instance = None
     logger.debug("LogAggregator singleton reset")
+
+
+# ---------------------------------------------------------------------------
+# SSE (Server-Sent Events) Backend — streams log records to connected clients
+# ---------------------------------------------------------------------------
+
+class SSEBackend(BackendBase):
+    """
+    Backend that buffers log records for Server-Sent Events (SSE) streaming.
+
+    Dashboard clients connect via an SSE endpoint and receive real-time log
+    updates. Records are kept in a bounded deque; older entries are discarded
+    when the buffer fills.
+    """
+
+    name = "sse"
+
+    def __init__(self) -> None:
+        self._buffer: deque = deque(maxlen=1000)
+        self._lock = threading.Lock()
+
+    def configure(self, max_buffer: int = 1000, **_: Any) -> None:
+        with self._lock:
+            self._buffer = deque(maxlen=max_buffer)
+
+    def send(self, records: List[LogRecord]) -> bool:
+        with self._lock:
+            for rec in records:
+                self._buffer.append(rec)
+        return True
+
+    def get_recent(self, limit: int = 50) -> List[LogRecord]:
+        """Return the most recent records (newest last)."""
+        with self._lock:
+            items = list(self._buffer)
+        return items[-limit:]
+
+    def close(self) -> None:
+        with self._lock:
+            self._buffer.clear()
+
+
+_sse_backend_instance: Optional[SSEBackend] = None
+_sse_lock = threading.Lock()
+
+
+def get_sse_backend() -> SSEBackend:
+    """Return the global SSEBackend singleton."""
+    global _sse_backend_instance
+    if _sse_backend_instance is None:
+        with _sse_lock:
+            if _sse_backend_instance is None:
+                _sse_backend_instance = SSEBackend()
+    return _sse_backend_instance
+
+
+def reset_sse_backend() -> None:
+    """Destroy the SSEBackend singleton (for tests)."""
+    global _sse_backend_instance
+    with _sse_lock:
+        if _sse_backend_instance is not None:
+            _sse_backend_instance.close()
+        _sse_backend_instance = None
