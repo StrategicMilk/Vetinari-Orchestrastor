@@ -20,18 +20,18 @@ warnings.warn(
 logger = logging.getLogger(__name__)
 
 class AgentName(Enum):
-    """Legacy agent names — kept for backward compatibility."""
+    """Agent names for memory namespacing."""
     PLAN = "plan"
     BUILD = "build"
     ASK = "ask"
     REVIEW = "review"
     ORACLE = "oracle"
-    EXPLORER = "explorer"
-    LIBRARIAN = "librarian"
-    UI_PLANNER = "ui_planner"
+    CONSOLIDATED_RESEARCHER = "consolidated_researcher"
+    QUALITY = "quality"
+    OPERATIONS = "operations"
     RESEARCHER = "researcher"
-    EVALUATOR = "evaluator"
-    SYNTHESIZER = "synthesizer"
+    ORCHESTRATOR = "orchestrator"
+    ARCHITECT = "architect"
 
 @dataclass
 class MemoryEntry:

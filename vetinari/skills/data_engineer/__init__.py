@@ -45,8 +45,8 @@ class DataEngineerSkill(Tool):
     def _get_agent(self):
         if self._agent is None:
             try:
-                from vetinari.agents.data_engineer_agent import get_data_engineer_agent
-                self._agent = get_data_engineer_agent()
+                from vetinari.agents.consolidated.researcher_agent import get_consolidated_researcher_agent
+                self._agent = get_consolidated_researcher_agent()
             except Exception as e:
                 logger.warning("DataEngineerAgent unavailable: %s", e)
         return self._agent

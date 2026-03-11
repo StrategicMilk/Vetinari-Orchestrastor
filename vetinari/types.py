@@ -37,15 +37,34 @@ class PlanStatus(Enum):
 
 
 class AgentType(Enum):
-    """All recognized agent types in the system."""
+    """All recognized agent types in the system.
+
+    The six active agents are: PLANNER, CONSOLIDATED_RESEARCHER,
+    CONSOLIDATED_ORACLE, BUILDER, QUALITY, OPERATIONS.
+    Legacy values are retained for backward-compatible deserialization
+    of stored plans and memory entries.
+    """
+
+    # --- Active consolidated agents (Phase 3) ---
     PLANNER = "PLANNER"
+    CONSOLIDATED_RESEARCHER = "CONSOLIDATED_RESEARCHER"
+    CONSOLIDATED_ORACLE = "CONSOLIDATED_ORACLE"
+    BUILDER = "BUILDER"
+    QUALITY = "QUALITY"
+    OPERATIONS = "OPERATIONS"
+
+    # --- Aliases used in specific subsystems ---
+    ORCHESTRATOR = "ORCHESTRATOR"
+    ARCHITECT = "ARCHITECT"
+    RESEARCHER = "RESEARCHER"
+    PONDER = "PONDER"
+
+    # --- Legacy (deprecated) — kept for deserialization only ---
     EXPLORER = "EXPLORER"
     ORACLE = "ORACLE"
     LIBRARIAN = "LIBRARIAN"
-    RESEARCHER = "RESEARCHER"
     EVALUATOR = "EVALUATOR"
     SYNTHESIZER = "SYNTHESIZER"
-    BUILDER = "BUILDER"
     UI_PLANNER = "UI_PLANNER"
     SECURITY_AUDITOR = "SECURITY_AUDITOR"
     DATA_ENGINEER = "DATA_ENGINEER"
@@ -60,14 +79,37 @@ class AgentType(Enum):
     ERROR_RECOVERY = "ERROR_RECOVERY"
     CONTEXT_MANAGER = "CONTEXT_MANAGER"
     IMAGE_GENERATOR = "IMAGE_GENERATOR"
-    PONDER = "PONDER"
-    # --- Consolidated agent types (Phase 3) ---
-    ORCHESTRATOR = "ORCHESTRATOR"
-    CONSOLIDATED_RESEARCHER = "CONSOLIDATED_RESEARCHER"
-    CONSOLIDATED_ORACLE = "CONSOLIDATED_ORACLE"
-    ARCHITECT = "ARCHITECT"
-    QUALITY = "QUALITY"
-    OPERATIONS = "OPERATIONS"
+
+
+# Mapping from legacy agent types to their consolidated replacements.
+LEGACY_TO_CONSOLIDATED: dict[AgentType, AgentType] = {
+    AgentType.EXPLORER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.LIBRARIAN: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.RESEARCHER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.UI_PLANNER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.DATA_ENGINEER: AgentType.CONSOLIDATED_RESEARCHER,
+    AgentType.EVALUATOR: AgentType.QUALITY,
+    AgentType.SECURITY_AUDITOR: AgentType.QUALITY,
+    AgentType.TEST_AUTOMATION: AgentType.QUALITY,
+    AgentType.SYNTHESIZER: AgentType.OPERATIONS,
+    AgentType.DOCUMENTATION_AGENT: AgentType.OPERATIONS,
+    AgentType.COST_PLANNER: AgentType.OPERATIONS,
+    AgentType.ERROR_RECOVERY: AgentType.OPERATIONS,
+    AgentType.EXPERIMENTATION_MANAGER: AgentType.OPERATIONS,
+    AgentType.IMPROVEMENT: AgentType.OPERATIONS,
+    AgentType.USER_INTERACTION: AgentType.OPERATIONS,
+    AgentType.DEVOPS: AgentType.OPERATIONS,
+    AgentType.VERSION_CONTROL: AgentType.OPERATIONS,
+    AgentType.CONTEXT_MANAGER: AgentType.PLANNER,
+    AgentType.IMAGE_GENERATOR: AgentType.BUILDER,
+    AgentType.ORACLE: AgentType.CONSOLIDATED_ORACLE,
+    AgentType.ARCHITECT: AgentType.CONSOLIDATED_ORACLE,
+}
+
+
+def resolve_agent_type(agent_type: AgentType) -> AgentType:
+    """Return the consolidated agent type, resolving legacy aliases."""
+    return LEGACY_TO_CONSOLIDATED.get(agent_type, agent_type)
 
 
 class ExecutionMode(Enum):

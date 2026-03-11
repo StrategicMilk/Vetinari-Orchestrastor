@@ -94,7 +94,7 @@ class GoalVerificationReport:
                 "type": "fix_security_issues",
                 "description": f"Fix {len(self.security_findings)} security findings",
                 "priority": "critical",
-                "assigned_agent": "SECURITY_AUDITOR",
+                "assigned_agent": "QUALITY",
                 "details": self.security_findings,
             })
 
@@ -104,7 +104,7 @@ class GoalVerificationReport:
                 "type": "add_tests",
                 "description": "Add unit tests (none found in deliverable)",
                 "priority": "high",
-                "assigned_agent": "TEST_AUTOMATION",
+                "assigned_agent": "QUALITY",
             })
 
         # General quality improvement
@@ -113,7 +113,7 @@ class GoalVerificationReport:
                 "type": "quality_improvement",
                 "description": issue,
                 "priority": "medium",
-                "assigned_agent": "EVALUATOR",
+                "assigned_agent": "QUALITY",
             })
 
         return tasks
@@ -384,18 +384,17 @@ class GoalVerifier:
     ) -> Optional[Dict[str, Any]]:
         """Use EvaluatorAgent for LLM-powered goal compliance check."""
         try:
-            from vetinari.agents.evaluator_agent import get_evaluator_agent
-            from vetinari.agents.contracts import AgentTask
+            from vetinari.agents.consolidated.quality_agent import get_quality_agent
+            from vetinari.agents.contracts import AgentTask, AgentType
 
-            from vetinari.agents.contracts import AgentType
-            evaluator = get_evaluator_agent()
+            evaluator = get_quality_agent()
 
             features_str = "\n".join(f"- {f}" for f in required_features) if required_features else "None specified"
             avoid_str = "\n".join(f"- {a}" for a in things_to_avoid) if things_to_avoid else "None specified"
 
             task = AgentTask(
                 task_id="goal_verification",
-                agent_type=AgentType.EVALUATOR,
+                agent_type=AgentType.QUALITY,
                 description="Verify deliverable against goal",
                 prompt=f"""Verify this deliverable against the original goal.
 
@@ -438,16 +437,16 @@ For each required feature, check if it's implemented. Return JSON:
     ) -> tuple:
         """Run SecurityAuditorAgent on the output."""
         try:
-            from vetinari.agents.security_auditor_agent import get_security_auditor_agent
+            from vetinari.agents.consolidated.quality_agent import get_quality_agent
             from vetinari.agents.contracts import AgentTask
 
-            auditor = get_security_auditor_agent()
+            auditor = get_quality_agent()
             combined = final_output[:4000]  # Limit to avoid context overflow
 
             from vetinari.agents.contracts import AgentType
             task = AgentTask(
                 task_id="goal_security_check",
-                agent_type=AgentType.SECURITY_AUDITOR,
+                agent_type=AgentType.QUALITY,
                 description="Security review of final deliverable",
                 prompt=combined,
                 context={},

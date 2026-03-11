@@ -43,54 +43,11 @@ QUALITY_GATES: Dict[str, QualityGate] = {
         require_passing_verification=True,
         max_retry_on_failure=2,
     ),
-    # Quality agents — highest bar
-    "EVALUATOR": QualityGate(
-        agent_type="EVALUATOR",
-        min_verification_score=0.7,
-        max_retry_on_failure=1,
-    ),
-    "SECURITY_AUDITOR": QualityGate(
-        agent_type="SECURITY_AUDITOR",
-        min_verification_score=0.7,
-        max_retry_on_failure=1,
-    ),
-    "TEST_AUTOMATION": QualityGate(
-        agent_type="TEST_AUTOMATION",
-        min_verification_score=0.6,
-        max_retry_on_failure=2,
-    ),
-    # Research — moderate bar
-    "RESEARCHER": QualityGate(
-        agent_type="RESEARCHER",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
-    "EXPLORER": QualityGate(
-        agent_type="EXPLORER",
-        min_verification_score=0.4,
-        max_retry_on_failure=2,
-    ),
-    "LIBRARIAN": QualityGate(
-        agent_type="LIBRARIAN",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
     # Oracle — high bar for architecture decisions
     "ORACLE": QualityGate(
         agent_type="ORACLE",
         min_verification_score=0.6,
         max_retry_on_failure=1,
-    ),
-    # Operations — moderate bar, more lenient for creative work
-    "SYNTHESIZER": QualityGate(
-        agent_type="SYNTHESIZER",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
-    "DOCUMENTATION_AGENT": QualityGate(
-        agent_type="DOCUMENTATION_AGENT",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
     ),
     # Planning — moderate bar
     "PLANNER": QualityGate(
@@ -98,24 +55,8 @@ QUALITY_GATES: Dict[str, QualityGate] = {
         min_verification_score=0.5,
         max_retry_on_failure=2,
     ),
-    # Infrastructure agents
-    "UI_PLANNER": QualityGate(
-        agent_type="UI_PLANNER",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
-    "DEVOPS": QualityGate(
-        agent_type="DEVOPS",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
-    "DATA_ENGINEER": QualityGate(
-        agent_type="DATA_ENGINEER",
-        min_verification_score=0.5,
-        max_retry_on_failure=2,
-    ),
 
-    # --- Consolidated agents (Phase 3) ---
+    # --- Consolidated agents ---
 
     "ORCHESTRATOR": QualityGate(
         agent_type="ORCHESTRATOR",

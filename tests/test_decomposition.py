@@ -316,8 +316,8 @@ class TestGetTemplates:
         assert all(t["dod_level"] == "Light" for t in results)
 
     def test_combined_keyword_and_agent_filter(self, engine):
-        results = engine.get_templates(keywords=["data"], agent_type="DATA_ENGINEER")
-        assert all(t["agent_type"] == "DATA_ENGINEER" for t in results)
+        results = engine.get_templates(keywords=["data"], agent_type="CONSOLIDATED_RESEARCHER")
+        assert all(t["agent_type"] == "CONSOLIDATED_RESEARCHER" for t in results)
         assert all(
             any(kw in t["keywords"] for kw in ["data"])
             for t in results

@@ -367,7 +367,7 @@ class TestDecompositionEngine:
         result = engine._keyword_decompose("Create a web application with React", "root", 0)
         # Should include UI task
         agents = [st["agent_type"] for st in result]
-        assert any(a in ("UI_PLANNER", "BUILDER") for a in agents)
+        assert any(a in ("CONSOLIDATED_RESEARCHER", "BUILDER") for a in agents)
 
     def test_constants_on_engine(self, engine):
         assert engine.DEFAULT_MAX_DEPTH == 14
@@ -719,9 +719,9 @@ class TestWebUINewEndpoints:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestPromptAssemblerRulesInjection:
-    def test_assembler_includes_image_generator_role(self):
+    def test_assembler_includes_operations_role(self):
         from vetinari.prompts.assembler import _ROLE_DEFS
-        assert "IMAGE_GENERATOR" in _ROLE_DEFS
+        assert "OPERATIONS" in _ROLE_DEFS
 
     def test_assembler_includes_new_task_types(self):
         from vetinari.prompts.assembler import _TASK_INSTRUCTIONS

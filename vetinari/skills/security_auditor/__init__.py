@@ -49,8 +49,8 @@ class SecurityAuditorSkill(Tool):
     def _get_agent(self):
         if self._agent is None:
             try:
-                from vetinari.agents.security_auditor_agent import get_security_auditor_agent
-                self._agent = get_security_auditor_agent()
+                from vetinari.agents.consolidated.quality_agent import get_quality_agent
+                self._agent = get_quality_agent()
             except Exception as e:
                 logger.warning("SecurityAuditorAgent unavailable: %s", e)
         return self._agent

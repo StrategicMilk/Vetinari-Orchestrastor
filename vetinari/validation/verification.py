@@ -18,6 +18,7 @@ import re
 import json
 import ast
 import logging
+import abc
 from abc import ABC
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
@@ -106,9 +107,9 @@ class Verifier(ABC):
     def __init__(self, name: str):
         self.name = name
     
+    @abc.abstractmethod
     def verify(self, content: Any) -> VerificationResult:
         """Execute the verification check."""
-        raise NotImplementedError
 
 
 class CodeSyntaxVerifier(Verifier):

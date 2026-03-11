@@ -34,8 +34,8 @@ Usage::
         priority=5,
     )
 
-    # Agent B (Explorer) claims and processes it
-    entry = board.claim(entry_id, AgentType.EXPLORER)
+    # Agent B (ConsolidatedResearcher) claims and processes it
+    entry = board.claim(entry_id, AgentType.CONSOLIDATED_RESEARCHER)
     # ... do work ...
     board.complete(entry_id, result={"files": [...]})
 
@@ -467,22 +467,21 @@ class Blackboard:
 # Maps request_type strings to the agent types capable of handling them.
 # Used by the blackboard to auto-notify the right agents when work is posted.
 REQUEST_TYPE_ROUTING: Dict[str, List[str]] = {
-    # Each entry lists consolidated agent first, then legacy fallbacks
-    "code_search":          ["CONSOLIDATED_RESEARCHER", "EXPLORER", "RESEARCHER"],
-    "code_review":          ["QUALITY", "EVALUATOR", "SECURITY_AUDITOR"],
-    "security_audit":       ["QUALITY", "SECURITY_AUDITOR"],
+    "code_search":          ["CONSOLIDATED_RESEARCHER"],
+    "code_review":          ["QUALITY"],
+    "security_audit":       ["QUALITY"],
     "architecture_decision": ["CONSOLIDATED_ORACLE", "ORACLE"],
-    "documentation":        ["OPERATIONS", "DOCUMENTATION_AGENT", "SYNTHESIZER"],
+    "documentation":        ["OPERATIONS"],
     "implementation":       ["BUILDER"],
-    "test_generation":      ["QUALITY", "TEST_AUTOMATION", "EVALUATOR"],
-    "cost_analysis":        ["OPERATIONS", "COST_PLANNER"],
-    "research":             ["CONSOLIDATED_RESEARCHER", "RESEARCHER", "LIBRARIAN", "EXPLORER"],
-    "ui_design":            ["ARCHITECT", "UI_PLANNER"],
-    "devops":               ["ARCHITECT", "DEVOPS"],
-    "error_recovery":       ["OPERATIONS", "ERROR_RECOVERY"],
-    "image_generation":     ["OPERATIONS", "IMAGE_GENERATOR"],
-    "data_engineering":     ["ARCHITECT", "DATA_ENGINEER"],
-    "creative_writing":     ["OPERATIONS", "SYNTHESIZER"],
+    "test_generation":      ["QUALITY"],
+    "cost_analysis":        ["OPERATIONS"],
+    "research":             ["CONSOLIDATED_RESEARCHER"],
+    "ui_design":            ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
+    "devops":               ["ARCHITECT"],
+    "error_recovery":       ["OPERATIONS"],
+    "image_generation":     ["OPERATIONS"],
+    "data_engineering":     ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
+    "creative_writing":     ["OPERATIONS"],
 }
 
 

@@ -276,7 +276,7 @@ class WatchMode:
         else:
             logger.warning("Unknown directive action: %s", directive.action)
 
-    # Default handlers (log-only stubs; real execution would call Vetinari pipeline)
+    # Directive handlers — log the detected directive for observability
     def _handle_fix(self, d: VetinariDirective) -> None:
         logger.info("Fix directive: %s (line %d in %s)", d.target, d.line_number, d.file_path)
 

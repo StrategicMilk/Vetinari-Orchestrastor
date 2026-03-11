@@ -1,5 +1,6 @@
 """\nComprehensive tests for vetinari/goal_verifier.py\n\nCovers:\n- FeatureVerification dataclass\n- GoalVerificationReport dataclass: get_corrective_tasks(), to_dict()\n- GoalVerifier: __init__, verify, _verify_features, _check_avoid_list,\n_check_tests_present, _check_output_type, _llm_evaluation, _security_check\n- Singleton: get_goal_verifier()\n"""
 
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
@@ -46,6 +47,16 @@ def _make_security_result(findings=None, score=100):
         "score": score,
     }
     return result
+
+
+@contextmanager
+def _mock_quality_agent(mock_agent):
+    """Patch the consolidated quality agent and its contract dependencies."""
+    with patch("vetinari.agents.consolidated.quality_agent.get_quality_agent",
+               return_value=mock_agent):
+        with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+            with patch("vetinari.agents.contracts.AgentType"):
+                yield mock_agent
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +205,7 @@ class TestGetCorrectiveTasks:
         tasks = report.get_corrective_tasks()
         sec_task = next(t for t in tasks if t["type"] == "fix_security_issues")
         assert sec_task["priority"] == "critical"
-        assert sec_task["assigned_agent"] == "SECURITY_AUDITOR"
+        assert sec_task["assigned_agent"] == "QUALITY"
 
     def test_security_task_includes_findings(self):
         report = GoalVerificationReport(project_id="p", goal="g")
@@ -234,7 +245,7 @@ class TestGetCorrectiveTasks:
         tasks = report.get_corrective_tasks()
         task = next(t for t in tasks if t["type"] == "add_tests")
         assert task["priority"] == "high"
-        assert task["assigned_agent"] == "TEST_AUTOMATION"
+        assert task["assigned_agent"] == "QUALITY"
 
     def test_tests_present_no_add_tests_task(self):
         report = GoalVerificationReport(project_id="p", goal="g")
@@ -262,7 +273,7 @@ class TestGetCorrectiveTasks:
         task = next(t for t in tasks if t["type"] == "quality_improvement")
         assert "Add type hints" in task["description"]
         assert task["priority"] == "medium"
-        assert task["assigned_agent"] == "EVALUATOR"
+        assert task["assigned_agent"] == "QUALITY"
 
     def test_combined_gaps_generates_all_task_types(self):
         report = GoalVerificationReport(project_id="p", goal="g")
@@ -633,17 +644,14 @@ class TestLlmEvaluation:
     def test_returns_dict_on_success(self, verifier):
         mock_evaluator = MagicMock()
         mock_evaluator.execute.return_value = _make_evaluator_result()
-        with patch("vetinari.agents.evaluator_agent.get_evaluator_agent",
-                   return_value=mock_evaluator):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    result = verifier._llm_evaluation(
-                        "Build an API", "output text", ["feature1"], []
-                    )
+        with _mock_quality_agent(mock_evaluator):
+            result = verifier._llm_evaluation(
+                "Build an API", "output text", ["feature1"], []
+            )
         assert isinstance(result, dict)
 
     def test_returns_none_on_import_error(self, verifier):
-        with patch("vetinari.agents.evaluator_agent.get_evaluator_agent",
+        with patch("vetinari.agents.consolidated.quality_agent.get_quality_agent",
                    side_effect=ImportError("no module")):
             result = verifier._llm_evaluation("goal", "output", [], [])
         assert result is None
@@ -651,25 +659,19 @@ class TestLlmEvaluation:
     def test_returns_none_when_result_not_success(self, verifier):
         mock_evaluator = MagicMock()
         mock_evaluator.execute.return_value = MagicMock(success=False, output=None)
-        with patch("vetinari.agents.evaluator_agent.get_evaluator_agent",
-                   return_value=mock_evaluator):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    result = verifier._llm_evaluation("goal", "output", [], [])
+        with _mock_quality_agent(mock_evaluator):
+            result = verifier._llm_evaluation("goal", "output", [], [])
         assert result is None
 
     def test_returns_none_when_output_not_dict(self, verifier):
         mock_evaluator = MagicMock()
         mock_evaluator.execute.return_value = MagicMock(success=True, output="just a string")
-        with patch("vetinari.agents.evaluator_agent.get_evaluator_agent",
-                   return_value=mock_evaluator):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    result = verifier._llm_evaluation("goal", "output", [], [])
+        with _mock_quality_agent(mock_evaluator):
+            result = verifier._llm_evaluation("goal", "output", [], [])
         assert result is None
 
     def test_returns_none_on_general_exception(self, verifier):
-        with patch("vetinari.agents.evaluator_agent.get_evaluator_agent",
+        with patch("vetinari.agents.consolidated.quality_agent.get_quality_agent",
                    side_effect=RuntimeError("unexpected")):
             result = verifier._llm_evaluation("goal", "output", [], [])
         assert result is None
@@ -687,21 +689,15 @@ class TestSecurityCheck:
     def test_returns_three_tuple(self, verifier):
         mock_auditor = MagicMock()
         mock_auditor.execute.return_value = _make_security_result(findings=[], score=100)
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    result = verifier._security_check("output", [])
+        with _mock_quality_agent(mock_auditor):
+            result = verifier._security_check("output", [])
         assert len(result) == 3
 
     def test_clean_output_passes(self, verifier):
         mock_auditor = MagicMock()
         mock_auditor.execute.return_value = _make_security_result(findings=[], score=100)
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("safe code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("safe code", [])
         assert passed is True
         assert findings == []
 
@@ -710,11 +706,8 @@ class TestSecurityCheck:
         mock_auditor.execute.return_value = _make_security_result(
             findings=[{"severity": "critical", "id": "SQL_INJECTION"}], score=40,
         )
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("bad code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("bad code", [])
         assert passed is False
 
     def test_high_finding_fails(self, verifier):
@@ -722,11 +715,8 @@ class TestSecurityCheck:
         mock_auditor.execute.return_value = _make_security_result(
             findings=[{"severity": "high", "id": "XSS"}], score=60,
         )
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("code", [])
         assert passed is False
 
     def test_low_severity_does_not_fail(self, verifier):
@@ -734,15 +724,12 @@ class TestSecurityCheck:
         mock_auditor.execute.return_value = _make_security_result(
             findings=[{"severity": "low", "id": "INFO_LEAK"}], score=90,
         )
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("code", [])
         assert passed is True
 
     def test_import_error_returns_safe_defaults(self, verifier):
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
+        with patch("vetinari.agents.consolidated.quality_agent.get_quality_agent",
                    side_effect=ImportError("no module")):
             passed, findings, score = verifier._security_check("output", [])
         assert passed is True
@@ -752,11 +739,8 @@ class TestSecurityCheck:
     def test_score_normalized_from_100(self, verifier):
         mock_auditor = MagicMock()
         mock_auditor.execute.return_value = _make_security_result(findings=[], score=75)
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("code", [])
         assert score == pytest.approx(0.75)
 
     def test_medium_severity_does_not_fail(self, verifier):
@@ -764,11 +748,8 @@ class TestSecurityCheck:
         mock_auditor.execute.return_value = _make_security_result(
             findings=[{"severity": "medium", "id": "CSRF"}], score=80,
         )
-        with patch("vetinari.agents.security_auditor_agent.get_security_auditor_agent",
-                   return_value=mock_auditor):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                with patch("vetinari.agents.contracts.AgentType"):
-                    passed, findings, score = verifier._security_check("code", [])
+        with _mock_quality_agent(mock_auditor):
+            passed, findings, score = verifier._security_check("code", [])
         assert passed is True
 
 
