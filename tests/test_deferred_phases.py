@@ -109,10 +109,12 @@ class TestPromptAssemblerConsolidated(unittest.TestCase):
 
     def test_legacy_role_defs_still_exist(self):
         from vetinari.prompts.assembler import _ROLE_DEFS
-        legacy = ["PLANNER", "BUILDER", "EXPLORER", "ORACLE", "RESEARCHER"]
-        for agent_type in legacy:
+        # PLANNER and BUILDER remain as direct entries; legacy aliases
+        # (EXPLORER, ORACLE, RESEARCHER) are now served by consolidated agents.
+        core = ["PLANNER", "BUILDER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE"]
+        for agent_type in core:
             self.assertIn(agent_type, _ROLE_DEFS,
-                          f"Missing legacy role def for {agent_type}")
+                          f"Missing role def for {agent_type}")
 
     def test_build_prompt_with_consolidated_agent(self):
         from vetinari.prompts.assembler import get_prompt_assembler
