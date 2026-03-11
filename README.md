@@ -337,7 +337,7 @@ python -m pytest tests/test_registry.py tests/test_registry_orchestration.py -v
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - LM Studio running at configured host (default: http://100.78.30.7:1234)
 - Windows 10/11 recommended (64-bit)
 - 16GB+ RAM (64GB+ recommended for large models)
