@@ -62,6 +62,10 @@ class BaseAgent(ABC):
         self._spec = get_agent_spec(agent_type)
         self._initialized = False
         self._context: Dict[str, Any] = {}
+        # Shared services (populated by initialize())
+        self._adapter_manager = None
+        self._web_search = None
+        self._tool_registry = None
         
     @property
     def agent_type(self) -> AgentType:
@@ -402,6 +406,58 @@ class BaseAgent(ABC):
             self._log("warning", f"Web search failed for '{query}': {e}")
             return []
         
+    # ------------------------------------------------------------------
+    # Tool Registry access helpers
+    # ------------------------------------------------------------------
+
+    def _use_tool(self, tool_name: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
+        """Execute a registered tool by name.
+
+        Delegates to the ToolRegistry injected via ``initialize(context)``.
+        Returns ``None`` when the registry is unavailable or the tool is
+        not found, allowing callers to fall back gracefully.
+
+        Args:
+            tool_name: Name of the tool in the ToolRegistry.
+            **kwargs: Parameters forwarded to ``Tool.run()``.
+
+        Returns:
+            Dict with ``success``, ``output``, ``error``, and
+            ``execution_time_ms`` keys, or ``None`` if the tool cannot
+            be resolved.
+        """
+        if self._tool_registry is None:
+            self._log("debug", f"Tool registry unavailable, cannot use tool '{tool_name}'")
+            return None
+
+        tool = self._tool_registry.get(tool_name)
+        if tool is None:
+            self._log("warning", f"Tool '{tool_name}' not found in registry")
+            return None
+
+        try:
+            result = tool.run(**kwargs)
+            return result.to_dict()
+        except Exception as exc:
+            self._log("error", f"Tool '{tool_name}' raised an exception: {exc}")
+            return {"success": False, "output": None, "error": str(exc), "execution_time_ms": 0, "metadata": {}}
+
+    def _has_tool(self, tool_name: str) -> bool:
+        """Check whether a named tool is available in the registry."""
+        if self._tool_registry is None:
+            return False
+        return self._tool_registry.get(tool_name) is not None
+
+    def _list_tools(self) -> list[str]:
+        """Return the names of all tools currently registered."""
+        if self._tool_registry is None:
+            return []
+        return [t.metadata.name for t in self._tool_registry.list_tools()]
+
+    # ------------------------------------------------------------------
+    # Code context helpers
+    # ------------------------------------------------------------------
+
     def _extract_code_context(
         self, file_paths: List[str], keywords: List[str],
         budget_chars: int = 2000,

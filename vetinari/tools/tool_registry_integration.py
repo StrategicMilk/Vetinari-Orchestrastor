@@ -505,10 +505,30 @@ class GeneratePlanToolWrapper(Tool):
             )
 
 
+def _make_file_tool() -> Optional[Tool]:
+    """Lazily create a FileOperationsTool instance."""
+    try:
+        from vetinari.tools.file_tool import FileOperationsTool
+        return FileOperationsTool()
+    except Exception as e:
+        logger.debug("FileOperationsTool unavailable: %s", e)
+        return None
+
+
+def _make_git_tool() -> Optional[Tool]:
+    """Lazily create a GitOperationsTool instance."""
+    try:
+        from vetinari.tools.git_tool import GitOperationsTool
+        return GitOperationsTool()
+    except Exception as e:
+        logger.debug("GitOperationsTool unavailable: %s", e)
+        return None
+
+
 def register_all_tools():
     """Register all tools in the global registry."""
     registry = get_tool_registry()
-    
+
     # List of tool instances to register
     tools = [
         WebSearchToolWrapper(),
@@ -519,6 +539,12 @@ def register_all_tools():
         ModelSelectToolWrapper(),
         GeneratePlanToolWrapper(),
     ]
+
+    # Concrete tools (file I/O, git) — may fail gracefully
+    for factory in (_make_file_tool, _make_git_tool):
+        tool = factory()
+        if tool is not None:
+            tools.append(tool)
     
     # Register each tool
     for tool in tools:

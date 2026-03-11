@@ -534,7 +534,7 @@ class AgentGraph:
 
         # ----- Phase 7.9H: Permission enforcement before execution -----
         try:
-            from vetinari.execution_context import get_context_manager, ToolPermission
+            from vetinari.execution_context import get_context_manager, ToolPermission, ExecutionMode
             ctx_mgr = get_context_manager()
             ctx_mgr.enforce_permission(
                 ToolPermission.MODEL_INFERENCE,
@@ -583,7 +583,23 @@ class AgentGraph:
                     f"[AgentGraph] Executing {task.id} with {agent_type.value} "
                     f"(attempt {attempt + 1}/{node.max_retries + 1})"
                 )
-                result = agent.execute(agent_task)
+                # Switch to EXECUTION mode so tool permission checks pass
+                try:
+                    from vetinari.execution_context import get_context_manager as _get_ctx, ExecutionMode as _ExecMode
+                    _ctx_mgr = _get_ctx()
+                    _exec_ctx = _ctx_mgr.temporary_mode(_ExecMode.EXECUTION, task_id=task.id)
+                    _exec_ctx.__enter__()
+                except Exception:
+                    _exec_ctx = None  # Context manager unavailable — degrade gracefully
+
+                try:
+                    result = agent.execute(agent_task)
+                finally:
+                    if _exec_ctx is not None:
+                        try:
+                            _exec_ctx.__exit__(None, None, None)
+                        except Exception:
+                            pass
 
                 # Check goal adherence
                 if self._goal_tracker and result.success:
