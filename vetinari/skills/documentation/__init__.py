@@ -42,8 +42,8 @@ class DocumentationSkill(Tool):
     def _get_agent(self):
         if self._agent is None:
             try:
-                from vetinari.agents.documentation_agent import get_documentation_agent
-                self._agent = get_documentation_agent()
+                from vetinari.agents.consolidated.operations_agent import get_operations_agent
+                self._agent = get_operations_agent()
             except Exception as e:
                 logger.warning("DocumentationAgent unavailable: %s", e)
         return self._agent

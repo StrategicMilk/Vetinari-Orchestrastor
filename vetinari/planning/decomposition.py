@@ -134,7 +134,7 @@ class DecompositionEngine:
                 "template_id": "data_pipeline",
                 "name": "Data Pipeline",
                 "keywords": ["data", "pipeline", "etl", "database", "sql"],
-                "agent_type": "DATA_ENGINEER",
+                "agent_type": "CONSOLIDATED_RESEARCHER",
                 "dod_level": "Standard",
                 "subtasks": [
                     "Define data schema and models",
@@ -156,6 +156,186 @@ class DecompositionEngine:
                     "Gather sources and references",
                     "Analyze and synthesize findings",
                     "Write research report",
+                ],
+            },
+            {
+                "template_id": "cli_tool",
+                "name": "CLI Tool",
+                "keywords": ["cli", "command", "terminal", "argparse", "click", "typer", "shell", "script"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define commands, flags, and argument schema",
+                    "Implement argument parsing and validation",
+                    "Implement core command logic",
+                    "Add help text, usage examples, and error messages",
+                    "Write unit and integration tests",
+                    "Package and document installation instructions",
+                ],
+            },
+            {
+                "template_id": "api_service",
+                "name": "REST API Service",
+                "keywords": ["api", "rest", "endpoint", "service", "fastapi", "flask", "django", "http"],
+                "agent_type": "BUILDER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Define API contract, endpoints, and data models",
+                    "Implement authentication and authorization",
+                    "Implement endpoint handlers and business logic",
+                    "Add request validation and error handling",
+                    "Write unit and integration tests",
+                    "Generate OpenAPI documentation",
+                    "Configure deployment and environment settings",
+                ],
+            },
+            {
+                "template_id": "library",
+                "name": "Reusable Library",
+                "keywords": ["library", "package", "module", "sdk", "framework", "reusable", "pypi", "npm"],
+                "agent_type": "BUILDER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Design public API and interface contracts",
+                    "Implement core functionality",
+                    "Write comprehensive unit and integration tests",
+                    "Write API reference documentation and usage examples",
+                    "Configure packaging, versioning, and build tooling",
+                    "Publish to package registry",
+                ],
+            },
+            {
+                "template_id": "document_generation",
+                "name": "Document Generation",
+                "keywords": ["document", "report", "generate", "pdf", "markdown", "template", "export"],
+                "agent_type": "OPERATIONS",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define document structure and outline",
+                    "Gather and validate source data or content",
+                    "Draft document sections",
+                    "Review and revise for accuracy and clarity",
+                    "Apply formatting, styling, and branding",
+                    "Export and validate final output",
+                ],
+            },
+            {
+                "template_id": "creative_writing",
+                "name": "Creative Writing",
+                "keywords": ["creative", "writing", "story", "content", "blog", "article", "fiction", "copy"],
+                "agent_type": "OPERATIONS",
+                "dod_level": "Light",
+                "subtasks": [
+                    "Brainstorm concepts, themes, and angle",
+                    "Create detailed outline and structure",
+                    "Write first draft",
+                    "Revise for voice, pacing, and coherence",
+                    "Polish grammar, style, and final presentation",
+                ],
+            },
+            {
+                "template_id": "testing",
+                "name": "Test Suite Development",
+                "keywords": ["test", "testing", "qa", "coverage", "pytest", "jest", "unittest", "tdd"],
+                "agent_type": "QUALITY",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define test plan and coverage goals",
+                    "Write unit tests for core components",
+                    "Write integration tests for system boundaries",
+                    "Add edge case and negative path tests",
+                    "Measure coverage and close gaps",
+                    "Integrate tests into CI pipeline",
+                ],
+            },
+            {
+                "template_id": "refactoring",
+                "name": "Code Refactoring",
+                "keywords": ["refactor", "refactoring", "cleanup", "technical debt", "restructure", "reorganize"],
+                "agent_type": "BUILDER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Analyze codebase and identify problem areas",
+                    "Define refactoring plan and risk assessment",
+                    "Apply incremental structural changes",
+                    "Verify existing tests still pass after each change",
+                    "Update documentation and comments",
+                    "Perform final review and cleanup",
+                ],
+            },
+            {
+                "template_id": "debugging",
+                "name": "Bug Investigation and Fix",
+                "keywords": ["bug", "debug", "fix", "error", "crash", "issue", "defect", "regression"],
+                "agent_type": "QUALITY",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Reproduce the bug reliably with a minimal test case",
+                    "Diagnose root cause through logs and code inspection",
+                    "Implement targeted fix",
+                    "Write regression test to prevent recurrence",
+                    "Verify fix across affected scenarios",
+                    "Document root cause and resolution",
+                ],
+            },
+            {
+                "template_id": "migration",
+                "name": "System or Data Migration",
+                "keywords": ["migration", "migrate", "upgrade", "port", "convert", "transfer", "move"],
+                "agent_type": "CONSOLIDATED_RESEARCHER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Inventory current state and map to target state",
+                    "Create migration plan with rollback strategy",
+                    "Implement migration scripts or procedures",
+                    "Run migration in staging and validate data integrity",
+                    "Execute production migration with monitoring",
+                    "Decommission legacy resources and update documentation",
+                ],
+            },
+            {
+                "template_id": "security_audit",
+                "name": "Security Audit",
+                "keywords": ["security", "audit", "vulnerability", "penetration", "pentest", "cve", "owasp"],
+                "agent_type": "QUALITY",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Define scope and threat model",
+                    "Run automated vulnerability scans",
+                    "Manually analyze authentication, authorization, and data handling",
+                    "Prioritize findings by severity and exploitability",
+                    "Remediate critical and high-severity issues",
+                    "Verify remediations and produce final report",
+                ],
+            },
+            {
+                "template_id": "data_analysis",
+                "name": "Data Analysis Project",
+                "keywords": ["analysis", "analytics", "dataset", "statistics", "visualization", "insight", "notebook"],
+                "agent_type": "RESEARCHER",
+                "dod_level": "Standard",
+                "subtasks": [
+                    "Define analysis objectives and success metrics",
+                    "Collect and load raw data",
+                    "Clean, normalize, and validate data quality",
+                    "Perform exploratory analysis and statistical tests",
+                    "Create visualizations and charts",
+                    "Write findings report with recommendations",
+                ],
+            },
+            {
+                "template_id": "infrastructure",
+                "name": "Infrastructure and DevOps",
+                "keywords": ["infrastructure", "devops", "deployment", "kubernetes", "terraform", "ansible", "ci", "cd", "cloud"],
+                "agent_type": "BUILDER",
+                "dod_level": "Hard",
+                "subtasks": [
+                    "Define infrastructure requirements and architecture",
+                    "Write provisioning scripts or IaC configuration",
+                    "Configure networking, security groups, and IAM",
+                    "Deploy to staging and run smoke tests",
+                    "Set up monitoring, alerting, and logging",
+                    "Document runbooks and maintenance procedures",
                 ],
             },
         ]
@@ -201,7 +381,7 @@ class DecompositionEngine:
         max_depth = max(MIN_MAX_DEPTH, min(max_depth, MAX_MAX_DEPTH))
 
         if depth >= max_depth:
-            logger.warning(f"Max decomposition depth {max_depth} reached for task: {task_prompt[:50]}")
+            logger.warning("Max decomposition depth %s reached for task: %s", max_depth, task_prompt[:50])
             return []
 
         try:
@@ -244,7 +424,7 @@ class DecompositionEngine:
                 ))
                 return subtasks
         except Exception as e:
-            logger.warning(f"LLM decomposition failed, using keyword fallback: {e}")
+            logger.warning("LLM decomposition failed, using keyword fallback: %s", e)
 
         # Keyword fallback
         return self._keyword_decompose(task_prompt, parent_task_id, depth)
@@ -270,21 +450,21 @@ class DecompositionEngine:
                 "acceptance_criteria": f"{desc} is complete",
             }
 
-        s1 = make_subtask("Analyze requirements and define scope", "EXPLORER")
+        s1 = make_subtask("Analyze requirements and define scope", "CONSOLIDATED_RESEARCHER")
         subtasks.append(s1)
 
         if any(kw in task_lower for kw in ["code", "implement", "build", "develop"]):
             s2 = make_subtask("Implement core functionality", "BUILDER", [s1["subtask_id"]])
             subtasks.append(s2)
-            s3 = make_subtask("Write tests", "TEST_AUTOMATION", [s2["subtask_id"]])
+            s3 = make_subtask("Write tests", "QUALITY", [s2["subtask_id"]])
             subtasks.append(s3)
 
         if any(kw in task_lower for kw in ["ui", "frontend", "web", "interface"]):
             prev = subtasks[-1]["subtask_id"] if subtasks else s1["subtask_id"]
-            subtasks.append(make_subtask("Design and implement UI", "UI_PLANNER", [prev]))
+            subtasks.append(make_subtask("Design and implement UI", "CONSOLIDATED_RESEARCHER", [prev]))
 
         last = subtasks[-1]["subtask_id"] if subtasks else s1["subtask_id"]
-        subtasks.append(make_subtask("Review and document", "EVALUATOR", [last]))
+        subtasks.append(make_subtask("Review and document", "QUALITY", [last]))
 
         return subtasks
 

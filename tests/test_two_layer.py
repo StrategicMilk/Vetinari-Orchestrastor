@@ -1546,7 +1546,7 @@ class TestStructural(unittest.TestCase):
         mod1 = MagicMock()
         mod1.get_planner_agent = MagicMock(return_value=a1)
         mod2 = MagicMock()
-        mod2.get_explorer_agent = MagicMock(return_value=a2)
+        mod2.get_builder_agent = MagicMock(return_value=a2)
 
         def fake_import(name):
             if "planner" in name:
@@ -1555,7 +1555,7 @@ class TestStructural(unittest.TestCase):
 
         with patch("importlib.import_module", side_effect=fake_import):
             r1 = orch._get_agent("PLANNER")
-            r2 = orch._get_agent("EXPLORER")
+            r2 = orch._get_agent("BUILDER")
 
         self.assertIs(r1, a1)
         self.assertIs(r2, a2)

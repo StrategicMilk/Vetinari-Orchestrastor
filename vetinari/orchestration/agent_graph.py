@@ -108,64 +108,40 @@ class AgentGraph:
             return
 
         from vetinari.agents import (
-            # Core
             get_planner_agent,
-            get_explorer_agent,
-            get_oracle_agent,
-            # Core expansion
-            get_librarian_agent,
-            get_researcher_agent,
-            get_evaluator_agent,
-            get_synthesizer_agent,
             get_builder_agent,
-            get_ui_planner_agent,
-            # Extended
-            get_security_auditor_agent,
-            get_data_engineer_agent,
-            get_documentation_agent,
-            get_cost_planner_agent,
-            get_test_automation_agent,
-            get_experimentation_manager_agent,
-            # Meta / interaction
-            get_improvement_agent,
-            get_user_interaction_agent,
-            # Operations (may be None if not installed)
-            get_devops_agent,
-            get_version_control_agent,
-            get_error_recovery_agent,
-            get_context_manager_agent,
-            # Consolidated agents (Phase 3)
-            get_orchestrator_agent,
             get_consolidated_researcher_agent,
             get_consolidated_oracle_agent,
+            get_orchestrator_agent,
             get_architect_agent,
             get_quality_agent,
             get_operations_agent,
         )
 
-        # --- Legacy agents (21) ---
+        # --- All agent types mapped to consolidated getters ---
         _agent_map: List[tuple] = [
             (AgentType.PLANNER,                get_planner_agent),
-            (AgentType.EXPLORER,               get_explorer_agent),
-            (AgentType.ORACLE,                 get_oracle_agent),
-            (AgentType.LIBRARIAN,              get_librarian_agent),
-            (AgentType.RESEARCHER,             get_researcher_agent),
-            (AgentType.EVALUATOR,              get_evaluator_agent),
-            (AgentType.SYNTHESIZER,            get_synthesizer_agent),
             (AgentType.BUILDER,                get_builder_agent),
-            (AgentType.UI_PLANNER,             get_ui_planner_agent),
-            (AgentType.SECURITY_AUDITOR,       get_security_auditor_agent),
-            (AgentType.DATA_ENGINEER,          get_data_engineer_agent),
-            (AgentType.DOCUMENTATION_AGENT,    get_documentation_agent),
-            (AgentType.COST_PLANNER,           get_cost_planner_agent),
-            (AgentType.TEST_AUTOMATION,        get_test_automation_agent),
-            (AgentType.EXPERIMENTATION_MANAGER, get_experimentation_manager_agent),
-            (AgentType.IMPROVEMENT,            get_improvement_agent),
-            (AgentType.USER_INTERACTION,       get_user_interaction_agent),
-            (AgentType.DEVOPS,                 get_devops_agent),
-            (AgentType.VERSION_CONTROL,        get_version_control_agent),
-            (AgentType.ERROR_RECOVERY,         get_error_recovery_agent),
-            (AgentType.CONTEXT_MANAGER,        get_context_manager_agent),
+            (AgentType.EXPLORER,               get_consolidated_researcher_agent),
+            (AgentType.LIBRARIAN,              get_consolidated_researcher_agent),
+            (AgentType.RESEARCHER,             get_consolidated_researcher_agent),
+            (AgentType.UI_PLANNER,             get_consolidated_researcher_agent),
+            (AgentType.DATA_ENGINEER,          get_consolidated_researcher_agent),
+            (AgentType.ORACLE,                 get_consolidated_oracle_agent),
+            (AgentType.EVALUATOR,              get_quality_agent),
+            (AgentType.SECURITY_AUDITOR,       get_quality_agent),
+            (AgentType.TEST_AUTOMATION,        get_quality_agent),
+            (AgentType.SYNTHESIZER,            get_operations_agent),
+            (AgentType.DOCUMENTATION_AGENT,    get_operations_agent),
+            (AgentType.COST_PLANNER,           get_operations_agent),
+            (AgentType.EXPERIMENTATION_MANAGER, get_operations_agent),
+            (AgentType.IMPROVEMENT,            get_operations_agent),
+            (AgentType.USER_INTERACTION,       get_operations_agent),
+            (AgentType.DEVOPS,                 get_operations_agent),
+            (AgentType.VERSION_CONTROL,        get_operations_agent),
+            (AgentType.ERROR_RECOVERY,         get_operations_agent),
+            (AgentType.CONTEXT_MANAGER,        get_planner_agent),
+            (AgentType.IMAGE_GENERATOR,        get_builder_agent),
         ]
 
         # --- Consolidated multi-mode agents (Phase 3: 6 agents) ---

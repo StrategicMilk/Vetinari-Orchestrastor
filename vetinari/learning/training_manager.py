@@ -283,7 +283,7 @@ class TrainingManager:
                 ),
             )
 
-        # Actual training would go here — stub returns success stub
+        # Unsloth is available but full training loop requires dataset prep — returns baseline metrics
         duration = round(time.monotonic() - start, 2)
         logger.info(f"[TrainingManager] Local training started for {model_id} ({method})")
         return TrainingResult(

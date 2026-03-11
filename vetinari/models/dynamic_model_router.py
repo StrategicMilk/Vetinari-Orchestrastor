@@ -26,6 +26,8 @@ from enum import Enum
 from pathlib import Path
 import random
 
+from vetinari.types import ModelProvider  # canonical enum from types.py
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,19 +50,13 @@ class TaskType(Enum):
     SUMMARIZATION = "summarization"
     TRANSLATION = "translation"
     GENERAL = "general"
-
-
-class ModelProvider(Enum):
-    """Model provider types."""
-    LOCAL = "local"          # LM Studio, Ollama, etc.
-    LMSTUDIO = "lmstudio"   # explicit LM Studio tag (from ModelRelay)
-    OLLAMA = "ollama"
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE = "google"
-    HUGGINGFACE = "huggingface"
-    REPLICATE = "replicate"
-    OTHER = "other"
+    # Phase 7 additions
+    CREATIVE_WRITING = "creative_writing"
+    SECURITY_AUDIT = "security_audit"
+    DEVOPS = "devops"
+    IMAGE_GENERATION = "image_generation"
+    COST_ANALYSIS = "cost_analysis"
+    SPECIFICATION = "specification"
 
 
 class ModelStatus(Enum):
@@ -1082,10 +1078,28 @@ model_relay = _LazyModelRelay()
 # =====================================================================
 
 def infer_task_type(description: str) -> TaskType:
-    """Infer task type from description."""
+    """Infer task type from description using keyword matching.
+
+    Order matters — more specific categories are checked before general ones
+    so that "security audit" matches SECURITY_AUDIT, not just ANALYSIS.
+    """
     desc_lower = description.lower()
 
-    if any(kw in desc_lower for kw in ["plan", "strategy", "workflow", "design", "architect"]):
+    # Phase 7: check specific categories first (before general ones)
+    if any(kw in desc_lower for kw in ["security", "audit", "vulnerability", "pentest", "cve", "owasp"]):
+        return TaskType.SECURITY_AUDIT
+    elif any(kw in desc_lower for kw in ["deploy", "ci/cd", "docker", "kubernetes", "pipeline", "devops", "terraform"]):
+        return TaskType.DEVOPS
+    elif any(kw in desc_lower for kw in ["logo", "icon", "mockup", "diagram", "image", "illustration"]):
+        return TaskType.IMAGE_GENERATION
+    elif any(kw in desc_lower for kw in ["cost", "budget", "pricing", "expense", "billing"]):
+        return TaskType.COST_ANALYSIS
+    elif any(kw in desc_lower for kw in ["specification", "spec", "requirements", "acceptance criteria"]):
+        return TaskType.SPECIFICATION
+    elif any(kw in desc_lower for kw in ["story", "poem", "fiction", "narrative", "campaign", "creative writ"]):
+        return TaskType.CREATIVE_WRITING
+    # Original categories
+    elif any(kw in desc_lower for kw in ["plan", "strategy", "workflow", "design", "architect"]):
         return TaskType.PLANNING
     elif any(kw in desc_lower for kw in ["analyze", "analysis", "research", "investigate"]):
         return TaskType.ANALYSIS
@@ -1093,15 +1107,15 @@ def infer_task_type(description: str) -> TaskType:
         return TaskType.CODING
     elif any(kw in desc_lower for kw in ["review", "refactor", "improve", "optimize"]):
         return TaskType.CODE_REVIEW
-    elif any(kw in desc_lower for kw in ["test", "testing", "spec", "assert"]):
+    elif any(kw in desc_lower for kw in ["test", "testing", "assert"]):
         return TaskType.TESTING
     elif any(kw in desc_lower for kw in ["document", "readme", "docs", "comment", "explain"]):
         return TaskType.DOCUMENTATION
     elif any(kw in desc_lower for kw in ["reason", "logic", "solve", "problem", "math"]):
         return TaskType.REASONING
-    elif any(kw in desc_lower for kw in ["story", "poem", "creative", "write", "article"]):
+    elif any(kw in desc_lower for kw in ["creative", "write", "article"]):
         return TaskType.CREATIVE
-    elif any(kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl"]):
+    elif any(kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl", "database", "schema", "sql"]):
         return TaskType.DATA_PROCESSING
     elif any(kw in desc_lower for kw in ["search", "find", "look", "query", "web"]):
         return TaskType.WEB_SEARCH

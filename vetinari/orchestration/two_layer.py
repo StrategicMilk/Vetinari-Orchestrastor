@@ -140,27 +140,87 @@ class TwoLayerOrchestrator:
             "vetinari.agents.consolidated.operations_agent",
             "get_operations_agent",
         ),
-        # ── Legacy aliases (routed via compat shim) ──
-        "EXPLORER": ("vetinari.agents.compat", "get_explorer_agent"),
-        "LIBRARIAN": ("vetinari.agents.compat", "get_librarian_agent"),
-        "RESEARCHER": ("vetinari.agents.compat", "get_researcher_agent"),
-        "ORACLE": ("vetinari.agents.compat", "get_oracle_agent"),
-        "EVALUATOR": ("vetinari.agents.compat", "get_evaluator_agent"),
-        "SYNTHESIZER": ("vetinari.agents.compat", "get_synthesizer_agent"),
-        "UI_PLANNER": ("vetinari.agents.compat", "get_ui_planner_agent"),
-        "SECURITY_AUDITOR": ("vetinari.agents.compat", "get_security_auditor_agent"),
-        "DATA_ENGINEER": ("vetinari.agents.compat", "get_data_engineer_agent"),
-        "DOCUMENTATION_AGENT": ("vetinari.agents.compat", "get_documentation_agent"),
-        "COST_PLANNER": ("vetinari.agents.compat", "get_cost_planner_agent"),
-        "TEST_AUTOMATION": ("vetinari.agents.compat", "get_test_automation_agent"),
-        "EXPERIMENTATION_MANAGER": ("vetinari.agents.compat", "get_experimentation_manager_agent"),
-        "IMPROVEMENT": ("vetinari.agents.compat", "get_improvement_agent"),
-        "USER_INTERACTION": ("vetinari.agents.compat", "get_user_interaction_agent"),
-        "DEVOPS": ("vetinari.agents.compat", "get_devops_agent"),
-        "VERSION_CONTROL": ("vetinari.agents.compat", "get_version_control_agent"),
-        "ERROR_RECOVERY": ("vetinari.agents.compat", "get_error_recovery_agent"),
-        "CONTEXT_MANAGER": ("vetinari.agents.compat", "get_context_manager_agent"),
-        "IMAGE_GENERATOR": ("vetinari.agents.compat", "get_image_generator_agent"),
+        # ── Legacy aliases (redirected to consolidated agents) ──
+        "EXPLORER": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
+        ),
+        "LIBRARIAN": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
+        ),
+        "UI_PLANNER": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
+        ),
+        "DATA_ENGINEER": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
+        ),
+        "EVALUATOR": (
+            "vetinari.agents.consolidated.quality_agent",
+            "get_quality_agent",
+        ),
+        "SECURITY_AUDITOR": (
+            "vetinari.agents.consolidated.quality_agent",
+            "get_quality_agent",
+        ),
+        "TEST_AUTOMATION": (
+            "vetinari.agents.consolidated.quality_agent",
+            "get_quality_agent",
+        ),
+        "SYNTHESIZER": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "DOCUMENTATION_AGENT": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "RESEARCHER": (
+            "vetinari.agents.consolidated.researcher_agent",
+            "get_consolidated_researcher_agent",
+        ),
+        "ORACLE": (
+            "vetinari.agents.consolidated.oracle_agent",
+            "get_consolidated_oracle_agent",
+        ),
+        "COST_PLANNER": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "EXPERIMENTATION_MANAGER": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "IMPROVEMENT": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "USER_INTERACTION": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "DEVOPS": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "VERSION_CONTROL": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "ERROR_RECOVERY": (
+            "vetinari.agents.consolidated.operations_agent",
+            "get_operations_agent",
+        ),
+        "CONTEXT_MANAGER": (
+            "vetinari.agents.planner_agent",
+            "get_planner_agent",
+        ),
+        "IMAGE_GENERATOR": (
+            "vetinari.agents.builder_agent",
+            "get_builder_agent",
+        ),
     }
 
     def _get_agent(self, agent_type_str: str):

@@ -1272,7 +1272,7 @@ class TestDataEngineerSkill:
         # _get_agent will fail since the real agent module isn't available
         skill._agent = None
         # Mock the import to fail
-        with patch.dict(sys.modules, {"vetinari.agents.data_engineer_agent": None}):
+        with patch.dict(sys.modules, {"vetinari.agents.consolidated.researcher_agent": None}):
             result = skill.execute(task="build pipeline")
         assert result.success is False
         assert "not available" in result.error.lower()
@@ -1354,15 +1354,15 @@ class TestDataEngineerSkill:
             warnings.simplefilter("ignore", DeprecationWarning)
             skill = de_mod.DataEngineerSkill()
         mock_agent = MagicMock()
-        mock_de_mod = MagicMock()
-        mock_de_mod.get_data_engineer_agent.return_value = mock_agent
-        with patch.dict(sys.modules, {"vetinari.agents.data_engineer_agent": mock_de_mod}):
+        mock_researcher_mod = MagicMock()
+        mock_researcher_mod.get_consolidated_researcher_agent.return_value = mock_agent
+        with patch.dict(sys.modules, {"vetinari.agents.consolidated.researcher_agent": mock_researcher_mod}):
             a1 = skill._get_agent()
             a2 = skill._get_agent()
         assert a1 is a2
         assert a1 is mock_agent
-        # get_data_engineer_agent called only once due to caching
-        assert mock_de_mod.get_data_engineer_agent.call_count == 1
+        # get_consolidated_researcher_agent called only once due to caching
+        assert mock_researcher_mod.get_consolidated_researcher_agent.call_count == 1
 
     def test_get_agent_returns_none_on_import_error(self, data_engineer_env):
         de_mod, _, _ = data_engineer_env
@@ -1372,7 +1372,7 @@ class TestDataEngineerSkill:
         # Force a fresh attempt by ensuring _agent is None
         skill._agent = None
         # Simulate import failure
-        with patch.dict(sys.modules, {"vetinari.agents.data_engineer_agent": None}):
+        with patch.dict(sys.modules, {"vetinari.agents.consolidated.researcher_agent": None}):
             agent = skill._get_agent()
         assert agent is None
 

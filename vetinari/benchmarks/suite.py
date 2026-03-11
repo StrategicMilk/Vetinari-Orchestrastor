@@ -112,10 +112,10 @@ class BenchmarkSuite:
             expected_keys=["scaffold_code", "tests"],
         ))
 
-        # EVALUATOR: Code review
+        # QUALITY: Code review
         cases.append(BenchmarkCase(
             case_id="evaluator_review_001",
-            agent_type="EVALUATOR",
+            agent_type="QUALITY",
             task_type="review",
             description="Review code with eval/exec",
             input="Review: def run(code): eval(code)",
@@ -134,10 +134,10 @@ class BenchmarkSuite:
             expected_keys=["findings", "recommendations"],
         ))
 
-        # SECURITY_AUDITOR: Security scan
+        # QUALITY: Security scan
         cases.append(BenchmarkCase(
             case_id="security_audit_001",
-            agent_type="SECURITY_AUDITOR",
+            agent_type="QUALITY",
             task_type="analysis",
             description="Audit SQL injection pattern",
             input="Review: query = f'SELECT * FROM users WHERE id = {user_id}'",
@@ -156,10 +156,10 @@ class BenchmarkSuite:
             expected_keys=["test_scripts", "test_files"],
         ))
 
-        # DOCUMENTATION_AGENT: Doc generation
+        # OPERATIONS: Doc generation
         cases.append(BenchmarkCase(
             case_id="docs_gen_001",
-            agent_type="DOCUMENTATION_AGENT",
+            agent_type="OPERATIONS",
             task_type="documentation",
             description="Generate API docs",
             input="Document this API endpoint: POST /api/users (creates a user)",

@@ -69,26 +69,11 @@ class CapabilityFinding:
 
 _AGENT_MODULES: Dict[str, str] = {
     "PLANNER":                  "vetinari.agents.planner_agent.PlannerAgent",
-    "EXPLORER":                 "vetinari.agents.explorer_agent.ExplorerAgent",
-    "LIBRARIAN":                "vetinari.agents.librarian_agent.LibrarianAgent",
-    "ORACLE":                   "vetinari.agents.oracle_agent.OracleAgent",
-    "RESEARCHER":               "vetinari.agents.researcher_agent.ResearcherAgent",
-    "EVALUATOR":                "vetinari.agents.evaluator_agent.EvaluatorAgent",
-    "SYNTHESIZER":              "vetinari.agents.synthesizer_agent.SynthesizerAgent",
+    "CONSOLIDATED_RESEARCHER":  "vetinari.agents.consolidated.researcher_agent.ConsolidatedResearcherAgent",
+    "CONSOLIDATED_ORACLE":      "vetinari.agents.consolidated.oracle_agent.ConsolidatedOracleAgent",
     "BUILDER":                  "vetinari.agents.builder_agent.BuilderAgent",
-    "UI_PLANNER":               "vetinari.agents.ui_planner_agent.UIPlannerAgent",
-    "SECURITY_AUDITOR":         "vetinari.agents.security_auditor_agent.SecurityAuditorAgent",
-    "DATA_ENGINEER":            "vetinari.agents.data_engineer_agent.DataEngineerAgent",
-    "DOCUMENTATION_AGENT":      "vetinari.agents.documentation_agent.DocumentationAgent",
-    "COST_PLANNER":             "vetinari.agents.cost_planner_agent.CostPlannerAgent",
-    "TEST_AUTOMATION":          "vetinari.agents.test_automation_agent.TestAutomationAgent",
-    "EXPERIMENTATION_MANAGER":  "vetinari.agents.experimentation_manager_agent.ExperimentationManagerAgent",
-    "IMPROVEMENT":              "vetinari.agents.improvement_agent.ImprovementAgent",
-    "USER_INTERACTION":         "vetinari.agents.user_interaction_agent.UserInteractionAgent",
-    "DEVOPS":                   "vetinari.agents.devops_agent.DevOpsAgent",
-    "VERSION_CONTROL":          "vetinari.agents.version_control_agent.VersionControlAgent",
-    "ERROR_RECOVERY":           "vetinari.agents.error_recovery_agent.ErrorRecoveryAgent",
-    "CONTEXT_MANAGER":          "vetinari.agents.context_manager_agent.ContextManagerAgent",
+    "QUALITY":                  "vetinari.agents.consolidated.quality_agent.QualityAgent",
+    "OPERATIONS":               "vetinari.agents.consolidated.operations_agent.ConsolidatedOperationsAgent",
 }
 
 

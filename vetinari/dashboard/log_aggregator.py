@@ -91,8 +91,11 @@ class BackendBase:
         """Apply backend-specific configuration."""
 
     def send(self, records: List[LogRecord]) -> bool:
-        """Send a batch of records. Returns True on success."""
-        raise NotImplementedError
+        """Send a batch of records. Returns True on success.
+
+        Subclasses must override this method.
+        """
+        raise NotImplementedError(f"{type(self).__name__} must implement send()")
 
     def close(self) -> None:
         """Release any resources held by this backend."""

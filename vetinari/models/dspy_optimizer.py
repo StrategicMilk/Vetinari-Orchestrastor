@@ -245,13 +245,12 @@ class DSPyOptimizer:
         agent_task_pairs = [
             ("PLANNER", "planning"),
             ("BUILDER", "coding"),
-            ("EVALUATOR", "review"),
-            ("RESEARCHER", "research"),
-            ("EXPLORER", "coding"),
-            ("SECURITY_AUDITOR", "analysis"),
-            ("TEST_AUTOMATION", "testing"),
-            ("DOCUMENTATION_AGENT", "documentation"),
-            ("DATA_ENGINEER", "coding"),
+            ("QUALITY", "review"),
+            ("CONSOLIDATED_RESEARCHER", "research"),
+            ("CONSOLIDATED_RESEARCHER", "coding"),
+            ("QUALITY", "analysis"),
+            ("QUALITY", "testing"),
+            ("OPERATIONS", "documentation"),
             ("DEVOPS", "coding"),
         ]
         results = []

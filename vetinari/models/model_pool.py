@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 
 CLOUD_PROVIDERS = {
     "huggingface_inference": {
@@ -102,7 +104,7 @@ class ModelPool:
             try:
                 # Try to get models from LM Studio /v1/models endpoint (with auth if set)
                 models_endpoint = f"{self.host}/v1/models"
-                logging.debug(f"[Model Discovery] Attempt {self._discovery_retry_count}/{self._max_discovery_retries} at {models_endpoint}")
+                logging.debug("[Model Discovery] Attempt %s/%s at %s", self._discovery_retry_count, self._max_discovery_retries, models_endpoint)
                 
                 resp = self.session.get(models_endpoint, timeout=5)
                 resp.raise_for_status()
@@ -130,7 +132,7 @@ class ModelPool:
                     
                     # Skip models that exceed memory budget
                     if mem > self.memory_budget_gb:
-                        logging.info(f"[Model Discovery] Skipping {model_id} - exceeds memory budget ({mem}GB > {self.memory_budget_gb}GB)")
+                        logging.info("[Model Discovery] Skipping %s - exceeds memory budget (%sGB > %sGB)", model_id, mem, self.memory_budget_gb)
                         continue
                     
                     model = {
@@ -145,7 +147,7 @@ class ModelPool:
                     self.models.append(model)
                     discovered_count += 1
                 
-                logging.info(f"[Model Discovery] SUCCESS: Discovered {discovered_count} models from {self.host}")
+                logging.info("[Model Discovery] SUCCESS: Discovered %s models from %s", discovered_count, self.host)
                 self._discovery_failed = False
                 self._fallback_active = False
                 self._last_known_good = list(self.models)  # Save for next failure
@@ -153,36 +155,36 @@ class ModelPool:
                 
             except requests.exceptions.Timeout:
                 error_msg = f"Model discovery timeout on attempt {self._discovery_retry_count}/{self._max_discovery_retries}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logging.warning("[Model Discovery] %s", error_msg)
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
-                
+
                 # Calculate backoff delay
                 if attempt < self._max_discovery_retries - 1:
                     delay = self._discovery_retry_delay_base * (2 ** attempt)  # Exponential backoff
                     delay = min(delay, 30)  # Cap at 30 seconds
-                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    logging.info("[Model Discovery] Retrying in %.1fs...", delay)
                     time.sleep(delay)
                     
             except requests.exceptions.ConnectionError as e:
                 error_msg = f"Connection error during model discovery (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logging.warning("[Model Discovery] %s", error_msg)
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
-                
+
                 # Calculate backoff delay
                 if attempt < self._max_discovery_retries - 1:
                     delay = self._discovery_retry_delay_base * (2 ** attempt)
                     delay = min(delay, 30)
-                    logging.info(f"[Model Discovery] Retrying in {delay:.1f}s...")
+                    logging.info("[Model Discovery] Retrying in %.1fs...", delay)
                     time.sleep(delay)
                     
             except Exception as e:
                 error_msg = f"Model discovery failed (attempt {self._discovery_retry_count}/{self._max_discovery_retries}): {str(e)}"
-                logging.warning(f"[Model Discovery] {error_msg}")
+                logging.warning("[Model Discovery] %s", error_msg)
                 self._last_discovery_error = error_msg
                 self._discovery_failed = True
-                
+
                 # For other errors, don't retry
                 break
         
@@ -190,15 +192,17 @@ class ModelPool:
         if self._discovery_failed and len(self.models) == 0:
             if _previous_models:
                 logging.warning(
-                    f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
-                    f"Using last-known-good ({len(_previous_models)} models)."
+                    "[Model Discovery] FAILED after %s attempts. "
+                    "Using last-known-good (%s models).",
+                    self._discovery_retry_count, len(_previous_models)
                 )
                 self.models = list(_previous_models)
                 self._fallback_active = True
             else:
                 logging.warning(
-                    f"[Model Discovery] FAILED after {self._discovery_retry_count} attempts. "
-                    f"Falling back to static config models."
+                    "[Model Discovery] FAILED after %s attempts. "
+                    "Falling back to static config models.",
+                    self._discovery_retry_count
                 )
                 self._fallback_active = True
 
@@ -209,9 +213,9 @@ class ModelPool:
 
         # Log final state
         if self._fallback_active:
-            logging.info(f"[Model Discovery] Using {len(self.models)} models (fallback active)")
+            logging.info("[Model Discovery] Using %s models (fallback active)", len(self.models))
         else:
-            logging.info(f"[Model Discovery] Available models: {len(self.models)}")
+            logging.info("[Model Discovery] Available models: %s", len(self.models))
     
     def get_discovery_health(self) -> Dict[str, Any]:
         """Get health information about model discovery."""
@@ -246,28 +250,75 @@ class ModelPool:
         latency = model.get("latency_estimate", 1000)
         latency_norm = max(0.0, 1.0 - (latency / 2000.0))
 
-        reliability = 0.8  # placeholder; could use history caching
+        # Reliability sourced from cost tracker analytics
+        reliability = self._get_model_reliability(model.get("id", ""))
 
         ctx_len = model.get("context_len", 2048)
         data_size = sum(len(str(x)) for x in task.get("inputs", []))
         context_fit = 1.0 if data_size <= ctx_len else max(0.0, ctx_len / max(1, data_size))
 
-        resource_load = 0.5  # placeholder
+        # Cost-efficiency score from analytics
+        cost_efficiency = self._get_cost_efficiency(model.get("id", ""))
 
-        w_cap = 0.35
-        w_lat = 0.25
+        w_cap = 0.30
+        w_lat = 0.20
         w_rel = 0.15
-        w_ctx = 0.15
+        w_ctx = 0.10
+        w_cost = 0.15
         w_res = 0.10
+
+        # Estimate resource load from model context usage
+        # Models using more of their context window are under heavier load
+        resource_load = min(1.0, data_size / max(1, ctx_len)) if ctx_len > 0 else 0.5
 
         score = (
             w_cap * cap_match +
             w_lat * latency_norm +
             w_rel * reliability +
             w_ctx * context_fit +
+            w_cost * cost_efficiency +
             w_res * (1.0 - resource_load)
         )
         return score
+
+    def _get_model_reliability(self, model_id: str) -> float:
+        """Get per-model reliability from feedback loop or SLA tracker."""
+        # Try per-model performance data first
+        try:
+            from vetinari.dynamic_model_router import get_dynamic_model_router
+            router = get_dynamic_model_router()
+            cache_key = f"{model_id}:general"
+            perf = router.get_performance_cache(cache_key)
+            if perf and "success_rate" in perf:
+                return min(1.0, perf["success_rate"])
+        except Exception:
+            logger.debug("Failed to get model reliability from dynamic router for %s", model_id, exc_info=True)
+        # Fall back to global SLA data
+        try:
+            from vetinari.analytics.sla import get_sla_tracker
+            report = get_sla_tracker().get_report("success-rate")
+            if report and report.total_samples > 0:
+                return min(1.0, report.current_value / 100.0)
+        except Exception:
+            logger.debug("Failed to get model reliability from SLA tracker for %s", model_id, exc_info=True)
+        return 0.8  # conservative prior for unknown models
+
+    def _get_cost_efficiency(self, model_id: str) -> float:
+        """Get cost efficiency score (1.0 = free/cheapest, 0.0 = most expensive)."""
+        try:
+            from vetinari.analytics.cost import get_cost_tracker
+            report = get_cost_tracker().get_report()
+            if report.total_requests > 0 and report.by_model:
+                model_costs = report.by_model
+                max_cost = max(model_costs.values()) if model_costs else 1.0
+                if max_cost > 0:
+                    # Find this model's cost; lower cost = higher score
+                    for key, cost in model_costs.items():
+                        if model_id in key:
+                            return max(0.0, 1.0 - (cost / max_cost))
+            return 1.0  # No cost data = assume free (local model)
+        except Exception:
+            return 1.0
 
     def get_cloud_models(self) -> List[Dict]:
         """Get available cloud models based on environment tokens."""
@@ -289,9 +340,9 @@ class ModelPool:
                     "version": "latest"
                 }
                 cloud_models.append(model)
-                logging.info(f"Cloud model available: {provider['name']}")
+                logging.info("Cloud model available: %s", provider['name'])
             else:
-                logging.debug(f"Cloud provider {provider['name']} not configured (missing {provider['env_token']})")
+                logging.debug("Cloud provider %s not configured (missing %s)", provider['name'], provider['env_token'])
         
         return cloud_models
 

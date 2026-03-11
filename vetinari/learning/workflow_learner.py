@@ -83,11 +83,11 @@ class WorkflowLearner:
 
         # Default recommendations per domain
         defaults = {
-            "coding": {"depth": 4, "breadth": 3, "agents": ["EXPLORER", "BUILDER", "TEST_AUTOMATION", "EVALUATOR", "SECURITY_AUDITOR"]},
-            "research": {"depth": 3, "breadth": 2, "agents": ["RESEARCHER", "LIBRARIAN", "SYNTHESIZER", "DOCUMENTATION_AGENT"]},
-            "data": {"depth": 4, "breadth": 2, "agents": ["DATA_ENGINEER", "EVALUATOR", "DOCUMENTATION_AGENT"]},
-            "docs": {"depth": 2, "breadth": 1, "agents": ["RESEARCHER", "SYNTHESIZER", "DOCUMENTATION_AGENT"]},
-            "general": {"depth": 3, "breadth": 2, "agents": ["EXPLORER", "BUILDER", "EVALUATOR"]},
+            "coding": {"depth": 4, "breadth": 3, "agents": ["CONSOLIDATED_RESEARCHER", "BUILDER", "QUALITY"]},
+            "research": {"depth": 3, "breadth": 2, "agents": ["CONSOLIDATED_RESEARCHER", "OPERATIONS"]},
+            "data": {"depth": 4, "breadth": 2, "agents": ["CONSOLIDATED_RESEARCHER", "QUALITY", "OPERATIONS"]},
+            "docs": {"depth": 2, "breadth": 1, "agents": ["CONSOLIDATED_RESEARCHER", "OPERATIONS"]},
+            "general": {"depth": 3, "breadth": 2, "agents": ["CONSOLIDATED_RESEARCHER", "BUILDER", "QUALITY"]},
         }
         d = defaults.get(domain, defaults["general"])
         return {
@@ -295,13 +295,13 @@ class WorkflowLearner:
 
     def _default_agents(self, domain: str) -> List[str]:
         defaults = {
-            "coding": ["EXPLORER", "BUILDER", "TEST_AUTOMATION", "EVALUATOR"],
-            "research": ["RESEARCHER", "LIBRARIAN", "SYNTHESIZER"],
-            "data": ["DATA_ENGINEER", "EVALUATOR"],
-            "docs": ["RESEARCHER", "DOCUMENTATION_AGENT"],
-            "general": ["EXPLORER", "BUILDER", "EVALUATOR"],
+            "coding": ["CONSOLIDATED_RESEARCHER", "BUILDER", "QUALITY"],
+            "research": ["CONSOLIDATED_RESEARCHER", "OPERATIONS"],
+            "data": ["CONSOLIDATED_RESEARCHER", "QUALITY", "OPERATIONS"],
+            "docs": ["CONSOLIDATED_RESEARCHER", "OPERATIONS"],
+            "general": ["CONSOLIDATED_RESEARCHER", "BUILDER", "QUALITY"],
         }
-        return defaults.get(domain, ["EXPLORER", "BUILDER"])
+        return defaults.get(domain, ["CONSOLIDATED_RESEARCHER", "BUILDER"])
 
     def get_all_patterns(self) -> List[Dict[str, Any]]:
         """Get all learned patterns."""

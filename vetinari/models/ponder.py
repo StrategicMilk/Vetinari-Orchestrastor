@@ -15,7 +15,7 @@ POLICY_SENSITIVE_KEYWORDS = [
     "explicit", "violence", "hate", "discriminat", "terroris"
 ]
 
-ENABLE_PONDER_MODEL_SEARCH = os.environ.get("ENABLE_PONDER_MODEL_SEARCH", "true").lower() in ("1", "true", "yes")
+ENABLE_PONDER_MODEL_DISCOVERY = os.environ.get("ENABLE_PONDER_MODEL_DISCOVERY", "true").lower() in ("1", "true", "yes")
 PONDER_CLOUD_WEIGHT = float(os.environ.get("PONDER_CLOUD_WEIGHT", "0.20"))
 
 
@@ -51,7 +51,7 @@ class PonderEngine:
             "memory": 0.20,
             "heuristic": 0.20
         }
-        self.policy_penalty = -100.0
+        self.policy_penalty = -1.0
 
     def _load_templates(self) -> List[Dict]:
         template_dir = Path(__file__).parent.parent / "templates" / self.template_version
@@ -251,7 +251,7 @@ class PonderEngine:
 
 def get_available_models() -> List[Dict]:
     try:
-        from vetinari.lmstudio_adapter import LMStudioAdapter
+        from vetinari.adapters.lmstudio_adapter import LMStudioAdapter
         host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
         adapter = LMStudioAdapter(host=host)
         models = adapter.list_loaded_models()
@@ -270,7 +270,7 @@ def get_available_models() -> List[Dict]:
             for m in models
         ]
     except Exception as e:
-        logger.error(f"Error getting models: {e}")
+        logger.error("Error getting models: %s", e)
         return _get_fallback_models()
 
 
@@ -321,7 +321,7 @@ def get_cloud_models() -> List[Dict]:
         pool = ModelPool(config)
         return pool.get_cloud_models()
     except Exception as e:
-        logger.error(f"Error getting cloud models: {e}")
+        logger.error("Error getting cloud models: %s", e)
         return []
 
 
@@ -332,14 +332,14 @@ def get_all_models_with_cloud() -> List[Dict]:
     return local_models + cloud_models
 
 
-def _get_model_search_candidates(task_description: str, models: List[Dict]) -> Dict[str, float]:
+def _get_model_discovery_candidates(task_description: str, models: List[Dict]) -> Dict[str, float]:
     """Get model relevance scores from ModelSearchEngine."""
-    if not ENABLE_PONDER_MODEL_SEARCH:
+    if not ENABLE_PONDER_MODEL_DISCOVERY:
         return {}
     
     try:
-        from .model_search import ModelSearchEngine
-        search_engine = ModelSearchEngine()
+        from .model_discovery import ModelDiscovery
+        search_engine = ModelDiscovery()
         candidates = search_engine.search_for_task(task_description, models)
         
         relevance = {}
@@ -349,7 +349,7 @@ def _get_model_search_candidates(task_description: str, models: List[Dict]) -> D
         
         return relevance
     except Exception as e:
-        logger.error(f"Error getting model search candidates: {e}")
+        logger.error("Error getting model search candidates: %s", e)
         return {}
 
 
@@ -357,7 +357,7 @@ def score_models_with_cloud(available_models: List[Dict], task_description: str,
     """Score models with cloud provider augmentation."""
     engine = PonderEngine()
     
-    search_relevance = _get_model_search_candidates(task_description, available_models)
+    search_relevance = _get_model_discovery_candidates(task_description, available_models)
     
     requirements = engine._get_task_capability_requirements(task_description)
     scored_models = []
@@ -418,7 +418,7 @@ def ponder_project_for_plan(plan_id: str) -> Dict[str, Any]:
     """Run project-wide ponder pass for all subtasks in a plan."""
     from vetinari.planning.planning import plan_manager
     from vetinari.planning.subtask_tree import subtask_tree
-
+    
     plan = plan_manager.get_plan(plan_id)
     if not plan:
         return {"error": f"Plan {plan_id} not found", "success": False}
@@ -480,7 +480,7 @@ def ponder_project_for_plan(plan_id: str) -> Dict[str, Any]:
 def get_ponder_results_for_plan(plan_id: str) -> Dict[str, Any]:
     """Get ponder results for all subtasks in a plan."""
     from vetinari.planning.subtask_tree import subtask_tree
-
+    
     all_subtasks = subtask_tree.get_all_subtasks(plan_id)
     
     subtask_results = []
@@ -510,7 +510,7 @@ def get_ponder_health() -> Dict[str, Any]:
     cloud_health = ModelPool.get_cloud_provider_health()
     
     return {
-        "enable_model_search": ENABLE_PONDER_MODEL_SEARCH,
+        "enable_model_discovery": ENABLE_PONDER_MODEL_DISCOVERY,
         "cloud_weight": PONDER_CLOUD_WEIGHT,
         "providers": cloud_health
     }

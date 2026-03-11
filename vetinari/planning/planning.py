@@ -1,24 +1,31 @@
+"""
+Planning module — LEGACY wave-based plan management.
+
+.. deprecated::
+    This module is deprecated. Use ``vetinari.plan_mode.PlanModeEngine``
+    for plan generation and ``vetinari.orchestration`` for execution.
+"""
 import json
 import logging
 import uuid
+import warnings
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
 
-from vetinari.agents.contracts import Task, TaskStatus
+from vetinari.types import PlanStatus, TaskStatus, AgentType  # canonical source
+
+warnings.warn(
+    "vetinari.planning is deprecated. Its wave-based plan management "
+    "will be migrated into vetinari.orchestration in a future release. "
+    "Use vetinari.plan_mode.PlanModeEngine for plan generation.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class PlanStatus(Enum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 class WaveStatus(Enum):
@@ -29,16 +36,93 @@ class WaveStatus(Enum):
     BLOCKED = "blocked"
 
 
-class AgentType(Enum):
-    EXPLORER = "explorer"
-    LIBRARIAN = "librarian"
-    ORACLE = "oracle"
-    UI_PLANNER = "ui_planner"
-    BUILDER = "builder"
-    RESEARCHER = "researcher"
-    EVALUATOR = "evaluator"
-    SYNTHESIZER = "synthesizer"
-    PONDER = "ponder"
+@dataclass
+class Task:
+    task_id: str
+    agent_type: str
+    description: str
+    prompt: str
+    status: str = TaskStatus.PENDING.value
+    dependencies: List[str] = field(default_factory=list)
+    assigned_agent: str = ""
+    result: Any = None
+    error: str = ""
+    planned_start: str = ""
+    planned_end: str = ""
+    actual_start: str = ""
+    actual_end: str = ""
+    retry_count: int = 0
+    priority: int = 5
+    estimated_effort: float = 1.0
+    parent_id: str = ""
+    depth: int = 0
+    max_depth: int = 14
+    max_depth_override: int = 0
+    subtasks: List['Task'] = field(default_factory=list)
+    decomposition_seed: str = ""
+    dod_level: str = "Standard"
+    dor_level: str = "Standard"
+    wave_id: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            'task_id': self.task_id,
+            'agent_type': self.agent_type,
+            'description': self.description,
+            'prompt': self.prompt,
+            'status': self.status,
+            'dependencies': self.dependencies,
+            'assigned_agent': self.assigned_agent,
+            'result': self.result,
+            'error': self.error,
+            'planned_start': self.planned_start,
+            'planned_end': self.planned_end,
+            'actual_start': self.actual_start,
+            'actual_end': self.actual_end,
+            'retry_count': self.retry_count,
+            'priority': self.priority,
+            'estimated_effort': self.estimated_effort,
+            'parent_id': self.parent_id,
+            'depth': self.depth,
+            'max_depth': self.max_depth,
+            'max_depth_override': self.max_depth_override,
+            'subtasks': [t.to_dict() for t in self.subtasks],
+            'decomposition_seed': self.decomposition_seed,
+            'dod_level': self.dod_level,
+            'dor_level': self.dor_level,
+            'wave_id': self.wave_id
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Task':
+        subtasks = [Task.from_dict(t) for t in data.get('subtasks', [])]
+        return cls(
+            task_id=data.get('task_id', ''),
+            agent_type=data.get('agent_type', 'builder'),
+            description=data.get('description', ''),
+            prompt=data.get('prompt', ''),
+            status=data.get('status', TaskStatus.PENDING.value),
+            dependencies=data.get('dependencies', []),
+            assigned_agent=data.get('assigned_agent', ''),
+            result=data.get('result'),
+            error=data.get('error', ''),
+            planned_start=data.get('planned_start', ''),
+            planned_end=data.get('planned_end', ''),
+            actual_start=data.get('actual_start', ''),
+            actual_end=data.get('actual_end', ''),
+            retry_count=data.get('retry_count', 0),
+            priority=data.get('priority', 5),
+            estimated_effort=data.get('estimated_effort', 1.0),
+            parent_id=data.get('parent_id', ''),
+            depth=data.get('depth', 0),
+            max_depth=data.get('max_depth', 14),
+            max_depth_override=data.get('max_depth_override', 0),
+            subtasks=subtasks,
+            decomposition_seed=data.get('decomposition_seed', ''),
+            dod_level=data.get('dod_level', 'Standard'),
+            dor_level=data.get('dor_level', 'Standard'),
+            wave_id=data.get('wave_id', '')
+        )
 
 
 @dataclass
@@ -77,7 +161,7 @@ class Wave:
 
     @property
     def completed_count(self) -> int:
-        return sum(1 for t in self.tasks if t.status == TaskStatus.COMPLETED)
+        return sum(1 for t in self.tasks if t.status == TaskStatus.COMPLETED.value)
 
     @property
     def total_count(self) -> int:
@@ -183,19 +267,11 @@ class Plan:
         return adr
 
 
-def _to_task_status(raw: str) -> TaskStatus:
-    """Convert a raw status string to a TaskStatus enum value."""
-    try:
-        return TaskStatus(raw)
-    except ValueError:
-        return TaskStatus.PENDING
-
-
 class PlanManager:
     _instance = None
 
     @classmethod
-    def get_instance(cls, storage_path: str = None):
+    def get_instance(cls, storage_path: str = None) -> "PlanManager":
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -217,7 +293,7 @@ class PlanManager:
                     plan = Plan.from_dict(data)
                     self.plans[plan.plan_id] = plan
             except Exception as e:
-                logger.error(f"Error loading plan {file}: {e}")
+                logger.error("Error loading plan %s: %s", file, e)
 
     def _save_plan(self, plan: Plan):
         file_path = self.storage_path / f"{plan.plan_id}.json"
@@ -234,13 +310,14 @@ class PlanManager:
                 wave_id = f"wave_{i+1}"
                 tasks = []
                 for j, task_data in enumerate(wave_data.get('tasks', [])):
-                    tid = f"task_{i+1}_{j+1}"
+                    task_id = f"task_{i+1}_{j+1}"
                     task = Task(
-                        id=tid,
+                        task_id=task_id,
+                        agent_type=task_data.get('agent_type', 'builder'),
                         description=task_data.get('description', ''),
                         prompt=task_data.get('prompt', ''),
                         dependencies=task_data.get('dependencies', []),
-                        priority=task_data.get('priority', 5),
+                        priority=task_data.get('priority', 5)
                     )
                     tasks.append(task)
 
@@ -313,7 +390,7 @@ class PlanManager:
         if plan.waves:
             plan.waves[0].status = WaveStatus.RUNNING.value
             for task in plan.waves[0].tasks:
-                task.status = TaskStatus.PENDING
+                task.status = TaskStatus.PENDING.value
 
         self._save_plan(plan)
         return plan
@@ -360,8 +437,8 @@ class PlanManager:
             if wave.status in [WaveStatus.PENDING.value, WaveStatus.RUNNING.value]:
                 wave.status = WaveStatus.BLOCKED.value
             for task in wave.tasks:
-                if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
-                    task.status = TaskStatus.BLOCKED
+                if task.status in [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]:
+                    task.status = TaskStatus.BLOCKED.value
 
         self._save_plan(plan)
         return plan
@@ -371,19 +448,17 @@ class PlanManager:
         if not plan:
             return None
 
-        task_status = _to_task_status(status)
-
         for wave in plan.waves:
             if wave.wave_id == wave_id:
                 for task in wave.tasks:
                     if task.task_id == task_id:
-                        task.status = task_status
-                        if task_status == TaskStatus.RUNNING:
+                        task.status = status
+                        if status == TaskStatus.RUNNING.value:
                             task.actual_start = datetime.now().isoformat()
-                        elif task_status == TaskStatus.COMPLETED:
+                        elif status == TaskStatus.COMPLETED.value:
                             task.actual_end = datetime.now().isoformat()
                             task.result = result
-                        elif task_status == TaskStatus.FAILED:
+                        elif status == TaskStatus.FAILED.value:
                             task.actual_end = datetime.now().isoformat()
                             task.error = error
                         break
@@ -396,7 +471,7 @@ class PlanManager:
     def _check_wave_completion(self, plan: Plan, completed_wave_id: str):
         for wave in plan.waves:
             if wave.wave_id == completed_wave_id:
-                all_completed = all(t.status == TaskStatus.COMPLETED for t in wave.tasks)
+                all_completed = all(t.status == TaskStatus.COMPLETED.value for t in wave.tasks)
                 if all_completed:
                     wave.status = WaveStatus.COMPLETED.value
 
@@ -406,8 +481,8 @@ class PlanManager:
                         if next_wave.status == WaveStatus.PENDING.value:
                             next_wave.status = WaveStatus.RUNNING.value
                             for task in next_wave.tasks:
-                                if task.status == TaskStatus.PENDING:
-                                    task.status = TaskStatus.PENDING
+                                if task.status == TaskStatus.PENDING.value:
+                                    task.status = TaskStatus.PENDING.value
                     else:
                         plan.status = PlanStatus.COMPLETED.value
 
@@ -419,7 +494,7 @@ def get_plan_manager() -> "PlanManager":
     return PlanManager.get_instance()
 
 
-# Backward-compatible alias -- resolved lazily so importing this module does NOT
+# Backward-compatible alias — resolved lazily so importing this module does NOT
 # trigger filesystem I/O at import time.
 class _LazyPlanManager:
     """Proxy that resolves the PlanManager singleton on first attribute access."""

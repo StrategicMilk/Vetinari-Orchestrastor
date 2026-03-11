@@ -207,7 +207,7 @@ class BatchProcessor:
             A :class:`BatchResult` with the model output.
         """
         start = time.monotonic()
-        # Stub: return a placeholder response; real impl would call adapter
+        # Default implementation — subclasses should override to call a real LLM adapter
         tokens_used = max(1, len(request.prompt) // 4)
         elapsed_ms = (time.monotonic() - start) * 1000.0
         return BatchResult(

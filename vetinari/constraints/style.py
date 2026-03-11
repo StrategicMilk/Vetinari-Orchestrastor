@@ -143,20 +143,13 @@ STYLE_CONSTRAINTS: Dict[str, StyleConstraint] = {
 AGENT_STYLE_DOMAIN: Dict[str, str] = {
     "BUILDER": "code",
     "QUALITY": "code",
-    "TEST_AUTOMATION": "code",
     "ARCHITECT": "code",
     "PLANNER": "documentation",
-    "DOCUMENTATION_AGENT": "documentation",
     "OPERATIONS": "documentation",      # default; creative mode overrides
-    "RESEARCHER": "documentation",
     "CONSOLIDATED_RESEARCHER": "documentation",
-    "EXPLORER": "documentation",
-    "LIBRARIAN": "documentation",
     "ORACLE": "documentation",
     "CONSOLIDATED_ORACLE": "documentation",
-    "SYNTHESIZER": "documentation",
-    "EVALUATOR": "documentation",
-    "SECURITY_AUDITOR": "code",
+    "ORCHESTRATOR": "documentation",
 }
 
 # Mode-specific overrides
