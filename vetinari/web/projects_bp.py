@@ -32,6 +32,173 @@ logger = logging.getLogger(__name__)
 projects_bp = Blueprint('projects', __name__)
 
 
+# ---------------------------------------------------------------------------
+# P2.1: Pipeline-aware adapter helper
+# ---------------------------------------------------------------------------
+
+def _execute_via_pipeline(
+    orb,
+    model_id: str,
+    system_prompt: str,
+    user_prompt: str,
+    agent_type: str = "OPERATIONS",
+    task_id: str | None = None,
+) -> dict:
+    """Route an LLM call through the agent pipeline instead of calling the
+    adapter directly.
+
+    This wrapper ensures every web-triggered inference goes through the same
+    pipeline as agent-executed tasks:
+    - Applies inference config profiles (token budgets, temperature)
+    - Records the request and result in shared memory
+    - Emits structured telemetry / log events
+    - Falls back to ``orb.adapter.chat()`` if the pipeline is unavailable
+
+    Args:
+        orb: The orchestrator instance (provides ``adapter`` and
+            ``agent_context``).
+        model_id: LM Studio model identifier to use.
+        system_prompt: System prompt for the inference call.
+        user_prompt: User / task prompt.
+        agent_type: AgentType value string used for config profile lookup and
+            telemetry (e.g. ``"OPERATIONS"``, ``"BUILDER"``).
+        task_id: Optional task identifier for telemetry.  A UUID is generated
+            when not supplied.
+
+    Returns:
+        Dict with at least ``output`` (str) and ``tokens_used`` (int) keys,
+        matching the shape returned by ``adapter.chat()``.
+    """
+    import uuid as _uuid_mod
+
+    _task_id = task_id or _uuid_mod.uuid4().hex[:12]
+    _start = time.time()
+
+    # ── 1. Apply inference config profile ────────────────────────────────────
+    max_tokens = 4096
+    temperature = 0.3
+    try:
+        from vetinari.config.inference_config import get_inference_config
+        _profile_key = agent_type.lower()
+        _eff = get_inference_config().get_effective_params(_profile_key, model_id)
+        max_tokens = _eff.get("max_tokens", max_tokens)
+        temperature = _eff.get("temperature", temperature)
+    except Exception:
+        try:
+            from vetinari.token_optimizer import get_token_optimizer
+            _p = get_token_optimizer().get_task_profile(agent_type.lower())
+            max_tokens, temperature = _p[0], _p[1]
+        except Exception:
+            pass
+
+    # ── 2. Record request in shared memory ───────────────────────────────────
+    try:
+        from vetinari.shared_memory import SharedMemory
+        _mem = SharedMemory.get_instance()
+        if _mem is not None and hasattr(_mem, "store"):
+            _mem.store(
+                f"web_pipeline:{_task_id}:request",
+                {
+                    "agent_type": agent_type,
+                    "model_id": model_id,
+                    "prompt_preview": user_prompt[:200],
+                    "started_at": datetime.utcnow().isoformat(),
+                },
+                ttl=3600,
+            )
+    except Exception:
+        pass
+
+    # ── 3. Emit trace event ───────────────────────────────────────────────────
+    try:
+        from vetinari.structured_logging import log_event
+        log_event(
+            "info",
+            f"web.{agent_type.lower()}",
+            "pipeline_task_started",
+            task_id=_task_id,
+            model_id=model_id,
+        )
+    except Exception:
+        pass
+
+    # ── 4. Run inference via adapter_manager when available ───────────────────
+    result: dict = {}
+    try:
+        _adapter_manager = None
+        agent_context = getattr(orb, "agent_context", None)
+        if agent_context and isinstance(agent_context, dict):
+            _adapter_manager = agent_context.get("adapter_manager")
+        if _adapter_manager is None:
+            try:
+                from vetinari.adapter_manager import get_adapter_manager
+                _adapter_manager = get_adapter_manager()
+            except Exception:
+                pass
+
+        if _adapter_manager is not None:
+            from vetinari.adapters.base import InferenceRequest
+            _req = InferenceRequest(
+                model_id=model_id,
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            _resp = _adapter_manager.infer(_req)
+            if _resp.status == "ok":
+                result = {"output": _resp.output, "tokens_used": 0}
+    except Exception as _exc:
+        logger.warning("_execute_via_pipeline: adapter_manager path failed: %s", _exc)
+
+    # ── 5. Fall back to orb.adapter.chat() ───────────────────────────────────
+    if not result:
+        try:
+            result = orb.adapter.chat(model_id, system_prompt, user_prompt)
+        except Exception as _exc:
+            logger.error("_execute_via_pipeline: fallback adapter.chat() failed: %s", _exc)
+            result = {"output": "", "tokens_used": 0}
+
+    # ── 6. Record completion in shared memory + telemetry ────────────────────
+    _elapsed_ms = int((time.time() - _start) * 1000)
+    try:
+        from vetinari.shared_memory import SharedMemory
+        _mem = SharedMemory.get_instance()
+        if _mem is not None and hasattr(_mem, "store"):
+            _mem.store(
+                f"web_pipeline:{_task_id}:result",
+                {
+                    "agent_type": agent_type,
+                    "model_id": model_id,
+                    "output_preview": str(result.get("output", ""))[:200],
+                    "elapsed_ms": _elapsed_ms,
+                    "completed_at": datetime.utcnow().isoformat(),
+                },
+                ttl=3600,
+            )
+    except Exception:
+        pass
+
+    try:
+        from vetinari.structured_logging import log_event
+        log_event(
+            "info",
+            f"web.{agent_type.lower()}",
+            "pipeline_task_completed",
+            task_id=_task_id,
+            model_id=model_id,
+            elapsed_ms=_elapsed_ms,
+        )
+    except Exception:
+        pass
+
+    logger.debug(
+        "_execute_via_pipeline task=%s agent=%s model=%s elapsed_ms=%d",
+        _task_id, agent_type, model_id, _elapsed_ms,
+    )
+    return result
+
+
 # API: Server-Sent Events stream for real-time task updates
 @projects_bp.route('/api/project/<project_id>/stream')
 def api_project_stream(project_id):
@@ -209,7 +376,10 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
         model_response = ""
         try:
             # Send the user's actual goal to the model and get its response
-            result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
+            result = _execute_via_pipeline(
+                orb, planning_model_id, agent_system_prompt, goal,
+                agent_type="PLANNER",
+            )
             model_response = result.get('output', '')
             logger.debug(f"Model response received: {len(model_response)} chars")
         except Exception as e:
@@ -277,7 +447,11 @@ Outputs: {', '.join(task['outputs'])}
 
 Implement this task. Output the code as code blocks with filenames."""
 
-                        task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
+                        task_result = _execute_via_pipeline(
+                            orb, task_model, system_prompt or "", task_prompt,
+                            agent_type="BUILDER",
+                            task_id=task_id,
+                        )
                         task_output = task_result.get('output', '')
                         tokens_used = task_result.get('tokens_used', 0)
 
@@ -640,7 +814,10 @@ def api_project_message(project_id):
 
         # Get AI response
         system_prompt = "You are a helpful coding assistant. Provide detailed, practical code solutions."
-        result = orb.adapter.chat(model, system_prompt, context)
+        result = _execute_via_pipeline(
+            orb, model, system_prompt, context,
+            agent_type="OPERATIONS",
+        )
         response = result.get('output', '')
 
         # Add assistant response

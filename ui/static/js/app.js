@@ -295,6 +295,7 @@ function subscribeToProjectStream(projectId) {
         const data = JSON.parse(e.data);
         addActivity(`Task ${data.task_id} started (${data.model})`, 'info');
         updateTaskStatusInUI(projectId, data.task_id, 'running');
+        document.dispatchEvent(new CustomEvent(`sse:task_started:${projectId}`, { detail: data }));
     });
 
     es.addEventListener('task_complete', (e) => {
@@ -304,6 +305,21 @@ function subscribeToProjectStream(projectId) {
         updateTaskStatusInUI(projectId, data.task_id, 'completed');
         updateProgressBar(pct);
         updateTokenCounter(projectId, data.tokens_used || 0);
+        document.dispatchEvent(new CustomEvent(`sse:task_completed:${projectId}`, { detail: data }));
+    });
+
+    es.addEventListener('task_failed', (e) => {
+        const data = JSON.parse(e.data);
+        addActivity(`Task ${data.task_id} failed`, 'error');
+        updateTaskStatusInUI(projectId, data.task_id, 'failed');
+        document.dispatchEvent(new CustomEvent(`sse:task_failed:${projectId}`, { detail: data }));
+    });
+
+    es.addEventListener('task_cancelled', (e) => {
+        const data = JSON.parse(e.data);
+        addActivity(`Task ${data.task_id} cancelled`, 'warning');
+        updateTaskStatusInUI(projectId, data.task_id, 'cancelled');
+        document.dispatchEvent(new CustomEvent(`sse:task_cancelled:${projectId}`, { detail: data }));
     });
 
     es.addEventListener('status', (e) => {
@@ -370,13 +386,20 @@ function updateTaskStatusInUI(projectId, taskId, status) {
 
 // Progress bar update
 function updateProgressBar(pct) {
-    const bar = document.getElementById('progressFill');
+    // 'overallProgressBar' matches the element ID in index.html
+    const bar = document.getElementById('overallProgressBar') || document.getElementById('progressFill');
     const label = document.getElementById('progressPercent');
     if (bar) bar.style.width = `${pct}%`;
     if (label) label.textContent = `${pct}%`;
 }
 
-// Cancel current project
+// Cancel current project (called from HTML with no arguments)
+function cancelCurrentProject() {
+    if (typeof currentProjectId !== 'undefined' && currentProjectId) {
+        cancelProject(currentProjectId);
+    }
+}
+
 async function cancelProject(projectId) {
     if (!confirm('Cancel the running project? This will stop execution.')) return;
     try {
