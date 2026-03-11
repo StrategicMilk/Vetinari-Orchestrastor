@@ -242,7 +242,7 @@ The web interface is served by `vetinari/web_ui.py` on port 5000 by default. API
 | `vetinari/exceptions.py` | Custom exception hierarchy |
 | `vetinari/safety/` | Safety policies and content filters |
 | `config/` | YAML configuration files |
-| `tests/` | Test suite (6169 tests, 0 failures) |
+| `tests/` | Test suite (5119 tests, 0 failures) |
 | `docs/` | Documentation |
 | `AGENTS.md` | Full agent system specification |
 

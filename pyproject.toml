@@ -52,6 +52,8 @@ training = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-timeout>=2.0.0",
     "pre-commit>=3.0.0",
     "ruff>=0.4.0",
     "mypy>=1.8.0",
@@ -127,10 +129,10 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "-v",
+    "-q",
     "--tb=short",
     "--strict-markers",
-    "-x",
+    "--timeout=30",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

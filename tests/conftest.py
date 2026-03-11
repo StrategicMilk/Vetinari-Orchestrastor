@@ -16,44 +16,6 @@ import pytest
 from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
-# Ignore test files from main that reference modules not present in v0.4.0
-# ---------------------------------------------------------------------------
-collect_ignore = [
-    "test_architect_executor.py",
-    "test_ast_indexer.py",
-    "test_benchmark_learning_integration.py",
-    "test_benchmark_seeder.py",
-    "test_benchmarks.py",
-    "test_context_compression.py",
-    "test_cost_planner_skill.py",
-    "test_creative_suggestions.py",
-    "test_data_engineer_skill.py",
-    "test_documentation_skill.py",
-    "test_experimentation_manager_skill.py",
-    "test_git_workflow.py",
-    "test_goal_tracker.py",
-    "test_grep_context.py",
-    "test_integration_wiring.py",
-    "test_manufacturing_workflow.py",
-    "test_mcp_server.py",
-    "test_milestones.py",
-    "test_missing_skills.py",
-    "test_model_switching.py",
-    "test_phase_coordinator.py",
-    "test_plan_cache.py",
-    "test_planner_intelligence.py",
-    "test_quality_gates.py",
-    "test_security_auditor_skill.py",
-    "test_skill_contract.py",
-    "test_sse_streaming.py",
-    "test_ui_preferences.py",
-    "test_watch_mode.py",
-    "test_planning.py",
-    "test_planning_coverage.py",
-]
-
-
-# ---------------------------------------------------------------------------
 # Environment Safety
 # ---------------------------------------------------------------------------
 
