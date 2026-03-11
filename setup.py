@@ -17,7 +17,7 @@ setup(
         "requests>=2.28.0",
         "pyyaml>=6.0",
         "flask>=2.0.0",
-        "ddgs>=6.0.0",
+        "duckduckgo-search>=4.0.0",
         "apscheduler>=3.10.0",
     ],
     extras_require={
@@ -31,7 +31,7 @@ setup(
             "cryptography>=41.0.0",
         ],
         "search": [
-            "ddgs>=6.0.0",
+            "duckduckgo-search>=4.0.0",
             "tavily-python>=0.3.0",
         ],
         "ml": [
