@@ -695,11 +695,33 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
     # Domain Research (from ResearcherAgent)
     # ------------------------------------------------------------------
 
+    def _tool_search(self, query: str, max_results: int = 5) -> list[dict]:
+        """Perform a web search via the tool registry (auditable) with fallback.
+
+        Tries the ``web_search`` tool first for audit-trail coverage, then
+        falls back to the direct ``_search()`` helper.
+        """
+        if self._has_tool("web_search"):
+            result = self._use_tool("web_search", query=query, max_results=max_results)
+            if result and result.get("success") and result.get("output"):
+                raw = result["output"].get("results", [])
+                return [
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "snippet": r.get("snippet", ""),
+                        "source_reliability": r.get("source_reliability", "unknown"),
+                    }
+                    for r in raw[:max_results]
+                ]
+        # Fallback to direct search helper
+        return self._search(query, max_results=max_results)
+
     def _execute_domain_research(self, task: AgentTask) -> AgentResult:
         query = task.context.get("query", task.description)
         scope = task.context.get("scope", "general")
 
-        search_results = self._search(query, max_results=5)
+        search_results = self._tool_search(query, max_results=5)
         search_context = ""
         if search_results:
             search_context = "\n\nWeb search results:\n" + "\n".join(
@@ -727,7 +749,7 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
     def _execute_api_lookup(self, task: AgentTask) -> AgentResult:
         query = task.context.get("query", task.description)
 
-        search_results = self._search(f"{query} API documentation library", max_results=5)
+        search_results = self._tool_search(f"{query} API documentation library", max_results=5)
         search_context = ""
         if search_results:
             search_context = "\n\nSearch results:\n" + "\n".join(

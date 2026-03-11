@@ -419,6 +419,33 @@ Requirements:
             "summary": f"Scaffold generated for {feature_name}",
         }
 
+    # ------------------------------------------------------------------
+    # Tool-aware file writing
+    # ------------------------------------------------------------------
+
+    def _tool_write_file(self, path: str, content: str) -> bool:
+        """Write a file via the file_operations tool (auditable, permission-gated).
+
+        Falls back to direct I/O if the tool is unavailable.
+
+        Returns:
+            True if the file was written successfully.
+        """
+        if self._has_tool("file_operations"):
+            result = self._use_tool("file_operations", operation="write", path=path, content=content)
+            if result and result.get("success"):
+                return True
+            # Tool failed — fall through to direct write
+
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+            return True
+        except Exception as exc:
+            self._log("error", f"File write failed for {path}: {exc}")
+            return False
+
     def _write_scaffold_to_disk(self, scaffold: Dict[str, Any], output_dir: str) -> List[str]:
         """Write all scaffold files to ``output_dir``. Returns list of written paths."""
         written: List[str] = []
@@ -429,26 +456,26 @@ Requirements:
         if code:
             feature_name = scaffold.get("summary", "feature").split()[-1]
             safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in feature_name.lower())
-            code_path = base / f"{safe_name}.py"
-            code_path.write_text(code, encoding="utf-8")
-            written.append(str(code_path))
-            logger.info("[BuilderAgent] Wrote %s", code_path)
+            code_path = str(base / f"{safe_name}.py")
+            if self._tool_write_file(code_path, code):
+                written.append(code_path)
+                logger.info("[BuilderAgent] Wrote %s", code_path)
 
         for test in scaffold.get("tests", []):
             fname = test.get("filename", "test_generated.py")
             content = test.get("content", "")
             if content:
-                test_path = base / fname
-                test_path.write_text(content, encoding="utf-8")
-                written.append(str(test_path))
+                test_path = str(base / fname)
+                if self._tool_write_file(test_path, content):
+                    written.append(test_path)
 
         for artifact in scaffold.get("artifacts", []):
             fname = artifact.get("filename", "artifact.txt")
             content = artifact.get("content", "")
             if content:
-                artifact_path = base / fname
-                artifact_path.write_text(content, encoding="utf-8")
-                written.append(str(artifact_path))
+                artifact_path = str(base / fname)
+                if self._tool_write_file(artifact_path, content):
+                    written.append(artifact_path)
 
         return written
 

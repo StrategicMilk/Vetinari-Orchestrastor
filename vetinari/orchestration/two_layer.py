@@ -486,6 +486,25 @@ class TwoLayerOrchestrator:
         """Create a default task handler using agent inference with token optimisation."""
 
         def handle_task(task: TaskNode) -> Dict[str, Any]:
+            # Switch to EXECUTION mode so tool permission checks pass
+            try:
+                from vetinari.execution_context import get_context_manager as _get_ctx, ExecutionMode as _ExecMode
+                _ctx_mgr = _get_ctx()
+                _exec_ctx = _ctx_mgr.temporary_mode(_ExecMode.EXECUTION, task_id=task.id)
+                _exec_ctx.__enter__()
+            except Exception:
+                _exec_ctx = None
+
+            try:
+                return _handle_task_inner(task)
+            finally:
+                if _exec_ctx is not None:
+                    try:
+                        _exec_ctx.__exit__(None, None, None)
+                    except Exception:
+                        pass
+
+        def _handle_task_inner(task: TaskNode) -> Dict[str, Any]:
             try:
                 assigned_model = task.input_data.get("assigned_model", "default")
                 is_cloud = not any(

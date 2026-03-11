@@ -184,3 +184,66 @@ class MultiModeAgent(BaseAgent):
     def get_capabilities(self) -> List[str]:
         """Return capabilities across all modes."""
         return list(self.MODES.keys())
+
+    @classmethod
+    def to_skill_spec(cls) -> "SkillSpec":
+        """Auto-derive a SkillSpec from this agent's class metadata.
+
+        Generates a baseline SkillSpec using MODES, MODE_KEYWORDS, agent_type,
+        and class docstring. Hand-written standards/constraints can be merged
+        on top via ``merge_skill_spec()``.
+
+        Returns:
+            A SkillSpec populated from agent class attributes.
+        """
+        from vetinari.skills.skill_spec import SkillSpec  # lazy to avoid circular import
+
+        # Derive agent_type from a temporary instance or class-level hints
+        agent_type_value = ""
+        if hasattr(cls, "AGENT_TYPE"):
+            agent_type_value = cls.AGENT_TYPE.value if hasattr(cls.AGENT_TYPE, "value") else str(cls.AGENT_TYPE)
+        else:
+            # Try to infer from class name
+            name = cls.__name__
+            for suffix in ("Agent", ""):
+                if name.endswith(suffix) and suffix:
+                    name = name[: -len(suffix)]
+                    break
+            agent_type_value = name.upper()
+
+        # skill_id: lowercase agent type
+        skill_id = agent_type_value.lower().replace("consolidated", "").strip("_")
+
+        # Human-readable name from class name
+        raw_name = cls.__name__
+        for suffix in ("Agent",):
+            if raw_name.endswith(suffix):
+                raw_name = raw_name[: -len(suffix)]
+        # Insert spaces before capitals: "QualityAgent" -> "Quality"
+        display_name = raw_name
+
+        # Description from class docstring
+        doc = (cls.__doc__ or "").strip()
+        description = doc.split("\n")[0] if doc else f"{display_name} agent"
+
+        # Modes
+        modes = list(cls.MODES.keys()) if cls.MODES else []
+
+        # Capabilities: flatten MODE_KEYWORDS values + mode names
+        capabilities = list(modes)
+        seen = set(capabilities)
+        for keywords in (cls.MODE_KEYWORDS or {}).values():
+            for kw in keywords:
+                if kw not in seen:
+                    capabilities.append(kw)
+                    seen.add(kw)
+
+        return SkillSpec(
+            skill_id=skill_id,
+            name=display_name,
+            description=description,
+            agent_type=agent_type_value,
+            modes=modes,
+            capabilities=capabilities,
+            tags=["auto-derived"],
+        )

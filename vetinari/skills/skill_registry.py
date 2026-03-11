@@ -1344,3 +1344,88 @@ def validate_all() -> List[str]:
             errors.append(f"Mismatched key '{skill_id}' vs spec.skill_id '{spec.skill_id}'")
         errors.extend(spec.validate())
     return errors
+
+
+def auto_populate_from_agents() -> Dict[str, SkillSpec]:
+    """Auto-derive SkillSpecs from all MultiModeAgent subclasses.
+
+    For each agent class, calls ``to_skill_spec()`` to generate a baseline
+    spec. If a hand-written spec already exists in SKILL_REGISTRY, the
+    auto-derived fields (modes, capabilities) are merged *under* the
+    hand-written spec — i.e., hand-written standards, constraints, and
+    schemas always take precedence.
+
+    Returns:
+        Dict of skill_id -> merged SkillSpec for all discovered agents.
+    """
+    try:
+        from vetinari.agents.multi_mode_agent import MultiModeAgent
+    except ImportError:
+        logger.debug("MultiModeAgent not available for auto-population")
+        return {}
+
+    # Import agent classes to ensure subclasses are registered
+    _agent_modules = [
+        "vetinari.agents.builder_agent",
+        "vetinari.agents.planner_agent",
+        "vetinari.agents.consolidated.researcher_agent",
+        "vetinari.agents.consolidated.oracle_agent",
+        "vetinari.agents.consolidated.quality_agent",
+        "vetinari.agents.consolidated.operations_agent",
+    ]
+    import importlib
+    for mod_name in _agent_modules:
+        try:
+            importlib.import_module(mod_name)
+        except ImportError:
+            logger.debug("Could not import %s for auto-population", mod_name)
+
+    result: Dict[str, SkillSpec] = {}
+
+    for subclass in MultiModeAgent.__subclasses__():
+        if not subclass.MODES:
+            continue
+        try:
+            auto_spec = subclass.to_skill_spec()
+        except Exception as exc:
+            logger.debug("Failed to derive SkillSpec from %s: %s", subclass.__name__, exc)
+            continue
+
+        existing = SKILL_REGISTRY.get(auto_spec.skill_id)
+        if existing is not None:
+            # Merge: auto-derived modes/capabilities fill gaps,
+            # hand-written standards/constraints/schemas always win
+            merged_modes = existing.modes or auto_spec.modes
+            merged_caps = existing.capabilities or auto_spec.capabilities
+            merged = SkillSpec(
+                skill_id=existing.skill_id,
+                name=existing.name,
+                description=existing.description,
+                version=existing.version,
+                agent_type=existing.agent_type or auto_spec.agent_type,
+                modes=merged_modes,
+                capabilities=merged_caps,
+                input_schema=existing.input_schema or auto_spec.input_schema,
+                output_schema=existing.output_schema or auto_spec.output_schema,
+                max_tokens=existing.max_tokens,
+                max_retries=existing.max_retries,
+                timeout_seconds=existing.timeout_seconds,
+                max_cost_usd=existing.max_cost_usd,
+                requires_tools=existing.requires_tools,
+                min_verification_score=existing.min_verification_score,
+                require_schema_validation=existing.require_schema_validation,
+                forbidden_patterns=existing.forbidden_patterns,
+                standards=existing.standards,
+                guidelines=existing.guidelines,
+                constraints=existing.constraints,
+                author=existing.author,
+                tags=list(set(existing.tags + auto_spec.tags)),
+                enabled=existing.enabled,
+                deprecated=existing.deprecated,
+                deprecated_by=existing.deprecated_by,
+            )
+            result[merged.skill_id] = merged
+        else:
+            result[auto_spec.skill_id] = auto_spec
+
+    return result
