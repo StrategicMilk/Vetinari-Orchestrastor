@@ -86,6 +86,14 @@ _SENSITIVE_DATA_PATTERNS = [
     re.compile(r"ghp_[a-zA-Z0-9]{36}"),                         # GitHub token
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                       # SSN pattern
     re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----"),    # Private key
+    # P6.2: Additional PII patterns
+    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),  # Email address
+    re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),                # Credit card number
+    re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),  # US phone number
+    re.compile(r"AKIA[0-9A-Z]{16}"),                            # AWS access key
+    re.compile(r"DefaultEndpointsProtocol=https;AccountName=\w+"),  # Azure connection string
+    re.compile(r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+"),  # JWT token
+    re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}\b"),  # IP address with port
 ]
 
 
@@ -113,6 +121,86 @@ def _check_sensitive_data(text: str) -> List[Violation]:
                 severity="high",
                 description="Potential sensitive data detected in output",
                 matched_pattern=match.group(0)[:20] + "...",
+            ))
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# P6.1: Toxic content patterns for input scanning
+# ---------------------------------------------------------------------------
+
+# Each entry is (compiled_pattern, severity, description)
+_TOXIC_PATTERNS: List[tuple] = [
+    # Hate speech markers
+    (re.compile(
+        r"\b(kill|murder|exterminate|genocide|slaughter)\s+(all\s+)?(the\s+)?"
+        r"(jews?|muslims?|christians?|blacks?|whites?|latinos?|asians?|gays?|"
+        r"lesbians?|trans\w*|immigrants?|refugees?)\b",
+        re.I,
+    ), "high", "Hate speech — targeted violence against a group"),
+    (re.compile(
+        r"\b(all|those|these)\s+(jews?|muslims?|christians?|blacks?|whites?|"
+        r"latinos?|asians?|gays?|lesbians?|trans\w*|immigrants?|refugees?)\s+"
+        r"(should|must|deserve\s+to)\s+(die|be\s+killed|be\s+eliminated|be\s+removed)\b",
+        re.I,
+    ), "high", "Hate speech — incitement to eliminate a group"),
+    (re.compile(
+        r"\b(ni+g+[e]?r|ch[i1]nk|sp[i1]c|k[i1]ke|f[a4]gg?[o0]t|tr[a4]nn[y]?)\b",
+        re.I,
+    ), "medium", "Hate speech — racial or homophobic slur"),
+
+    # Violence incitement markers
+    (re.compile(
+        r"\b(bomb|shoot|stab|attack|blow\s+up)\s+(the\s+)?(school|hospital|"
+        r"church|mosque|synagogue|government|police|congress|parliament|crowd|crowd)\b",
+        re.I,
+    ), "high", "Violence incitement — attack on a specific target"),
+    (re.compile(
+        r"\bhow\s+to\s+(make|build|construct|create)\s+a\s+(bomb|explosive|ied|"
+        r"bioweapon|chemical\s+weapon|dirty\s+bomb)\b",
+        re.I,
+    ), "high", "Violence incitement — weapons manufacturing instructions"),
+    (re.compile(
+        r"\b(mass\s+(shooting|stabbing|killing)|domestic\s+terrorism|lone\s+wolf\s+attack)\b",
+        re.I,
+    ), "high", "Violence incitement — mass violence planning language"),
+
+    # Self-harm markers
+    (re.compile(
+        r"\b(how\s+to|best\s+way\s+to|methods?\s+(for|of))\s+"
+        r"(commit\s+suicide|kill\s+(myself|yourself)|end\s+my\s+life|self[\s-]?harm)\b",
+        re.I,
+    ), "high", "Self-harm — instructions for self-injury or suicide"),
+    (re.compile(
+        r"\b(suicide|self[\s-]?harm|cut\s+(myself|yourself)|overdose)\s+"
+        r"(methods?|instructions?|guide|tips?|ways?)\b",
+        re.I,
+    ), "high", "Self-harm — self-injury method request"),
+    (re.compile(
+        r"\bi\s+(want\s+to|am\s+going\s+to|will)\s+(kill|hurt|harm)\s+(myself|me)\b",
+        re.I,
+    ), "medium", "Self-harm — first-person expression of self-harm intent"),
+]
+
+
+def _check_toxic(text: str) -> List[Violation]:
+    """Check text for toxic content patterns.
+
+    Args:
+        text: Input text to scan.
+
+    Returns:
+        List of Violation instances, one per matched pattern.
+    """
+    violations = []
+    for pattern, severity, description in _TOXIC_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            violations.append(Violation(
+                rail="toxic",
+                severity=severity,
+                description=description,
+                matched_pattern=match.group(0)[:40],
             ))
     return violations
 
@@ -205,6 +293,7 @@ class GuardrailsManager:
 
         # Built-in pattern checks (always run)
         violations = _check_jailbreak(text)
+        violations += _check_toxic(text)
 
         latency = (time.monotonic() - start) * 1000
 
@@ -251,6 +340,53 @@ class GuardrailsManager:
         return GuardrailResult(allowed=True, content=text, latency_ms=latency)
 
     # ------------------------------------------------------------------
+    # PII redaction
+    # ------------------------------------------------------------------
+
+    def redact_pii(self, text: str) -> str:
+        """Replace detected PII with ``[REDACTED]`` instead of blocking.
+
+        Scans text against all ``_SENSITIVE_DATA_PATTERNS`` and substitutes
+        each match with ``[REDACTED]``.  Useful when content should be passed
+        through but sanitised rather than hard-blocked.
+
+        Args:
+            text: The text to redact.
+
+        Returns:
+            The text with any matched PII replaced by ``[REDACTED]``.
+        """
+        with self._lock:
+            result = text
+            for pattern in _SENSITIVE_DATA_PATTERNS:
+                result = pattern.sub("[REDACTED]", result)
+            return result
+
+    # ------------------------------------------------------------------
+    # Convenience: check input and output in one call
+    # ------------------------------------------------------------------
+
+    def check_both(
+        self,
+        input_text: str,
+        output_text: str,
+        context: str = RailContext.USER_FACING,
+    ) -> tuple:
+        """Run input and output checks and return both results.
+
+        Args:
+            input_text: The user's input text.
+            output_text: The bot's output text.
+            context: Rail context applied to both checks.
+
+        Returns:
+            Tuple of (input_result, output_result) as ``GuardrailResult`` instances.
+        """
+        input_result = self.check_input(input_text, context=context)
+        output_result = self.check_output(output_text, context=context)
+        return input_result, output_result
+
+    # ------------------------------------------------------------------
     # Context-based rail selection
     # ------------------------------------------------------------------
 
@@ -273,6 +409,7 @@ class GuardrailsManager:
             "config_dir": self._config_dir,
             "builtin_jailbreak_patterns": len(_JAILBREAK_PATTERNS),
             "builtin_sensitive_patterns": len(_SENSITIVE_DATA_PATTERNS),
+            "builtin_toxic_patterns": len(_TOXIC_PATTERNS),
         }
 
 

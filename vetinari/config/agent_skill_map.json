@@ -13,6 +13,8 @@
     },
     "explorer_agent": {
       "description": "Agent for code discovery and analysis",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "explorer", "default_capability": "grep_search"},
         {"skill_id": "explorer", "default_capability": "project_mapping"}
@@ -20,6 +22,8 @@
     },
     "evaluator_agent": {
       "description": "Agent for code review and quality assessment",
+      "status": "deprecated",
+      "replaced_by": "consolidated_quality_agent",
       "default_skills": [
         {"skill_id": "evaluator", "default_capability": "code_review"},
         {"skill_id": "evaluator", "default_capability": "security_audit"}
@@ -27,6 +31,8 @@
     },
     "research_agent": {
       "description": "Agent for documentation and library research",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "librarian", "default_capability": "docs_lookup"},
         {"skill_id": "researcher", "default_capability": "deep_dive"}
@@ -41,6 +47,8 @@
     },
     "synthesizer_agent": {
       "description": "Agent for combining results and generating reports",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "synthesizer", "default_capability": "summarization"},
         {"skill_id": "synthesizer", "default_capability": "report_generation"}
@@ -48,6 +56,8 @@
     },
     "ui_agent": {
       "description": "Agent for frontend design and UI/UX",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "ui-planner", "default_capability": "css_design"},
         {"skill_id": "ui-planner", "default_capability": "responsive_layout"}
@@ -75,6 +85,8 @@
     },
     "security_auditor_agent": {
       "description": "Security vulnerability scanning and OWASP compliance",
+      "status": "deprecated",
+      "replaced_by": "consolidated_quality_agent",
       "default_skills": [
         {"skill_id": "evaluator", "default_capability": "security_audit"},
         {"skill_id": "researcher", "default_capability": "deep_dive"},
@@ -83,6 +95,8 @@
     },
     "data_engineer_agent": {
       "description": "Database schema design, pipeline creation, data modelling",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "builder", "default_capability": "code_generation"},
         {"skill_id": "oracle", "default_capability": "architecture_analysis"},
@@ -91,6 +105,8 @@
     },
     "documentation_agent": {
       "description": "API docs, user guides, README and changelog generation",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "explorer", "default_capability": "file_discovery"},
         {"skill_id": "builder", "default_capability": "code_generation"}
@@ -98,6 +114,8 @@
     },
     "cost_planner_agent": {
       "description": "Budget planning, model cost optimisation, usage tracking",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "oracle", "default_capability": "trade_off_evaluation"},
         {"skill_id": "researcher", "default_capability": "comparative_analysis"}
@@ -105,6 +123,8 @@
     },
     "test_automation_agent": {
       "description": "Test generation, coverage analysis, test fixture creation",
+      "status": "deprecated",
+      "replaced_by": "consolidated_quality_agent",
       "default_skills": [
         {"skill_id": "builder", "default_capability": "test_writing"},
         {"skill_id": "explorer", "default_capability": "grep_search"},
@@ -113,6 +133,8 @@
     },
     "experimentation_manager_agent": {
       "description": "A/B test management, experiment tracking and reproducibility",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "researcher", "default_capability": "comparative_analysis"},
         {"skill_id": "oracle", "default_capability": "trade_off_evaluation"},
@@ -121,6 +143,8 @@
     },
     "improvement_agent": {
       "description": "Meta-analysis and self-improvement recommendations",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "evaluator", "default_capability": "quality_assessment"},
         {"skill_id": "oracle", "default_capability": "architecture_analysis"},
@@ -129,12 +153,16 @@
     },
     "user_interaction_agent": {
       "description": "Ambiguity detection and user clarification",
+      "status": "deprecated",
+      "replaced_by": "consolidated_planner_agent",
       "default_skills": [
         {"skill_id": "oracle", "default_capability": "architecture_analysis"}
       ]
     },
     "devops_agent": {
       "description": "CI/CD pipeline design, containerisation, IaC, deployment",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "builder", "default_capability": "code_generation"},
         {"skill_id": "oracle", "default_capability": "architecture_analysis"},
@@ -143,6 +171,8 @@
     },
     "version_control_agent": {
       "description": "Git workflow, branch strategy, PR creation, code review coordination",
+      "status": "deprecated",
+      "replaced_by": "consolidated_researcher_agent",
       "default_skills": [
         {"skill_id": "builder", "default_capability": "code_generation"},
         {"skill_id": "evaluator", "default_capability": "code_review"},
@@ -151,6 +181,8 @@
     },
     "error_recovery_agent": {
       "description": "Failure analysis, retry strategies, circuit breaking, fallback planning",
+      "status": "deprecated",
+      "replaced_by": "consolidated_operations_agent",
       "default_skills": [
         {"skill_id": "oracle", "default_capability": "architecture_analysis"},
         {"skill_id": "researcher", "default_capability": "deep_dive"},

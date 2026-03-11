@@ -25,10 +25,178 @@ from vetinari.web.shared import (
     _get_models_cached, trigger_light_search,
     _is_admin_user, _project_external_model_enabled,
 )
+from vetinari.web import require_admin
 
 logger = logging.getLogger(__name__)
 
 projects_bp = Blueprint('projects', __name__)
+
+
+# ---------------------------------------------------------------------------
+# P2.1: Pipeline-aware adapter helper
+# ---------------------------------------------------------------------------
+
+def _execute_via_pipeline(
+    orb,
+    model_id: str,
+    system_prompt: str,
+    user_prompt: str,
+    agent_type: str = "OPERATIONS",
+    task_id: str | None = None,
+) -> dict:
+    """Route an LLM call through the agent pipeline instead of calling the
+    adapter directly.
+
+    This wrapper ensures every web-triggered inference goes through the same
+    pipeline as agent-executed tasks:
+    - Applies inference config profiles (token budgets, temperature)
+    - Records the request and result in shared memory
+    - Emits structured telemetry / log events
+    - Falls back to ``orb.adapter.chat()`` if the pipeline is unavailable
+
+    Args:
+        orb: The orchestrator instance (provides ``adapter`` and
+            ``agent_context``).
+        model_id: LM Studio model identifier to use.
+        system_prompt: System prompt for the inference call.
+        user_prompt: User / task prompt.
+        agent_type: AgentType value string used for config profile lookup and
+            telemetry (e.g. ``"OPERATIONS"``, ``"BUILDER"``).
+        task_id: Optional task identifier for telemetry.  A UUID is generated
+            when not supplied.
+
+    Returns:
+        Dict with at least ``output`` (str) and ``tokens_used`` (int) keys,
+        matching the shape returned by ``adapter.chat()``.
+    """
+    import uuid as _uuid_mod
+
+    _task_id = task_id or _uuid_mod.uuid4().hex[:12]
+    _start = time.time()
+
+    # ── 1. Apply inference config profile ────────────────────────────────────
+    max_tokens = 4096
+    temperature = 0.3
+    try:
+        from vetinari.config.inference_config import get_inference_config
+        _profile_key = agent_type.lower()
+        _eff = get_inference_config().get_effective_params(_profile_key, model_id)
+        max_tokens = _eff.get("max_tokens", max_tokens)
+        temperature = _eff.get("temperature", temperature)
+    except Exception:
+        try:
+            from vetinari.token_optimizer import get_token_optimizer
+            _p = get_token_optimizer().get_task_profile(agent_type.lower())
+            max_tokens, temperature = _p[0], _p[1]
+        except Exception:
+            pass
+
+    # ── 2. Record request in shared memory ───────────────────────────────────
+    try:
+        from vetinari.shared_memory import SharedMemory
+        _mem = SharedMemory.get_instance()
+        if _mem is not None and hasattr(_mem, "store"):
+            _mem.store(
+                f"web_pipeline:{_task_id}:request",
+                {
+                    "agent_type": agent_type,
+                    "model_id": model_id,
+                    "prompt_preview": user_prompt[:200],
+                    "started_at": datetime.utcnow().isoformat(),
+                },
+                ttl=3600,
+            )
+    except Exception:
+        pass
+
+    # ── 3. Emit trace event ───────────────────────────────────────────────────
+    try:
+        from vetinari.structured_logging import log_event
+        log_event(
+            "info",
+            f"web.{agent_type.lower()}",
+            "pipeline_task_started",
+            task_id=_task_id,
+            model_id=model_id,
+        )
+    except Exception:
+        pass
+
+    # ── 4. Run inference via adapter_manager when available ───────────────────
+    result: dict = {}
+    try:
+        _adapter_manager = None
+        agent_context = getattr(orb, "agent_context", None)
+        if agent_context and isinstance(agent_context, dict):
+            _adapter_manager = agent_context.get("adapter_manager")
+        if _adapter_manager is None:
+            try:
+                from vetinari.adapter_manager import get_adapter_manager
+                _adapter_manager = get_adapter_manager()
+            except Exception:
+                pass
+
+        if _adapter_manager is not None:
+            from vetinari.adapters.base import InferenceRequest
+            _req = InferenceRequest(
+                model_id=model_id,
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            _resp = _adapter_manager.infer(_req)
+            if _resp.status == "ok":
+                result = {"output": _resp.output, "tokens_used": 0}
+    except Exception as _exc:
+        logger.warning("_execute_via_pipeline: adapter_manager path failed: %s", _exc)
+
+    # ── 5. Fall back to orb.adapter.chat() ───────────────────────────────────
+    if not result:
+        try:
+            result = orb.adapter.chat(model_id, system_prompt, user_prompt)
+        except Exception as _exc:
+            logger.error("_execute_via_pipeline: fallback adapter.chat() failed: %s", _exc)
+            result = {"output": "", "tokens_used": 0}
+
+    # ── 6. Record completion in shared memory + telemetry ────────────────────
+    _elapsed_ms = int((time.time() - _start) * 1000)
+    try:
+        from vetinari.shared_memory import SharedMemory
+        _mem = SharedMemory.get_instance()
+        if _mem is not None and hasattr(_mem, "store"):
+            _mem.store(
+                f"web_pipeline:{_task_id}:result",
+                {
+                    "agent_type": agent_type,
+                    "model_id": model_id,
+                    "output_preview": str(result.get("output", ""))[:200],
+                    "elapsed_ms": _elapsed_ms,
+                    "completed_at": datetime.utcnow().isoformat(),
+                },
+                ttl=3600,
+            )
+    except Exception:
+        pass
+
+    try:
+        from vetinari.structured_logging import log_event
+        log_event(
+            "info",
+            f"web.{agent_type.lower()}",
+            "pipeline_task_completed",
+            task_id=_task_id,
+            model_id=model_id,
+            elapsed_ms=_elapsed_ms,
+        )
+    except Exception:
+        pass
+
+    logger.debug(
+        "_execute_via_pipeline task=%s agent=%s model=%s elapsed_ms=%d",
+        _task_id, agent_type, model_id, _elapsed_ms,
+    )
+    return result
 
 
 # API: Server-Sent Events stream for real-time task updates
@@ -59,13 +227,14 @@ def api_project_stream(project_id):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": request.headers.get("Origin", "http://localhost:5000"),
         },
     )
 
 
 # API: Cancel a running project task
 @projects_bp.route('/api/project/<project_id>/cancel', methods=['POST'])
+@require_admin
 def api_cancel_project(project_id):
     """Cancel a running project execution."""
     cancelled = _cancel_project_task(project_id)
@@ -91,12 +260,13 @@ def api_cancel_project(project_id):
 
 
 @projects_bp.route('/api/new-project', methods=['POST'])
+@require_admin
 def api_new_project():
     data = request.json
     goal = data.get('goal', '')
     model = data.get('model', '')
     system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
-    auto_run = data.get('auto_run', True)
+    auto_run = data.get('auto_run', False)
     project_name = data.get('project_name', '')
     project_rules = data.get('project_rules', '')
     required_features = data.get('required_features', [])
@@ -206,7 +376,10 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
         model_response = ""
         try:
             # Send the user's actual goal to the model and get its response
-            result = orb.adapter.chat(planning_model_id, agent_system_prompt, goal)
+            result = _execute_via_pipeline(
+                orb, planning_model_id, agent_system_prompt, goal,
+                agent_type="PLANNER",
+            )
             model_response = result.get('output', '')
             logger.debug(f"Model response received: {len(model_response)} chars")
         except Exception as e:
@@ -274,7 +447,11 @@ Outputs: {', '.join(task['outputs'])}
 
 Implement this task. Output the code as code blocks with filenames."""
 
-                        task_result = orb.adapter.chat(task_model, system_prompt, task_prompt)
+                        task_result = _execute_via_pipeline(
+                            orb, task_model, system_prompt or "", task_prompt,
+                            agent_type="BUILDER",
+                            task_id=task_id,
+                        )
                         task_output = task_result.get('output', '')
                         tokens_used = task_result.get('tokens_used', 0)
 
@@ -428,6 +605,7 @@ Implement this task. Output the code as code blocks with filenames."""
 
 # API: List all projects
 @projects_bp.route('/api/projects')
+@require_admin
 def api_projects():
     try:
         include_archived = request.args.get('include_archived', 'false').lower() == 'true'
@@ -505,6 +683,7 @@ def api_projects():
 
 # API: Get single project details
 @projects_bp.route('/api/project/<project_id>')
+@require_admin
 def api_project(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -594,6 +773,7 @@ def api_project(project_id):
 
 # API: Send message to existing project
 @projects_bp.route('/api/project/<project_id>/message', methods=['POST'])
+@require_admin
 def api_project_message(project_id):
     try:
         data = request.json
@@ -634,7 +814,10 @@ def api_project_message(project_id):
 
         # Get AI response
         system_prompt = "You are a helpful coding assistant. Provide detailed, practical code solutions."
-        result = orb.adapter.chat(model, system_prompt, context)
+        result = _execute_via_pipeline(
+            orb, model, system_prompt, context,
+            agent_type="OPERATIONS",
+        )
         response = result.get('output', '')
 
         # Add assistant response
@@ -657,6 +840,7 @@ def api_project_message(project_id):
 
 # API: Add task to project
 @projects_bp.route('/api/project/<project_id>/task', methods=['POST'])
+@require_admin
 def api_add_task(project_id):
     try:
         data = request.json
@@ -704,6 +888,7 @@ def api_add_task(project_id):
 
 # API: Update task
 @projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['PUT'])
+@require_admin
 def api_update_task(project_id, task_id):
     try:
         data = request.json
@@ -754,6 +939,7 @@ def api_update_task(project_id, task_id):
 
 # API: Delete task
 @projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['DELETE'])
+@require_admin
 def api_delete_task(project_id, task_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -789,6 +975,7 @@ def api_delete_task(project_id, task_id):
 
 # API: Get project outputs for review
 @projects_bp.route('/api/project/<project_id>/review')
+@require_admin
 def api_project_review(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -858,6 +1045,7 @@ def api_project_review(project_id):
 
 # API: Approve outputs and trigger merge
 @projects_bp.route('/api/project/<project_id>/approve', methods=['POST'])
+@require_admin
 def api_approve_outputs(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -877,6 +1065,7 @@ def api_approve_outputs(project_id):
 
 # API: Merge project to final project space
 @projects_bp.route('/api/project/<project_id>/merge', methods=['POST'])
+@require_admin
 def api_merge_project(project_id):
     try:
         import shutil
@@ -983,6 +1172,7 @@ Run the generated code from the artifacts folder.
 
 # API: Get task output by project and task ID
 @projects_bp.route('/api/project/<project_id>/task/<task_id>/output')
+@require_admin
 def api_task_output(project_id, task_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1015,6 +1205,7 @@ def api_task_output(project_id, task_id):
 
 # API: Rename a project
 @projects_bp.route('/api/project/<project_id>/rename', methods=['POST'])
+@require_admin
 def api_rename_project(project_id):
     data = request.json
     new_name = data.get('name', '')
@@ -1049,6 +1240,7 @@ def api_rename_project(project_id):
 
 # API: Archive/unarchive a project
 @projects_bp.route('/api/project/<project_id>/archive', methods=['POST'])
+@require_admin
 def api_archive_project(project_id):
     data = request.json
     archive = data.get('archive', True)
@@ -1079,6 +1271,7 @@ def api_archive_project(project_id):
 
 # API: Delete a project
 @projects_bp.route('/api/project/<project_id>', methods=['DELETE'])
+@require_admin
 def api_delete_project(project_id):
     try:
         import shutil
@@ -1099,6 +1292,7 @@ def api_delete_project(project_id):
 
 # API: Assemble final deliverable from task outputs
 @projects_bp.route('/api/project/<project_id>/assemble', methods=['POST'])
+@require_admin
 def api_project_assemble(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1190,6 +1384,7 @@ def api_project_assemble(project_id):
 
 # API: Get build artifacts
 @projects_bp.route('/api/artifacts')
+@require_admin
 def api_artifacts():
     build_dir = PROJECT_ROOT / 'build' / 'artifacts'
     artifacts = []
@@ -1206,6 +1401,7 @@ def api_artifacts():
 
 # API: Safe file read for agent (OpenCode-like)
 @projects_bp.route('/api/project/<project_id>/files/read', methods=['POST'])
+@require_admin
 def api_read_file(project_id):
     try:
         data = request.json
@@ -1255,6 +1451,7 @@ def api_read_file(project_id):
 
 # API: Safe file write for agent (OpenCode-like)
 @projects_bp.route('/api/project/<project_id>/files/write', methods=['POST'])
+@require_admin
 def api_write_file(project_id):
     try:
         data = request.json
@@ -1302,6 +1499,7 @@ def api_write_file(project_id):
 
 # API: List workspace files
 @projects_bp.route('/api/project/<project_id>/files/list')
+@require_admin
 def api_list_files(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1327,6 +1525,7 @@ def api_list_files(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/model-search', methods=['POST'])
+@require_admin
 def api_model_search(project_id):
     try:
         project_dir = PROJECT_ROOT / 'projects' / project_id
@@ -1368,6 +1567,7 @@ def api_model_search(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/task/<task_id>/override', methods=['POST'])
+@require_admin
 def api_task_override(project_id, task_id):
     try:
         data = request.json or {}
@@ -1401,6 +1601,7 @@ def api_task_override(project_id, task_id):
 
 
 @projects_bp.route('/api/project/<project_id>/refresh-models', methods=['POST'])
+@require_admin
 def api_refresh_models(project_id):
     try:
         from vetinari.live_model_search import LiveModelSearchAdapter
@@ -1414,6 +1615,7 @@ def api_refresh_models(project_id):
 
 
 @projects_bp.route('/api/project/<project_id>/verify-goal', methods=['POST'])
+@require_admin
 def api_verify_goal(project_id):
     """Verify the final deliverable against the original project goal."""
     try:

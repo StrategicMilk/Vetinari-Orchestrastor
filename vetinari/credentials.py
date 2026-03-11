@@ -141,13 +141,13 @@ class CredentialVault:
             with open(self.credentials_file, 'wb') as f:
                 f.write(encrypted)
         else:
-            # cryptography library not installed; save as plain JSON and warn loudly.
-            logger.warning(
-                "Saving credentials as plain JSON because the cryptography library "
-                "is not available. Install 'cryptography' to enable encryption."
+            # P1.H9: Fail closed — refuse to store credentials without encryption.
+            # This prevents accidental plaintext credential storage.
+            raise RuntimeError(
+                "Cannot save credentials: encryption is unavailable. "
+                "Install the 'cryptography' package (`pip install cryptography`) "
+                "to enable the credential vault."
             )
-            with open(self.credentials_file, 'w') as f:
-                f.write(json_str)
         
         self._save_meta()
     

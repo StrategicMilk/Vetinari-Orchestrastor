@@ -14,6 +14,7 @@ Implements the assembly-line pattern:
 import logging
 import os
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from vetinari.orchestration.durable_execution import DurableExecutionEngine
@@ -92,6 +93,8 @@ class TwoLayerOrchestrator:
         max_concurrent: int = 4,
         model_router=None,
         agent_context: Dict[str, Any] = None,
+        enable_correction_loop: bool = True,
+        correction_loop_max_rounds: int = 3,
     ):
         self.plan_generator = PlanGenerator(model_router)
         self.execution_engine = DurableExecutionEngine(
@@ -101,6 +104,8 @@ class TwoLayerOrchestrator:
         self.model_router = model_router
         self.agent_context: Dict[str, Any] = agent_context or {}
         self._agents: Dict[str, Any] = {}
+        self.enable_correction_loop: bool = enable_correction_loop
+        self.correction_loop_max_rounds: int = correction_loop_max_rounds
 
         logger.info("TwoLayerOrchestrator initialized (assembly-line mode)")
 
@@ -289,6 +294,16 @@ class TwoLayerOrchestrator:
         exec_results = self.execution_engine.execute_plan(graph, effective_handler)
         stages["execution"] = exec_results
 
+        # P3.5: Check AutoTuner recommendations after execution completes
+        try:
+            from vetinari.learning.auto_tuner import get_auto_tuner
+            tuner = get_auto_tuner()
+            actions = tuner.run_cycle()
+            if actions:
+                logger.info("[AutoTuner] Applied %d tuning actions after execution", len(actions))
+        except Exception:
+            pass  # Non-fatal
+
         # ── C2: Stage-boundary validation (execution → review) ────────
         exec_valid, exec_issues = self._validate_stage_boundary(
             "execution", exec_results, min_keys=["completed"],
@@ -306,8 +321,58 @@ class TwoLayerOrchestrator:
         final_output = self._assemble_final_output(exec_results, review_result, goal)
         stages["final_assembly"] = {"output_length": len(str(final_output))}
 
+        # STAGE 8 (P2.5): Goal Verification + Correction Loop
+        goal_verification_report = None
+        if self.enable_correction_loop:
+            logger.info("[Pipeline] Stage 8: Goal Verification + Correction Loop")
+            try:
+                from vetinari.goal_verifier import get_goal_verifier
+                verifier = get_goal_verifier()
+                task_outputs_for_verify = [
+                    {"output": str(v)} for v in exec_results.get("task_results", {}).values() if v
+                ]
+                initial_report = verifier.verify(
+                    project_id=project_id or graph.plan_id,
+                    goal=goal,
+                    final_output=str(final_output),
+                    required_features=context.get("required_features"),
+                    things_to_avoid=context.get("things_to_avoid"),
+                    task_outputs=task_outputs_for_verify,
+                )
+                corrective_tasks = initial_report.get_corrective_tasks()
+                if corrective_tasks and not initial_report.fully_compliant:
+                    logger.info(
+                        "[Pipeline] Goal verification incomplete (score=%.2f), "
+                        "running %d corrective task(s)",
+                        initial_report.compliance_score, len(corrective_tasks),
+                    )
+                    plan_dict = {
+                        "project_id": project_id or graph.plan_id,
+                        "required_features": context.get("required_features", []),
+                        "things_to_avoid": context.get("things_to_avoid", []),
+                        "final_output": str(final_output),
+                        "task_outputs": task_outputs_for_verify,
+                    }
+                    goal_verification_report = self._execute_corrections(
+                        corrective_tasks=corrective_tasks,
+                        plan=plan_dict,
+                        goal=goal,
+                        context=context,
+                    )
+                else:
+                    goal_verification_report = initial_report
+                stages["goal_verification"] = {
+                    "compliance_score": goal_verification_report.compliance_score,
+                    "fully_compliant": goal_verification_report.fully_compliant,
+                    "missing_features": goal_verification_report.missing_features,
+                }
+            except Exception as _gv_err:
+                logger.warning(
+                    "[Pipeline] Goal verification stage failed (non-fatal): %s", _gv_err
+                )
+
         total_time = int((time.time() - start_time) * 1000)
-        return {
+        result_dict: Dict[str, Any] = {
             "plan_id": graph.plan_id,
             "goal": goal,
             "completed": exec_results.get("completed", 0),
@@ -318,6 +383,9 @@ class TwoLayerOrchestrator:
             "stages": stages,
             "total_time_ms": total_time,
         }
+        if goal_verification_report is not None:
+            result_dict["goal_verification"] = goal_verification_report.to_dict()
+        return result_dict
 
     # ── C2: Stage-boundary validation helper ─────────────────────────
 
@@ -612,6 +680,182 @@ class TwoLayerOrchestrator:
         task_results = exec_results.get("task_results", {})
         parts = [f"# Task {k}\n{v}" for k, v in task_results.items() if v]
         return "\n\n".join(parts) if parts else f"Completed: {goal}"
+
+    # ------------------------------------------------------------------
+    # P2.5: Verification-to-correction loop
+    # ------------------------------------------------------------------
+
+    def _execute_corrections(
+        self,
+        corrective_tasks: List[Dict[str, Any]],
+        plan: Dict[str, Any],
+        goal: str,
+        context: Dict[str, Any] | None = None,
+        max_rounds: int | None = None,
+    ) -> "GoalVerificationReport":  # type: ignore[name-defined]  # noqa: F821
+        """Execute corrective tasks returned by GoalVerifier and re-verify.
+
+        Takes the list of corrective tasks from
+        ``GoalVerificationReport.get_corrective_tasks()``, converts each to a
+        proper ``AgentTask``, runs them through the normal agent pipeline via
+        ``_get_agent().execute()``, re-runs goal verification after each round,
+        and stops when the report is fully compliant or ``max_rounds`` is
+        reached.
+
+        Args:
+            corrective_tasks: List of task dicts from
+                ``GoalVerificationReport.get_corrective_tasks()``.  Each dict
+                has at minimum ``description`` and ``assigned_agent`` keys.
+            plan: The original plan dict (used to extract project_id, goal,
+                required_features, etc. for re-verification).
+            goal: Original goal string used for verification.
+            context: Optional extra context forwarded to agent execution.
+            max_rounds: Override for ``self.correction_loop_max_rounds``.
+
+        Returns:
+            The final ``GoalVerificationReport`` after all correction rounds.
+        """
+        from vetinari.goal_verifier import get_goal_verifier, GoalVerificationReport
+        from vetinari.agents.contracts import AgentTask
+
+        _max = max_rounds if max_rounds is not None else self.correction_loop_max_rounds
+        context = context or {}
+
+        # Build a minimal report to return if corrections can't run at all.
+        _project_id = plan.get("project_id", "unknown")
+        _required_features: List[str] = plan.get("required_features", [])
+        _things_to_avoid: List[str] = plan.get("things_to_avoid", [])
+
+        # Collect existing task outputs from the plan for re-verification.
+        _task_outputs: List[Dict[str, Any]] = plan.get("task_outputs", [])
+        _final_output: str = plan.get("final_output", "")
+
+        verifier = get_goal_verifier()
+        report: Optional[GoalVerificationReport] = None
+
+        for round_num in range(1, _max + 1):
+            logger.info(
+                "[CorrectionLoop] Round %d/%d — executing %d corrective task(s)",
+                round_num, _max, len(corrective_tasks),
+            )
+
+            round_outputs: List[str] = []
+
+            for task_dict in corrective_tasks:
+                agent_type_str = task_dict.get("assigned_agent", "BUILDER").upper()
+                description = task_dict.get("description", "Corrective task")
+                task_id = f"correction-r{round_num}-{uuid.uuid4().hex[:8]}"
+
+                # Resolve AgentType enum value
+                try:
+                    from vetinari.agents.contracts import AgentType
+                    try:
+                        agent_type_enum = AgentType[agent_type_str]
+                    except KeyError:
+                        agent_type_enum = AgentType.BUILDER
+                except Exception:
+                    agent_type_enum = None  # type: ignore[assignment]
+
+                if agent_type_enum is None:
+                    logger.warning(
+                        "[CorrectionLoop] Cannot resolve AgentType '%s', skipping task",
+                        agent_type_str,
+                    )
+                    continue
+
+                agent = self._get_agent(agent_type_str)
+                if agent is None:
+                    logger.warning(
+                        "[CorrectionLoop] Agent '%s' unavailable, skipping task",
+                        agent_type_str,
+                    )
+                    continue
+
+                task = AgentTask(
+                    task_id=task_id,
+                    agent_type=agent_type_enum,
+                    description=description,
+                    prompt=description,
+                    context={
+                        **context,
+                        "correction_round": round_num,
+                        "task_details": task_dict.get("details"),
+                    },
+                )
+
+                try:
+                    result = agent.execute(task)
+                    if result.success and result.output:
+                        output_str = (
+                            result.output
+                            if isinstance(result.output, str)
+                            else str(result.output)
+                        )
+                        round_outputs.append(output_str)
+                        logger.info(
+                            "[CorrectionLoop] Task %s completed (agent=%s)",
+                            task_id, agent_type_str,
+                        )
+                    else:
+                        logger.warning(
+                            "[CorrectionLoop] Task %s failed: %s",
+                            task_id, result.errors,
+                        )
+                except Exception as exc:
+                    logger.error(
+                        "[CorrectionLoop] Task %s raised exception: %s",
+                        task_id, exc,
+                    )
+
+            # Append round outputs to the running final output for re-verification.
+            if round_outputs:
+                _final_output = _final_output + "\n" + "\n".join(round_outputs)
+                _task_outputs.extend(
+                    {"output": o, "round": round_num} for o in round_outputs
+                )
+
+            # Re-verify after this correction round.
+            report = verifier.verify(
+                project_id=_project_id,
+                goal=goal,
+                final_output=_final_output,
+                required_features=_required_features,
+                things_to_avoid=_things_to_avoid,
+                task_outputs=_task_outputs,
+            )
+
+            logger.info(
+                "[CorrectionLoop] Round %d verification: score=%.2f, compliant=%s",
+                round_num, report.compliance_score, report.fully_compliant,
+            )
+
+            if report.fully_compliant:
+                logger.info(
+                    "[CorrectionLoop] Verification passed after round %d", round_num
+                )
+                return report
+
+            # Prepare next round's corrective tasks from remaining gaps.
+            corrective_tasks = report.get_corrective_tasks()
+            if not corrective_tasks:
+                logger.info(
+                    "[CorrectionLoop] No further corrective tasks — stopping after round %d",
+                    round_num,
+                )
+                break
+
+        if report is None:
+            # No rounds ran (empty corrective_tasks list on entry)
+            report = verifier.verify(
+                project_id=_project_id,
+                goal=goal,
+                final_output=_final_output,
+                required_features=_required_features,
+                things_to_avoid=_things_to_avoid,
+                task_outputs=_task_outputs,
+            )
+
+        return report
 
     # ------------------------------------------------------------------
     # Phase 7.9A: AgentGraph as execution backend

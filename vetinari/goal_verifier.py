@@ -239,8 +239,11 @@ class GoalVerifier:
                         if feat_data.get("evidence"):
                             existing.evidence = feat_data["evidence"]
         except Exception as e:
-            logger.warning("LLM evaluation failed in goal verifier: %s", e)
-            report.quality_score = 0.7  # Default passing score
+            logger.warning(
+                "LLM evaluation failed in goal verifier — defaulting quality_score to 0.3 "
+                "(failing value) to avoid masking verification gaps: %s", e
+            )
+            report.quality_score = 0.3  # P2.4: Fail-safe default, not passing
 
         # 6. Run security check
         try:
@@ -257,10 +260,16 @@ class GoalVerifier:
             if not f.implemented and f.severity in ("major", "critical")
         ]
 
-        feature_score = (
-            sum(f.confidence for f in report.features if f.implemented) / len(report.features)
-            if report.features else 1.0
-        )
+        if report.features:
+            feature_score = sum(f.confidence for f in report.features if f.implemented) / len(report.features)
+        else:
+            # P2.4: No features to verify — default to 0.5 (neutral, not passing) to avoid
+            # inflating compliance scores when feature list is empty or was not provided.
+            logger.warning(
+                "No features to verify for project %s — defaulting feature_score to 0.5",
+                project_id,
+            )
+            feature_score = 0.5
         security_weight = 0.2 if not report.security_passed else 0.0
         report.compliance_score = max(0.0, (
             feature_score * 0.5

@@ -394,3 +394,28 @@ def get_sla_tracker() -> SLATracker:
 def reset_sla_tracker() -> None:
     with SLATracker._class_lock:
         SLATracker._instance = None
+
+
+def register_default_slos() -> None:
+    """Register default SLO targets for the analytics SLA tracker.
+
+    Called at web_ui startup to ensure baseline SLOs exist.
+    """
+    tracker = get_sla_tracker()
+    defaults = [
+        SLOTarget(name="latency-p95", slo_type=SLOType.LATENCY_P95,
+                  budget=2000.0, window_seconds=3600,
+                  description="95th percentile latency under 2s"),
+        SLOTarget(name="success-rate", slo_type=SLOType.SUCCESS_RATE,
+                  budget=95.0, window_seconds=3600,
+                  description="At least 95% successful requests"),
+        SLOTarget(name="error-rate", slo_type=SLOType.ERROR_RATE,
+                  budget=5.0, window_seconds=3600,
+                  description="Error rate below 5%"),
+        SLOTarget(name="approval-rate", slo_type=SLOType.APPROVAL_RATE,
+                  budget=80.0, window_seconds=86400,
+                  description="Plan approval rate above 80%"),
+    ]
+    for slo in defaults:
+        tracker.register_slo(slo)
+    logging.getLogger(__name__).info("Registered %d default SLO targets", len(defaults))
