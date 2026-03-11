@@ -85,6 +85,9 @@ class BlackboardEntry:
     completed_at: Optional[float] = None
     ttl_seconds: float = 3600.0         # Expire after 1 hour if unclaimed
     metadata: Dict[str, Any] = field(default_factory=dict)
+    _completion_event: threading.Event = field(
+        default_factory=threading.Event, repr=False, compare=False,
+    )
 
     @property
     def is_expired(self) -> bool:
@@ -161,7 +164,7 @@ class Blackboard:
         )
         with self._lock:
             self._entries[entry_id] = entry
-        logger.debug(f"[Blackboard] Posted {entry_id} ({request_type}) by {requested_by}")
+        logger.debug("[Blackboard] Posted %s (%s) by %s", entry_id, request_type, requested_by)
         self._notify_observers(entry)
         return entry_id
 
@@ -170,7 +173,25 @@ class Blackboard:
     # ------------------------------------------------------------------
 
     def claim(self, entry_id: str, agent_type: str) -> Optional[BlackboardEntry]:
-        """Claim a pending entry for processing. Returns None if unavailable."""
+        """Claim a pending entry for processing. Returns None if unavailable.
+
+        Phase 7.9H: Checks MODEL_INFERENCE permission before allowing claim.
+        """
+        # Permission check — agents can only claim work if permitted
+        try:
+            from vetinari.execution_context import get_context_manager, ToolPermission
+            ctx_mgr = get_context_manager()
+            if not ctx_mgr.check_permission(ToolPermission.MODEL_INFERENCE):
+                logger.warning(
+                    "[Blackboard] Claim denied for %s on %s — "
+                    "MODEL_INFERENCE not allowed in current mode",
+                    agent_type, entry_id
+                )
+                return None
+        except Exception:
+            # Context manager not configured — allow claim
+            logger.debug("Execution context manager not configured, allowing claim for %s", entry_id, exc_info=True)
+
         with self._lock:
             entry = self._entries.get(entry_id)
             if entry is None or entry.state != EntryState.PENDING:
@@ -189,7 +210,8 @@ class Blackboard:
             entry.state = EntryState.COMPLETED
             entry.result = result
             entry.completed_at = time.time()
-        logger.debug(f"[Blackboard] Completed {entry_id}")
+            entry._completion_event.set()  # Wake up waiters immediately
+        logger.debug("[Blackboard] Completed %s", entry_id)
         return True
 
     def fail(self, entry_id: str, error: str) -> bool:
@@ -201,7 +223,8 @@ class Blackboard:
             entry.state = EntryState.FAILED
             entry.error = error
             entry.completed_at = time.time()
-        logger.debug(f"[Blackboard] Failed {entry_id}: {error}")
+            entry._completion_event.set()  # Wake up waiters on failure too
+        logger.debug("[Blackboard] Failed %s: %s", entry_id, error)
         return True
 
     # ------------------------------------------------------------------
@@ -209,34 +232,36 @@ class Blackboard:
     # ------------------------------------------------------------------
 
     def get_result(self, entry_id: str, timeout: float = 30.0) -> Any:
-        """Poll for a result until it arrives or timeout expires."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            with self._lock:
-                entry = self._entries.get(entry_id)
-            if entry is None:
-                return None
-            if entry.state == EntryState.COMPLETED:
-                return entry.result
-            if entry.state == EntryState.FAILED:
-                raise RuntimeError(f"Blackboard entry {entry_id} failed: {entry.error}")
-            time.sleep(0.1)
+        """Wait for a result using threading.Event (no polling)."""
+        with self._lock:
+            entry = self._entries.get(entry_id)
+        if entry is None:
+            return None
+        # Fast path: already done
+        if entry.state == EntryState.COMPLETED:
+            return entry.result
+        if entry.state == EntryState.FAILED:
+            raise RuntimeError(f"Blackboard entry {entry_id} failed: {entry.error}")
+        # Block until signalled or timeout
+        entry._completion_event.wait(timeout=timeout)
+        if entry.state == EntryState.COMPLETED:
+            return entry.result
+        if entry.state == EntryState.FAILED:
+            raise RuntimeError(f"Blackboard entry {entry_id} failed: {entry.error}")
         return None  # Timeout
 
     def get_pending(
         self,
         request_type: Optional[str] = None,
-        request_type_prefix: Optional[str] = None,
         limit: int = 10,
     ) -> List[BlackboardEntry]:
-        """Return pending entries, optionally filtered by type or prefix, sorted by priority."""
+        """Return pending entries, optionally filtered by type, sorted by priority."""
         with self._lock:
             entries = [
                 e for e in self._entries.values()
                 if e.state == EntryState.PENDING
                 and not e.is_expired
                 and (request_type is None or e.request_type == request_type)
-                and (request_type_prefix is None or e.request_type.startswith(request_type_prefix))
             ]
         entries.sort(key=lambda e: (e.priority, e.created_at))
         return entries[:limit]
@@ -271,16 +296,118 @@ class Blackboard:
             if fallback_type in available_agents:
                 agent = available_agents[fallback_type]
                 logger.warning(
-                    f"[Blackboard] Delegating unhandled task {task.id} "
-                    f"(type={task.assigned_agent}) to fallback {fallback_type.value}"
+                    "[Blackboard] Delegating unhandled task %s "
+                    "(type=%s) to fallback %s",
+                    task.id, task.assigned_agent, fallback_type.value
                 )
                 try:
                     agent_task = AgentTask.from_task(task, task.description)
                     return agent.execute(agent_task)
                 except Exception as e:
-                    logger.error(f"[Blackboard] Fallback delegation failed: {e}")
+                    logger.error("[Blackboard] Fallback delegation failed: %s", e)
 
         return None
+
+    # ------------------------------------------------------------------
+    # Phase 7.9B: Inter-agent delegation patterns
+    # ------------------------------------------------------------------
+
+    def request_help(
+        self,
+        requesting_agent: str,
+        request_type: str,
+        description: str,
+        priority: int = 5,
+        timeout: float = 30.0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Post a help request and wait for a capable agent to fulfil it.
+
+        This is a synchronous convenience method: it posts, then blocks
+        until a result is available or timeout expires.
+
+        Args:
+            requesting_agent: AgentType.value of the requester.
+            request_type: Category of work (must match REQUEST_TYPE_ROUTING).
+            description: Human-readable task description.
+            priority: 1=highest, 10=lowest.
+            timeout: Seconds to wait for result.
+            metadata: Optional extra context for the handler.
+
+        Returns:
+            The result from the handling agent, or None on timeout.
+        """
+        entry_id = self.post(
+            content=description,
+            request_type=request_type,
+            requested_by=requesting_agent,
+            priority=priority,
+            metadata=metadata or {},
+        )
+        logger.info(
+            "[Blackboard] %s requests help: "
+            "%s (%s)",
+            requesting_agent, request_type, entry_id
+        )
+        try:
+            return self.get_result(entry_id, timeout=timeout)
+        except RuntimeError:
+            return None
+
+    def escalate_error(
+        self,
+        agent_type: str,
+        task_id: str,
+        error: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Escalate an error to the blackboard for error recovery.
+
+        Posts a high-priority error_recovery request that the
+        ErrorRecoveryAgent (or OPERATIONS) can pick up.
+
+        Returns:
+            The entry_id of the escalation.
+        """
+        return self.post(
+            content=f"Error in {agent_type} task {task_id}: {error}",
+            request_type="error_recovery",
+            requested_by=agent_type,
+            priority=1,  # High priority
+            metadata={
+                "original_task_id": task_id,
+                "error": error,
+                **(context or {}),
+            },
+        )
+
+    def request_consensus(
+        self,
+        requesting_agent: str,
+        subject: str,
+        options: list,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Post a consensus-check request for multi-agent voting.
+
+        Multiple agents can claim the entry and vote.  The caller
+        should collect votes from the result.
+
+        Returns:
+            The entry_id of the consensus request.
+        """
+        return self.post(
+            content=f"Consensus needed: {subject}",
+            request_type="architecture_decision",
+            requested_by=requesting_agent,
+            priority=3,
+            metadata={
+                "consensus_request": True,
+                "subject": subject,
+                "options": options,
+                **(metadata or {}),
+            },
+        )
 
     # ------------------------------------------------------------------
     # Observers
@@ -296,7 +423,7 @@ class Blackboard:
             try:
                 cb(entry)
             except Exception as e:
-                logger.debug(f"[Blackboard] Observer error: {e}")
+                logger.debug("[Blackboard] Observer error: %s", e)
 
     # ------------------------------------------------------------------
     # Maintenance
@@ -331,6 +458,96 @@ class Blackboard:
         """Clear all entries (use in tests only)."""
         with self._lock:
             self._entries.clear()
+
+
+# ---------------------------------------------------------------------------
+# Request-type routing (Phase 7.9G)
+# ---------------------------------------------------------------------------
+
+# Maps request_type strings to the agent types capable of handling them.
+# Used by the blackboard to auto-notify the right agents when work is posted.
+REQUEST_TYPE_ROUTING: Dict[str, List[str]] = {
+    # Each entry lists consolidated agent first, then legacy fallbacks
+    "code_search":          ["CONSOLIDATED_RESEARCHER", "EXPLORER", "RESEARCHER"],
+    "code_review":          ["QUALITY", "EVALUATOR", "SECURITY_AUDITOR"],
+    "security_audit":       ["QUALITY", "SECURITY_AUDITOR"],
+    "architecture_decision": ["CONSOLIDATED_ORACLE", "ORACLE"],
+    "documentation":        ["OPERATIONS", "DOCUMENTATION_AGENT", "SYNTHESIZER"],
+    "implementation":       ["BUILDER"],
+    "test_generation":      ["QUALITY", "TEST_AUTOMATION", "EVALUATOR"],
+    "cost_analysis":        ["OPERATIONS", "COST_PLANNER"],
+    "research":             ["CONSOLIDATED_RESEARCHER", "RESEARCHER", "LIBRARIAN", "EXPLORER"],
+    "ui_design":            ["ARCHITECT", "UI_PLANNER"],
+    "devops":               ["ARCHITECT", "DEVOPS"],
+    "error_recovery":       ["OPERATIONS", "ERROR_RECOVERY"],
+    "image_generation":     ["OPERATIONS", "IMAGE_GENERATOR"],
+    "data_engineering":     ["ARCHITECT", "DATA_ENGINEER"],
+    "creative_writing":     ["OPERATIONS", "SYNTHESIZER"],
+}
+
+
+def get_capable_agents(request_type: str) -> List[str]:
+    """Return agent type strings capable of handling a given request type."""
+    return REQUEST_TYPE_ROUTING.get(request_type, [])
+
+
+# ---------------------------------------------------------------------------
+# Shared Execution Context (Phase 7.9E)
+# ---------------------------------------------------------------------------
+
+class SharedExecutionContext:
+    """Key-value store accessible to all agents during a single plan execution.
+
+    Lifetime: created at plan start, cleaned up at plan completion.
+
+    Use case: RESEARCHER stores ``codebase_map`` mid-execution and BUILDER
+    reads it without requiring an explicit DAG edge between them.
+
+    Thread-safe via RLock.
+    """
+
+    def __init__(self, plan_id: str):
+        self.plan_id = plan_id
+        self._store: Dict[str, Any] = {}
+        self._provenance: Dict[str, str] = {}   # key -> agent_type that wrote it
+        self._lock = threading.RLock()
+
+    def set(self, key: str, value: Any, agent_type: str) -> None:
+        """Store a value, recording which agent wrote it."""
+        with self._lock:
+            self._store[key] = value
+            self._provenance[key] = agent_type
+        logger.debug("[SharedCtx:%s] %s set '%s'", self.plan_id, agent_type, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Read a value (returns *default* if missing)."""
+        with self._lock:
+            return self._store.get(key, default)
+
+    def get_all(self) -> Dict[str, Any]:
+        """Return a shallow copy of all stored key-value pairs."""
+        with self._lock:
+            return dict(self._store)
+
+    def get_all_by_agent(self, agent_type: str) -> Dict[str, Any]:
+        """Return all entries written by a specific agent type."""
+        with self._lock:
+            return {
+                k: self._store[k]
+                for k, a in self._provenance.items()
+                if a == agent_type
+            }
+
+    def keys(self) -> List[str]:
+        """Return list of stored keys."""
+        with self._lock:
+            return list(self._store.keys())
+
+    def clear(self) -> None:
+        """Remove all entries (called at plan completion)."""
+        with self._lock:
+            self._store.clear()
+            self._provenance.clear()
 
 
 # ---------------------------------------------------------------------------

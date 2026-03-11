@@ -237,6 +237,8 @@ def _install_stubs() -> None:
     # (sys.modules.get(cls.__module__).__dict__) finds the module, not None.
     sys.modules["vetinari.blackboard"] = blackboard_mod
     _bb_spec.loader.exec_module(blackboard_mod)
+    # Re-fetch: the shim replaces sys.modules["vetinari.blackboard"] with the canonical module
+    blackboard_mod = sys.modules["vetinari.blackboard"]
     blackboard_mod.get_blackboard = MagicMock(return_value=MagicMock(delegate=MagicMock(return_value=None)))
 
     # ---- vetinari.execution_context ----

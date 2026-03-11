@@ -5,14 +5,14 @@ import uuid
 from typing import List, Dict, Optional, Any, Callable
 from datetime import datetime
 
-from .plan_types import (
+from vetinari.plan_types import (
     Plan, PlanCandidate, Subtask, PlanStatus, SubtaskStatus,
     TaskDomain, PlanRiskLevel, DefinitionOfDone, DefinitionOfReady,
     TaskRationale, PlanGenerationRequest, PlanApprovalRequest
 )
 from vetinari.memory import get_memory_store, MemoryStore
 from vetinari.memory.dual_memory import get_dual_memory_store
-from vetinari.agents.explain_agent import get_explain_agent, ExplainAgent, is_explainability_enabled, EXPLAINABILITY_ENABLED
+from vetinari.explain_agent import get_explain_agent, ExplainAgent, is_explainability_enabled, EXPLAINABILITY_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -449,19 +449,34 @@ class PlanModeEngine:
     
     def generate_plan(self, request: PlanGenerationRequest) -> Plan:
         """Generate a plan from a goal.
-        
+
         This creates multiple plan candidates, evaluates them, and returns
         a Plan object ready for approval or execution.
         """
-        logger.info(f"Generating plan for goal: {request.goal[:100]}...")
-        
+        logger.info("Generating plan for goal: %s...", request.goal[:100])
+
+        # Phase 5: Consult WorkflowLearner for recommendations before planning
+        workflow_hints = {}
+        try:
+            from vetinari.learning.workflow_learner import get_workflow_learner
+            workflow_hints = get_workflow_learner().get_recommendations(request.goal)
+            if workflow_hints.get("confidence", 0) > 0.5:
+                logger.info(
+                    "WorkflowLearner recommends domain=%s, depth=%s, agents=%s",
+                    workflow_hints.get("domain"),
+                    workflow_hints.get("recommended_depth"),
+                    workflow_hints.get("preferred_agents"),
+                )
+        except Exception as e:
+            logger.debug("WorkflowLearner not available: %s", e)
+
         plan = Plan(
             goal=request.goal,
             constraints=request.constraints,
             dry_run=request.dry_run,
             plan_candidates=[]
         )
-        
+
         domain = request.domain_hint or self._infer_domain(request.goal)
         
         candidates = self._generate_candidates(
@@ -501,14 +516,14 @@ class PlanModeEngine:
                 explain_agent = get_explain_agent()
                 explanation = explain_agent.explain_plan(plan)
                 plan.plan_explanation_json = json.dumps(explanation.to_dict())
-                logger.info(f"Generated explanation for plan {plan.plan_id}")
+                logger.info("Generated explanation for plan %s", plan.plan_id)
             except Exception as e:
-                logger.warning(f"Failed to generate explanation: {e}")
+                logger.warning("Failed to generate explanation: %s", e)
         
         self._persist_plan(plan)
         
-        logger.info(f"Plan generated: {plan.plan_id}, risk_score={plan.risk_score:.2f}, "
-                   f"subtasks={len(plan.subtasks)}, auto_approved={plan.auto_approved}")
+        logger.info("Plan generated: %s, risk_score=%.2f, subtasks=%s, auto_approved=%s",
+                   plan.plan_id, plan.risk_score, len(plan.subtasks), plan.auto_approved)
         
         return plan
     
@@ -533,11 +548,102 @@ class PlanModeEngine:
     
     def _generate_candidates(self, goal: str, constraints: str, domain: TaskDomain,
                             max_candidates: int, depth_cap: int) -> List[PlanCandidate]:
-        """Generate multiple plan candidates."""
-        candidates = []
-        
+        """Generate multiple plan candidates, using LLM when available."""
         templates = self._domain_templates.get(domain, self._domain_templates[TaskDomain.GENERAL])
-        
+
+        # Gather quality history for calibrated estimates
+        quality_context = ""
+        try:
+            from vetinari.learning.quality_scorer import get_quality_scorer
+            scorer = get_quality_scorer()
+            for tpl in templates:
+                task_type = tpl.get("task_type", domain.value) if isinstance(tpl, dict) else domain.value
+                history = scorer.get_history(task_type=task_type)
+                if history:
+                    recent = history[:5]
+                    avg_score = sum(h.overall_score for h in recent) / len(recent)
+                    quality_context += f"\n- {task_type}: avg quality={avg_score:.2f} over {len(recent)} recent tasks"
+        except Exception:
+            pass
+
+        # Try LLM-powered candidate generation
+        try:
+            from vetinari.adapter_manager import get_adapter_manager
+            adapter = get_adapter_manager()
+            quality_section = f"\n\nHistorical quality data:{quality_context}" if quality_context else ""
+            response = adapter.infer(
+                prompt=(
+                    f"Generate {min(max_candidates, 3)} plan variants for this goal:\n"
+                    f"Goal: {goal}\n"
+                    f"Domain: {domain.value}\n"
+                    f"Constraints: {constraints or 'none'}\n"
+                    f"{quality_section}\n\n"
+                    f"For each variant, provide on a single line: summary|risk(0.0-1.0)|hours|cost_usd|subtask_count\n"
+                    f"Variant 1 should be conservative (low risk), variant 2 balanced, variant 3 aggressive (fast but riskier)."
+                ),
+                system_prompt="You are a project planner. Output exactly the requested format, one variant per line.",
+                max_tokens=256,
+            )
+            content = response.get("output", "").strip() if isinstance(response, dict) else str(response).strip()
+            if content:
+                return self._parse_llm_candidates(content, goal, domain, depth_cap, templates, max_candidates)
+        except Exception as e:
+            logger.debug("LLM candidate generation unavailable, using fallback: %s", e)
+
+        # Fallback: hardcoded candidate generation
+        return self._generate_fallback_candidates(goal, domain, templates, max_candidates, depth_cap)
+
+    def _parse_llm_candidates(self, content: str, goal: str, domain: TaskDomain,
+                              depth_cap: int, templates: list, max_candidates: int) -> List[PlanCandidate]:
+        """Parse LLM output into PlanCandidate objects."""
+        candidates = []
+        for i, line in enumerate(content.strip().split("\n")):
+            if i >= min(max_candidates, 3):
+                break
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 5:
+                try:
+                    summary = parts[0]
+                    risk = max(0.0, min(1.0, float(parts[1])))
+                    hours = max(0.5, float(parts[2]))
+                    cost = max(1.0, float(parts[3]))
+                    subtasks = max(1, int(float(parts[4])))
+                except (ValueError, IndexError):
+                    continue
+            else:
+                # Couldn't parse — use fallback values for this variant
+                summary = f"Plan variant {i+1} for: {goal[:50]}..."
+                risk = 0.15 + (i * 0.1)
+                hours = 1.0 + i * 0.5
+                cost = 10.0 * (1 + i * 0.3)
+                subtasks = len(templates) + i * 2
+
+            candidate = PlanCandidate(
+                plan_id=f"plan_{uuid.uuid4().hex[:8]}",
+                plan_version=1,
+                summary=summary,
+                description=f"Implementation plan for: {goal}",
+                justification=f"LLM-analyzed {domain.value} plan variant",
+                risk_score=risk,
+                estimated_duration_seconds=hours * 3600.0,
+                estimated_cost=cost,
+                subtask_count=subtasks,
+                max_depth=min(depth_cap, 3 + i),
+                domains=[domain],
+            )
+            self._assign_risk_level(candidate)
+            candidate.dependencies = self._generate_dependencies(subtasks)
+            candidates.append(candidate)
+
+        # If parsing failed entirely, fall back
+        if not candidates:
+            return self._generate_fallback_candidates(goal, domain, templates, max_candidates, depth_cap)
+        return candidates
+
+    def _generate_fallback_candidates(self, goal: str, domain: TaskDomain,
+                                      templates: list, max_candidates: int, depth_cap: int) -> List[PlanCandidate]:
+        """Generate candidates with hardcoded heuristics (original behavior)."""
+        candidates = []
         for i in range(min(max_candidates, 3)):
             candidate = PlanCandidate(
                 plan_id=f"plan_{uuid.uuid4().hex[:8]}",
@@ -550,23 +656,24 @@ class PlanModeEngine:
                 estimated_cost=10.0 * (1 + i * 0.3),
                 subtask_count=len(templates) + i * 2,
                 max_depth=min(depth_cap, 3 + i),
-                domains=[domain]
+                domains=[domain],
             )
-            
-            if candidate.risk_score >= 0.75:
-                candidate.risk_level = PlanRiskLevel.CRITICAL
-            elif candidate.risk_score >= 0.5:
-                candidate.risk_level = PlanRiskLevel.HIGH
-            elif candidate.risk_score >= 0.25:
-                candidate.risk_level = PlanRiskLevel.MEDIUM
-            else:
-                candidate.risk_level = PlanRiskLevel.LOW
-            
+            self._assign_risk_level(candidate)
             candidate.dependencies = self._generate_dependencies(len(templates) + i * 2)
-            
             candidates.append(candidate)
-        
         return candidates
+
+    @staticmethod
+    def _assign_risk_level(candidate: PlanCandidate):
+        """Set risk_level based on risk_score."""
+        if candidate.risk_score >= 0.75:
+            candidate.risk_level = PlanRiskLevel.CRITICAL
+        elif candidate.risk_score >= 0.5:
+            candidate.risk_level = PlanRiskLevel.HIGH
+        elif candidate.risk_score >= 0.25:
+            candidate.risk_level = PlanRiskLevel.MEDIUM
+        else:
+            candidate.risk_level = PlanRiskLevel.LOW
     
     def _generate_dependencies(self, subtask_count: int) -> Dict[str, List[str]]:
         """Generate task dependencies."""
@@ -637,8 +744,8 @@ class PlanModeEngine:
         
         self._persist_plan(plan)
         
-        logger.info(f"Plan {plan.plan_id} {'approved' if request.approved else 'rejected'} "
-                   f"by {request.approver}")
+        logger.info("Plan %s %s by %s",
+                   plan.plan_id, 'approved' if request.approved else 'rejected', request.approver)
         
         return plan
     
@@ -749,7 +856,7 @@ class PlanModeEngine:
                 )
                 
                 store.remember(entry)
-                logger.info(f"Logged approval decision for {subtask_id}: {'approved' if approved else 'rejected'}")
+                logger.info("Logged approval decision for %s: %s", subtask_id, 'approved' if approved else 'rejected')
                 return True
             else:
                 logger.warning("Dual memory not available, approval not logged")
@@ -757,7 +864,7 @@ class PlanModeEngine:
 
                 
         except Exception as e:
-            logger.error(f"Failed to log approval decision: {e}")
+            logger.error("Failed to log approval decision: %s", e)
             return False
     
     def auto_approve_if_low_risk(self, plan: Plan, subtask: Subtask) -> bool:
@@ -837,7 +944,7 @@ class PlanModeEngine:
                 )
                 store.remember(entry)
             except Exception as mem_err:
-                logger.warning(f"Failed to log coding artifact to memory: {mem_err}")
+                logger.warning("Failed to log coding artifact to memory: %s", mem_err)
             
             return {
                 "success": True,
@@ -846,13 +953,13 @@ class PlanModeEngine:
             }
             
         except ImportError as e:
-            logger.error(f"Coding agent not available: {e}")
+            logger.error("Coding agent not available: %s", e)
             return {
                 "success": False,
                 "error": f"Coding agent not available: {e}"
             }
         except Exception as e:
-            logger.error(f"Coding task execution failed: {e}")
+            logger.error("Coding task execution failed: %s", e)
             return {
                 "success": False,
                 "error": str(e)
@@ -868,7 +975,7 @@ class PlanModeEngine:
             results.append(result)
             
             if not result.get("success", False):
-                logger.warning(f"Subtask {subtask.subtask_id} failed, continuing...")
+                logger.warning("Subtask %s failed, continuing...", subtask.subtask_id)
         
         return results
 

@@ -1,9 +1,24 @@
+"""
+Planning Engine — LEGACY module for model-selection-aware task generation.
+
+.. deprecated::
+    This module will be merged into plan_mode.py in a future release.
+    New code should use ``vetinari.plan_mode.PlanModeEngine`` where possible.
+"""
+
 import json
 import logging
+import warnings
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
 
-from vetinari.agents.contracts import Task
+warnings.warn(
+    "vetinari.planning_engine is deprecated and will be merged into "
+    "vetinari.plan_mode in a future release. Use "
+    "vetinari.plan_mode.PlanModeEngine instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +31,7 @@ class Model:
     context_len: int = 2048
     memory_gb: int = 2
     version: str = ""
-
+    
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
@@ -25,6 +40,38 @@ class Model:
             "context_len": self.context_len,
             "memory_gb": self.memory_gb,
             "version": self.version
+        }
+
+
+@dataclass
+class Task:
+    id: str
+    description: str
+    inputs: List[str] = field(default_factory=list)
+    outputs: List[str] = field(default_factory=list)
+    dependencies: List[str] = field(default_factory=list)
+    model_override: str = ""
+    assigned_model_id: str = ""
+    depth: int = 0
+    parent_id: str = ""
+    children: List[str] = field(default_factory=list)
+    owner_id: str = ""
+    status: str = "pending"
+    
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "description": self.description,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+            "dependencies": self.dependencies,
+            "model_override": self.model_override,
+            "assigned_model_id": self.assigned_model_id,
+            "depth": self.depth,
+            "parent_id": self.parent_id,
+            "children": self.children,
+            "owner_id": self.owner_id,
+            "status": self.status
         }
 
 
