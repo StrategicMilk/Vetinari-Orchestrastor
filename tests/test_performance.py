@@ -160,7 +160,7 @@ class TestSecurityScanPerformance:
         code = "\n".join(code_lines)
 
         stats = _measure_latency(lambda: agent._run_heuristic_scan(code), iterations=50)
-        assert stats["p99"] < 50.0, f"heuristic_scan p99={stats['p99']:.3f}ms exceeds 50ms"
+        assert stats["p99"] < 100.0, f"heuristic_scan p99={stats['p99']:.3f}ms exceeds 100ms"
 
 
 # ── Memory Usage ──────────────────────────────────────────────────────

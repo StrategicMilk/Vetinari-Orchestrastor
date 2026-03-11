@@ -12,6 +12,7 @@ duckduckgo-search>=4.0.0
 # Development / Testing
 pytest>=7.0.0
 pytest-cov>=4.0.0
+pytest-timeout>=2.0.0
 
 # ---------------------------------------------------------------------------
 # Wave 4: Training System (install for self-improvement features)

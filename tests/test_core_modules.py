@@ -22,6 +22,7 @@ for _stubname in (
     sys.modules.pop(_stubname, None)
 
 import ast
+import importlib.util
 import json
 import os
 import zipfile
@@ -676,6 +677,10 @@ class TestCredential:
         assert d["enabled"] is True
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("cryptography"),
+    reason="cryptography package not installed",
+)
 class TestCredentialVault:
     """Tests for CredentialVault (requires cryptography package)."""
 
