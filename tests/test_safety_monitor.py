@@ -121,8 +121,10 @@ class TestHeartbeat(unittest.TestCase):
 
     def test_heartbeat_resets_timeout_clock(self):
         self.monitor.register_agent("worker-2", timeout_seconds=1.0)
+        # Backdate heartbeat so the agent looks stale
+        self.monitor._agents["worker-2"].last_heartbeat -= 2.0
+        # Fresh heartbeat should make it healthy again
         self.monitor.heartbeat("worker-2")
-        # Immediately after heartbeat the agent should be healthy
         unhealthy = self.monitor.check_health()
         ids = [u["agent_id"] for u in unhealthy]
         assert "worker-2" not in ids
@@ -182,16 +184,19 @@ class TestHealthCheck(unittest.TestCase):
         assert all(u["agent_id"] != "healthy" for u in unhealthy)
 
     def test_stale_agent_detected(self):
-        # Register with a short timeout and sleep well past it
-        self.monitor.register_agent("stale", timeout_seconds=0.05)
-        time.sleep(0.15)
+        # Register with a short timeout, then manually backdate the heartbeat
+        # so the agent appears stale without relying on wall-clock sleep.
+        self.monitor.register_agent("stale", timeout_seconds=1.0)
+        state = self.monitor._agents["stale"]
+        state.last_heartbeat -= 2.0  # backdate by 2 seconds
         unhealthy = self.monitor.check_health()
         ids = [u["agent_id"] for u in unhealthy]
         assert "stale" in ids
 
     def test_unhealthy_entry_has_expected_keys(self):
-        self.monitor.register_agent("expired", timeout_seconds=0.05)
-        time.sleep(0.15)
+        self.monitor.register_agent("expired", timeout_seconds=1.0)
+        state = self.monitor._agents["expired"]
+        state.last_heartbeat -= 2.0  # backdate so it appears stale
         unhealthy = self.monitor.check_health()
         assert len(unhealthy) >= 1
         entry = next(u for u in unhealthy if u["agent_id"] == "expired")
