@@ -825,9 +825,9 @@ Output valid JSON array of task objects only — no prose, no markdown:
 
     def _interactive_prompt(self, questions: List[str]) -> List[str]:
         responses = []
-        print("\n[Vetinari] Additional context needed:")
+        logger.info("Additional context needed:")
         for i, q in enumerate(questions, 1):
-            print(f"\n{i}. {q}")
+            logger.info("%d. %s", i, q)
             try:
                 r = input("   > ").strip() if sys.stdin.isatty() else sys.stdin.readline().strip()
                 responses.append(r or "(no response)")

@@ -1,3 +1,4 @@
+import ast
 import uuid
 import time
 import json
@@ -113,20 +114,46 @@ class InProcessSandbox:
         import builtins
         return {k: getattr(builtins, k) for k in self.allowed_builtins if hasattr(builtins, k)}
 
+    _DANGEROUS_NAMES = frozenset({'compile', 'eval', 'exec', '__import__', 'open', 'input'})
+
+    def _detect_dangerous_calls(self, code: str) -> str | None:
+        """AST-based detection of dangerous function calls.
+
+        Returns the name of the first dangerous call found, or None if safe.
+        Falls back to string matching if AST parsing fails (e.g. syntax errors).
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            # Fallback to string matching for unparseable code
+            for pattern in self._DANGEROUS_NAMES:
+                if pattern in code:
+                    return pattern
+            return None
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                # Direct call: eval(...), open(...)
+                if isinstance(node.func, ast.Name) and node.func.id in self._DANGEROUS_NAMES:
+                    return node.func.id
+                # Attribute call: builtins.eval(...)
+                if isinstance(node.func, ast.Attribute) and node.func.attr in self._DANGEROUS_NAMES:
+                    return node.func.attr
+        return None
+
     def execute(self, code: str, context: Dict[str, Any] = None) -> SandboxResult:
         execution_id = f"exec_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
-        # Check for dangerous patterns before execution (check compile first)
-        dangerous_patterns = ['compile', 'eval', 'exec', '__import__', 'open', 'input']
-        for pattern in dangerous_patterns:
-            if pattern in code:
-                return SandboxResult(
-                    success=False,
-                    error=f"Dangerous pattern '{pattern}' not allowed in sandbox",
-                    execution_time_ms=int((time.time() - start_time) * 1000),
-                    execution_id=execution_id
-                )
+        # AST-based dangerous call detection (US-006)
+        detected = self._detect_dangerous_calls(code)
+        if detected:
+            return SandboxResult(
+                success=False,
+                error=f"Dangerous pattern '{detected}' not allowed in sandbox",
+                execution_time_ms=int((time.time() - start_time) * 1000),
+                execution_id=execution_id
+            )
 
         # Use threading timeout instead of signal (works on Windows)
         result_holder = [None]

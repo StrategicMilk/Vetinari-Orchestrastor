@@ -89,6 +89,7 @@ class AgentGraph:
         self,
         strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE,
         max_workers: int = 5,
+        quality_reviewed_agents: set | None = None,
     ):
         self._strategy = strategy
         self._max_workers = max_workers
@@ -97,6 +98,10 @@ class AgentGraph:
         self._initialized = False
         self._goal_tracker: Optional[Any] = None
         self._milestone_manager = None
+        self._quality_reviewed_agents: set = (
+            quality_reviewed_agents if quality_reviewed_agents is not None
+            else {AgentType.BUILDER}
+        )
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -340,6 +345,27 @@ class AgentGraph:
                 except Exception as e:
                     logger.debug(f"[AgentGraph] Suggestion generation failed: {e}")
 
+            # US-008: Operations auto-synthesis after plan completion
+            if AgentType.OPERATIONS in self._agents:
+                try:
+                    ops_agent = self._agents[AgentType.OPERATIONS]
+                    synth_task = AgentTask(
+                        task_id="auto_synthesis",
+                        agent_type=AgentType.OPERATIONS,
+                        description="Synthesise execution results into a summary report",
+                        prompt=f"Synthesise results for plan: {plan.goal}",
+                        context={
+                            "mode": "synthesis",
+                            "completed_tasks": [tid for tid, r in results.items() if r.success],
+                            "failed_tasks": [tid for tid, r in results.items() if not r.success],
+                        },
+                    )
+                    synth_result = ops_agent.execute(synth_task)
+                    if synth_result.success:
+                        results["_synthesis"] = synth_result
+                except Exception as e:
+                    logger.debug("[AgentGraph] Operations auto-synthesis failed: %s", e)
+
             exec_plan.status = TaskStatus.COMPLETED
 
         except Exception as e:
@@ -553,6 +579,22 @@ class AgentGraph:
             except Exception as e:
                 logger.debug("[AgentGraph] _incorporate_prior_results failed: %s", e)
 
+        # Circuit breaker pre-check (US-009)
+        _cb = None
+        try:
+            from vetinari.orchestration.circuit_breaker import CircuitBreaker
+            _cb_key = f"agent_{agent_type.value}"
+            if not hasattr(self, '_circuit_breakers'):
+                self._circuit_breakers: Dict[str, CircuitBreaker] = {}
+            if _cb_key not in self._circuit_breakers:
+                self._circuit_breakers[_cb_key] = CircuitBreaker(failure_threshold=5, reset_timeout=60.0)
+            _cb = self._circuit_breakers[_cb_key]
+            if not _cb.allow_request():
+                logger.warning("[AgentGraph] Circuit breaker OPEN for %s, skipping task %s", agent_type.value, task.id)
+                return AgentResult(success=False, output=None, errors=[f"Circuit breaker open for {agent_type.value}"])
+        except ImportError:
+            pass
+
         for attempt in range(node.max_retries + 1):
             try:
                 logger.info(
@@ -576,6 +618,32 @@ class AgentGraph:
                             _exec_ctx.__exit__(None, None, None)
                         except Exception:
                             pass
+
+                # Circuit breaker: record outcome (US-009)
+                if _cb is not None:
+                    if result.success:
+                        _cb.record_success()
+                    else:
+                        _cb.record_failure()
+
+                # Inter-agent guardrail check (US-008)
+                if result.success and result.output:
+                    try:
+                        from vetinari.safety.guardrails import get_guardrails, RailContext
+                        _out_text = str(result.output)[:2000]
+                        _guard_result = get_guardrails().check_output(_out_text, context=RailContext.INTERNAL_AGENT)
+                        if not _guard_result.allowed:
+                            _violations = "; ".join(str(v) for v in _guard_result.violations) if _guard_result.violations else "policy violation"
+                            logger.warning(
+                                "[AgentGraph] Inter-agent guardrail BLOCKED output from %s on task %s: %s",
+                                agent_type.value, task.id, _violations,
+                            )
+                            result = AgentResult(
+                                success=False, output=None,
+                                errors=[f"Guardrail blocked: {_violations}"],
+                            )
+                    except ImportError:
+                        pass
 
                 # Check goal adherence
                 if self._goal_tracker and result.success:
@@ -624,9 +692,8 @@ class AgentGraph:
                             + "; ".join(schema_issues)
                         )
 
-                    # Phase 7.9K: Maker-checker for BUILDER outputs
-                    _builder_types = {AgentType.BUILDER}
-                    if agent_type in _builder_types and AgentType.QUALITY in self._agents:
+                    # Phase 7.9K: Maker-checker for quality-reviewed agents (configurable)
+                    if agent_type in self._quality_reviewed_agents and AgentType.QUALITY in self._agents:
                         result = self._apply_maker_checker(task, result)
 
                     return result
@@ -889,7 +956,26 @@ class AgentGraph:
             )
             recovery_task.context["original_output"] = str(failed_result.output)[:1000]
             recovery_task.context["verification_issues"] = issues_text
-            return recovery_agent.execute(recovery_task)
+            recovery_result = recovery_agent.execute(recovery_task)
+
+            # US-008: If recovery fails and Planner is available, attempt re-decomposition
+            if not recovery_result.success and AgentType.PLANNER in self._agents:
+                try:
+                    planner = self._agents[AgentType.PLANNER]
+                    replan_task = AgentTask.from_task(
+                        task,
+                        f"Re-decompose failed task '{task.id}' into smaller subtasks. "
+                        f"Original error: {issues_text}",
+                    )
+                    replan_task.context["mode"] = "extract"
+                    replan_result = planner.execute(replan_task)
+                    if replan_result.success:
+                        logger.info("[AgentGraph] Planner re-decomposed failed task %s", task.id)
+                        return replan_result
+                except Exception as re_e:
+                    logger.debug("[AgentGraph] Planner re-decomposition failed: %s", re_e)
+
+            return recovery_result
         except Exception as e:
             logger.debug("[AgentGraph] ErrorRecoveryAgent delegation failed: %s", e)
             return AgentResult(

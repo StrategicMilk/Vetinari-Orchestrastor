@@ -689,6 +689,30 @@ When updating a prompt:
 
 ---
 
+## 12. Agent Interaction Patterns
+
+### 12.1 Maker-Checker (Builder to Quality)
+
+All Builder output passes through a mandatory Quality gate before being marked complete. The Quality agent issues a pass/fail verdict; only a human can override a fail. The set of agents subject to quality review is configurable via `AgentGraph(quality_reviewed_agents={...})`.
+
+### 12.2 Error Recovery with Re-Decomposition
+
+When a task fails verification and the ErrorRecoveryAgent cannot resolve it, the Planner is invoked to re-decompose the failed task into smaller subtasks. This prevents single large tasks from blocking the entire plan.
+
+### 12.3 Inter-Agent Guardrails
+
+All agent output is validated through `RailContext.INTERNAL_AGENT` guardrail checks before being passed to the next agent in the pipeline. This prevents indirect prompt injection via agent-to-agent messages.
+
+### 12.4 Circuit Breaker
+
+Each agent has a per-agent circuit breaker (CLOSED / OPEN / HALF_OPEN). After repeated failures the breaker opens, preventing further requests until a cooldown period elapses. This stops a failing agent from cascading failures to healthy pipeline stages.
+
+### 12.5 Operations Auto-Synthesis
+
+After plan completion, the Operations agent automatically runs in `synthesis` mode to produce a summary report of completed and failed tasks across the execution.
+
+---
+
 *This document is maintained by the Planner agent and updated during each major architecture phase. For the operational history of agent changes, see `vetinari/adr.py` and `docs/archive/`.*
 
-*Generated: 2026-03-10 | Phase 3 Consolidated Architecture*
+*Generated: 2026-03-11 | Phase 3 Consolidated Architecture*
