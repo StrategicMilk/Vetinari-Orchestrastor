@@ -221,8 +221,8 @@ class CredentialVault:
             with open(admins_file) as f:
                 admins = json.load(f)
                 return user_id in admins.get("admins", [])
-        return True
-    
+        return False
+
     def add_admin(self, user_id: str):
         admins_file = self.vault_path / "admins.json"
         admins = {"admins": []}

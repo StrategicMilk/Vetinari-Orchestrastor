@@ -787,8 +787,8 @@ class TestCredentialVault:
         assert vault.get_health() == {}
 
     def test_is_admin_no_admins_file(self, vault):
-        # When no admins file exists, everyone is admin
-        assert vault.is_admin("anyone") is True
+        # When no admins file exists, fail-closed: no one is admin
+        assert vault.is_admin("anyone") is False
 
     def test_add_admin_and_check(self, vault):
         vault.add_admin("user1")
