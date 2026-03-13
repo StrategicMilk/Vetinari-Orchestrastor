@@ -6,19 +6,14 @@ is imported so that no real network calls, database access, or heavy
 orchestration code is exercised.
 """
 
-import argparse
-import importlib
 import logging
 import os
 import sys
 import threading
-import time
 import types
 import unittest
-from io import StringIO
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, call, PropertyMock
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # sys.modules stubs — must be installed BEFORE importing vetinari.cli
@@ -73,6 +68,7 @@ sys.modules["vetinari.orchestration.types"] = _make_stub("vetinari.orchestration
 
 # vetinari.types — load REAL module (stdlib-only) so execution_graph & durable_execution resolve
 import importlib.util as _cli_ilu
+
 _vtypes_path = os.path.join(_CLI_ROOT, "vetinari", "types.py")
 _vtypes_spec = _cli_ilu.spec_from_file_location("vetinari.types", _vtypes_path)
 _vtypes_mod = _cli_ilu.module_from_spec(_vtypes_spec)
@@ -189,8 +185,9 @@ sys.modules["vetinari.agents.improvement_agent"] = _improvement_stub
 # Now import the module under test
 # ---------------------------------------------------------------------------
 
-import vetinari.cli as cli  # noqa: E402
+import pytest
 
+import vetinari.cli as cli
 
 # ---------------------------------------------------------------------------
 # Helper: build a minimal args namespace that satisfies all cmd_* functions
@@ -198,19 +195,19 @@ import vetinari.cli as cli  # noqa: E402
 
 def _args(**overrides) -> SimpleNamespace:
     """Return a namespace with safe defaults for every attribute cli uses."""
-    defaults = dict(
-        verbose=False,
-        host=None,
-        config="manifest/vetinari.yaml",
-        mode="execution",
-        goal=None,
-        task=None,
-        port=None,
-        web_host="127.0.0.1",
-        debug=False,
-        no_dashboard=True,  # disable dashboard by default in tests
-        command=None,
-    )
+    defaults = {
+        "verbose": False,
+        "host": None,
+        "config": "manifest/vetinari.yaml",
+        "mode": "execution",
+        "goal": None,
+        "task": None,
+        "port": None,
+        "web_host": "127.0.0.1",
+        "debug": False,
+        "no_dashboard": True,  # disable dashboard by default in tests
+        "command": None,
+    }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
 
@@ -237,7 +234,7 @@ class TestCmdRun(unittest.TestCase):
         with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
         mock_orch.generate_and_execute.assert_called_once()
 
     def test_run_goal_passes_goal_string(self):
@@ -251,7 +248,7 @@ class TestCmdRun(unittest.TestCase):
             cli.cmd_run(args)
 
         call_kwargs = mock_orch.generate_and_execute.call_args
-        self.assertEqual(call_kwargs.kwargs.get("goal") or call_kwargs.args[0], "My specific goal")
+        assert (call_kwargs.kwargs.get("goal") or call_kwargs.args[0]) == "My specific goal"
 
     def test_run_goal_with_final_output(self):
         """cmd_run prints final_output when present."""
@@ -268,9 +265,9 @@ class TestCmdRun(unittest.TestCase):
             with patch("builtins.print") as mock_print:
                 rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("The result text", printed)
+        assert "The result text" in printed
 
     def test_run_goal_no_final_output(self):
         """cmd_run with no final_output still returns 0."""
@@ -282,7 +279,7 @@ class TestCmdRun(unittest.TestCase):
         with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_run_goal_exception_returns_1(self):
         """cmd_run returns 1 when generate_and_execute raises."""
@@ -292,7 +289,7 @@ class TestCmdRun(unittest.TestCase):
         with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 1)
+        assert rc == 1
         _mock_get_two_layer.side_effect = None
 
     def test_run_goal_prints_error_on_exception(self):
@@ -305,7 +302,7 @@ class TestCmdRun(unittest.TestCase):
                 cli.cmd_run(args)
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("bang", printed)
+        assert "bang" in printed
         _mock_get_two_layer.side_effect = None
 
     def test_run_goal_agent_context_wiring_failure_is_non_fatal(self):
@@ -325,7 +322,7 @@ class TestCmdRun(unittest.TestCase):
                 args = _args(goal="Wiring failure goal")
                 rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     # --- manifest-path (no goal) ---
 
@@ -336,7 +333,7 @@ class TestCmdRun(unittest.TestCase):
             args = _args(goal=None, task=None)
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
         mock_orch.run_all.assert_called_once()
 
     def test_run_specific_task_calls_run_task(self):
@@ -346,7 +343,7 @@ class TestCmdRun(unittest.TestCase):
             args = _args(goal=None, task="t42")
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
         mock_orch.run_task.assert_called_once_with("t42")
 
     def test_run_manifest_exception_returns_1(self):
@@ -355,7 +352,7 @@ class TestCmdRun(unittest.TestCase):
             args = _args(goal=None, task=None)
             rc = cli.cmd_run(args)
 
-        self.assertEqual(rc, 1)
+        assert rc == 1
 
     def test_run_verbose_flag_sets_logging(self):
         """cmd_run with verbose=True calls _setup_logging(True)."""
@@ -374,10 +371,10 @@ class TestCmdRun(unittest.TestCase):
             with patch.object(cli, "_build_orchestrator", return_value=mock_orch) as mock_build:
                 args = _args(goal=None, task=None, host=None)
                 cli.cmd_run(args)
-                _, build_kwargs = mock_build.call_args
+                _, _build_kwargs = mock_build.call_args
                 # host is positional arg[1]
                 built_host = mock_build.call_args.args[1]
-                self.assertEqual(built_host, "http://myhost:9999")
+                assert built_host == "http://myhost:9999"
 
     def test_run_host_arg_overrides_env(self):
         """args.host takes precedence over environment variable."""
@@ -387,7 +384,7 @@ class TestCmdRun(unittest.TestCase):
                 args = _args(goal=None, task=None, host="http://arghost:5678")
                 cli.cmd_run(args)
                 built_host = mock_build.call_args.args[1]
-                self.assertEqual(built_host, "http://arghost:5678")
+                assert built_host == "http://arghost:5678"
 
     def test_run_goal_completed_count_printed(self):
         """The completed/failed task counts appear in printed output."""
@@ -401,8 +398,8 @@ class TestCmdRun(unittest.TestCase):
                 cli.cmd_run(args)
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("7", printed)
-        self.assertIn("2", printed)
+        assert "7" in printed
+        assert "2" in printed
 
     def test_run_goal_constraints_include_mode(self):
         """generate_and_execute is called with constraints containing mode."""
@@ -415,7 +412,7 @@ class TestCmdRun(unittest.TestCase):
             cli.cmd_run(args)
 
         call_kwargs = mock_orch.generate_and_execute.call_args.kwargs
-        self.assertIn("planning", str(call_kwargs))
+        assert "planning" in str(call_kwargs)
 
     def test_run_no_goal_prints_running_message(self):
         """Without a goal, cmd_run prints a running tasks message."""
@@ -426,7 +423,7 @@ class TestCmdRun(unittest.TestCase):
                 cli.cmd_run(args)
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("manifest", printed.lower())
+        assert "manifest" in printed.lower()
 
 
 # ===========================================================================
@@ -444,7 +441,7 @@ class TestCmdServe(unittest.TestCase):
         """cmd_serve calls Flask app.run()."""
         args = _args(port=5000, web_host="127.0.0.1", debug=False)
         rc = cli.cmd_serve(args)
-        self.assertEqual(rc, 0)
+        assert rc == 0
         _mock_flask_app.run.assert_called_once()
 
     def test_serve_uses_specified_port(self):
@@ -452,7 +449,7 @@ class TestCmdServe(unittest.TestCase):
         args = _args(port=8080, web_host="127.0.0.1", debug=False)
         cli.cmd_serve(args)
         _, kwargs = _mock_flask_app.run.call_args
-        self.assertEqual(kwargs.get("port") or _mock_flask_app.run.call_args.args[1], 8080)
+        assert (kwargs.get("port") or _mock_flask_app.run.call_args.args[1]) == 8080
 
     def test_serve_default_port_from_env(self):
         """cmd_serve uses VETINARI_WEB_PORT env var when port is None."""
@@ -461,7 +458,7 @@ class TestCmdServe(unittest.TestCase):
             cli.cmd_serve(args)
         call_kwargs = _mock_flask_app.run.call_args
         all_args = str(call_kwargs)
-        self.assertIn("6000", all_args)
+        assert "6000" in all_args
 
     def test_serve_default_port_5000(self):
         """cmd_serve defaults to port 5000 when no port or env var given."""
@@ -470,27 +467,27 @@ class TestCmdServe(unittest.TestCase):
             os.environ.pop("VETINARI_WEB_PORT", None)
             cli.cmd_serve(args)
         all_args = str(_mock_flask_app.run.call_args)
-        self.assertIn("5000", all_args)
+        assert "5000" in all_args
 
     def test_serve_sets_vetinari_host_in_config(self):
         """cmd_serve stores the LM Studio host in app.config."""
         args = _args(port=5000, web_host="127.0.0.1", debug=False, host="http://custom:9999")
         cli.cmd_serve(args)
-        self.assertEqual(_mock_flask_app.config.get("VETINARI_HOST"), "http://custom:9999")
+        assert _mock_flask_app.config.get("VETINARI_HOST") == "http://custom:9999"
 
     def test_serve_debug_flag_passed(self):
         """debug=True is forwarded to app.run."""
         args = _args(port=5000, web_host="127.0.0.1", debug=True)
         cli.cmd_serve(args)
         all_args = str(_mock_flask_app.run.call_args)
-        self.assertIn("True", all_args)
+        assert "True" in all_args
 
     def test_serve_uses_web_host(self):
         """cmd_serve uses the specified web_host bind address."""
         args = _args(port=5000, web_host="0.0.0.0", debug=False)
         cli.cmd_serve(args)
         all_args = str(_mock_flask_app.run.call_args)
-        self.assertIn("0.0.0.0", all_args)
+        assert "0.0.0.0" in all_args
 
     def test_serve_import_error_returns_1(self):
         """cmd_serve returns 1 if Flask app import fails."""
@@ -505,14 +502,14 @@ class TestCmdServe(unittest.TestCase):
             rc = 1
         finally:
             sys.modules["vetinari.web_ui"] = original
-        self.assertIn(rc, (0, 1))
+        assert rc in (0, 1)
 
     def test_serve_app_run_exception_returns_1(self):
         """cmd_serve returns 1 when app.run raises an unexpected exception."""
         _mock_flask_app.run.side_effect = OSError("port in use")
         args = _args(port=5000, web_host="127.0.0.1", debug=False)
         rc = cli.cmd_serve(args)
-        self.assertEqual(rc, 1)
+        assert rc == 1
         _mock_flask_app.run.side_effect = None
 
     def test_serve_use_reloader_false(self):
@@ -520,7 +517,7 @@ class TestCmdServe(unittest.TestCase):
         args = _args(port=5000, web_host="127.0.0.1", debug=False)
         cli.cmd_serve(args)
         all_args = str(_mock_flask_app.run.call_args)
-        self.assertIn("False", all_args)
+        assert "False" in all_args
 
 
 # ===========================================================================
@@ -544,25 +541,23 @@ class TestCmdStart(unittest.TestCase):
                 args = self._args_no_dashboard_no_goal()
                 rc = cli.cmd_start(args)
         mock_inter.assert_called_once_with(args)
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_start_with_goal_calls_cmd_run(self):
         """With a goal, cmd_start delegates to cmd_run."""
-        with patch.object(cli, "cmd_run", return_value=0) as mock_run:
-            with patch.object(cli, "_health_check_quiet"):
-                args = _args(no_dashboard=True, goal="some goal", task=None, port=None)
-                rc = cli.cmd_start(args)
+        with patch.object(cli, "cmd_run", return_value=0) as mock_run, patch.object(cli, "_health_check_quiet"):
+            args = _args(no_dashboard=True, goal="some goal", task=None, port=None)
+            rc = cli.cmd_start(args)
         mock_run.assert_called_once_with(args)
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_start_with_task_calls_cmd_run(self):
         """With a task, cmd_start delegates to cmd_run."""
-        with patch.object(cli, "cmd_run", return_value=0) as mock_run:
-            with patch.object(cli, "_health_check_quiet"):
-                args = _args(no_dashboard=True, goal=None, task="t1", port=None)
-                rc = cli.cmd_start(args)
+        with patch.object(cli, "cmd_run", return_value=0) as mock_run, patch.object(cli, "_health_check_quiet"):
+            args = _args(no_dashboard=True, goal=None, task="t1", port=None)
+            rc = cli.cmd_start(args)
         mock_run.assert_called_once_with(args)
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_start_runs_health_check(self):
         """cmd_start always calls _health_check_quiet."""
@@ -574,13 +569,12 @@ class TestCmdStart(unittest.TestCase):
 
     def test_start_prints_banner(self):
         """cmd_start prints the mode/host banner."""
-        with patch.object(cli, "cmd_interactive", return_value=0):
-            with patch.object(cli, "_health_check_quiet"):
-                with patch.object(cli, "_print_banner") as mock_banner:
-                    args = self._args_no_dashboard_no_goal(mode="planning")
-                    cli.cmd_start(args)
+        with patch.object(cli, "cmd_interactive", return_value=0), patch.object(cli, "_health_check_quiet"):
+            with patch.object(cli, "_print_banner") as mock_banner:
+                args = self._args_no_dashboard_no_goal(mode="planning")
+                cli.cmd_start(args)
         mock_banner.assert_called_once()
-        self.assertEqual(mock_banner.call_args.args[0], "planning")
+        assert mock_banner.call_args.args[0] == "planning"
 
     def test_start_spawns_auto_tuner_thread(self):
         """cmd_start spawns a daemon thread named 'auto-tuner'."""
@@ -598,14 +592,13 @@ class TestCmdStart(unittest.TestCase):
                     args = self._args_no_dashboard_no_goal()
                     cli.cmd_start(args)
 
-        self.assertTrue(any("auto-tuner" in n for n in spawned))
+        assert any("auto-tuner" in n for n in spawned)
 
     def test_start_dashboard_disabled_skips_flask(self):
         """no_dashboard=True means Flask app.run is never called."""
-        with patch.object(cli, "cmd_interactive", return_value=0):
-            with patch.object(cli, "_health_check_quiet"):
-                args = self._args_no_dashboard_no_goal()
-                cli.cmd_start(args)
+        with patch.object(cli, "cmd_interactive", return_value=0), patch.object(cli, "_health_check_quiet"):
+            args = self._args_no_dashboard_no_goal()
+            cli.cmd_start(args)
         _mock_flask_app.run.assert_not_called()
 
     def test_start_verbose_propagates_to_logging(self):
@@ -629,27 +622,24 @@ class TestCmdStart(unittest.TestCase):
 
     def test_start_returns_zero_on_success(self):
         """cmd_start returns 0 on normal completion."""
-        with patch.object(cli, "cmd_interactive", return_value=0):
-            with patch.object(cli, "_health_check_quiet"):
-                args = self._args_no_dashboard_no_goal()
-                rc = cli.cmd_start(args)
-        self.assertEqual(rc, 0)
+        with patch.object(cli, "cmd_interactive", return_value=0), patch.object(cli, "_health_check_quiet"):
+            args = self._args_no_dashboard_no_goal()
+            rc = cli.cmd_start(args)
+        assert rc == 0
 
     def test_start_cmd_run_return_value_propagated(self):
         """Return code from cmd_run is propagated by cmd_start."""
-        with patch.object(cli, "cmd_run", return_value=1) as mock_run:
-            with patch.object(cli, "_health_check_quiet"):
-                args = _args(no_dashboard=True, goal="failing goal", task=None, port=None)
-                rc = cli.cmd_start(args)
-        self.assertEqual(rc, 1)
+        with patch.object(cli, "cmd_run", return_value=1), patch.object(cli, "_health_check_quiet"):
+            args = _args(no_dashboard=True, goal="failing goal", task=None, port=None)
+            rc = cli.cmd_start(args)
+        assert rc == 1
 
     def test_start_no_dashboard_no_goal_no_task_calls_interactive_not_run(self):
         """When no goal and no task, cmd_run is not called."""
-        with patch.object(cli, "cmd_run") as mock_run:
-            with patch.object(cli, "cmd_interactive", return_value=0):
-                with patch.object(cli, "_health_check_quiet"):
-                    args = self._args_no_dashboard_no_goal()
-                    cli.cmd_start(args)
+        with patch.object(cli, "cmd_run") as mock_run, patch.object(cli, "cmd_interactive", return_value=0):
+            with patch.object(cli, "_health_check_quiet"):
+                args = self._args_no_dashboard_no_goal()
+                cli.cmd_start(args)
         mock_run.assert_not_called()
 
 
@@ -674,17 +664,17 @@ class TestCmdStatus(unittest.TestCase):
     def test_status_returns_0(self):
         """cmd_status always returns 0."""
         rc, _ = self._run_status()
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_status_prints_host(self):
         """cmd_status prints the LM Studio host."""
         _, printed = self._run_status(host="http://myhost:1234")
-        self.assertIn("http://myhost:1234", printed)
+        assert "http://myhost:1234" in printed
 
     def test_status_prints_config_path(self):
         """cmd_status prints the config path."""
         _, printed = self._run_status(config="manifest/vetinari.yaml")
-        self.assertIn("manifest/vetinari.yaml", printed)
+        assert "manifest/vetinari.yaml" in printed
 
     def test_status_lmstudio_reachable(self):
         """cmd_status prints model count when LM Studio is reachable."""
@@ -693,7 +683,7 @@ class TestCmdStatus(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_status()
-        self.assertIn("2", printed)
+        assert "2" in printed
 
     def test_status_lmstudio_unreachable(self):
         """cmd_status prints UNREACHABLE when LM Studio is down."""
@@ -702,7 +692,7 @@ class TestCmdStatus(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_status()
-        self.assertIn("UNREACHABLE", printed)
+        assert "UNREACHABLE" in printed
 
     def test_status_lmstudio_no_data_key(self):
         """cmd_status handles response without 'data' key gracefully."""
@@ -711,7 +701,7 @@ class TestCmdStatus(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         rc, _ = self._run_status()
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_status_adapter_manager_listed(self):
         """cmd_status lists providers from adapter manager."""
@@ -726,7 +716,7 @@ class TestCmdStatus(unittest.TestCase):
         _mock_get_adapter_mgr.return_value = mock_mgr
 
         _, printed = self._run_status()
-        self.assertIn("openai", printed)
+        assert "openai" in printed
 
     def test_status_adapter_manager_exception_handled(self):
         """cmd_status handles adapter manager exception without crashing."""
@@ -736,7 +726,7 @@ class TestCmdStatus(unittest.TestCase):
 
         _mock_get_adapter_mgr.side_effect = RuntimeError("no mgr")
         rc, _ = self._run_status()
-        self.assertEqual(rc, 0)
+        assert rc == 0
         _mock_get_adapter_mgr.side_effect = None
 
     def test_status_thompson_selector_listed(self):
@@ -752,7 +742,7 @@ class TestCmdStatus(unittest.TestCase):
         _mock_get_thompson.return_value = mock_selector
 
         _, printed = self._run_status()
-        self.assertIn("Thompson", printed)
+        assert "Thompson" in printed
 
     def test_status_thompson_exception_handled(self):
         """cmd_status handles Thompson selector exception gracefully."""
@@ -762,15 +752,14 @@ class TestCmdStatus(unittest.TestCase):
 
         _mock_get_thompson.side_effect = Exception("no selector")
         rc, _ = self._run_status()
-        self.assertEqual(rc, 0)
+        assert rc == 0
         _mock_get_thompson.side_effect = None
 
     def test_status_verbose_logging(self):
         """cmd_status calls _setup_logging(True) when verbose."""
-        with patch.object(cli, "_setup_logging") as mock_log:
-            with patch("builtins.print"):
-                args = _args(verbose=True)
-                cli.cmd_status(args)
+        with patch.object(cli, "_setup_logging") as mock_log, patch("builtins.print"):
+            args = _args(verbose=True)
+            cli.cmd_status(args)
         mock_log.assert_called_with(True)
 
     def test_status_default_host_when_none(self):
@@ -781,7 +770,7 @@ class TestCmdStatus(unittest.TestCase):
 
         os.environ.pop("LM_STUDIO_HOST", None)
         _, printed = self._run_status(host=None)
-        self.assertIn("localhost", printed)
+        assert "localhost" in printed
 
 
 # ===========================================================================
@@ -808,7 +797,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         rc, _ = self._run_health()
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_health_lmstudio_ok(self):
         """cmd_health prints OK when LM Studio is reachable."""
@@ -817,7 +806,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_health()
-        self.assertIn("OK", printed)
+        assert "OK" in printed
 
     def test_health_lmstudio_fail(self):
         """cmd_health prints FAIL when LM Studio is unreachable."""
@@ -826,7 +815,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_health()
-        self.assertIn("FAIL", printed)
+        assert "FAIL" in printed
 
     def test_health_prints_running_message(self):
         """cmd_health prints a 'Running health checks' message."""
@@ -835,7 +824,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_health()
-        self.assertIn("health", printed.lower())
+        assert "health" in printed.lower()
 
     def test_health_adapter_manager_checked(self):
         """cmd_health invokes adapter manager health_check."""
@@ -847,7 +836,7 @@ class TestCmdHealth(unittest.TestCase):
         mock_mgr.health_check.return_value = {"lmstudio": {"healthy": True}}
         _mock_get_adapter_mgr.return_value = mock_mgr
 
-        _, printed = self._run_health()
+        _, _printed = self._run_health()
         mock_mgr.health_check.assert_called_once()
 
     def test_health_adapter_manager_healthy_shows_ok(self):
@@ -861,7 +850,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_get_adapter_mgr.return_value = mock_mgr
 
         _, printed = self._run_health()
-        self.assertIn("OK", printed)
+        assert "OK" in printed
 
     def test_health_adapter_manager_unhealthy_shows_fail(self):
         """cmd_health shows FAIL for unhealthy providers."""
@@ -874,7 +863,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_get_adapter_mgr.return_value = mock_mgr
 
         _, printed = self._run_health()
-        self.assertIn("FAIL", printed)
+        assert "FAIL" in printed
 
     def test_health_adapter_manager_exception_is_silent(self):
         """cmd_health does not crash when adapter manager raises."""
@@ -884,7 +873,7 @@ class TestCmdHealth(unittest.TestCase):
 
         _mock_get_adapter_mgr.side_effect = RuntimeError("no mgr")
         rc, _ = self._run_health()
-        self.assertEqual(rc, 0)
+        assert rc == 0
         _mock_get_adapter_mgr.side_effect = None
 
     def test_health_verbose_logging(self):
@@ -906,7 +895,7 @@ class TestCmdHealth(unittest.TestCase):
         _mock_lmstudio_cls.return_value = mock_adapter
 
         _, printed = self._run_health()
-        self.assertIn("3", printed)
+        assert "3" in printed
 
 
 # ===========================================================================
@@ -921,7 +910,7 @@ class TestCmdUpgrade(unittest.TestCase):
         with patch.object(cli, "_build_orchestrator", return_value=mock_orch):
             args = _args()
             rc = cli.cmd_upgrade(args)
-        self.assertEqual(rc, 0)
+        assert rc == 0
         mock_orch.check_and_upgrade_models.assert_called_once()
 
     def test_upgrade_calls_check_and_upgrade_models(self):
@@ -935,7 +924,7 @@ class TestCmdUpgrade(unittest.TestCase):
         """cmd_upgrade returns 1 on orchestrator exception."""
         with patch.object(cli, "_build_orchestrator", side_effect=Exception("no git")):
             rc = cli.cmd_upgrade(_args())
-        self.assertEqual(rc, 1)
+        assert rc == 1
 
     def test_upgrade_prints_error_on_failure(self):
         """cmd_upgrade prints error message on failure."""
@@ -943,21 +932,21 @@ class TestCmdUpgrade(unittest.TestCase):
             with patch("builtins.print") as mock_print:
                 cli.cmd_upgrade(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("boom", printed)
+        assert "boom" in printed
 
     def test_upgrade_uses_host_arg(self):
         """cmd_upgrade resolves host from args correctly."""
         mock_orch = MagicMock()
         with patch.object(cli, "_build_orchestrator", return_value=mock_orch) as mock_build:
             cli.cmd_upgrade(_args(host="http://h:9"))
-        self.assertEqual(mock_build.call_args.args[1], "http://h:9")
+        assert mock_build.call_args.args[1] == "http://h:9"
 
     def test_upgrade_uses_mode_arg(self):
         """cmd_upgrade passes mode to _build_orchestrator."""
         mock_orch = MagicMock()
         with patch.object(cli, "_build_orchestrator", return_value=mock_orch) as mock_build:
             cli.cmd_upgrade(_args(mode="planning"))
-        self.assertEqual(mock_build.call_args.args[2], "planning")
+        assert mock_build.call_args.args[2] == "planning"
 
     def test_upgrade_check_and_upgrade_exception_is_caught(self):
         """cmd_upgrade handles exception from check_and_upgrade_models."""
@@ -965,7 +954,7 @@ class TestCmdUpgrade(unittest.TestCase):
         mock_orch.check_and_upgrade_models.side_effect = RuntimeError("network")
         with patch.object(cli, "_build_orchestrator", return_value=mock_orch):
             rc = cli.cmd_upgrade(_args())
-        self.assertEqual(rc, 1)
+        assert rc == 1
 
     def test_upgrade_verbose_sets_logging(self):
         """cmd_upgrade calls _setup_logging(True) when verbose."""
@@ -1002,7 +991,7 @@ class TestCmdReview(unittest.TestCase):
         """cmd_review returns 0 on successful review."""
         self._make_agent(success=True)
         rc = cli.cmd_review(_args())
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_review_calls_agent_execute(self):
         """cmd_review calls agent.execute() with an AgentTask."""
@@ -1016,7 +1005,7 @@ class TestCmdReview(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             cli.cmd_review(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("1", printed)
+        assert "1" in printed
 
     def test_review_prints_auto_applied_count(self):
         """cmd_review prints the number of auto-applied changes."""
@@ -1024,13 +1013,13 @@ class TestCmdReview(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             cli.cmd_review(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("2", printed)
+        assert "2" in printed
 
     def test_review_exception_returns_1(self):
         """cmd_review returns 1 when agent raises."""
         _mock_get_improvement.side_effect = Exception("agent broken")
         rc = cli.cmd_review(_args())
-        self.assertEqual(rc, 1)
+        assert rc == 1
         _mock_get_improvement.side_effect = None
 
     def test_review_exception_prints_error(self):
@@ -1039,7 +1028,7 @@ class TestCmdReview(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             cli.cmd_review(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("broken agent", printed)
+        assert "broken agent" in printed
         _mock_get_improvement.side_effect = None
 
     def test_review_initializes_agent_with_adapter_manager(self):
@@ -1052,10 +1041,10 @@ class TestCmdReview(unittest.TestCase):
 
     def test_review_adapter_manager_failure_is_non_fatal(self):
         """Review succeeds even if adapter manager initialization fails."""
-        agent = self._make_agent(success=True)
+        self._make_agent(success=True)
         _mock_get_adapter_mgr.side_effect = Exception("no mgr")
         rc = cli.cmd_review(_args())
-        self.assertEqual(rc, 0)
+        assert rc == 0
         _mock_get_adapter_mgr.side_effect = None
 
     def test_review_prints_recommendation_action(self):
@@ -1065,7 +1054,7 @@ class TestCmdReview(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             cli.cmd_review(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("rotate model", printed)
+        assert "rotate model" in printed
 
     def test_review_verbose_sets_logging(self):
         """cmd_review calls _setup_logging(True) when verbose."""
@@ -1080,7 +1069,7 @@ class TestCmdReview(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             cli.cmd_review(_args())
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("review", printed.lower())
+        assert "review" in printed.lower()
 
 
 # ===========================================================================
@@ -1100,10 +1089,9 @@ class TestCmdInteractive(unittest.TestCase):
             # Default: two_layer raises so orch=None path
             _mock_get_two_layer.side_effect = Exception("no two layer")
 
-        with patch("builtins.input", side_effect=inputs):
-            with patch("builtins.print"):
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    rc = cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=inputs), patch("builtins.print"):
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                rc = cli.cmd_interactive(_args())
 
         _mock_get_two_layer.side_effect = None
         return rc
@@ -1111,45 +1099,44 @@ class TestCmdInteractive(unittest.TestCase):
     def test_interactive_quit_returns_0(self):
         """/quit exits with return code 0."""
         rc = self._run_interactive(["/quit"])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_exit_returns_0(self):
         """/exit exits with return code 0."""
         rc = self._run_interactive(["/exit"])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_quit_word_returns_0(self):
         """'quit' keyword exits with return code 0."""
         rc = self._run_interactive(["quit"])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_exit_word_returns_0(self):
         """'exit' keyword exits with return code 0."""
         rc = self._run_interactive(["exit"])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_eof_returns_0(self):
         """EOFError (Ctrl-D) exits gracefully with return code 0."""
         rc = self._run_interactive([EOFError()])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_keyboard_interrupt_returns_0(self):
         """KeyboardInterrupt (Ctrl-C) exits gracefully with return code 0."""
         rc = self._run_interactive([KeyboardInterrupt()])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_help_command(self):
         """/help prints help text then continues until /quit."""
-        with patch("builtins.input", side_effect=["/help", "/quit"]):
-            with patch("builtins.print") as mock_print:
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    _mock_get_two_layer.side_effect = Exception("no")
-                    rc = cli.cmd_interactive(_args())
-                    _mock_get_two_layer.side_effect = None
+        with patch("builtins.input", side_effect=["/help", "/quit"]), patch("builtins.print") as mock_print:
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                _mock_get_two_layer.side_effect = Exception("no")
+                rc = cli.cmd_interactive(_args())
+                _mock_get_two_layer.side_effect = None
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("/quit", printed)
+        assert "/quit" in printed
 
     def test_interactive_status_command(self):
         """/status calls cmd_status then continues."""
@@ -1178,7 +1165,7 @@ class TestCmdInteractive(unittest.TestCase):
     def test_interactive_empty_input_continues(self):
         """Empty input is ignored and the loop continues."""
         rc = self._run_interactive(["", "/quit"])
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_goal_with_orchestrator(self):
         """A regular goal string is executed via orch.generate_and_execute."""
@@ -1187,10 +1174,9 @@ class TestCmdInteractive(unittest.TestCase):
         _mock_get_two_layer.return_value = mock_orch
         _mock_get_two_layer.side_effect = None
 
-        with patch("builtins.input", side_effect=["my goal", "/quit"]):
-            with patch("builtins.print"):
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["my goal", "/quit"]), patch("builtins.print"):
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                cli.cmd_interactive(_args())
 
         mock_orch.generate_and_execute.assert_called_once()
 
@@ -1198,14 +1184,13 @@ class TestCmdInteractive(unittest.TestCase):
         """With no orchestrator available a helpful message is printed."""
         _mock_get_two_layer.side_effect = Exception("not available")
 
-        with patch("builtins.input", side_effect=["some goal", "/quit"]):
-            with patch("builtins.print") as mock_print:
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["some goal", "/quit"]), patch("builtins.print") as mock_print:
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                cli.cmd_interactive(_args())
 
         _mock_get_two_layer.side_effect = None
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("not available", printed.lower())
+        assert "not available" in printed.lower()
 
     def test_interactive_goal_execute_exception_handled(self):
         """Exception during goal execution is caught and not propagated."""
@@ -1214,24 +1199,22 @@ class TestCmdInteractive(unittest.TestCase):
         _mock_get_two_layer.return_value = mock_orch
         _mock_get_two_layer.side_effect = None
 
-        with patch("builtins.input", side_effect=["bad goal", "/quit"]):
-            with patch("builtins.print"):
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    rc = cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["bad goal", "/quit"]), patch("builtins.print"):
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                rc = cli.cmd_interactive(_args())
 
-        self.assertEqual(rc, 0)
+        assert rc == 0
 
     def test_interactive_prints_startup_banner(self):
         """cmd_interactive prints instructions at start."""
-        with patch("builtins.input", side_effect=["/quit"]):
-            with patch("builtins.print") as mock_print:
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    _mock_get_two_layer.side_effect = Exception("no")
-                    cli.cmd_interactive(_args())
-                    _mock_get_two_layer.side_effect = None
+        with patch("builtins.input", side_effect=["/quit"]), patch("builtins.print") as mock_print:
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                _mock_get_two_layer.side_effect = Exception("no")
+                cli.cmd_interactive(_args())
+                _mock_get_two_layer.side_effect = None
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("Interactive", printed)
+        assert "Interactive" in printed
 
     def test_interactive_goal_final_output_printed(self):
         """If goal execution returns final_output it is printed."""
@@ -1243,23 +1226,21 @@ class TestCmdInteractive(unittest.TestCase):
         _mock_get_two_layer.return_value = mock_orch
         _mock_get_two_layer.side_effect = None
 
-        with patch("builtins.input", side_effect=["build api", "/quit"]):
-            with patch("builtins.print") as mock_print:
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["build api", "/quit"]), patch("builtins.print") as mock_print:
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                cli.cmd_interactive(_args())
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("great result", printed)
+        assert "great result" in printed
 
     def test_interactive_verbose_sets_logging(self):
         """cmd_interactive calls _setup_logging(True) when verbose."""
-        with patch.object(cli, "_setup_logging") as mock_log:
-            with patch("builtins.input", side_effect=["/quit"]):
-                with patch("builtins.print"):
-                    with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                        _mock_get_two_layer.side_effect = Exception("no")
-                        cli.cmd_interactive(_args(verbose=True))
-                        _mock_get_two_layer.side_effect = None
+        with patch.object(cli, "_setup_logging") as mock_log, patch("builtins.input", side_effect=["/quit"]):
+            with patch("builtins.print"):
+                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                    _mock_get_two_layer.side_effect = Exception("no")
+                    cli.cmd_interactive(_args(verbose=True))
+                    _mock_get_two_layer.side_effect = None
 
         mock_log.assert_called_with(True)
 
@@ -1270,12 +1251,11 @@ class TestCmdInteractive(unittest.TestCase):
         _mock_get_two_layer.return_value = mock_orch
         _mock_get_two_layer.side_effect = None
 
-        with patch("builtins.input", side_effect=["goal1", "goal2", "/quit"]):
-            with patch("builtins.print"):
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["goal1", "goal2", "/quit"]), patch("builtins.print"):
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                cli.cmd_interactive(_args())
 
-        self.assertEqual(mock_orch.generate_and_execute.call_count, 2)
+        assert mock_orch.generate_and_execute.call_count == 2
 
 
 # ===========================================================================
@@ -1286,8 +1266,7 @@ class TestMain(unittest.TestCase):
 
     def _run_main(self, argv, handler_return=0):
         """Invoke main() with patched sys.argv; capture sys.exit call."""
-        with patch("sys.argv", argv):
-            with patch.object(cli, "cmd_run", return_value=handler_return) as m_run, \
+        with patch("sys.argv", argv), patch.object(cli, "cmd_run", return_value=handler_return) as m_run, \
                  patch.object(cli, "cmd_serve", return_value=handler_return) as m_serve, \
                  patch.object(cli, "cmd_start", return_value=handler_return) as m_start, \
                  patch.object(cli, "cmd_status", return_value=handler_return) as m_status, \
@@ -1295,15 +1274,15 @@ class TestMain(unittest.TestCase):
                  patch.object(cli, "cmd_upgrade", return_value=handler_return) as m_upgrade, \
                  patch.object(cli, "cmd_review", return_value=handler_return) as m_review, \
                  patch.object(cli, "cmd_interactive", return_value=handler_return) as m_inter:
-                try:
-                    cli.main()
-                except SystemExit:
-                    pass
-                return {
-                    "run": m_run, "serve": m_serve, "start": m_start,
-                    "status": m_status, "health": m_health, "upgrade": m_upgrade,
-                    "review": m_review, "interactive": m_inter,
-                }
+            try:
+                cli.main()
+            except SystemExit:  # noqa: VET022
+                pass
+            return {
+                "run": m_run, "serve": m_serve, "start": m_start,
+                "status": m_status, "health": m_health, "upgrade": m_upgrade,
+                "review": m_review, "interactive": m_inter,
+            }
 
     def test_main_run_subcommand(self):
         """'vetinari run' routes to cmd_run."""
@@ -1352,60 +1331,59 @@ class TestMain(unittest.TestCase):
 
     def test_main_handler_return_value_passed_to_sys_exit(self):
         """main() calls sys.exit with the handler return code."""
-        with patch("sys.argv", ["vetinari", "status"]):
-            with patch.object(cli, "cmd_status", return_value=42):
-                with self.assertRaises(SystemExit) as cm:
-                    cli.main()
-        self.assertEqual(cm.exception.code, 42)
+        with patch("sys.argv", ["vetinari", "status"]), patch.object(cli, "cmd_status", return_value=42):
+            with pytest.raises(SystemExit) as cm:
+                cli.main()
+        assert cm.value.code == 42
 
     def test_main_run_with_goal_flag(self):
         """'vetinari run --goal ...' parses goal correctly."""
         mocks = self._run_main(["vetinari", "run", "--goal", "Build API"])
         mocks["run"].assert_called_once()
         args_passed = mocks["run"].call_args.args[0]
-        self.assertEqual(args_passed.goal, "Build API")
+        assert args_passed.goal == "Build API"
 
     def test_main_run_with_task_flag(self):
         """'vetinari run --task t1' parses task correctly."""
         mocks = self._run_main(["vetinari", "run", "--task", "t1"])
         args_passed = mocks["run"].call_args.args[0]
-        self.assertEqual(args_passed.task, "t1")
+        assert args_passed.task == "t1"
 
     def test_main_serve_with_port_flag(self):
         """'vetinari serve --port 8080' parses port correctly."""
         mocks = self._run_main(["vetinari", "serve", "--port", "8080"])
         args_passed = mocks["serve"].call_args.args[0]
-        self.assertEqual(args_passed.port, 8080)
+        assert args_passed.port == 8080
 
     def test_main_global_verbose_flag(self):
         """'vetinari --verbose status' sets verbose=True."""
         mocks = self._run_main(["vetinari", "--verbose", "status"])
         args_passed = mocks["status"].call_args.args[0]
-        self.assertTrue(args_passed.verbose)
+        assert args_passed.verbose
 
     def test_main_global_host_flag(self):
         """'vetinari --host http://h:9 status' sets host correctly."""
         mocks = self._run_main(["vetinari", "--host", "http://h:9", "status"])
         args_passed = mocks["status"].call_args.args[0]
-        self.assertEqual(args_passed.host, "http://h:9")
+        assert args_passed.host == "http://h:9"
 
     def test_main_global_mode_flag(self):
         """'vetinari --mode planning run' sets mode correctly."""
         mocks = self._run_main(["vetinari", "--mode", "planning", "run"])
         args_passed = mocks["run"].call_args.args[0]
-        self.assertEqual(args_passed.mode, "planning")
+        assert args_passed.mode == "planning"
 
     def test_main_start_no_dashboard_flag(self):
         """'vetinari start --no-dashboard' sets no_dashboard=True."""
         mocks = self._run_main(["vetinari", "start", "--no-dashboard"])
         args_passed = mocks["start"].call_args.args[0]
-        self.assertTrue(args_passed.no_dashboard)
+        assert args_passed.no_dashboard
 
     def test_main_default_command_sets_goal_none(self):
         """Default command sets goal attribute to None."""
         mocks = self._run_main(["vetinari"])
         args_passed = mocks["start"].call_args.args[0]
-        self.assertIsNone(args_passed.goal)
+        assert args_passed.goal is None
 
 
 # ===========================================================================
@@ -1416,46 +1394,46 @@ class TestHelpers(unittest.TestCase):
 
     def test_get_host_from_args(self):
         """_get_host returns args value when provided."""
-        self.assertEqual(cli._get_host("http://arghost:1"), "http://arghost:1")
+        assert cli._get_host("http://arghost:1") == "http://arghost:1"
 
     def test_get_host_from_env(self):
         """_get_host falls back to LM_STUDIO_HOST env var."""
         with patch.dict(os.environ, {"LM_STUDIO_HOST": "http://envhost:2"}):
-            self.assertEqual(cli._get_host(None), "http://envhost:2")
+            assert cli._get_host(None) == "http://envhost:2"
 
     def test_get_host_default(self):
         """_get_host returns default when no arg and no env var."""
         env_copy = {k: v for k, v in os.environ.items() if k != "LM_STUDIO_HOST"}
         with patch.dict(os.environ, env_copy, clear=True):
             result = cli._get_host(None)
-        self.assertEqual(result, "http://localhost:1234")
+        assert result == "http://localhost:1234"
 
     def test_setup_logging_info_level(self):
         """_setup_logging sets INFO level when verbose=False."""
         with patch("vetinari.cli.logging.basicConfig") as mock_bc:
             cli._setup_logging(False)
         mock_bc.assert_called_once()
-        self.assertEqual(mock_bc.call_args.kwargs["level"], logging.INFO)
+        assert mock_bc.call_args.kwargs["level"] == logging.INFO
 
     def test_setup_logging_debug_level(self):
         """_setup_logging sets DEBUG level when verbose=True."""
         with patch("vetinari.cli.logging.basicConfig") as mock_bc:
             cli._setup_logging(True)
-        self.assertEqual(mock_bc.call_args.kwargs["level"], logging.DEBUG)
+        assert mock_bc.call_args.kwargs["level"] == logging.DEBUG
 
     def test_print_banner_contains_mode(self):
         """_print_banner prints the mode."""
         with patch("builtins.print") as mock_print:
             cli._print_banner("sandbox", "http://h:1")
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("SANDBOX", printed)
+        assert "SANDBOX" in printed
 
     def test_print_banner_contains_host(self):
         """_print_banner prints the host."""
         with patch("builtins.print") as mock_print:
             cli._print_banner("execution", "http://myhost:9000")
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("http://myhost:9000", printed)
+        assert "http://myhost:9000" in printed
 
     def test_build_orchestrator_instantiates_orchestrator(self):
         """_build_orchestrator creates an Orchestrator instance."""
@@ -1468,8 +1446,8 @@ class TestHelpers(unittest.TestCase):
     def test_load_config_missing_returns_defaults(self):
         """_load_config returns default dict when file doesn't exist."""
         result = cli._load_config("/nonexistent/path/config.yaml")
-        self.assertIn("project_name", result)
-        self.assertIn("tasks", result)
+        assert "project_name" in result
+        assert "tasks" in result
 
     def test_health_check_quiet_lmstudio_ok(self):
         """_health_check_quiet prints OK when LM Studio responds."""
@@ -1481,7 +1459,7 @@ class TestHelpers(unittest.TestCase):
             cli._health_check_quiet("http://localhost:1234")
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("OK", printed)
+        assert "OK" in printed
 
     def test_health_check_quiet_lmstudio_fail(self):
         """_health_check_quiet prints FAIL when LM Studio is down."""
@@ -1493,7 +1471,7 @@ class TestHelpers(unittest.TestCase):
             cli._health_check_quiet("http://localhost:1234")
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("FAIL", printed)
+        assert "FAIL" in printed
 
 
 # ===========================================================================
@@ -1517,7 +1495,7 @@ class TestEdgeCases(unittest.TestCase):
         # The printed goal should be at most 80 chars per cli.py logic
         printed = " ".join(str(c) for c in mock_print.call_args_list)
         # Just verify no exception and goal text appears
-        self.assertIn("x", printed)
+        assert "x" in printed
 
     def test_cmd_run_final_output_truncated_to_2000(self):
         """cmd_run truncates final_output to 2000 chars."""
@@ -1535,7 +1513,7 @@ class TestEdgeCases(unittest.TestCase):
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
         # Should contain y's but not the full 5000
-        self.assertIn("y", printed)
+        assert "y" in printed
 
     def test_cmd_interactive_final_output_truncated_to_1500(self):
         """cmd_interactive truncates final_output to 1500 chars."""
@@ -1547,20 +1525,19 @@ class TestEdgeCases(unittest.TestCase):
         _mock_get_two_layer.return_value = mock_orch
         _mock_get_two_layer.side_effect = None
 
-        with patch("builtins.input", side_effect=["some goal", "/quit"]):
-            with patch("builtins.print") as mock_print:
-                with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
-                    cli.cmd_interactive(_args())
+        with patch("builtins.input", side_effect=["some goal", "/quit"]), patch("builtins.print") as mock_print:
+            with patch.object(cli, "_build_orchestrator", return_value=MagicMock()):
+                cli.cmd_interactive(_args())
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("z", printed)
+        assert "z" in printed
 
     def test_get_host_none_arg_no_env_returns_default(self):
         """_get_host returns localhost:1234 as fallback."""
         saved = os.environ.pop("LM_STUDIO_HOST", None)
         try:
             result = cli._get_host(None)
-            self.assertIn("1234", result)
+            assert "1234" in result
         finally:
             if saved is not None:
                 os.environ["LM_STUDIO_HOST"] = saved
@@ -1571,7 +1548,7 @@ class TestEdgeCases(unittest.TestCase):
         _mock_flask_app.run.reset_mock()
         cli.cmd_serve(args)
         all_args = str(_mock_flask_app.run.call_args)
-        self.assertIn("127.0.0.1", all_args)
+        assert "127.0.0.1" in all_args
 
     def test_cmd_status_model_list_displayed(self):
         """cmd_status lists up to 5 model IDs."""
@@ -1586,7 +1563,7 @@ class TestEdgeCases(unittest.TestCase):
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
         # Should show up to 5 models (model-0 through model-4)
-        self.assertIn("model-0", printed)
+        assert "model-0" in printed
 
     def test_cmd_review_at_most_5_recs_printed(self):
         """cmd_review prints at most 5 recommendations."""
@@ -1607,7 +1584,7 @@ class TestEdgeCases(unittest.TestCase):
 
         printed = " ".join(str(c) for c in mock_print.call_args_list)
         # action-5 and beyond should NOT appear (only first 5 printed)
-        self.assertNotIn("action-5", printed)
+        assert "action-5" not in printed
 
     def test_main_config_flag_parsed(self):
         """'vetinari --config custom.yaml status' parses config path."""
@@ -1615,10 +1592,10 @@ class TestEdgeCases(unittest.TestCase):
             with patch.object(cli, "cmd_status", return_value=0) as m:
                 try:
                     cli.main()
-                except SystemExit:
+                except SystemExit:  # noqa: VET022
                     pass
         args_passed = m.call_args.args[0]
-        self.assertEqual(args_passed.config, "custom.yaml")
+        assert args_passed.config == "custom.yaml"
 
     def test_main_start_goal_flag(self):
         """'vetinari start --goal ...' parses goal in start subcommand."""
@@ -1626,10 +1603,10 @@ class TestEdgeCases(unittest.TestCase):
             with patch.object(cli, "cmd_start", return_value=0) as m:
                 try:
                     cli.main()
-                except SystemExit:
+                except SystemExit:  # noqa: VET022
                     pass
         args_passed = m.call_args.args[0]
-        self.assertEqual(args_passed.goal, "Run tests")
+        assert args_passed.goal == "Run tests"
 
 
 if __name__ == "__main__":

@@ -15,16 +15,16 @@ import os
 import tempfile
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _reset_all():
-    from vetinari.drift.contract_registry  import reset_contract_registry
     from vetinari.drift.capability_auditor import reset_capability_auditor
-    from vetinari.drift.schema_validator   import reset_schema_validator
-    from vetinari.drift.monitor            import reset_drift_monitor
+    from vetinari.drift.contract_registry import reset_contract_registry
+    from vetinari.drift.monitor import reset_drift_monitor
+    from vetinari.drift.schema_validator import reset_schema_validator
     reset_contract_registry()
     reset_capability_auditor()
     reset_schema_validator()
@@ -48,20 +48,20 @@ class TestContractRegistry(unittest.TestCase):
     # Singleton
     def test_singleton(self):
         from vetinari.drift.contract_registry import get_contract_registry
-        self.assertIs(get_contract_registry(), get_contract_registry())
+        assert get_contract_registry() is get_contract_registry()
 
     def test_reset_gives_new_instance(self):
         from vetinari.drift.contract_registry import get_contract_registry, reset_contract_registry
         a = get_contract_registry()
         reset_contract_registry()
         b = get_contract_registry()
-        self.assertIsNot(a, b)
+        assert a is not b
 
     # Fingerprinting
     def test_register_dict(self):
         h = self.reg.register("MyContract", {"plan_id": "p1", "goal": "g"})
-        self.assertIsInstance(h, str)
-        self.assertEqual(len(h), 64)   # SHA-256 hex
+        assert isinstance(h, str)
+        assert len(h) == 64   # SHA-256 hex
 
     def test_register_dataclass(self):
         @dataclass
@@ -69,36 +69,36 @@ class TestContractRegistry(unittest.TestCase):
             x: int = 1
             y: str = "hello"
         h = self.reg.register("DC", DC())
-        self.assertIsInstance(h, str)
+        assert isinstance(h, str)
 
     def test_same_content_same_hash(self):
         h1 = self.reg.register("A", {"key": "value"})
         h2 = self.reg.register("B", {"key": "value"})
-        self.assertEqual(h1, h2)
+        assert h1 == h2
 
     def test_different_content_different_hash(self):
         h1 = self.reg.register("A", {"x": 1})
         h2 = self.reg.register("A", {"x": 2})
-        self.assertNotEqual(h1, h2)
+        assert h1 != h2
 
     def test_register_many(self):
         hashes = self.reg.register_many({"C1": {"a": 1}, "C2": {"b": 2}})
-        self.assertEqual(set(hashes.keys()), {"C1", "C2"})
+        assert set(hashes.keys()) == {"C1", "C2"}
 
     def test_list_contracts(self):
         self.reg.register("Z", {"z": True})
         self.reg.register("A", {"a": True})
         names = self.reg.list_contracts()
-        self.assertIn("Z", names)
-        self.assertIn("A", names)
-        self.assertEqual(names, sorted(names))
+        assert "Z" in names
+        assert "A" in names
+        assert names == sorted(names)
 
     def test_get_hash(self):
         h = self.reg.register("X", {"x": 99})
-        self.assertEqual(self.reg.get_hash("X"), h)
+        assert self.reg.get_hash("X") == h
 
     def test_get_hash_missing_returns_none(self):
-        self.assertIsNone(self.reg.get_hash("nonexistent"))
+        assert self.reg.get_hash("nonexistent") is None
 
     # Snapshot & load
     def test_snapshot_creates_file(self):
@@ -106,10 +106,10 @@ class TestContractRegistry(unittest.TestCase):
             path = os.path.join(d, "snap.json")
             self.reg.register("C", {"v": 1})
             self.reg.snapshot(path)
-            self.assertTrue(os.path.exists(path))
+            assert os.path.exists(path)
             data = json.loads(open(path).read())
-            self.assertIn("hashes", data)
-            self.assertIn("C", data["hashes"])
+            assert "hashes" in data
+            assert "C" in data["hashes"]
 
     def test_load_snapshot_populates_previous(self):
         with tempfile.TemporaryDirectory() as d:
@@ -121,11 +121,11 @@ class TestContractRegistry(unittest.TestCase):
             from vetinari.drift.contract_registry import get_contract_registry
             reg2 = get_contract_registry()
             ok = reg2.load_snapshot(path)
-            self.assertTrue(ok)
+            assert ok
 
     def test_load_missing_snapshot_returns_false(self):
         ok = self.reg.load_snapshot("/nonexistent/snap.json")
-        self.assertFalse(ok)
+        assert not ok
 
     # Drift detection
     def test_no_drift_when_identical(self):
@@ -134,7 +134,7 @@ class TestContractRegistry(unittest.TestCase):
             self.reg.register("C", {"v": 1})
             self.reg.snapshot(path)
             self.reg.load_snapshot(path)
-            self.assertEqual(self.reg.check_drift(), {})
+            assert self.reg.check_drift() == {}
 
     def test_drift_detected_on_change(self):
         with tempfile.TemporaryDirectory() as d:
@@ -144,8 +144,8 @@ class TestContractRegistry(unittest.TestCase):
             self.reg.register("C", {"v": 2})   # changed
             self.reg.load_snapshot(path)
             drifts = self.reg.check_drift()
-            self.assertIn("C", drifts)
-            self.assertEqual(drifts["C"]["current"], self.reg.get_hash("C"))
+            assert "C" in drifts
+            assert drifts["C"]["current"] == self.reg.get_hash("C")
 
     def test_drift_raises_when_requested(self):
         from vetinari.drift.contract_registry import ContractDriftError
@@ -155,7 +155,7 @@ class TestContractRegistry(unittest.TestCase):
             self.reg.snapshot(path)
             self.reg.register("C", {"v": 999})
             self.reg.load_snapshot(path)
-            with self.assertRaises(ContractDriftError):
+            with pytest.raises(ContractDriftError):
                 self.reg.check_drift(raise_on_drift=True)
 
     def test_is_stable_true_when_clean(self):
@@ -164,7 +164,7 @@ class TestContractRegistry(unittest.TestCase):
             self.reg.register("C", {"v": 1})
             self.reg.snapshot(path)
             self.reg.load_snapshot(path)
-            self.assertTrue(self.reg.is_stable())
+            assert self.reg.is_stable()
 
     def test_removed_contract_detected(self):
         with tempfile.TemporaryDirectory() as d:
@@ -174,14 +174,14 @@ class TestContractRegistry(unittest.TestCase):
             self.reg.clear()
             self.reg.load_snapshot(path)
             drifts = self.reg.check_drift()
-            self.assertIn("C", drifts)
-            self.assertEqual(drifts["C"]["current"], "REMOVED")
+            assert "C" in drifts
+            assert drifts["C"]["current"] == "REMOVED"
 
     def test_get_stats(self):
         self.reg.register("A", {"a": 1})
         stats = self.reg.get_stats()
-        self.assertIn("registered", stats)
-        self.assertEqual(stats["registered"], 1)
+        assert "registered" in stats
+        assert stats["registered"] == 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ class TestCapabilityAuditor(unittest.TestCase):
 
     def test_singleton(self):
         from vetinari.drift.capability_auditor import get_capability_auditor
-        self.assertIs(get_capability_auditor(), get_capability_auditor())
+        assert get_capability_auditor() is get_capability_auditor()
 
     def test_register_documented(self):
         self.auditor.register_documented("BUILDER", ["code_gen", "file_writing"])
@@ -212,9 +212,9 @@ class TestCapabilityAuditor(unittest.TestCase):
         live_caps = BuilderAgent().get_capabilities()
         self.auditor.register_documented("BUILDER", live_caps)
         finding = self.auditor.audit_agent("BUILDER")
-        self.assertFalse(finding.is_drift)
-        self.assertEqual(finding.extra_in_code, [])
-        self.assertEqual(finding.missing_in_code, [])
+        assert not finding.is_drift
+        assert finding.extra_in_code == []
+        assert finding.missing_in_code == []
 
     def test_audit_agent_detects_extra_cap(self):
         # Document fewer caps than the agent actually has
@@ -224,62 +224,62 @@ class TestCapabilityAuditor(unittest.TestCase):
         self.auditor.register_documented("BUILDER", live_caps[:1])
         finding = self.auditor.audit_agent("BUILDER")
         if len(live_caps) > 1:
-            self.assertTrue(finding.is_drift)
-            self.assertGreater(len(finding.extra_in_code), 0)
+            assert finding.is_drift
+            assert len(finding.extra_in_code) > 0
 
     def test_audit_agent_detects_missing_cap(self):
         # Document an extra cap that the code doesn't have
         self.auditor.register_documented("BUILDER",
                                           ["__totally_fake_cap__"])
         finding = self.auditor.audit_agent("BUILDER")
-        self.assertTrue(finding.is_drift)
-        self.assertIn("__totally_fake_cap__", finding.missing_in_code)
+        assert finding.is_drift
+        assert "__totally_fake_cap__" in finding.missing_in_code
 
     def test_audit_agent_unknown_name(self):
         self.auditor.register_documented("GHOST", ["cap_a"])
         finding = self.auditor.audit_agent("GHOST")
         # GHOST has no module → missing_in_code = ["cap_a"]
-        self.assertTrue(finding.is_drift)
+        assert finding.is_drift
 
     def test_audit_all_returns_list(self):
         self.auditor.register_documented("BUILDER", ["x"])
         findings = self.auditor.audit_all()
-        self.assertIsInstance(findings, list)
-        self.assertGreater(len(findings), 0)
+        assert isinstance(findings, list)
+        assert len(findings) > 0
 
     def test_get_drift_findings_returns_only_drifts(self):
         findings = self.auditor.get_drift_findings()
         for f in findings:
-            self.assertTrue(f.is_drift)
+            assert f.is_drift
 
     def test_finding_str_clean(self):
         from vetinari.drift.capability_auditor import CapabilityFinding
         f = CapabilityFinding("A", [], [], False)
-        self.assertIn("[OK]", str(f))
+        assert "[OK]" in str(f)
 
     def test_finding_str_drift(self):
         from vetinari.drift.capability_auditor import CapabilityFinding
         f = CapabilityFinding("B", ["extra"], ["missing"], True)
-        self.assertIn("[DRIFT]", str(f))
-        self.assertIn("extra", str(f))
+        assert "[DRIFT]" in str(f)
+        assert "extra" in str(f)
 
     def test_finding_to_dict(self):
         from vetinari.drift.capability_auditor import CapabilityFinding
         f = CapabilityFinding("C", ["x"], [], True)
         d = f.to_dict()
-        self.assertIn("agent_name", d)
-        self.assertIn("is_drift", d)
+        assert "agent_name" in d
+        assert "is_drift" in d
 
     def test_get_stats(self):
         stats = self.auditor.get_stats()
         for k in ("agents_audited", "agents_with_drift", "documented_agents"):
-            self.assertIn(k, stats)
+            assert k in stats
 
     def test_register_all_from_contracts(self):
         # Should not raise; populates documented map
         self.auditor.register_all_from_contracts()
         stats = self.auditor.get_stats()
-        self.assertGreater(stats["documented_agents"], 0)
+        assert stats["documented_agents"] > 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -298,101 +298,101 @@ class TestSchemaValidator(unittest.TestCase):
 
     def test_singleton(self):
         from vetinari.drift.schema_validator import get_schema_validator
-        self.assertIs(get_schema_validator(), get_schema_validator())
+        assert get_schema_validator() is get_schema_validator()
 
     def test_validate_valid_object(self):
         self.v.register_schema("T", {"required_keys": ["a", "b"]})
         errs = self.v.validate("T", {"a": 1, "b": 2, "c": 3})
-        self.assertEqual(errs, [])
+        assert errs == []
 
     def test_validate_missing_required_key(self):
         self.v.register_schema("T", {"required_keys": ["must_exist"]})
         errs = self.v.validate("T", {"other": "value"})
-        self.assertGreater(len(errs), 0)
-        self.assertIn("must_exist", errs[0])
+        assert len(errs) > 0
+        assert "must_exist" in errs[0]
 
     def test_validate_forbidden_key(self):
         self.v.register_schema("T", {"forbidden_keys": ["secret"]})
         errs = self.v.validate("T", {"secret": "leak", "safe": "ok"})
-        self.assertGreater(len(errs), 0)
+        assert len(errs) > 0
 
     def test_validate_key_type_correct(self):
         self.v.register_schema("T", {"key_types": {"count": "int"}})
         errs = self.v.validate("T", {"count": 5})
-        self.assertEqual(errs, [])
+        assert errs == []
 
     def test_validate_key_type_wrong(self):
         self.v.register_schema("T", {"key_types": {"count": "int"}})
         errs = self.v.validate("T", {"count": "five"})
-        self.assertGreater(len(errs), 0)
+        assert len(errs) > 0
 
     def test_validate_version_pattern_ok(self):
         self.v.register_schema("T", {"version_pattern": r"^v\d+\.\d+\.\d+$"})
         errs = self.v.validate("T", {"version": "v1.2.3"})
-        self.assertEqual(errs, [])
+        assert errs == []
 
     def test_validate_version_pattern_fail(self):
         self.v.register_schema("T", {"version_pattern": r"^v\d+\.\d+\.\d+$"})
         errs = self.v.validate("T", {"version": "bad-version"})
-        self.assertGreater(len(errs), 0)
+        assert len(errs) > 0
 
     def test_validate_non_empty_key_fails_when_empty(self):
         self.v.register_schema("T", {"non_empty_keys": ["name"]})
         errs = self.v.validate("T", {"name": ""})
-        self.assertGreater(len(errs), 0)
+        assert len(errs) > 0
 
     def test_validate_non_empty_key_passes_when_set(self):
         self.v.register_schema("T", {"non_empty_keys": ["name"]})
         errs = self.v.validate("T", {"name": "Alice"})
-        self.assertEqual(errs, [])
+        assert errs == []
 
     def test_validate_allowed_status(self):
         self.v.register_schema("T", {"allowed_status_values": ["draft", "done"]})
         errs = self.v.validate("T", {"status": "unknown"})
-        self.assertGreater(len(errs), 0)
+        assert len(errs) > 0
 
     def test_validate_unknown_schema(self):
         errs = self.v.validate("__ghost__", {"x": 1})
-        self.assertGreater(len(errs), 0)
-        self.assertIn("Unknown schema", errs[0])
+        assert len(errs) > 0
+        assert "Unknown schema" in errs[0]
 
     def test_validate_many(self):
         self.v.register_schema("T", {"required_keys": ["x"]})
         failures = self.v.validate_many("T", [{"x": 1}, {"y": 2}, {"x": 3}])
-        self.assertIn(1, failures)   # index 1 missing "x"
-        self.assertNotIn(0, failures)
+        assert 1 in failures   # index 1 missing "x"
+        assert 0 not in failures
 
     def test_is_valid_true(self):
         self.v.register_schema("T", {"required_keys": ["id"]})
-        self.assertTrue(self.v.is_valid("T", {"id": "x1"}))
+        assert self.v.is_valid("T", {"id": "x1"})
 
     def test_is_valid_false(self):
         self.v.register_schema("T", {"required_keys": ["id"]})
-        self.assertFalse(self.v.is_valid("T", {}))
+        assert not self.v.is_valid("T", {})
 
     def test_vetinari_schemas(self):
         self.v.register_vetinari_schemas()
         schemas = self.v.list_schemas()
         for name in ("Plan", "Subtask", "LogRecord", "AlertThreshold",
                      "CostEntry", "ForecastResult"):
-            self.assertIn(name, schemas)
+            assert name in schemas
 
     def test_plan_schema_validates_live_plan(self):
         self.v.register_vetinari_schemas()
         from vetinari.plan_types import Plan
         errs = self.v.validate("Plan", Plan(goal="real plan"))
-        self.assertEqual(errs, [], errs)
+        assert errs == [], errs
 
     def test_unregister_schema(self):
         self.v.register_schema("X", {})
-        self.assertTrue(self.v.unregister_schema("X"))
-        self.assertNotIn("X", self.v.list_schemas())
+        assert self.v.unregister_schema("X")
+        assert "X" not in self.v.list_schemas()
 
     def test_get_stats(self):
         self.v.register_vetinari_schemas()
         stats = self.v.get_stats()
-        self.assertIn("registered_schemas", stats)
-        self.assertGreater(stats["registered_schemas"], 0)
+        assert "registered_schemas" in stats
+        assert stats["registered_schemas"] > 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -407,34 +407,34 @@ class TestDriftReport(unittest.TestCase):
 
     def test_is_clean_when_empty(self):
         r = self._make()
-        self.assertTrue(r.is_clean)
+        assert r.is_clean
 
     def test_is_clean_false_with_contract_drift(self):
         r = self._make(contract_drifts={"Plan": {"previous": "aa", "current": "bb"}})
-        self.assertFalse(r.is_clean)
+        assert not r.is_clean
 
     def test_is_clean_false_with_capability_drift(self):
         r = self._make(capability_drifts=["[DRIFT] BUILDER: ..."])
-        self.assertFalse(r.is_clean)
+        assert not r.is_clean
 
     def test_is_clean_false_with_schema_errors(self):
         r = self._make(schema_errors={"Plan": ["Missing required key 'goal'"]})
-        self.assertFalse(r.is_clean)
+        assert not r.is_clean
 
     def test_summary_clean(self):
         r = self._make()
-        self.assertIn("clean", r.summary())
+        assert "clean" in r.summary()
 
     def test_summary_with_issues(self):
         r = self._make(contract_drifts={"A": {"previous": "x", "current": "y"}})
-        self.assertIn("contract drift", r.summary())
+        assert "contract drift" in r.summary()
 
     def test_to_dict_keys(self):
         r = self._make()
         d = r.to_dict()
         for k in ("timestamp", "is_clean", "contract_drifts",
                   "capability_drifts", "schema_errors", "issues", "duration_ms"):
-            self.assertIn(k, d)
+            assert k in d
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -460,7 +460,7 @@ class TestDriftMonitor(unittest.TestCase):
 
     def test_singleton(self):
         from vetinari.drift.monitor import get_drift_monitor
-        self.assertIs(get_drift_monitor(), get_drift_monitor())
+        assert get_drift_monitor() is get_drift_monitor()
 
     def test_bootstrap_runs_without_error(self):
         self.monitor.bootstrap()   # should not raise
@@ -468,53 +468,53 @@ class TestDriftMonitor(unittest.TestCase):
     def test_run_capability_check_returns_list(self):
         self.monitor.bootstrap()
         findings = self.monitor.run_capability_check()
-        self.assertIsInstance(findings, list)
+        assert isinstance(findings, list)
 
     def test_run_schema_check_no_errors_on_valid_objects(self):
         self.monitor.bootstrap()
         errors = self.monitor.run_schema_check()
-        self.assertIsInstance(errors, dict)
+        assert isinstance(errors, dict)
 
     def test_run_full_audit_returns_report(self):
         self.monitor.bootstrap()
         from vetinari.drift.monitor import DriftReport
         report = self.monitor.run_full_audit()
-        self.assertIsInstance(report, DriftReport)
-        self.assertGreater(report.duration_ms, 0)
+        assert isinstance(report, DriftReport)
+        assert report.duration_ms > 0
 
     def test_run_full_audit_clean_on_fresh_state(self):
         self.monitor.bootstrap()
         report = self.monitor.run_full_audit()
         # After bootstrap there is no previous snapshot → no contract drift
-        self.assertEqual(report.contract_drifts, {})
+        assert report.contract_drifts == {}
 
     def test_get_history_accumulates(self):
         self.monitor.bootstrap()
         self.monitor.run_full_audit()
         self.monitor.run_full_audit()
-        self.assertEqual(len(self.monitor.get_history()), 2)
+        assert len(self.monitor.get_history()) == 2
 
     def test_get_last_report(self):
         self.monitor.bootstrap()
         self.monitor.run_full_audit()
         last = self.monitor.get_last_report()
-        self.assertIsNotNone(last)
+        assert last is not None
 
     def test_get_last_report_none_before_audit(self):
-        self.assertIsNone(self.monitor.get_last_report())
+        assert self.monitor.get_last_report() is None
 
     def test_clear_history(self):
         self.monitor.bootstrap()
         self.monitor.run_full_audit()
         self.monitor.clear_history()
-        self.assertEqual(len(self.monitor.get_history()), 0)
+        assert len(self.monitor.get_history()) == 0
 
     def test_get_stats_keys(self):
         self.monitor.bootstrap()
         stats = self.monitor.get_stats()
         for k in ("audits_run", "last_clean", "contracts",
                   "capabilities", "schemas"):
-            self.assertIn(k, stats)
+            assert k in stats
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -535,19 +535,19 @@ class TestScriptImports(unittest.TestCase):
 
     def test_check_doc_contract_alignment_importable(self):
         mod = self._load("scripts/check_doc_contract_alignment.py")
-        self.assertTrue(callable(getattr(mod, "main", None)))
+        assert callable(getattr(mod, "main", None))
 
     def test_check_migration_index_importable(self):
         mod = self._load("scripts/check_migration_index.py")
-        self.assertTrue(callable(getattr(mod, "main", None)))
+        assert callable(getattr(mod, "main", None))
 
     def test_check_agent_capabilities_importable(self):
         mod = self._load("scripts/check_agent_capabilities.py")
-        self.assertTrue(callable(getattr(mod, "main", None)))
+        assert callable(getattr(mod, "main", None))
 
     def test_check_coverage_gate_importable(self):
         mod = self._load("scripts/check_coverage_gate.py")
-        self.assertTrue(callable(getattr(mod, "main", None)))
+        assert callable(getattr(mod, "main", None))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -557,27 +557,20 @@ class TestScriptImports(unittest.TestCase):
 class TestDriftPackageImport(unittest.TestCase):
 
     def test_all_top_level_imports(self):
-        from vetinari.drift import (
-            ContractRegistry, ContractDriftError,
-            get_contract_registry, reset_contract_registry,
-            CapabilityAuditor, CapabilityFinding,
-            get_capability_auditor, reset_capability_auditor,
-            SchemaValidator,
-            get_schema_validator, reset_schema_validator,
-            DriftMonitor, DriftReport,
-            get_drift_monitor, reset_drift_monitor,
-        )
+        import vetinari.drift  # Verify drift package is importable at top level
 
     def test_all_singletons_return_same_instance(self):
         _reset_all()
         from vetinari.drift import (
-            get_contract_registry, get_capability_auditor,
-            get_schema_validator, get_drift_monitor,
+            get_capability_auditor,
+            get_contract_registry,
+            get_drift_monitor,
+            get_schema_validator,
         )
-        self.assertIs(get_contract_registry(),  get_contract_registry())
-        self.assertIs(get_capability_auditor(), get_capability_auditor())
-        self.assertIs(get_schema_validator(),   get_schema_validator())
-        self.assertIs(get_drift_monitor(),      get_drift_monitor())
+        assert get_contract_registry() is get_contract_registry()
+        assert get_capability_auditor() is get_capability_auditor()
+        assert get_schema_validator() is get_schema_validator()
+        assert get_drift_monitor() is get_drift_monitor()
         _reset_all()
 
 

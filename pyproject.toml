@@ -41,13 +41,28 @@ search = [
     "duckduckgo-search>=4.0.0",
     "tavily-python>=0.3.0",
 ]
-ml = ["numpy>=1.24.0"]
+ml = [
+    "numpy>=1.24.0",
+    "dspy-ai>=2.0",
+    "chromadb>=0.4",
+    "pynvml>=11.0",
+]
 guardrails = ["nemoguardrails>=0.20.0"]
+observability = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+]
 training = [
     "sentence-transformers>=2.2",
     "faiss-cpu>=1.7",
     "scipy>=1.10",
     "tiktoken>=0.5",
+    "torch>=2.0",
+    "datasets>=2.14",
+    "peft>=0.9",
+    "trl>=0.8",
+    "unsloth",
+    "huggingface-hub>=0.20",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -59,7 +74,7 @@ dev = [
     "mypy>=1.8.0",
 ]
 all = [
-    "vetinari[cloud,crypto,search,ml,guardrails,dev]",
+    "vetinari[cloud,crypto,search,ml,guardrails,observability,training,dev]",
 ]
 
 [project.scripts]
@@ -92,6 +107,9 @@ line-length = 120
 src = ["vetinari"]
 
 [tool.ruff.lint]
+# VET* are custom project rules from scripts/check_vetinari_rules.py; mark as external
+# so ruff does not flag them as unknown noqa codes.
+external = ["VET"]
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -116,7 +134,7 @@ ignore = [
     "B905",   # zip strict (not always needed)
     "SIM108", # ternary operator (readability preference)
     "RUF012", # mutable class variables (dataclass pattern)
-    "UP007",  # Use X | Y for union types - defer until full migration
+    # UP007 removed — full migration to X | Y union syntax now active
     "ERA001", # commented-out code (use VET036 custom rule instead — fewer false positives)
     "S101",   # assert in non-test code (handled per-file)
     "D100",   # missing module docstring (use VET095 custom rule instead — smarter exemptions)
@@ -132,9 +150,22 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "T20", "ERA", "D"]  # assert ok, print ok, commented code ok, docstrings relaxed in tests
+"tests/*" = [
+    "S101", "T20", "ERA", "D",          # assert ok, print ok, commented code ok, docstrings relaxed
+    "PT009", "PT011", "PT013", "PT017", "PT019",  # unittest-style assertions OK in tests
+    "TID251",                            # banned imports OK in tests (typing.Optional etc.)
+    "S105", "S106", "S107", "S108", "S110", "S113", "S104", "S324", "S607", "S311",  # security OK in test fixtures
+    "E402",                              # late imports OK in tests (imports after fixture setup)
+    "E701", "E702",                      # multiple statements OK in test helpers
+    "RUF001", "RUF002", "RUF003",        # ambiguous unicode OK in test strings/data
+    "SIM105", "SIM115", "SIM117",        # simplification preferences flexible in tests
+    "B017",                              # blind except OK in negative-path tests
+    "PT012",                             # multiple statements in pytest.raises OK for context manager combos
+    "F401",                              # unused imports OK (imports for side-effects / conftest)
+]
 "scripts/*" = ["T20", "D"]               # print ok, docstrings relaxed in scripts
 "vetinari/__main__.py" = ["T20"]          # print ok in entry point
+"vetinari/cli.py" = ["T20"]              # print ok in CLI interface
 "vetinari/benchmarks/*" = ["T20", "D"]   # print ok, docstrings relaxed in benchmarks
 "conftest.py" = ["S101", "D"]            # assert ok, docstrings relaxed in conftest
 

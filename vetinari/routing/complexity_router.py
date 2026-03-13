@@ -1,5 +1,5 @@
-"""
-Dynamic Complexity Router (C11)
+"""Dynamic Complexity Router (C11).
+
 ================================
 Classifies tasks as simple/moderate/complex and routes them to appropriate
 pipeline subsets.
@@ -15,7 +15,7 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,15 @@ class Complexity(Enum):
 @dataclass
 class RoutingDecision:
     """Result of complexity routing analysis."""
+
     complexity: Complexity
-    skip_stages: List[str]
-    add_stages: List[str]
-    recommended_agents: List[str]
+    skip_stages: list[str]
+    add_stages: list[str]
+    recommended_agents: list[str]
     reasoning: str
     execution_strategy: str = "pipeline"  # "pipeline" or "code_mode"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "complexity": self.complexity.value,
             "skip_stages": self.skip_stages,
@@ -88,12 +89,8 @@ def classify_complexity(
     desc_lower = description.lower()
 
     # Check for explicit complexity signals
-    complex_score = sum(
-        1 for p in _COMPLEX_SIGNALS if re.search(p, desc_lower)
-    )
-    simple_score = sum(
-        1 for p in _SIMPLE_SIGNALS if re.search(p, desc_lower)
-    )
+    complex_score = sum(1 for p in _COMPLEX_SIGNALS if re.search(p, desc_lower))
+    simple_score = sum(1 for p in _SIMPLE_SIGNALS if re.search(p, desc_lower))
 
     # Word count as proxy for specification complexity
     word_count = len(description.split())
@@ -149,8 +146,11 @@ def route_by_complexity(
             skip_stages=[],
             add_stages=["contrarian_review", "risk_assessment"],
             recommended_agents=[
-                "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
-                "BUILDER", "QUALITY",
+                "PLANNER",
+                "CONSOLIDATED_RESEARCHER",
+                "CONSOLIDATED_ORACLE",
+                "BUILDER",
+                "QUALITY",
             ],
             reasoning="Complex task — full pipeline with Oracle contrarian review",
             execution_strategy="code_mode" if task_count > 3 else "pipeline",

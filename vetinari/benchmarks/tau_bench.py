@@ -13,9 +13,8 @@ Metrics: pass^k (k=1..5), consistency score, variance across trials.
 
 from __future__ import annotations
 
-import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
@@ -25,10 +24,9 @@ from vetinari.benchmarks.runner import (
     BenchmarkTier,
 )
 
-
 # -- Sample Tau-bench-style cases --
 
-_SAMPLE_CASES: List[Dict[str, Any]] = [
+_SAMPLE_CASES: list[dict[str, Any]] = [
     {
         "task_id": "tau-retail-001",
         "domain": "retail",
@@ -45,8 +43,10 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "policy_applied": "15% restocking fee (15-30 day window)",
         },
         "tools_available": [
-            "lookup_order", "calculate_restocking_fee",
-            "process_refund", "send_confirmation",
+            "lookup_order",
+            "calculate_restocking_fee",
+            "process_refund",
+            "send_confirmation",
         ],
     },
     {
@@ -67,8 +67,11 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "discounts_applied": ["SAVE20 (20%)", "TENOFF ($10)"],
         },
         "tools_available": [
-            "get_cart", "validate_coupon", "apply_percent_discount",
-            "apply_fixed_discount", "update_total",
+            "get_cart",
+            "validate_coupon",
+            "apply_percent_discount",
+            "apply_fixed_discount",
+            "update_total",
         ],
     },
     {
@@ -81,8 +84,10 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "connection to LAX. Priority: same airline, then codeshare, then any."
         ),
         "expected_actions": [
-            "lookup_passenger", "check_flight_status",
-            "search_alternatives", "rebook_passenger",
+            "lookup_passenger",
+            "check_flight_status",
+            "search_alternatives",
+            "rebook_passenger",
         ],
         "expected_output": {
             "original_flight": "AA234",
@@ -92,9 +97,12 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "compensation": "meal voucher",
         },
         "tools_available": [
-            "lookup_passenger", "check_flight_status",
-            "search_alternatives", "rebook_passenger",
-            "issue_compensation", "send_notification",
+            "lookup_passenger",
+            "check_flight_status",
+            "search_alternatives",
+            "rebook_passenger",
+            "issue_compensation",
+            "send_notification",
         ],
     },
     {
@@ -107,7 +115,8 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "fare difference. Verify sufficient miles and process upgrade."
         ),
         "expected_actions": [
-            "check_miles_balance", "calculate_upgrade_cost",
+            "check_miles_balance",
+            "calculate_upgrade_cost",
             "process_upgrade",
         ],
         "expected_output": {
@@ -118,9 +127,12 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "remaining_miles": 10000,
         },
         "tools_available": [
-            "check_miles_balance", "check_seat_availability",
-            "calculate_upgrade_cost", "process_upgrade",
-            "charge_fare_difference", "send_confirmation",
+            "check_miles_balance",
+            "check_seat_availability",
+            "calculate_upgrade_cost",
+            "process_upgrade",
+            "charge_fare_difference",
+            "send_confirmation",
         ],
     },
     {
@@ -134,8 +146,10 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "amount over $5,000."
         ),
         "expected_actions": [
-            "verify_beneficiary", "check_jurisdiction_risk",
-            "apply_aml_rules", "flag_for_review",
+            "verify_beneficiary",
+            "check_jurisdiction_risk",
+            "apply_aml_rules",
+            "flag_for_review",
         ],
         "expected_output": {
             "transfer_amount": 9500,
@@ -144,9 +158,12 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "aml_rule_matched": "NEW_ACCT_HIGH_RISK_LARGE",
         },
         "tools_available": [
-            "verify_beneficiary", "check_jurisdiction_risk",
-            "check_account_age", "apply_aml_rules",
-            "flag_for_review", "process_transfer",
+            "verify_beneficiary",
+            "check_jurisdiction_risk",
+            "check_account_age",
+            "apply_aml_rules",
+            "flag_for_review",
+            "process_transfer",
         ],
     },
 ]
@@ -159,25 +176,27 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
     layer = BenchmarkLayer.PIPELINE
     tier = BenchmarkTier.SLOW
 
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
-            cases.append(BenchmarkCase(
-                case_id=item["task_id"],
-                suite_name=self.name,
-                description=item["description"],
-                input_data={
-                    "domain": item["domain"],
-                    "user_instruction": item["user_instruction"],
-                    "tools_available": item["tools_available"],
-                },
-                expected={
-                    "expected_actions": item["expected_actions"],
-                    "expected_output": item["expected_output"],
-                },
-                tags=[item["domain"]],
-            ))
+            cases.append(
+                BenchmarkCase(
+                    case_id=item["task_id"],
+                    suite_name=self.name,
+                    description=item["description"],
+                    input_data={
+                        "domain": item["domain"],
+                        "user_instruction": item["user_instruction"],
+                        "tools_available": item["tools_available"],
+                    },
+                    expected={
+                        "expected_actions": item["expected_actions"],
+                        "expected_output": item["expected_output"],
+                    },
+                    tags=[item["domain"]],
+                )
+            )
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
@@ -255,28 +274,24 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
             score += 0.4 * field_score
 
         # No harmful actions (0.2): penalise if wrong tools were called
-        harmful_actions = actual_actions - expected_actions - set(
-            expected.get("tools_available", [])
-        )
+        harmful_actions = actual_actions - expected_actions - set(expected.get("tools_available", []))
         if not harmful_actions:
             score += 0.2
 
         return round(min(score, 1.0), 4)
 
-    def _run_via_orchestrator(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _run_via_orchestrator(self, case: BenchmarkCase) -> dict[str, Any]:
         """Attempt execution via Vetinari pipeline."""
         from vetinari.two_layer_orchestration import get_two_layer_orchestrator
 
         orch = get_two_layer_orchestrator()
-        result = orch.generate_and_execute(
-            goal=case.input_data["user_instruction"]
-        )
+        result = orch.generate_and_execute(goal=case.input_data["user_instruction"])
         return {
             "actions_taken": result.get("tools_called", []),
             "output": result.get("final_output", {}),
         }
 
-    def _mock_run(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _mock_run(self, case: BenchmarkCase) -> dict[str, Any]:
         """Mock execution returning expected results for testing."""
         expected = case.expected or {}
         return {

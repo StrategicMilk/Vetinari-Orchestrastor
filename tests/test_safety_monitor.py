@@ -17,12 +17,13 @@ Tests cover:
 
 from __future__ import annotations
 
-import time
 import unittest
 
+import pytest
+
+from vetinari.exceptions import AgentError
 from vetinari.safety.agent_monitor import (
     AgentMonitor,
-    AgentTimeoutError,
     StepLimitExceeded,
     get_agent_monitor,
     reset_agent_monitor,
@@ -33,8 +34,6 @@ from vetinari.safety.policy_enforcer import (
     get_policy_enforcer,
     reset_policy_enforcer,
 )
-from vetinari.exceptions import AgentError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -95,11 +94,11 @@ class TestAgentRegistration(unittest.TestCase):
         assert self.monitor.get_stats()["registered_agents"] == 3
 
     def test_invalid_timeout_raises(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.monitor.register_agent("x", timeout_seconds=0)
 
     def test_invalid_max_steps_raises(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.monitor.register_agent("x", max_steps=0)
 
 
@@ -112,7 +111,7 @@ class TestHeartbeat(unittest.TestCase):
         reset_agent_monitor()
 
     def test_heartbeat_unregistered_raises(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.monitor.heartbeat("does-not-exist")
 
     def test_heartbeat_registered_succeeds(self):
@@ -143,13 +142,13 @@ class TestStepLimit(unittest.TestCase):
         self.monitor.record_step("limited")
         self.monitor.record_step("limited")
         self.monitor.record_step("limited")
-        with self.assertRaises(StepLimitExceeded):
+        with pytest.raises(StepLimitExceeded):
             self.monitor.record_step("limited")
 
     def test_step_limit_exception_is_agent_error(self):
         self.monitor.register_agent("sub", max_steps=1)
         self.monitor.record_step("sub")
-        with self.assertRaises(AgentError):
+        with pytest.raises(AgentError):
             self.monitor.record_step("sub")
 
     def test_steps_within_limit_do_not_raise(self):
@@ -158,7 +157,7 @@ class TestStepLimit(unittest.TestCase):
             self.monitor.record_step("ok-agent")  # should not raise
 
     def test_record_step_unregistered_raises(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.monitor.record_step("ghost")
 
     def test_total_steps_tracked_in_stats(self):
@@ -222,7 +221,7 @@ class TestResetAgent(unittest.TestCase):
         self.monitor.record_step("r-agent")  # should not raise
 
     def test_reset_unregistered_raises(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.monitor.reset_agent("nobody")
 
 
@@ -247,7 +246,7 @@ class TestMonitorStats(unittest.TestCase):
         self.monitor.record_step("v-agent")
         try:
             self.monitor.record_step("v-agent")
-        except StepLimitExceeded:
+        except StepLimitExceeded:  # noqa: VET022
             pass
         stats = self.monitor.get_stats()
         assert stats["total_step_limit_violations"] >= 1
@@ -523,16 +522,16 @@ class TestEnforcerStats(unittest.TestCase):
 
 class TestSafetyModuleExports(unittest.TestCase):
     def test_imports_from_safety_package(self):
-        from vetinari.safety import (  # noqa: F401
-            get_agent_monitor,
+        from vetinari.safety import (
             AgentMonitor,
-            StepLimitExceeded,
             AgentTimeoutError,
-            get_policy_enforcer,
-            PolicyEnforcer,
-            PolicyDecision,
-            get_guardrails,
             GuardrailsManager,
+            PolicyDecision,
+            PolicyEnforcer,
+            StepLimitExceeded,
+            get_agent_monitor,
+            get_guardrails,
+            get_policy_enforcer,
             reset_guardrails,
         )
 

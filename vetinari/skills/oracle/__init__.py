@@ -1,18 +1,22 @@
-"""
-Oracle Skill Tool Wrapper
+"""Oracle Skill Tool Wrapper.
 
 Migrates the oracle skill to the Tool interface, providing strategic thinking
 for architecture decisions, debugging, and technical trade-offs.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-import logging
-from enum import Enum
+from __future__ import annotations
 
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +34,33 @@ class OracleCapability(str, Enum):
 class OracleRequest:
     capability: OracleCapability
     question: str
-    context: Optional[str] = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
-    options: List[str] = field(default_factory=list)
+    options: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"capability": self.capability.value, "question": self.question, "context": self.context, "thinking_mode": self.thinking_mode.value}
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "capability": self.capability.value,
+            "question": self.question,
+            "context": self.context,
+            "thinking_mode": self.thinking_mode.value,
+        }
 
 
 @dataclass
 class OracleResult:
     success: bool
-    recommendation: Optional[str] = None
-    analysis: Optional[str] = None
-    pros_cons: Dict[str, List[str]] = field(default_factory=dict)
+    recommendation: str | None = None
+    analysis: str | None = None
+    pros_cons: dict[str, list[str]] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"success": self.success, "recommendation": self.recommendation, "analysis": self.analysis, "pros_cons": self.pros_cons}
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "success": self.success,
+            "recommendation": self.recommendation,
+            "analysis": self.analysis,
+            "pros_cons": self.pros_cons,
+        }
 
 
 class OracleSkillTool(Tool):
@@ -58,10 +72,23 @@ class OracleSkillTool(Tool):
             version="1.0.0",
             author="Vetinari",
             parameters=[
-                ToolParameter(name="capability", type=str, description="The oracle capability", required=True, allowed_values=[c.value for c in OracleCapability]),
+                ToolParameter(
+                    name="capability",
+                    type=str,
+                    description="The oracle capability",
+                    required=True,
+                    allowed_values=[c.value for c in OracleCapability],
+                ),
                 ToolParameter(name="question", type=str, description="The technical question", required=True),
                 ToolParameter(name="context", type=str, description="Additional context", required=False),
-                ToolParameter(name="thinking_mode", type=str, description="Analysis depth", required=False, default="medium", allowed_values=[m.value for m in ThinkingMode]),
+                ToolParameter(
+                    name="thinking_mode",
+                    type=str,
+                    description="Analysis depth",
+                    required=False,
+                    default="medium",
+                    allowed_values=[m.value for m in ThinkingMode],
+                ),
                 ToolParameter(name="options", type=list, description="Options to compare", required=False),
             ],
             required_permissions=[ToolPermission.MODEL_INFERENCE],
@@ -96,7 +123,12 @@ class OracleSkillTool(Tool):
             exec_mode = ctx.mode
             result = self._execute_capability(req, exec_mode)
 
-            return ToolResult(success=result.success, output=result.to_dict(), error=None if result.success else "Oracle analysis failed", metadata={"capability": cap.value, "mode": mode.value, "exec_mode": exec_mode.value})
+            return ToolResult(
+                success=result.success,
+                output=result.to_dict(),
+                error=None if result.success else "Oracle analysis failed",
+                metadata={"capability": cap.value, "mode": mode.value, "exec_mode": exec_mode.value},
+            )
         except Exception as e:
             logger.error("Oracle tool failed: %s", e)
             return ToolResult(success=False, output=None, error=str(e))
@@ -120,18 +152,32 @@ class OracleSkillTool(Tool):
     def _analyze_architecture(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would analyze architecture")
-        return OracleResult(success=True, recommendation=f"Recommended: Modular monolith for '{req.question}'", analysis="Analysis based on provided context", pros_cons={"Pros": ["Scalable", "Maintainable"], "Cons": ["Initial complexity"]})
+        return OracleResult(
+            success=True,
+            recommendation=f"Recommended: Modular monolith for '{req.question}'",
+            analysis="Analysis based on provided context",
+            pros_cons={"Pros": ["Scalable", "Maintainable"], "Cons": ["Initial complexity"]},
+        )
 
     def _evaluate_tradeoffs(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would evaluate trade-offs")
         opts = req.options if req.options else ["Option A", "Option B"]
-        return OracleResult(success=True, recommendation=f"Recommend {opts[0]}", analysis="Trade-off analysis complete", pros_cons={opts[0]: ["Benefit 1"], opts[1]: ["Benefit 1", "Drawback 1"]})
+        return OracleResult(
+            success=True,
+            recommendation=f"Recommend {opts[0]}",
+            analysis="Trade-off analysis complete",
+            pros_cons={opts[0]: ["Benefit 1"], opts[1]: ["Benefit 1", "Drawback 1"]},
+        )
 
     def _debugging_strategy(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would develop debugging strategy")
-        return OracleResult(success=True, recommendation="Check logs, enable debugging, use breakpoints", analysis=f"Debugging strategy for: {req.question}")
+        return OracleResult(
+            success=True,
+            recommendation="Check logs, enable debugging, use breakpoints",
+            analysis=f"Debugging strategy for: {req.question}",
+        )
 
     def _code_review(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
@@ -141,7 +187,9 @@ class OracleSkillTool(Tool):
     def _suggest_pattern(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:
             return OracleResult(success=True, recommendation="Planning: Would suggest patterns")
-        return OracleResult(success=True, recommendation="Suggest: Repository Pattern", analysis="Based on the question")
+        return OracleResult(
+            success=True, recommendation="Suggest: Repository Pattern", analysis="Based on the question"
+        )
 
     def _technical_guidance(self, req: OracleRequest, exec_mode: ExecutionMode) -> OracleResult:
         if exec_mode == ExecutionMode.PLANNING:

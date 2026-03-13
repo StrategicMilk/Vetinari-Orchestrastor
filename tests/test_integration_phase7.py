@@ -15,9 +15,7 @@ Exercises cross-cutting multi-component workflows:
 import math
 import os
 import tempfile
-import time
 import unittest
-from unittest.mock import MagicMock, patch
 
 
 class TestTelemetryToDashboard(unittest.TestCase):
@@ -25,20 +23,20 @@ class TestTelemetryToDashboard(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from vetinari.telemetry import get_telemetry_collector, reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
+        from vetinari.telemetry import reset_telemetry
         reset_telemetry()
         reset_dashboard()
 
     def tearDown(self):
-        from vetinari.telemetry import reset_telemetry
         from vetinari.dashboard.api import reset_dashboard
+        from vetinari.telemetry import reset_telemetry
         reset_telemetry()
         reset_dashboard()
 
     def test_adapter_metrics_visible_in_snapshot(self):
-        from vetinari.telemetry import get_telemetry_collector
         from vetinari.dashboard.api import get_dashboard_api
+        from vetinari.telemetry import get_telemetry_collector
 
         tel = get_telemetry_collector()
         for i in range(5):
@@ -50,12 +48,12 @@ class TestTelemetryToDashboard(unittest.TestCase):
         snap = api.get_latest_metrics()
         d    = snap.to_dict()
 
-        self.assertIn("adapters", d)
-        self.assertGreater(d["adapters"].get("total_requests", 0), 0)
+        assert "adapters" in d
+        assert d["adapters"].get("total_requests", 0) > 0
 
     def test_plan_metrics_in_snapshot(self):
-        from vetinari.telemetry import get_telemetry_collector
         from vetinari.dashboard.api import get_dashboard_api
+        from vetinari.telemetry import get_telemetry_collector
 
         tel = get_telemetry_collector()
         for _ in range(5):
@@ -66,35 +64,38 @@ class TestTelemetryToDashboard(unittest.TestCase):
 
         snap = get_dashboard_api().get_latest_metrics()
         d    = snap.to_dict()
-        self.assertIn("plan", d)
-        self.assertEqual(d["plan"].get("total_decisions", 0), 6)
+        assert "plan" in d
+        assert d["plan"].get("total_decisions", 0) == 6
 
 
 class TestTelemetryToAlerts(unittest.TestCase):
     """Alert engine fires when telemetry metrics cross thresholds."""
 
     def setUp(self):
-        from vetinari.telemetry import reset_telemetry
-        from vetinari.dashboard.api import reset_dashboard
         from vetinari.dashboard.alerts import reset_alert_engine
+        from vetinari.dashboard.api import reset_dashboard
+        from vetinari.telemetry import reset_telemetry
         reset_telemetry()
         reset_dashboard()
         reset_alert_engine()
 
     def tearDown(self):
-        from vetinari.telemetry import reset_telemetry
-        from vetinari.dashboard.api import reset_dashboard
         from vetinari.dashboard.alerts import reset_alert_engine
+        from vetinari.dashboard.api import reset_dashboard
+        from vetinari.telemetry import reset_telemetry
         reset_telemetry()
         reset_dashboard()
         reset_alert_engine()
 
     def test_high_latency_alert_fires(self):
-        from vetinari.telemetry import get_telemetry_collector
-        from vetinari.dashboard.api import get_dashboard_api
         from vetinari.dashboard.alerts import (
-            get_alert_engine, AlertThreshold, AlertCondition, AlertSeverity,
+            AlertCondition,
+            AlertSeverity,
+            AlertThreshold,
+            get_alert_engine,
         )
+        from vetinari.dashboard.api import get_dashboard_api
+        from vetinari.telemetry import get_telemetry_collector
 
         tel = get_telemetry_collector()
         for _ in range(10):
@@ -110,9 +111,9 @@ class TestTelemetryToAlerts(unittest.TestCase):
             channels=["log"],
         ))
         fired = engine.evaluate_all(api=get_dashboard_api())
-        self.assertEqual(len(fired), 1)
-        self.assertEqual(fired[0].threshold.name, "high-lat")
-        self.assertGreater(fired[0].current_value, 500.0)
+        assert len(fired) == 1
+        assert fired[0].threshold.name == "high-lat"
+        assert fired[0].current_value > 500.0
 
 
 class TestCostToAnalytics(unittest.TestCase):
@@ -128,7 +129,9 @@ class TestCostToAnalytics(unittest.TestCase):
 
     def test_end_to_end_cost_report(self):
         from vetinari.analytics.cost import (
-            get_cost_tracker, CostEntry, ModelPricing,
+            CostEntry,
+            ModelPricing,
+            get_cost_tracker,
         )
 
         tracker = get_cost_tracker()
@@ -144,13 +147,13 @@ class TestCostToAnalytics(unittest.TestCase):
             ))
 
         report = tracker.get_report()
-        self.assertEqual(report.total_requests, 3)
-        self.assertGreater(report.total_cost_usd, 0)
-        self.assertIn("builder", report.by_agent)
-        self.assertIn("openai:gpt-4", report.by_model)
+        assert report.total_requests == 3
+        assert report.total_cost_usd > 0
+        assert "builder" in report.by_agent
+        assert "openai:gpt-4" in report.by_model
 
         top = tracker.get_top_agents(n=2)
-        self.assertEqual(len(top), 2)
+        assert len(top) == 2
 
 
 class TestSLABreachDetection(unittest.TestCase):
@@ -166,7 +169,9 @@ class TestSLABreachDetection(unittest.TestCase):
 
     def test_p95_breach_reported(self):
         from vetinari.analytics.sla import (
-            get_sla_tracker, SLOTarget, SLOType,
+            SLOTarget,
+            SLOType,
+            get_sla_tracker,
         )
 
         tracker = get_sla_tracker()
@@ -182,12 +187,12 @@ class TestSLABreachDetection(unittest.TestCase):
             tracker.record_latency("adapter", 500.0)
 
         report = tracker.get_report("lat-slo")
-        self.assertIsNotNone(report)
-        self.assertGreater(report.current_value, 200.0)
-        self.assertEqual(report.total_samples, 50)
+        assert report is not None
+        assert report.current_value > 200.0
+        assert report.total_samples == 50
 
     def test_success_rate_compliance(self):
-        from vetinari.analytics.sla import get_sla_tracker, SLOTarget, SLOType
+        from vetinari.analytics.sla import SLOTarget, SLOType, get_sla_tracker
 
         tracker = get_sla_tracker()
         tracker.register_slo(SLOTarget(
@@ -200,7 +205,7 @@ class TestSLABreachDetection(unittest.TestCase):
 
         report = tracker.get_report("sr-slo")
         self.assertAlmostEqual(report.current_value, 100.0)
-        self.assertTrue(report.is_compliant)
+        assert report.is_compliant
 
 
 class TestForecastingCapacityPipeline(unittest.TestCase):
@@ -215,7 +220,7 @@ class TestForecastingCapacityPipeline(unittest.TestCase):
         reset_forecaster()
 
     def test_rising_series_exceeds_threshold(self):
-        from vetinari.analytics.forecasting import get_forecaster, ForecastRequest
+        from vetinari.analytics.forecasting import ForecastRequest, get_forecaster
 
         fc = get_forecaster()
         for i in range(30):
@@ -224,9 +229,9 @@ class TestForecastingCapacityPipeline(unittest.TestCase):
         result = fc.forecast(ForecastRequest(
             metric="load", horizon=10, method="linear_trend",
         ))
-        self.assertEqual(len(result.predictions), 10)
+        assert len(result.predictions) == 10
         # Load is rising at ~4/step; should exceed 150 within 10 steps
-        self.assertTrue(fc.will_exceed("load", threshold=150.0, horizon=20))
+        assert fc.will_exceed("load", threshold=150.0, horizon=20)
 
 
 class TestLogAggregatorPipeline(unittest.TestCase):
@@ -241,7 +246,7 @@ class TestLogAggregatorPipeline(unittest.TestCase):
         reset_log_aggregator()
 
     def test_ingest_and_trace_correlation(self):
-        from vetinari.dashboard.log_aggregator import get_log_aggregator, LogRecord
+        from vetinari.dashboard.log_aggregator import LogRecord, get_log_aggregator
 
         agg      = get_log_aggregator()
         trace_id = "integ-trace-001"
@@ -261,17 +266,18 @@ class TestLogAggregatorPipeline(unittest.TestCase):
                              logger_name="vetinari.other"))
 
         trace_records = agg.get_trace_records(trace_id)
-        self.assertEqual(len(trace_records), 3)
+        assert len(trace_records) == 3
 
         span_records = agg.correlate_span(trace_id, "span-1")
-        self.assertEqual(len(span_records), 2)
+        assert len(span_records) == 2
 
         warning_records = agg.search(level="WARNING")
-        self.assertEqual(len(warning_records), 1)
+        assert len(warning_records) == 1
 
     def test_file_backend_integration(self):
         import json
-        from vetinari.dashboard.log_aggregator import get_log_aggregator, LogRecord
+
+        from vetinari.dashboard.log_aggregator import LogRecord, get_log_aggregator
 
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "audit.jsonl")
@@ -283,9 +289,9 @@ class TestLogAggregatorPipeline(unittest.TestCase):
 
             with open(path) as f:
                 lines = f.readlines()
-            self.assertEqual(len(lines), 5)
+            assert len(lines) == 5
             first = json.loads(lines[0])
-            self.assertIn("message", first)
+            assert "message" in first
 
 
 class TestAdapterRegistryPipeline(unittest.TestCase):
@@ -301,7 +307,9 @@ class TestAdapterRegistryPipeline(unittest.TestCase):
 
     def test_create_lmstudio_and_score_model(self):
         from vetinari.adapters.base import (
-            ProviderType, ProviderConfig, ModelInfo,
+            ModelInfo,
+            ProviderConfig,
+            ProviderType,
         )
         from vetinari.adapters.registry import AdapterRegistry
 
@@ -321,13 +329,13 @@ class TestAdapterRegistryPipeline(unittest.TestCase):
             "input_tokens": 2000,
             "max_latency_ms": 5000,
         })
-        self.assertGreater(score, 0.7)
+        assert score > 0.7
 
         best_adapter, best_model = AdapterRegistry.find_best_model({
             "required_capabilities": ["code_gen"]
         })
-        self.assertIsNotNone(best_adapter)
-        self.assertEqual(best_model.id, "llama-3")
+        assert best_adapter is not None
+        assert best_model.id == "llama-3"
 
 
 class TestAnomalyDetectorIntegration(unittest.TestCase):
@@ -342,7 +350,7 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
         reset_anomaly_detector()
 
     def test_spike_detection_in_latency_stream(self):
-        from vetinari.analytics.anomaly import get_anomaly_detector, AnomalyConfig
+        from vetinari.analytics.anomaly import AnomalyConfig, get_anomaly_detector
 
         detector = get_anomaly_detector()
         detector.configure(AnomalyConfig(
@@ -355,14 +363,14 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
 
         # Spike
         r = detector.detect("adapter.latency", 1500.0)
-        self.assertTrue(r.is_anomaly)
-        self.assertIn(r.method, ("zscore", "iqr", "ewma"))
+        assert r.is_anomaly
+        assert r.method in ("zscore", "iqr", "ewma")
 
         history = detector.get_history("adapter.latency")
-        self.assertGreater(len(history), 0)
+        assert len(history) > 0
 
     def test_scan_snapshot_integration(self):
-        from vetinari.analytics.anomaly import get_anomaly_detector, AnomalyConfig
+        from vetinari.analytics.anomaly import AnomalyConfig, get_anomaly_detector
         from vetinari.dashboard.api import get_dashboard_api, reset_dashboard
         from vetinari.telemetry import get_telemetry_collector, reset_telemetry
 
@@ -378,7 +386,7 @@ class TestAnomalyDetectorIntegration(unittest.TestCase):
 
         snap    = get_dashboard_api().get_latest_metrics()
         results = detector.scan_snapshot(snap)
-        self.assertIsInstance(results, list)
+        assert isinstance(results, list)
 
         reset_telemetry()
         reset_dashboard()
@@ -406,13 +414,13 @@ class TestMemorySearchIntegration(unittest.TestCase):
                         entry_type=MemoryEntryType.SUCCESS),
         ]
         ids = [self.store.remember(e) for e in entries]
-        self.assertEqual(len(ids), 3)
+        assert len(ids) == 3
 
         results = self.store.search("Python")
-        self.assertIsInstance(results, list)
+        assert isinstance(results, list)
 
         stats = self.store.stats()
-        self.assertGreaterEqual(stats.total_entries, 1)
+        assert stats.total_entries >= 1
 
     def test_timeline_ordering(self):
         from vetinari.memory.interfaces import MemoryEntry
@@ -420,7 +428,7 @@ class TestMemorySearchIntegration(unittest.TestCase):
             self.store.remember(MemoryEntry(agent="a",
                                             content=f"event {i}"))
         results = self.store.timeline(limit=10)
-        self.assertIsInstance(results, list)
+        assert isinstance(results, list)
 
 
 if __name__ == "__main__":

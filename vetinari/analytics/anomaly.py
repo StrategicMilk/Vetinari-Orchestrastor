@@ -1,5 +1,4 @@
-"""
-Anomaly Detection — vetinari.analytics.anomaly  (Phase 5)
+"""Anomaly Detection — vetinari.analytics.anomaly  (Phase 5).
 
 Provides statistical anomaly detection for Vetinari telemetry streams using
 three complementary algorithms, all implemented with pure Python / stdlib so
@@ -24,7 +23,7 @@ Usage
 
     result = detector.detect("adapter.latency", 850.0)
     if result.is_anomaly:
-        print(result.reason, result.score)
+        logger.debug(result.reason, result.score)
 
     # Bulk ingest from MetricsSnapshot
     from vetinari.dashboard.api import get_dashboard_api
@@ -39,7 +38,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,41 +46,45 @@ logger = logging.getLogger(__name__)
 # Config
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AnomalyConfig:
     """Tuning parameters for all detectors."""
-    window_size:    int   = 50     # rolling window length
-    z_threshold:    float = 3.0    # standard deviations for Z-score alert
-    iqr_factor:     float = 1.5    # fence multiplier for IQR alert
-    ewma_alpha:     float = 0.2    # smoothing factor (0 < alpha < 1)
-    ewma_threshold: float = 3.0    # sigma multiples for EWMA alert
-    min_samples:    int   = 5      # minimum samples before flagging
+
+    window_size: int = 50  # rolling window length
+    z_threshold: float = 3.0  # standard deviations for Z-score alert
+    iqr_factor: float = 1.5  # fence multiplier for IQR alert
+    ewma_alpha: float = 0.2  # smoothing factor (0 < alpha < 1)
+    ewma_threshold: float = 3.0  # sigma multiples for EWMA alert
+    min_samples: int = 5  # minimum samples before flagging
 
 
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AnomalyResult:
     """Detection outcome for a single observation."""
-    metric:     str
-    value:      float
-    timestamp:  float = field(default_factory=time.time)
-    is_anomaly: bool  = False
-    method:     str   = ""      # "zscore" | "iqr" | "ewma" | ""
-    score:      float = 0.0     # magnitude (e.g. number of sigma)
-    reason:     str   = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    metric: str
+    value: float
+    timestamp: float = field(default_factory=time.time)
+    is_anomaly: bool = False
+    method: str = ""  # "zscore" | "iqr" | "ewma" | ""
+    score: float = 0.0  # magnitude (e.g. number of sigma)
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "metric":     self.metric,
-            "value":      self.value,
-            "timestamp":  self.timestamp,
+            "metric": self.metric,
+            "value": self.value,
+            "timestamp": self.timestamp,
             "is_anomaly": self.is_anomaly,
-            "method":     self.method,
-            "score":      self.score,
-            "reason":     self.reason,
+            "method": self.method,
+            "score": self.score,
+            "reason": self.reason,
         }
 
 
@@ -89,11 +92,12 @@ class AnomalyResult:
 # Per-metric state
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _MetricState:
-    window:       Deque[float] = field(default_factory=lambda: deque())
-    ewma_mean:    Optional[float] = None
-    ewma_var:     float = 0.0
+    window: deque[float] = field(default_factory=lambda: deque())
+    ewma_mean: float | None = None
+    ewma_var: float = 0.0
 
     def push(self, value: float, window_size: int) -> None:
         self.window.append(value)
@@ -105,11 +109,12 @@ class _MetricState:
 # Detector
 # ---------------------------------------------------------------------------
 
-def _mean(vals: List[float]) -> float:
+
+def _mean(vals: list[float]) -> float:
     return sum(vals) / len(vals)
 
 
-def _stddev(vals: List[float], mu: Optional[float] = None) -> float:
+def _stddev(vals: list[float], mu: float | None = None) -> float:
     if len(vals) < 2:
         return 0.0
     m = mu if mu is not None else _mean(vals)
@@ -117,7 +122,7 @@ def _stddev(vals: List[float], mu: Optional[float] = None) -> float:
     return math.sqrt(variance)
 
 
-def _percentile(sorted_vals: List[float], p: float) -> float:
+def _percentile(sorted_vals: list[float], p: float) -> float:
     """Linear interpolation percentile on a sorted list."""
     n = len(sorted_vals)
     if n == 0:
@@ -128,14 +133,12 @@ def _percentile(sorted_vals: List[float], p: float) -> float:
 
 
 class AnomalyDetector:
-    """
-    Thread-safe anomaly detector. Singleton — use ``get_anomaly_detector()``.
-    """
+    """Thread-safe anomaly detector. Singleton — use ``get_anomaly_detector()``."""
 
-    _instance:    Optional["AnomalyDetector"] = None
-    _class_lock   = threading.Lock()
+    _instance: AnomalyDetector | None = None
+    _class_lock = threading.Lock()
 
-    def __new__(cls) -> "AnomalyDetector":
+    def __new__(cls) -> AnomalyDetector:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -144,10 +147,10 @@ class AnomalyDetector:
         return cls._instance
 
     def _setup(self) -> None:
-        self._lock   = threading.RLock()
+        self._lock = threading.RLock()
         self._config = AnomalyConfig()
-        self._states: Dict[str, _MetricState] = {}
-        self._history: List[AnomalyResult] = []
+        self._states: dict[str, _MetricState] = {}
+        self._history: list[AnomalyResult] = []
 
     # ------------------------------------------------------------------
     # Configuration
@@ -162,8 +165,8 @@ class AnomalyDetector:
     # ------------------------------------------------------------------
 
     def detect(self, metric: str, value: float) -> AnomalyResult:
-        """
-        Ingest a single observation and return an AnomalyResult.
+        """Ingest a single observation and return an AnomalyResult.
+
         The value is always appended to the rolling window.
         """
         with self._lock:
@@ -174,13 +177,11 @@ class AnomalyDetector:
             # Update EWMA
             if state.ewma_mean is None:
                 state.ewma_mean = value
-                state.ewma_var  = 0.0
+                state.ewma_var = 0.0
             else:
                 diff = value - state.ewma_mean
                 state.ewma_mean += cfg.ewma_alpha * diff
-                state.ewma_var  = (1 - cfg.ewma_alpha) * (
-                    state.ewma_var + cfg.ewma_alpha * diff * diff
-                )
+                state.ewma_var = (1 - cfg.ewma_alpha) * (state.ewma_var + cfg.ewma_alpha * diff * diff)
 
             n = len(state.window)
             if n < cfg.min_samples:
@@ -189,14 +190,16 @@ class AnomalyDetector:
             vals = list(state.window)
 
             # 1. Z-score
-            mu  = _mean(vals)
+            mu = _mean(vals)
             std = _stddev(vals, mu)
             if std > 0:
                 z = abs(value - mu) / std
                 if z > cfg.z_threshold:
                     result = AnomalyResult(
-                        metric=metric, value=value,
-                        is_anomaly=True, method="zscore",
+                        metric=metric,
+                        value=value,
+                        is_anomaly=True,
+                        method="zscore",
                         score=z,
                         reason=f"z={z:.2f} > threshold {cfg.z_threshold}",
                     )
@@ -214,8 +217,10 @@ class AnomalyDetector:
                 if value < lo or value > hi:
                     dist = max(abs(value - lo), abs(value - hi)) / iqr
                     result = AnomalyResult(
-                        metric=metric, value=value,
-                        is_anomaly=True, method="iqr",
+                        metric=metric,
+                        value=value,
+                        is_anomaly=True,
+                        method="iqr",
                         score=dist,
                         reason=f"value {value:.3g} outside IQR fence [{lo:.3g}, {hi:.3g}]",
                     )
@@ -228,8 +233,10 @@ class AnomalyDetector:
                 dev = abs(value - state.ewma_mean) / ewma_std
                 if dev > cfg.ewma_threshold:
                     result = AnomalyResult(
-                        metric=metric, value=value,
-                        is_anomaly=True, method="ewma",
+                        metric=metric,
+                        value=value,
+                        is_anomaly=True,
+                        method="ewma",
                         score=dev,
                         reason=f"EWMA dev={dev:.2f} > threshold {cfg.ewma_threshold}",
                     )
@@ -238,13 +245,13 @@ class AnomalyDetector:
 
             return AnomalyResult(metric=metric, value=value)
 
-    def scan_snapshot(self, snapshot: Any) -> List[AnomalyResult]:
-        """
-        Feed all numeric leaf values from a MetricsSnapshot into the detector.
+    def scan_snapshot(self, snapshot: Any) -> list[AnomalyResult]:
+        """Feed all numeric leaf values from a MetricsSnapshot into the detector.
+
         Returns only the anomalies found.
         """
         snap_dict = snapshot.to_dict() if hasattr(snapshot, "to_dict") else {}
-        anomalies: List[AnomalyResult] = []
+        anomalies: list[AnomalyResult] = []
 
         def _walk(node: Any, path: str) -> None:
             if isinstance(node, dict):
@@ -262,7 +269,7 @@ class AnomalyDetector:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_history(self, metric: Optional[str] = None) -> List[AnomalyResult]:
+    def get_history(self, metric: str | None = None) -> list[AnomalyResult]:
         with self._lock:
             if metric:
                 return [r for r in self._history if r.metric == metric]
@@ -277,18 +284,18 @@ class AnomalyDetector:
             self._states.clear()
             self._history.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "tracked_metrics": len(self._states),
                 "total_anomalies": len(self._history),
                 "config": {
-                    "window_size":    self._config.window_size,
-                    "z_threshold":    self._config.z_threshold,
-                    "iqr_factor":     self._config.iqr_factor,
-                    "ewma_alpha":     self._config.ewma_alpha,
+                    "window_size": self._config.window_size,
+                    "z_threshold": self._config.z_threshold,
+                    "iqr_factor": self._config.iqr_factor,
+                    "ewma_alpha": self._config.ewma_alpha,
                     "ewma_threshold": self._config.ewma_threshold,
-                    "min_samples":    self._config.min_samples,
+                    "min_samples": self._config.min_samples,
                 },
             }
 
@@ -296,6 +303,7 @@ class AnomalyDetector:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_anomaly_detector() -> AnomalyDetector:
     return AnomalyDetector()

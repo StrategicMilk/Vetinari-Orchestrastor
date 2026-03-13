@@ -1,8 +1,6 @@
 """Tests for vetinari/agent_affinity.py"""
-import pytest
 from vetinari.agent_affinity import AffinityProfile, get_affinity, get_all_affinities, pick_model_for_agent
 from vetinari.types import AgentType
-
 
 # ---------------------------------------------------------------------------
 # AffinityProfile dataclass
@@ -63,7 +61,6 @@ class TestGetAffinity:
         """An AgentType not in the table should return a sensible default."""
         # Use ORCHESTRATOR which is in the table, but craft a fake scenario
         # by checking the fallback path via a non-existent int value.
-        fake_type = AgentType.PLANNER  # use real type but verify fallback logic
         # Actually test the documented default: call with something not in table
         # The function falls back when the key is missing. We monkey-patch to test.
         from vetinari import agent_affinity as _mod

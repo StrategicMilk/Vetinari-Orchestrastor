@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.planning.plan_mode
+"""Backward-compat shim. Canonical: vetinari.planning.plan_mode.
 
 All new code should import from vetinari.planning.plan_mode directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

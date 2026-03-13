@@ -2,7 +2,6 @@
 
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +13,6 @@ from vetinari.goal_verifier import (
     GoalVerifier,
     get_goal_verifier,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,10 +51,9 @@ def _make_security_result(findings=None, score=100):
 def _mock_quality_agent(mock_agent):
     """Patch the consolidated quality agent and its contract dependencies."""
     with patch("vetinari.agents.consolidated.quality_agent.get_quality_agent",
-               return_value=mock_agent):
-        with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-            with patch("vetinari.agents.contracts.AgentType"):
-                yield mock_agent
+               return_value=mock_agent), patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+        with patch("vetinari.agents.contracts.AgentType"):
+            yield mock_agent
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +694,7 @@ class TestSecurityCheck:
         mock_auditor = MagicMock()
         mock_auditor.execute.return_value = _make_security_result(findings=[], score=100)
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("safe code", [])
+            passed, findings, _score = verifier._security_check("safe code", [])
         assert passed is True
         assert findings == []
 
@@ -707,7 +704,7 @@ class TestSecurityCheck:
             findings=[{"severity": "critical", "id": "SQL_INJECTION"}], score=40,
         )
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("bad code", [])
+            passed, _findings, _score = verifier._security_check("bad code", [])
         assert passed is False
 
     def test_high_finding_fails(self, verifier):
@@ -716,7 +713,7 @@ class TestSecurityCheck:
             findings=[{"severity": "high", "id": "XSS"}], score=60,
         )
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("code", [])
+            passed, _findings, _score = verifier._security_check("code", [])
         assert passed is False
 
     def test_low_severity_does_not_fail(self, verifier):
@@ -725,7 +722,7 @@ class TestSecurityCheck:
             findings=[{"severity": "low", "id": "INFO_LEAK"}], score=90,
         )
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("code", [])
+            passed, _findings, _score = verifier._security_check("code", [])
         assert passed is True
 
     def test_import_error_returns_safe_defaults(self, verifier):
@@ -740,7 +737,7 @@ class TestSecurityCheck:
         mock_auditor = MagicMock()
         mock_auditor.execute.return_value = _make_security_result(findings=[], score=75)
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("code", [])
+            _passed, _findings, score = verifier._security_check("code", [])
         assert score == pytest.approx(0.75)
 
     def test_medium_severity_does_not_fail(self, verifier):
@@ -749,7 +746,7 @@ class TestSecurityCheck:
             findings=[{"severity": "medium", "id": "CSRF"}], score=80,
         )
         with _mock_quality_agent(mock_auditor):
-            passed, findings, score = verifier._security_check("code", [])
+            passed, _findings, _score = verifier._security_check("code", [])
         assert passed is True
 
 
@@ -782,9 +779,8 @@ class TestGoalVerifierVerify:
                 "improvements": [],
                 "model_used": "mock-model",
             }
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                return verifier.verify(**defaults)
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            return verifier.verify(**defaults)
 
     def test_returns_report_instance(self, verifier):
         report = self._run_verify(verifier)
@@ -871,14 +867,13 @@ class TestGoalVerifierVerify:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 0.9,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
+        ), patch.object(
+            verifier, "_security_check",
+            return_value=(False, [{"severity": "critical"}], 0.0)
         ):
-            with patch.object(
-                verifier, "_security_check",
-                return_value=(False, [{"severity": "critical"}], 0.0)
-            ):
-                report = verifier.verify(
-                    project_id="p", goal="g", final_output="code with issues"
-                )
+            report = verifier.verify(
+                project_id="p", goal="g", final_output="code with issues"
+            )
         assert report.fully_compliant is False
         assert report.security_passed is False
 
@@ -911,11 +906,10 @@ class TestGoalVerifierVerify:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 0.8,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(
-                    project_id="p", goal="g", final_output="code", task_outputs=None
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(
+                project_id="p", goal="g", final_output="code", task_outputs=None
+            )
         assert isinstance(report, GoalVerificationReport)
 
     def test_corrective_suggestions_from_llm(self, verifier):
@@ -928,9 +922,8 @@ class TestGoalVerifierVerify:
                 "improvements": ["Add error handling", "Write tests"],
                 "model_used": "m",
             }
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(project_id="p", goal="g", final_output="code")
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(project_id="p", goal="g", final_output="code")
         assert "Add error handling" in report.corrective_suggestions
 
     def test_model_used_set_from_llm(self, verifier):
@@ -938,9 +931,8 @@ class TestGoalVerifierVerify:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 0.8,
                           "feature_checks": [], "improvements": [], "model_used": "gpt-4"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(project_id="p", goal="g", final_output="x")
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(project_id="p", goal="g", final_output="x")
         assert report.model_used == "gpt-4"
 
     def test_llm_feature_checks_merge_with_heuristic(self, verifier):
@@ -956,13 +948,12 @@ class TestGoalVerifierVerify:
                 "improvements": [],
                 "model_used": "m",
             }
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(
-                    project_id="p", goal="g",
-                    final_output="authentication is here",
-                    required_features=["authentication"],
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(
+                project_id="p", goal="g",
+                final_output="authentication is here",
+                required_features=["authentication"],
+            )
         feat = next((f for f in report.features if f.feature == "authentication"), None)
         assert feat is not None
         assert feat.confidence >= 0.5
@@ -981,13 +972,12 @@ class TestComplianceScoreFormula:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(
-                    project_id="p", goal="g",
-                    final_output="import pytest\ndef test_foo(): pass",
-                    required_features=["pytest test"],
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(
+                project_id="p", goal="g",
+                final_output="import pytest\ndef test_foo(): pass",
+                required_features=["pytest test"],
+            )
         assert report.compliance_score == pytest.approx(1.0, abs=0.01)
 
     def test_security_failure_deducts_from_score(self):
@@ -996,15 +986,14 @@ class TestComplianceScoreFormula:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
+        ), patch.object(
+            verifier, "_security_check",
+            return_value=(False, [{"severity": "critical"}], 0.5)
         ):
-            with patch.object(
-                verifier, "_security_check",
-                return_value=(False, [{"severity": "critical"}], 0.5)
-            ):
-                report = verifier.verify(
-                    project_id="p", goal="g",
-                    final_output="import pytest\ndef test_a(): pass",
-                )
+            report = verifier.verify(
+                project_id="p", goal="g",
+                final_output="import pytest\ndef test_a(): pass",
+            )
         assert report.compliance_score < 1.0
 
     def test_fully_compliant_requires_security_pass(self):
@@ -1013,12 +1002,11 @@ class TestComplianceScoreFormula:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
+        ), patch.object(
+            verifier, "_security_check",
+            return_value=(False, [{"severity": "high"}], 0.0)
         ):
-            with patch.object(
-                verifier, "_security_check",
-                return_value=(False, [{"severity": "high"}], 0.0)
-            ):
-                report = verifier.verify(project_id="p", goal="g", final_output="code")
+            report = verifier.verify(project_id="p", goal="g", final_output="code")
         assert report.fully_compliant is False
 
     def test_missing_features_prevent_full_compliance(self):
@@ -1027,13 +1015,12 @@ class TestComplianceScoreFormula:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                report = verifier.verify(
-                    project_id="p", goal="g",
-                    final_output="zzz no matching keywords anywhere",
-                    required_features=["authentication token validation system xyz abc"],
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            report = verifier.verify(
+                project_id="p", goal="g",
+                final_output="zzz no matching keywords anywhere",
+                required_features=["authentication token validation system xyz abc"],
+            )
         if report.missing_features:
             assert report.fully_compliant is False
 
@@ -1043,21 +1030,19 @@ class TestComplianceScoreFormula:
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                r_no_tests = verifier.verify(
-                    project_id="p", goal="g", final_output="pure code no tests"
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            r_no_tests = verifier.verify(
+                project_id="p", goal="g", final_output="pure code no tests"
+            )
         with patch.object(
             verifier, "_llm_evaluation",
             return_value={"verdict": "pass", "quality_score": 1.0,
                           "feature_checks": [], "improvements": [], "model_used": "m"}
-        ):
-            with patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
-                r_with_tests = verifier.verify(
-                    project_id="p", goal="g",
-                    final_output="import pytest\ndef test_x(): pass"
-                )
+        ), patch.object(verifier, "_security_check", return_value=(True, [], 1.0)):
+            r_with_tests = verifier.verify(
+                project_id="p", goal="g",
+                final_output="import pytest\ndef test_x(): pass"
+            )
         assert r_with_tests.compliance_score >= r_no_tests.compliance_score
 
 
@@ -1088,7 +1073,7 @@ class TestGetGoalVerifier:
         assert gv_module._goal_verifier is verifier
 
     def test_reset_creates_new_instance(self):
-        v1 = get_goal_verifier()
+        get_goal_verifier()
         gv_module._goal_verifier = None
         v2 = get_goal_verifier()
         assert isinstance(v2, GoalVerifier)

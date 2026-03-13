@@ -1,23 +1,28 @@
+from __future__ import annotations
+
 import ast
-import uuid
-import time
-import json
-import sys
+import logging
 import threading
+import time
 import tracemalloc
+import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from pathlib import Path
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Import structured logging
 try:
     from vetinari.structured_logging import get_logger, log_sandbox_execution
+
     STRUCTURED_LOGGING = True
 except ImportError:
     STRUCTURED_LOGGING = False
     import logging
+
     def get_logger(name):
         return logging.getLogger(name)
 
@@ -44,12 +49,12 @@ class SandboxResult:
 
     def to_dict(self) -> dict:
         return {
-            'execution_id': self.execution_id,
-            'success': self.success,
-            'result': self.result,
-            'error': self.error,
-            'execution_time_ms': self.execution_time_ms,
-            'memory_used_mb': self.memory_used_mb
+            "execution_id": self.execution_id,
+            "success": self.success,
+            "result": self.result,
+            "error": self.error,
+            "execution_time_ms": self.execution_time_ms,
+            "memory_used_mb": self.memory_used_mb,
         }
 
 
@@ -61,60 +66,114 @@ class AuditEntry:
     sandbox_type: str
     status: str
     duration_ms: int
-    details: Dict = field(default_factory=dict)
+    details: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
-            'timestamp': self.timestamp,
-            'execution_id': self.execution_id,
-            'operation': self.operation,
-            'sandbox_type': self.sandbox_type,
-            'status': self.status,
-            'duration_ms': self.duration_ms,
-            'details': self.details
+            "timestamp": self.timestamp,
+            "execution_id": self.execution_id,
+            "operation": self.operation,
+            "sandbox_type": self.sandbox_type,
+            "status": self.status,
+            "duration_ms": self.duration_ms,
+            "details": self.details,
         }
 
 
 ALLOWED_BUILTINS = {
-    'str', 'int', 'float', 'bool', 'list', 'dict', 'set', 'tuple',
-    'type', 'range', 'enumerate', 'zip', 'map', 'filter',
-    'len', 'sum', 'min', 'max', 'sorted', 'reversed', 'any', 'all',
-    'abs', 'round', 'pow',
-    'print', 'isinstance', 'hasattr', 'getattr', 'setattr',
-    'isinstance', 'issubclass', 'callable', 'id', 'hash',
-    'strip', 'split', 'join', 'replace', 'upper', 'lower', 'title',
-    'startswith', 'endswith', 'find', 'count', 'format',
-    'append', 'extend', 'pop', 'get', 'keys', 'values', 'items', 'copy',
+    "str",
+    "int",
+    "float",
+    "bool",
+    "list",
+    "dict",
+    "set",
+    "tuple",
+    "type",
+    "range",
+    "enumerate",
+    "zip",
+    "map",
+    "filter",
+    "len",
+    "sum",
+    "min",
+    "max",
+    "sorted",
+    "reversed",
+    "any",
+    "all",
+    "abs",
+    "round",
+    "pow",
+    "print",
+    "isinstance",
+    "hasattr",
+    "getattr",
+    "setattr",
+    "issubclass",
+    "callable",
+    "id",
+    "hash",
+    "strip",
+    "split",
+    "join",
+    "replace",
+    "upper",
+    "lower",
+    "title",
+    "startswith",
+    "endswith",
+    "find",
+    "count",
+    "format",
+    "append",
+    "extend",
+    "pop",
+    "get",
+    "keys",
+    "values",
+    "items",
+    "copy",
 }
 
 
 BLOCKED_BUILTINS = {
-    'open', 'eval', 'exec', 'compile', '__import__',
-    'exit', 'quit', 'input', 'raw_input',
-    'vars', 'dir', 'globals', 'locals', 'memoryview',
-    '__builtins__', '__globals__', '__locals__',
+    "open",
+    "eval",
+    "exec",
+    "compile",
+    "__import__",
+    "exit",
+    "quit",
+    "input",
+    "raw_input",
+    "vars",
+    "dir",
+    "globals",
+    "locals",
+    "memoryview",
+    "__builtins__",
+    "__globals__",
+    "__locals__",
 }
 
 
 class InProcessSandbox:
-    def __init__(
-        self,
-        timeout: int = 30,
-        max_memory_mb: int = 512,
-        allowed_builtins: set = None
-    ):
+    def __init__(self, timeout: int = 30, max_memory_mb: int = 512, allowed_builtins: set | None = None):
         self.timeout = timeout
         self.max_memory_mb = max_memory_mb
         self.allowed_builtins = allowed_builtins or ALLOWED_BUILTINS
         self._timeout_lock = threading.Lock()
         self._execution_done = threading.Event()
 
-    def _get_safe_builtins(self) -> Dict:
+    def _get_safe_builtins(self) -> dict:
         """Get safe builtins for restricted execution."""
         import builtins
+
         return {k: getattr(builtins, k) for k in self.allowed_builtins if hasattr(builtins, k)}
 
-    _DANGEROUS_NAMES = frozenset({'compile', 'eval', 'exec', '__import__', 'open', 'input'})
+    _DANGEROUS_NAMES = frozenset({"compile", "eval", "exec", "__import__", "open", "input"})
 
     def _detect_dangerous_calls(self, code: str) -> str | None:
         """AST-based detection of dangerous function calls.
@@ -141,7 +200,7 @@ class InProcessSandbox:
                     return node.func.attr
         return None
 
-    def execute(self, code: str, context: Dict[str, Any] = None) -> SandboxResult:
+    def execute(self, code: str, context: dict[str, Any] | None = None) -> SandboxResult:
         execution_id = f"exec_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
@@ -152,55 +211,52 @@ class InProcessSandbox:
                 success=False,
                 error=f"Dangerous pattern '{detected}' not allowed in sandbox",
                 execution_time_ms=int((time.time() - start_time) * 1000),
-                execution_id=execution_id
+                execution_id=execution_id,
             )
 
         # Use threading timeout instead of signal (works on Windows)
         result_holder = [None]
         error_holder = [None]
         peak_memory = [0.0]
-        
+
         def run_code():
             # Start tracemalloc inside the thread to track memory
-            import tracemalloc
             tracemalloc.start()
             try:
-                restricted_globals = {
-                    '__builtins__': self._get_safe_builtins()
-                }
+                restricted_globals = {"__builtins__": self._get_safe_builtins()}
                 if context:
                     restricted_globals.update(context)
-                
+
                 # Use exec() to support both expressions and statements (like function definitions)
                 # but capture the last expression value if it's an expression
                 is_expression = True
                 try:
-                    compile(code, '<string>', 'eval')
+                    compile(code, "<string>", "eval")
                 except SyntaxError:
                     is_expression = False
-                
+
                 if is_expression:
-                    result_holder[0] = eval(code, restricted_globals, {})
+                    result_holder[0] = eval(code, restricted_globals, {})  # noqa: S307
                 else:
                     # For statements (like function defs + calls), capture the last expression result
                     # by evaluating the last line if it's an expression statement
-                    lines = code.strip().split('\n')
+                    lines = code.strip().split("\n")
                     exec_globals = restricted_globals.copy()
-                    exec(code, exec_globals)
+                    exec(code, exec_globals)  # noqa: S102
                     # Try to get result from last line if it's a function call
                     if lines:
                         last_line = lines[-1].strip()
                         # Check if last line is an expression (not a statement)
                         try:
-                            compile(last_line, '<string>', 'eval')
-                            result_holder[0] = eval(last_line, exec_globals, {})
+                            compile(last_line, "<string>", "eval")
+                            result_holder[0] = eval(last_line, exec_globals, {})  # noqa: S307
                         except (SyntaxError, TypeError):
                             result_holder[0] = None
             except Exception as e:
                 error_holder[0] = e
             finally:
                 # Get peak memory in this thread
-                current, peak = tracemalloc.get_traced_memory()
+                _current, peak = tracemalloc.get_traced_memory()
                 peak_memory[0] = peak / (1024 * 1024)
                 tracemalloc.stop()
 
@@ -214,7 +270,7 @@ class InProcessSandbox:
                 success=False,
                 error=f"Execution timeout after {self.timeout}s",
                 execution_time_ms=self.timeout * 1000,
-                execution_id=execution_id
+                execution_id=execution_id,
             )
             if STRUCTURED_LOGGING:
                 log_sandbox_execution(execution_id, False, self.timeout * 1000, 0.0)
@@ -223,12 +279,14 @@ class InProcessSandbox:
         if error_holder[0]:
             result = SandboxResult(
                 success=False,
-                error=f"{type(error_holder[0]).__name__}: {str(error_holder[0])}",
+                error=f"{type(error_holder[0]).__name__}: {error_holder[0]!s}",
                 execution_time_ms=int((time.time() - start_time) * 1000),
-                execution_id=execution_id
+                execution_id=execution_id,
             )
             if STRUCTURED_LOGGING:
-                log_sandbox_execution(execution_id, False, int((time.time() - start_time) * 1000), 0.0, error=str(error_holder[0]))
+                log_sandbox_execution(
+                    execution_id, False, int((time.time() - start_time) * 1000), 0.0, error=str(error_holder[0])
+                )
             return result
 
         result = SandboxResult(
@@ -236,7 +294,7 @@ class InProcessSandbox:
             result=result_holder[0],
             execution_time_ms=int((time.time() - start_time) * 1000),
             memory_used_mb=peak_memory[0],
-            execution_id=execution_id
+            execution_id=execution_id,
         )
         if STRUCTURED_LOGGING:
             log_sandbox_execution(execution_id, True, int((time.time() - start_time) * 1000), peak_memory[0])
@@ -244,21 +302,16 @@ class InProcessSandbox:
 
 
 class ExternalPluginSandbox:
-    ALLOWED_HOOKS = ['read_file', 'write_file', 'search_code']
+    ALLOWED_HOOKS = ["read_file", "write_file", "search_code"]
 
-    def __init__(
-        self,
-        plugin_dir: str = "./plugins",
-        timeout: int = 300,
-        max_memory_mb: int = 2048
-    ):
+    def __init__(self, plugin_dir: str = "./plugins", timeout: int = 300, max_memory_mb: int = 2048):
         self.plugin_dir = Path(plugin_dir)
         self.timeout = timeout
         self.max_memory_mb = max_memory_mb
-        self.loaded_plugins: Dict[str, Any] = {}
-        self.audit_log: List[AuditEntry] = []
+        self.loaded_plugins: dict[str, Any] = {}
+        self.audit_log: list[AuditEntry] = []
 
-    def discover_plugins(self) -> List[Dict]:
+    def discover_plugins(self) -> list[dict]:
         manifests = []
         if not self.plugin_dir.exists():
             return manifests
@@ -269,34 +322,32 @@ class ExternalPluginSandbox:
                 if manifest_file.exists():
                     try:
                         import yaml
+
                         with open(manifest_file) as f:
                             data = yaml.safe_load(f)
                             manifests.append(data)
-                    except (yaml.YAMLError, OSError):
+                    except (yaml.YAMLError, OSError):  # noqa: VET022
                         pass
         return manifests
 
-    def execute_hook(
-        self,
-        plugin_name: str,
-        hook_name: str,
-        params: Dict
-    ) -> Any:
+    def execute_hook(self, plugin_name: str, hook_name: str, params: dict) -> Any:
         if hook_name not in self.ALLOWED_HOOKS:
             return {"error": f"Hook {hook_name} not allowed"}
 
         execution_id = f"plugin_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
-        self._log_audit(AuditEntry(
-            timestamp=datetime.now().isoformat(),
-            execution_id=execution_id,
-            operation=hook_name,
-            sandbox_type="external",
-            status="executing",
-            duration_ms=0,
-            details={'plugin': plugin_name, 'params': params}
-        ))
+        self._log_audit(
+            AuditEntry(
+                timestamp=datetime.now().isoformat(),
+                execution_id=execution_id,
+                operation=hook_name,
+                sandbox_type="external",
+                status="executing",
+                duration_ms=0,
+                details={"plugin": plugin_name, "params": params},
+            )
+        )
 
         try:
             # Load plugin module if not cached
@@ -311,9 +362,8 @@ class ExternalPluginSandbox:
                     return {"error": f"Plugin {plugin_name} not found"}
 
                 import importlib.util
-                spec = importlib.util.spec_from_file_location(
-                    f"vetinari_plugin_{plugin_name}", str(target)
-                )
+
+                spec = importlib.util.spec_from_file_location(f"vetinari_plugin_{plugin_name}", str(target))
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
                 self.loaded_plugins[plugin_name] = mod
@@ -328,38 +378,43 @@ class ExternalPluginSandbox:
 
             # Execute within timeout using threading
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(hook_fn, params)
                 result = future.result(timeout=self.timeout_sec)
 
-            self._log_audit(AuditEntry(
-                timestamp=datetime.now().isoformat(),
-                execution_id=execution_id,
-                operation=hook_name,
-                sandbox_type="external",
-                status="success",
-                duration_ms=int((time.time() - start_time) * 1000),
-                details={'plugin': plugin_name}
-            ))
+            self._log_audit(
+                AuditEntry(
+                    timestamp=datetime.now().isoformat(),
+                    execution_id=execution_id,
+                    operation=hook_name,
+                    sandbox_type="external",
+                    status="success",
+                    duration_ms=int((time.time() - start_time) * 1000),
+                    details={"plugin": plugin_name},
+                )
+            )
 
             return result
 
         except Exception as e:
-            self._log_audit(AuditEntry(
-                timestamp=datetime.now().isoformat(),
-                execution_id=execution_id,
-                operation=hook_name,
-                sandbox_type="external",
-                status="error",
-                duration_ms=int((time.time() - start_time) * 1000),
-                details={'plugin': plugin_name, 'error': str(e)}
-            ))
+            self._log_audit(
+                AuditEntry(
+                    timestamp=datetime.now().isoformat(),
+                    execution_id=execution_id,
+                    operation=hook_name,
+                    sandbox_type="external",
+                    status="error",
+                    duration_ms=int((time.time() - start_time) * 1000),
+                    details={"plugin": plugin_name, "error": str(e)},
+                )
+            )
             return {"error": str(e)}
 
     def _log_audit(self, entry: AuditEntry):
         self.audit_log.append(entry)
 
-    def get_audit_log(self, limit: int = 100) -> List[Dict]:
+    def get_audit_log(self, limit: int = 100) -> list[dict]:
         return [e.to_dict() for e in self.audit_log[-limit:]]
 
 
@@ -367,11 +422,11 @@ class SandboxManager:
     _instance = None
 
     # Rate-limit: max executions per client per window (P1.C2)
-    _RATE_LIMIT_MAX = 10       # max calls
+    _RATE_LIMIT_MAX = 10  # max calls
     _RATE_LIMIT_WINDOW = 60.0  # seconds
 
     @classmethod
-    def get_instance(cls) -> "SandboxManager":
+    def get_instance(cls) -> SandboxManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -382,12 +437,11 @@ class SandboxManager:
         self.current_load = 0.0
         self.max_concurrent = 5
         # Per-client rate-limit state: {client_id: [timestamp, ...]}
-        self._rate_limit_log: Dict[str, list] = {}
+        self._rate_limit_log: dict[str, list] = {}
         self._rate_limit_lock = threading.Lock()
 
     def _check_rate_limit(self, client_id: str) -> bool:
-        """
-        Return True if the client is within the rate limit, False if exceeded.
+        """Return True if the client is within the rate limit, False if exceeded.
 
         Slides a window of _RATE_LIMIT_WINDOW seconds and allows at most
         _RATE_LIMIT_MAX executions within that window per client_id.
@@ -410,7 +464,7 @@ class SandboxManager:
         code: str,
         sandbox_type: str = "in_process",
         timeout: int = 30,
-        context: Dict = None,
+        context: dict | None = None,
         client_id: str = "default",
     ) -> SandboxResult:
         # Rate-limit enforcement (P1.C2)
@@ -420,7 +474,7 @@ class SandboxManager:
                 execution_id=execution_id,
                 success=False,
                 error=f"Rate limit exceeded: max {self._RATE_LIMIT_MAX} executions "
-                      f"per {int(self._RATE_LIMIT_WINDOW)}s per client",
+                f"per {int(self._RATE_LIMIT_WINDOW)}s per client",
                 execution_time_ms=0,
             )
 
@@ -430,6 +484,7 @@ class SandboxManager:
             # External subprocess sandbox using code_sandbox.py
             try:
                 from vetinari.code_sandbox import CodeSandbox
+
                 csb = CodeSandbox(
                     max_execution_time=timeout,
                     allow_network=False,
@@ -454,22 +509,22 @@ class SandboxManager:
             # Unknown type -- fall back to in-process
             return self.in_process.execute(code, context)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
-            'in_process': {
-                'available': True,
-                'current_load': self.current_load,
-                'max_concurrent': self.max_concurrent,
-                'queue_length': 0
+            "in_process": {
+                "available": True,
+                "current_load": self.current_load,
+                "max_concurrent": self.max_concurrent,
+                "queue_length": 0,
             },
-            'external': {
-                'available': True,
-                'plugins_loaded': len(self.external.loaded_plugins),
-                'isolation': 'process'
-            }
+            "external": {
+                "available": True,
+                "plugins_loaded": len(self.external.loaded_plugins),
+                "isolation": "process",
+            },
         }
 
-    def get_audit_log(self, limit: int = 100) -> List[Dict]:
+    def get_audit_log(self, limit: int = 100) -> list[dict]:
         return self.external.get_audit_log(limit)
 
 

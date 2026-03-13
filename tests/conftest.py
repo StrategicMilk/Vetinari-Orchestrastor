@@ -9,11 +9,10 @@ Fixtures here add: environment isolation, deterministic seeding, project_dir,
 config_dir, temp_db.
 """
 
-import os
 import random
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Environment Safety
@@ -35,7 +34,7 @@ def isolate_env(monkeypatch, tmp_path):
 def deterministic_seeds():
     """Seed Python's random module for reproducible test runs."""
     random.seed(42)
-    yield
+    return
 
 
 # ---------------------------------------------------------------------------

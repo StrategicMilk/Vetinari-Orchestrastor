@@ -1,1 +1,12 @@
-System: Run lightweight checks on the integrated scaffold. Validate syntax and ensure dependencies install. Produce a build artifact (zip) containing the scaffold and a short README.
+System: Perform final validation on the integrated system.
+
+Verification checklist:
+1. `python -c "import vetinari; print('OK')"` succeeds
+2. `python -m pytest tests/ -x -q` passes with zero failures
+3. `python -m ruff check vetinari/` reports zero errors
+4. All API endpoints return valid JSON with correct HTTP status codes
+5. No circular imports detected
+6. No unused imports or dead code
+7. All configuration values come from config files or environment, not hardcoded
+
+Report: pass/fail verdict with evidence for each check. If any check fails, provide the exact error and a targeted fix.

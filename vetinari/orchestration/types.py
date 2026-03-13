@@ -1,24 +1,18 @@
-"""
-Data types for the two-layer orchestration system.
+"""Data types for the two-layer orchestration system.
 
 Contains enums and dataclasses shared across execution_graph,
 plan_generator, durable_engine, and two_layer modules.
 """
 
-import os
-import json
+from __future__ import annotations
+
 import logging
-import time
-import uuid
-from typing import List, Dict, Any, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from pathlib import Path
-import threading
+from typing import Any
 
 # Import canonical enums from single source of truth (P2.2)
-from vetinari.types import TaskStatus, PlanStatus  # noqa: F401
+from vetinari.types import PlanStatus, TaskStatus  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -26,34 +20,35 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskNode:
     """A single task node in the execution graph."""
+
     id: str
     description: str
     task_type: str = "general"
 
     # Dependencies
-    depends_on: List[str] = field(default_factory=list)
-    depended_by: List[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+    depended_by: list[str] = field(default_factory=list)
 
     # Execution
     status: TaskStatus = TaskStatus.PENDING
     assigned_model: str = ""
 
     # Results
-    input_data: Dict[str, Any] = field(default_factory=dict)
-    output_data: Dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] = field(default_factory=dict)
+    output_data: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
     # Metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    started_at: str | None = None
+    completed_at: str | None = None
     retry_count: int = 0
     max_retries: int = 3
 
     # Checkpoint
     checkpoint_id: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "description": self.description,
@@ -74,7 +69,7 @@ class TaskNode:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'TaskNode':
+    def from_dict(cls, data: dict) -> TaskNode:
         node = cls(
             id=data["id"],
             description=data["description"],
@@ -99,20 +94,22 @@ class TaskNode:
 @dataclass
 class ExecutionEvent:
     """An event in the execution history."""
+
     event_id: str
     event_type: str  # task_started, task_completed, task_failed, etc.
     task_id: str
     timestamp: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class Checkpoint:
     """A checkpoint for durable execution."""
+
     checkpoint_id: str
     plan_id: str
     created_at: str
-    graph_state: Dict[str, Any]
-    completed_tasks: List[str]
-    running_tasks: List[str]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    graph_state: dict[str, Any]
+    completed_tasks: list[str]
+    running_tasks: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)

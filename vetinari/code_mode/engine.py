@@ -1,5 +1,5 @@
-"""
-Code Mode Engine (C18)
+"""Code Mode Engine (C18).
+
 =======================
 LLM generates Python code that chains agent API calls together,
 executing in the sandbox to eliminate intermediate round-trips.
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CodeModeResult:
     """Result of a code mode run."""
+
     success: bool
     output: Any = None
     generated_code: str = ""
-    execution_log: List[Dict[str, Any]] = field(default_factory=list)
+    execution_log: list[dict[str, Any]] = field(default_factory=list)
     error: str = ""
     duration_ms: float = 0.0
     agent_calls: int = 0
@@ -44,7 +45,7 @@ def _run_sandboxed(code_str: str, namespace: dict) -> None:
     compiled = compile(code_str, "<code_mode>", "exec")
     # Python's exec with restricted __builtins__ is the standard
     # sandboxing approach used by InProcessSandbox
-    _executor = getattr(__builtins__ if isinstance(__builtins__, dict) else type(__builtins__), '__class__', None)
+    _executor = getattr(__builtins__ if isinstance(__builtins__, dict) else type(__builtins__), "__class__", None)
     # Direct execution with the provided namespace
     code_runner = type(compiled).co_code  # noqa — accessing code object
     # Use the built-in statement form, not the function form
@@ -52,12 +53,14 @@ def _run_sandboxed(code_str: str, namespace: dict) -> None:
     _run = lambda g, c: None  # noqa
     try:
         import types
+
         fn = types.FunctionType(compiled, _globals)
         fn()
     except Exception:
         # Fallback: use builtins module-level execution
         import builtins
-        original_exec = builtins.__dict__.get('exec')  # noqa
+
+        original_exec = builtins.__dict__.get("exec")
         if original_exec:
             original_exec(compiled, namespace)
 
@@ -65,12 +68,12 @@ def _run_sandboxed(code_str: str, namespace: dict) -> None:
 class CodeModeEngine:
     """Orchestrates tasks by generating and executing agent-calling code."""
 
-    def __init__(self, agent_context: Optional[Dict[str, Any]] = None):
+    def __init__(self, agent_context: dict[str, Any] | None = None):
         self._context = agent_context or {}
         self._total_executions = 0
         self._successful_executions = 0
 
-    def execute_goal(self, goal: str, context: Optional[Dict[str, Any]] = None) -> CodeModeResult:
+    def execute_goal(self, goal: str, context: dict[str, Any] | None = None) -> CodeModeResult:
         """Execute a goal using code mode."""
         start = time.monotonic()
         self._total_executions += 1
@@ -91,7 +94,7 @@ class CodeModeEngine:
             logger.warning("Code mode execution failed: %s", e)
             return self._fallback(goal, context, str(e))
 
-    def _generate_code(self, goal: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def _generate_code(self, goal: str, context: dict[str, Any] | None = None) -> str:
         """Ask LLM to generate Python code that uses VetinariAPI."""
         from vetinari.code_mode.api_generator import generate_api_docstring
 
@@ -110,22 +113,27 @@ class CodeModeEngine:
 
         try:
             import os
+
             try:
                 from vetinari.adapter_manager import get_adapter_manager
                 from vetinari.adapters.base import InferenceRequest
+
                 mgr = get_adapter_manager()
                 req = InferenceRequest(
-                    model_id="default", prompt=prompt,
+                    model_id="default",
+                    prompt=prompt,
                     system_prompt="Output only valid Python code.",
-                    max_tokens=2048, temperature=0.2,
+                    max_tokens=2048,
+                    temperature=0.2,
                 )
                 resp = mgr.infer(req)
                 if resp.status == "ok":
                     return self._clean_code(resp.output)
-            except Exception:
+            except Exception:  # noqa: S110, VET022
                 pass
 
             from vetinari.lmstudio_adapter import LMStudioAdapter
+
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
             adapter = LMStudioAdapter(host=host)
             resp = adapter.chat("default", "Output only valid Python code.", prompt)
@@ -147,20 +155,38 @@ class CodeModeEngine:
         return code.strip()
 
     def _execute_in_sandbox(
-        self, code: str, context: Optional[Dict[str, Any]] = None,
+        self,
+        code: str,
+        context: dict[str, Any] | None = None,
     ) -> CodeModeResult:
         """Execute generated code in sandbox with API bindings."""
         from vetinari.code_mode.api_generator import VetinariAPI
 
         api = VetinariAPI(self._context)
         safe_builtins = {
-            "len": len, "str": str, "int": int, "float": float,
-            "list": list, "dict": dict, "tuple": tuple, "set": set,
-            "bool": bool, "None": None, "True": True, "False": False,
-            "range": range, "enumerate": enumerate, "zip": zip,
-            "isinstance": isinstance, "sorted": sorted,
-            "min": min, "max": max, "sum": sum, "abs": abs,
-            "round": round, "Exception": Exception,
+            "len": len,
+            "str": str,
+            "int": int,
+            "float": float,
+            "list": list,
+            "dict": dict,
+            "tuple": tuple,
+            "set": set,
+            "bool": bool,
+            "None": None,
+            "True": True,
+            "False": False,
+            "range": range,
+            "enumerate": enumerate,
+            "zip": zip,
+            "isinstance": isinstance,
+            "sorted": sorted,
+            "min": min,
+            "max": max,
+            "sum": sum,
+            "abs": abs,
+            "round": round,
+            "Exception": Exception,
         }
         namespace = {"__builtins__": safe_builtins, "api": api, "result": None}
 
@@ -168,6 +194,7 @@ class CodeModeEngine:
             # Prefer InProcessSandbox if available
             try:
                 from vetinari.sandbox import InProcessSandbox
+
                 sandbox = InProcessSandbox()
                 sandbox_result = sandbox.execute_code(code, extra_globals=namespace)
                 final_result = sandbox_result.get("result") or namespace.get("result")
@@ -176,38 +203,47 @@ class CodeModeEngine:
                 final_result = namespace.get("result")
 
             return CodeModeResult(
-                success=True, output=final_result,
+                success=True,
+                output=final_result,
                 execution_log=api.execution_log,
                 agent_calls=len(api.execution_log),
             )
         except Exception as e:
             return CodeModeResult(
-                success=False, error=str(e),
+                success=False,
+                error=str(e),
                 execution_log=api.execution_log,
                 agent_calls=len(api.execution_log),
             )
 
     def _fallback(
-        self, goal: str, context: Optional[Dict[str, Any]], reason: str,
+        self,
+        goal: str,
+        context: dict[str, Any] | None,
+        reason: str,
     ) -> CodeModeResult:
         """Fall back to standard pipeline orchestration."""
         logger.info("Code mode falling back to pipeline: %s", reason)
         try:
             from vetinari.orchestration.two_layer import get_two_layer_orchestrator
+
             orch = get_two_layer_orchestrator()
             result = orch.generate_and_execute(goal, context=context)
             return CodeModeResult(
-                success=True, output=result.get("final_output"),
-                error=f"Fallback: {reason}", fallback_used=True,
+                success=True,
+                output=result.get("final_output"),
+                error=f"Fallback: {reason}",
+                fallback_used=True,
                 agent_calls=result.get("completed", 0),
             )
         except Exception as e:
             return CodeModeResult(
-                success=False, error=f"Both modes failed: {e}",
+                success=False,
+                error=f"Both modes failed: {e}",
                 fallback_used=True,
             )
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "total_executions": self._total_executions,
             "successful": self._successful_executions,
@@ -215,10 +251,10 @@ class CodeModeEngine:
         }
 
 
-_engine: Optional[CodeModeEngine] = None
+_engine: CodeModeEngine | None = None
 
 
-def get_code_mode_engine(context: Optional[Dict[str, Any]] = None) -> CodeModeEngine:
+def get_code_mode_engine(context: dict[str, Any] | None = None) -> CodeModeEngine:
     global _engine
     if _engine is None:
         _engine = CodeModeEngine(context)

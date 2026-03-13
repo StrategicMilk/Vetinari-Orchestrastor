@@ -4,9 +4,10 @@ Controls how deeply Vetinari analyses tasks: from fast/minimal context (LOW)
 through balanced (MEDIUM) to full deep-analysis (HIGH).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any
 
 
 class VariantLevel(Enum):
@@ -29,7 +30,7 @@ class VariantConfig:
     description: str
 
 
-VARIANT_CONFIGS: Dict[VariantLevel, VariantConfig] = {
+VARIANT_CONFIGS: dict[VariantLevel, VariantConfig] = {
     VariantLevel.LOW: VariantConfig(
         level=VariantLevel.LOW,
         max_context_tokens=4096,
@@ -79,7 +80,4 @@ class VariantManager:
 
     def get_all_levels(self) -> list:
         """Return metadata for every available level."""
-        return [
-            {"level": v.level.value, "description": v.description}
-            for v in VARIANT_CONFIGS.values()
-        ]
+        return [{"level": v.level.value, "description": v.description} for v in VARIANT_CONFIGS.values()]

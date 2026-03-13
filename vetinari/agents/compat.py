@@ -1,5 +1,5 @@
-"""
-Vetinari Agent Compatibility Shim (v0.4.0)
+"""Vetinari Agent Compatibility Shim (v0.4.0).
+
 ============================================
 Re-exports legacy agent class names with deprecation warnings, mapping
 them to the consolidated 6-agent architecture.
@@ -18,13 +18,12 @@ from __future__ import annotations
 
 import importlib
 import warnings
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 def _deprecation(old: str, new: str) -> None:
     warnings.warn(
-        f"{old} is deprecated and will be removed in v0.5.0. "
-        f"Use {new} instead.",
+        f"{old} is deprecated and will be removed in v0.5.0. Use {new} instead.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -32,25 +31,31 @@ def _deprecation(old: str, new: str) -> None:
 
 # ── Lazy loaders ────────────────────────────────────────────────────
 
+
 def _get_planner():
     m = importlib.import_module("vetinari.agents.planner_agent")
     return m.PlannerAgent, m.get_planner_agent
+
 
 def _get_builder():
     m = importlib.import_module("vetinari.agents.builder_agent")
     return m.BuilderAgent, m.get_builder_agent
 
+
 def _get_researcher():
     m = importlib.import_module("vetinari.agents.consolidated.researcher_agent")
     return m.ConsolidatedResearcherAgent, m.get_consolidated_researcher_agent
+
 
 def _get_oracle():
     m = importlib.import_module("vetinari.agents.consolidated.oracle_agent")
     return m.ConsolidatedOracleAgent, m.get_consolidated_oracle_agent
 
+
 def _get_quality():
     m = importlib.import_module("vetinari.agents.consolidated.quality_agent")
     return m.QualityAgent, m.get_quality_agent
+
 
 def _get_operations():
     m = importlib.import_module("vetinari.agents.consolidated.operations_agent")
@@ -144,7 +149,7 @@ def __getattr__(name: str):
     if name in _LEGACY_GETTER_MAP:
         new_name, loader = _LEGACY_GETTER_MAP[name]
 
-        def _getter(config: Optional[Dict[str, Any]] = None, _old=name, _new=new_name, _ldr=loader):
+        def _getter(config: dict[str, Any] | None = None, _old=name, _new=new_name, _ldr=loader):
             _deprecation(_old, _new)
             _, real_getter = _ldr()
             return real_getter(config)

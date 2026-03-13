@@ -3,10 +3,12 @@
 Critical for local LLMs with 4-32K context windows where every saved token matters.
 Uses a tiered strategy: remove duplicates → truncate verbose outputs → summarize history.
 """
+
+from __future__ import annotations
+
 import logging
 import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +16,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CompressionResult:
     """Result of a compression operation."""
+
     original_tokens: int
     compressed_tokens: int
-    messages: List[Dict[str, str]]
-    decisions_preserved: List[str]
+    messages: list[dict[str, str]]
+    decisions_preserved: list[str]
     compression_ratio: float = 0.0
 
     def __post_init__(self):
@@ -28,12 +31,13 @@ class CompressionResult:
 @dataclass
 class CompressionConfig:
     """Configuration for context compression."""
-    max_context_tokens: int = 8192       # model's context window
-    compress_threshold: float = 0.75     # compress when context reaches this % of max
-    preserve_recent: int = 5             # always keep last N messages uncompressed
-    preserve_system: bool = True         # always keep system messages
-    min_message_tokens: int = 10         # don't try to compress very short messages
-    summary_max_tokens: int = 200        # max tokens per summarized chunk
+
+    max_context_tokens: int = 8192  # model's context window
+    compress_threshold: float = 0.75  # compress when context reaches this % of max
+    preserve_recent: int = 5  # always keep last N messages uncompressed
+    preserve_system: bool = True  # always keep system messages
+    min_message_tokens: int = 10  # don't try to compress very short messages
+    summary_max_tokens: int = 200  # max tokens per summarized chunk
 
 
 class ContextCompressor:
@@ -46,7 +50,7 @@ class ContextCompressor:
     4. Extract and preserve key decisions
     """
 
-    def __init__(self, config: Optional[CompressionConfig] = None):
+    def __init__(self, config: CompressionConfig | None = None):
         self.config = config or CompressionConfig()
         self._decision_patterns = [
             r"(?:decided|chosen|selected|agreed|confirmed|approved)\s+(?:to\s+)?(.+?)(?:\.|$)",
@@ -58,17 +62,17 @@ class ContextCompressor:
         """Rough token estimate: ~4 chars per token for English text."""
         return max(1, len(text) // 4)
 
-    def estimate_messages_tokens(self, messages: List[Dict[str, str]]) -> int:
+    def estimate_messages_tokens(self, messages: list[dict[str, str]]) -> int:
         """Estimate total tokens across all messages."""
         return sum(self.estimate_tokens(m.get("content", "")) for m in messages)
 
-    def needs_compression(self, messages: List[Dict[str, str]]) -> bool:
+    def needs_compression(self, messages: list[dict[str, str]]) -> bool:
         """Check if context needs compression."""
         total = self.estimate_messages_tokens(messages)
         threshold = int(self.config.max_context_tokens * self.config.compress_threshold)
         return total > threshold
 
-    def compress(self, messages: List[Dict[str, str]], max_tokens: Optional[int] = None) -> CompressionResult:
+    def compress(self, messages: list[dict[str, str]], max_tokens: int | None = None) -> CompressionResult:
         """Compress messages to fit within token budget.
 
         Args:
@@ -116,7 +120,7 @@ class ContextCompressor:
             decisions_preserved=decisions,
         )
 
-    def _truncate_verbose(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def _truncate_verbose(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         """Tier 1: Truncate code blocks and tool outputs."""
         result = []
         for msg in messages:
@@ -140,6 +144,7 @@ class ContextCompressor:
 
     def _truncate_code_blocks(self, text: str) -> str:
         """Truncate code blocks longer than 20 lines."""
+
         def truncate_block(match):
             block = match.group(0)
             lines = block.split("\n")
@@ -147,7 +152,7 @@ class ContextCompressor:
                 return block
             lang = lines[0]  # ```python etc
             closing = lines[-1]  # ```
-            kept = lines[1:6] + [f"... ({len(lines) - 12} lines truncated) ..."] + lines[-6:-1]
+            kept = [*lines[1:6], f"... ({len(lines) - 12} lines truncated) ...", *lines[-6:-1]]
             return lang + "\n" + "\n".join(kept) + "\n" + closing
 
         return re.sub(r"```[\s\S]*?```", truncate_block, text)
@@ -159,14 +164,14 @@ class ContextCompressor:
             return text
 
         # If it looks like command output (many short lines), truncate middle
-        avg_line_len = sum(len(l) for l in lines) / max(len(lines), 1)
+        avg_line_len = sum(len(l) for l in lines) / max(len(lines), 1)  # noqa: E741
         if avg_line_len < 80 and len(lines) > 30:
-            kept = lines[:10] + [f"... ({len(lines) - 15} lines truncated) ..."] + lines[-5:]
+            kept = [*lines[:10], f"... ({len(lines) - 15} lines truncated) ...", *lines[-5:]]
             return "\n".join(kept)
 
         return text
 
-    def _summarize_history(self, messages: List[Dict[str, str]], max_tokens: int) -> List[Dict[str, str]]:
+    def _summarize_history(self, messages: list[dict[str, str]], max_tokens: int) -> list[dict[str, str]]:
         """Tier 2: Summarize older messages, keep recent ones intact."""
         if len(messages) <= self.config.preserve_recent:
             return messages
@@ -182,14 +187,11 @@ class ContextCompressor:
         # Create summary of old messages
         summary = self._create_summary(old_msgs)
 
-        summary_msg = {
-            "role": "system",
-            "content": f"[Context Summary]\n{summary}"
-        }
+        summary_msg = {"role": "system", "content": f"[Context Summary]\n{summary}"}
 
-        return system_msgs + [summary_msg] + recent_msgs
+        return [*system_msgs, summary_msg, *recent_msgs]
 
-    def _create_summary(self, messages: List[Dict[str, str]]) -> str:
+    def _create_summary(self, messages: list[dict[str, str]]) -> str:
         """Create a concise summary of messages without LLM (extractive)."""
         summaries = []
 
@@ -216,7 +218,7 @@ class ContextCompressor:
 
         return result
 
-    def extract_key_decisions(self, messages: List[Dict[str, str]]) -> List[str]:
+    def extract_key_decisions(self, messages: list[dict[str, str]]) -> list[str]:
         """Extract key decisions from conversation history."""
         decisions = []
 
@@ -240,15 +242,15 @@ class ContextCompressor:
 
         return unique[:20]  # cap at 20 decisions
 
-    def summarize_history(self, messages: List[Dict[str, str]]) -> str:
+    def summarize_history(self, messages: list[dict[str, str]]) -> str:
         """Public API: get a text summary of message history."""
         return self._create_summary(messages)
 
 
-_compressor: Optional[ContextCompressor] = None
+_compressor: ContextCompressor | None = None
 
 
-def get_context_compressor(config: Optional[CompressionConfig] = None) -> ContextCompressor:
+def get_context_compressor(config: CompressionConfig | None = None) -> ContextCompressor:
     global _compressor
     if _compressor is None:
         _compressor = ContextCompressor(config)

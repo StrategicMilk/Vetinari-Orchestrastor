@@ -1,5 +1,4 @@
-"""
-Quality Scorer - Vetinari Self-Improvement Subsystem
+"""Quality Scorer - Vetinari Self-Improvement Subsystem.
 
 Evaluates the quality of task outputs using LLM-as-judge and heuristics.
 Produces structured quality scores that feed the feedback loop.
@@ -11,16 +10,16 @@ Enhanced in Wave 4:
 - Per-task-type rubrics with calibrated dimensions
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import re
 import sqlite3
-import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,26 +29,26 @@ _DB_PATH = os.environ.get("VETINARI_QUALITY_DB", "./vetinari_quality_scores.db")
 @dataclass
 class QualityScore:
     """Structured quality assessment for a task output."""
+
     task_id: str
     model_id: str
     task_type: str
-    overall_score: float          # 0.0 - 1.0
-    correctness: float = 0.7      # Is the output correct?
-    completeness: float = 0.7     # Does it address the full task?
-    efficiency: float = 0.7       # Is it efficient/concise?
-    style: float = 0.7            # Follows conventions?
-    dimensions: Dict[str, float] = field(default_factory=dict)
-    issues: List[str] = field(default_factory=list)
+    overall_score: float  # 0.0 - 1.0
+    correctness: float = 0.7  # Is the output correct?
+    completeness: float = 0.7  # Does it address the full task?
+    efficiency: float = 0.7  # Is it efficient/concise?
+    style: float = 0.7  # Follows conventions?
+    dimensions: dict[str, float] = field(default_factory=dict)
+    issues: list[str] = field(default_factory=list)
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    method: str = "heuristic"     # "llm" | "heuristic" | "hybrid"
+    method: str = "heuristic"  # "llm" | "heuristic" | "hybrid"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 class QualityScorer:
-    """
-    Evaluates output quality using LLM-as-judge + heuristics.
+    """Evaluates output quality using LLM-as-judge + heuristics.
 
     Provides structured quality signals that feed back into model
     selection, prompt evolution, and workflow strategy learning.
@@ -67,15 +66,18 @@ class QualityScorer:
 
     def __init__(self, adapter_manager=None, db_path: str = _DB_PATH):
         self._adapter_manager = adapter_manager
-        self._scores: List[QualityScore] = []
+        self._scores: list[QualityScore] = []
         self._db_path = db_path
         self._score_count: int = 0
         try:
             import yaml
-            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'config', 'ml_config.yaml')
+
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "ml_config.yaml"
+            )
             with open(config_path) as f:
                 ml_config = yaml.safe_load(f)
-            self._calibration_interval: int = ml_config.get('quality_scoring', {}).get('calibration_interval', 10)
+            self._calibration_interval: int = ml_config.get("quality_scoring", {}).get("calibration_interval", 10)
         except Exception:
             self._calibration_interval = 10
         self._init_db()
@@ -116,8 +118,7 @@ class QualityScorer:
         output: str,
         use_llm: bool = True,
     ) -> QualityScore:
-        """
-        Score a task output.
+        """Score a task output.
 
         Args:
             task_id: Unique task identifier.
@@ -164,8 +165,8 @@ class QualityScorer:
         task_type: str,
         task_description: str,
         output: str,
-        dims: List[str],
-    ) -> Optional[QualityScore]:
+        dims: list[str],
+    ) -> QualityScore | None:
         """Use LLM-as-judge with self-rationalization to score the output.
 
         The judge model is deliberately chosen to be DIFFERENT from model_id
@@ -196,12 +197,16 @@ class QualityScorer:
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
             import requests as _req
+
             resp = _req.post(
                 f"{host}/v1/chat/completions",
                 json={
                     "model": judge_model,
                     "messages": [
-                        {"role": "system", "content": "You are an objective quality evaluator. Score honestly and precisely."},
+                        {
+                            "role": "system",
+                            "content": "You are an objective quality evaluator. Score honestly and precisely.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     "max_tokens": 600,
@@ -213,7 +218,7 @@ class QualityScorer:
                 return None
 
             text = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            match = re.search(r'\{.*\}', text, re.DOTALL)
+            match = re.search(r"\{.*\}", text, re.DOTALL)
             if not match:
                 return None
             data = json.loads(match.group(0))
@@ -248,6 +253,7 @@ class QualityScorer:
         """Pick a judge model that is DIFFERENT from the model being evaluated."""
         try:
             from vetinari.model_registry import get_model_registry
+
             loaded = get_model_registry().get_loaded_local_models()
             for m in loaded:
                 if m.model_id != evaluated_model_id:
@@ -290,17 +296,21 @@ class QualityScorer:
         model_id: str,
         task_type: str,
         output: str,
-        dims: List[str],
+        dims: list[str],
     ) -> QualityScore:
         """Heuristic quality scoring based on output characteristics."""
-        issues: List[str] = []
-        scores: Dict[str, float] = {}
+        issues: list[str] = []
+        scores: dict[str, float] = {}
 
         if not output or not output.strip():
             return QualityScore(
-                task_id=task_id, model_id=model_id, task_type=task_type,
-                overall_score=0.0, issues=["Empty output"],
-                dimensions={d: 0.0 for d in dims}, method="heuristic"
+                task_id=task_id,
+                model_id=model_id,
+                task_type=task_type,
+                overall_score=0.0,
+                issues=["Empty output"],
+                dimensions=dict.fromkeys(dims, 0.0),
+                method="heuristic",
             )
 
         words = len(output.split())
@@ -342,16 +352,20 @@ class QualityScorer:
         overall = sum(scores.values()) / max(len(scores), 1) if scores else 0.65
 
         return QualityScore(
-            task_id=task_id, model_id=model_id, task_type=task_type,
+            task_id=task_id,
+            model_id=model_id,
+            task_type=task_type,
             overall_score=round(overall, 3),
             correctness=scores.get("correctness", overall),
             completeness=scores.get("completeness", overall),
             efficiency=scores.get("efficiency", overall),
             style=scores.get("style", overall),
-            dimensions=scores, issues=issues, method="heuristic"
+            dimensions=scores,
+            issues=issues,
+            method="heuristic",
         )
 
-    def get_history(self, model_id: Optional[str] = None, task_type: Optional[str] = None) -> List[QualityScore]:
+    def get_history(self, model_id: str | None = None, task_type: str | None = None) -> list[QualityScore]:
         """Get scoring history from SQLite + in-memory cache, optionally filtered."""
         try:
             query = "SELECT task_id, model_id, task_type, overall_score, correctness, completeness, efficiency, style, dimensions, issues, method, timestamp FROM quality_scores WHERE 1=1"
@@ -369,16 +383,22 @@ class QualityScorer:
 
             scores = []
             for row in rows:
-                scores.append(QualityScore(
-                    task_id=row[0], model_id=row[1], task_type=row[2],
-                    overall_score=row[3], correctness=row[4] or row[3],
-                    completeness=row[5] or row[3], efficiency=row[6] or row[3],
-                    style=row[7] or row[3],
-                    dimensions=json.loads(row[8] or "{}"),
-                    issues=json.loads(row[9] or "[]"),
-                    method=row[10] or "heuristic",
-                    timestamp=row[11] or "",
-                ))
+                scores.append(
+                    QualityScore(
+                        task_id=row[0],
+                        model_id=row[1],
+                        task_type=row[2],
+                        overall_score=row[3],
+                        correctness=row[4] or row[3],
+                        completeness=row[5] or row[3],
+                        efficiency=row[6] or row[3],
+                        style=row[7] or row[3],
+                        dimensions=json.loads(row[8] or "{}"),
+                        issues=json.loads(row[9] or "[]"),
+                        method=row[10] or "heuristic",
+                        timestamp=row[11] or "",
+                    )
+                )
             return scores
         except Exception:
             # Fall back to in-memory
@@ -389,7 +409,7 @@ class QualityScorer:
                 result = [s for s in result if s.task_type == task_type]
             return result
 
-    def get_model_average(self, model_id: str, task_type: str = None) -> float:
+    def get_model_average(self, model_id: str, task_type: str | None = None) -> float:
         """Get average quality score for a model (optionally filtered by task type)."""
         scores = self.get_history(model_id=model_id, task_type=task_type)
         if not scores:
@@ -398,7 +418,7 @@ class QualityScorer:
 
 
 # Singleton
-_quality_scorer: Optional[QualityScorer] = None
+_quality_scorer: QualityScorer | None = None
 
 
 def get_quality_scorer() -> QualityScorer:

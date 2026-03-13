@@ -1,16 +1,19 @@
 """Base provider adapter interface for multi-LLM orchestration."""
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderType(Enum):
     """Enumeration of supported provider types."""
+
     LM_STUDIO = "lm_studio"
     OPENAI = "openai"
     COHERE = "cohere"
@@ -24,24 +27,26 @@ class ProviderType(Enum):
 @dataclass
 class ProviderConfig:
     """Configuration for a provider."""
+
     provider_type: ProviderType
     name: str
     endpoint: str
-    api_key: Optional[str] = None
+    api_key: str | None = None
     max_retries: int = 3
     timeout_seconds: int = 120
     memory_budget_gb: int = 32
-    extra_config: Dict[str, Any] = field(default_factory=dict)
+    extra_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ModelInfo:
     """Information about a model available from a provider."""
+
     id: str
     name: str
     provider: str
     endpoint: str
-    capabilities: List[str]
+    capabilities: list[str]
     context_len: int
     memory_gb: int
     version: str
@@ -49,39 +54,40 @@ class ModelInfo:
     throughput_tokens_per_sec: float = 50.0
     cost_per_1k_tokens: float = 0.0
     free_tier: bool = False
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
 class InferenceRequest:
     """Request to run inference on a model."""
+
     model_id: str
     prompt: str
-    system_prompt: Optional[str] = None
+    system_prompt: str | None = None
     max_tokens: int = 2048
     temperature: float = 0.7
     top_p: float = 0.9
     top_k: int = 40
-    stop_sequences: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    stop_sequences: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class InferenceResponse:
     """Response from inference."""
+
     model_id: str
     output: str
     latency_ms: int
     tokens_used: int
     status: str  # "ok", "error", "timeout", "partial"
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ProviderAdapter(ABC):
-    """
-    Abstract base class for all provider adapters.
-    
+    """Abstract base class for all provider adapters.
+
     Each adapter implements a consistent interface for:
     - Model discovery
     - Health checks
@@ -98,62 +104,53 @@ class ProviderAdapter(ABC):
         self.api_key = config.api_key
         self.max_retries = config.max_retries
         self.timeout_seconds = config.timeout_seconds
-        self.models: List[ModelInfo] = []
+        self.models: list[ModelInfo] = []
 
     @abstractmethod
-    def discover_models(self) -> List[ModelInfo]:
-        """
-        Discover available models from the provider.
-        
+    def discover_models(self) -> list[ModelInfo]:
+        """Discover available models from the provider.
+
         Returns:
             List of ModelInfo objects representing available models.
         """
-        pass
 
     @abstractmethod
-    def health_check(self) -> Dict[str, Any]:
-        """
-        Check health/status of the provider.
-        
+    def health_check(self) -> dict[str, Any]:
+        """Check health/status of the provider.
+
         Returns:
             Dict with keys: {"healthy": bool, "reason": str, "timestamp": str}
         """
-        pass
 
     @abstractmethod
     def infer(self, request: InferenceRequest) -> InferenceResponse:
-        """
-        Run inference on a model.
-        
+        """Run inference on a model.
+
         Args:
             request: InferenceRequest with model_id, prompt, and options
-            
+
         Returns:
             InferenceResponse with output, latency, tokens_used, status
         """
-        pass
 
     @abstractmethod
-    def get_capabilities(self) -> Dict[str, List[str]]:
-        """
-        Get capabilities of all available models.
-        
+    def get_capabilities(self) -> dict[str, list[str]]:
+        """Get capabilities of all available models.
+
         Returns:
             Dict mapping model_id to list of capabilities
             (e.g., ["code_gen", "chat", "summarization"])
         """
-        pass
 
-    def score_model_for_task(self, model: ModelInfo, task_requirements: Dict[str, Any]) -> float:
-        """
-        Score a model for a given task.
-        
+    def score_model_for_task(self, model: ModelInfo, task_requirements: dict[str, Any]) -> float:
+        """Score a model for a given task.
+
         Factors: capability match, context fit, latency, cost
-        
+
         Args:
             model: ModelInfo to score
             task_requirements: Dict with keys like "required_capabilities", "input_tokens", "max_latency_ms"
-            
+
         Returns:
             Score between 0 and 1 (higher is better)
         """
@@ -198,18 +195,19 @@ class ProviderAdapter(ABC):
 
         return min(1.0, score)
 
-    def _record_telemetry(self, request: "InferenceRequest", response: "InferenceResponse") -> None:
-        """
-        Record inference telemetry to all analytics/learning modules.
+    def _record_telemetry(self, request: InferenceRequest, response: InferenceResponse) -> None:
+        """Record inference telemetry to all analytics/learning modules.
 
         Called automatically after each infer() call in concrete adapters.
         Failures are silently suppressed — telemetry must never crash inference.
         """
         import logging
+
         _log = logging.getLogger(__name__)
 
         try:
             from vetinari.telemetry import get_telemetry_collector
+
             get_telemetry_collector().record_adapter_latency(
                 provider=self.provider_type.value,
                 model_id=request.model_id,
@@ -222,7 +220,8 @@ class ProviderAdapter(ABC):
 
         # --- Step 1: Cost tracking (fixed — construct CostEntry properly) ---
         try:
-            from vetinari.analytics.cost import get_cost_tracker, CostEntry
+            from vetinari.analytics.cost import CostEntry, get_cost_tracker
+
             total = response.tokens_used or 0
             input_tokens = int(total * 0.6)
             output_tokens = total - input_tokens
@@ -242,6 +241,7 @@ class ProviderAdapter(ABC):
         # --- Step 2: SLA tracking ---
         try:
             from vetinari.analytics.sla import get_sla_tracker
+
             tracker = get_sla_tracker()
             tracker.record_latency(
                 f"{self.provider_type.value}:{request.model_id}",
@@ -255,6 +255,7 @@ class ProviderAdapter(ABC):
         # --- Step 3: Forecaster ingestion ---
         try:
             from vetinari.analytics.forecasting import get_forecaster
+
             fc = get_forecaster()
             fc.ingest("adapter.latency", float(response.latency_ms))
             fc.ingest("adapter.tokens", float(response.tokens_used or 0))
@@ -264,13 +265,15 @@ class ProviderAdapter(ABC):
         # --- Step 4: Anomaly detection ---
         try:
             from vetinari.analytics.anomaly import get_anomaly_detector
-            result = get_anomaly_detector().detect(
-                "adapter.latency", float(response.latency_ms)
-            )
+
+            result = get_anomaly_detector().detect("adapter.latency", float(response.latency_ms))
             if result.is_anomaly:
                 _log.warning(
                     "Anomaly detected: %s=%s (%s, score=%.2f)",
-                    result.metric, result.value, result.method, result.score,
+                    result.metric,
+                    result.value,
+                    result.method,
+                    result.score,
                 )
         except Exception:
             logger.debug("Failed to run anomaly detection for %s", request.model_id, exc_info=True)

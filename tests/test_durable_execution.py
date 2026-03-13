@@ -7,21 +7,21 @@ vetinari.types is used (stdlib-only) but heavy optional deps are mocked.
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 import threading
 import unittest
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, Mock, call, patch
+from typing import Any
+from unittest.mock import MagicMock, Mock, patch
 
 # ---------------------------------------------------------------------------
 # Real types module — safe to import (only uses stdlib enum)
 # ---------------------------------------------------------------------------
-import vetinari.types  # noqa: F401  imported for side-effect
+import vetinari.types
 
 # ---------------------------------------------------------------------------
 # Stubs for heavy optional modules that durable_execution imports lazily
@@ -48,14 +48,15 @@ sys.modules.setdefault("vetinari.learning.model_selector", _mock_model_selector_
 # ---------------------------------------------------------------------------
 # Now it is safe to import the real module under test
 # ---------------------------------------------------------------------------
-from vetinari.orchestration.durable_execution import (  # noqa: E402
+import pytest
+
+from vetinari.orchestration.durable_execution import (
     Checkpoint,
     DurableExecutionEngine,
     ExecutionEvent,
 )
 from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
 from vetinari.types import PlanStatus, TaskStatus
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,11 +75,11 @@ def _make_engine(checkpoint_dir: str) -> DurableExecutionEngine:
     )
 
 
-def _noop_handler(task: TaskNode) -> Dict[str, Any]:
+def _noop_handler(task: TaskNode) -> dict[str, Any]:
     return {"result": "ok", "task_id": task.id}
 
 
-def _fail_handler(task: TaskNode) -> Dict[str, Any]:
+def _fail_handler(task: TaskNode) -> dict[str, Any]:
     raise RuntimeError("intentional failure")
 
 
@@ -95,17 +96,17 @@ class TestExecutionEvent(unittest.TestCase):
             task_id="t1",
             timestamp="2024-01-01T00:00:00",
         )
-        self.assertEqual(ev.event_id, "eid-1")
-        self.assertEqual(ev.event_type, "task_started")
-        self.assertEqual(ev.task_id, "t1")
-        self.assertEqual(ev.timestamp, "2024-01-01T00:00:00")
+        assert ev.event_id == "eid-1"
+        assert ev.event_type == "task_started"
+        assert ev.task_id == "t1"
+        assert ev.timestamp == "2024-01-01T00:00:00"
 
     def test_data_defaults_to_empty_dict(self):
         ev = ExecutionEvent(
             event_id="x", event_type="task_completed", task_id="t", timestamp="ts"
         )
-        self.assertIsInstance(ev.data, dict)
-        self.assertEqual(ev.data, {})
+        assert isinstance(ev.data, dict)
+        assert ev.data == {}
 
     def test_data_can_be_set(self):
         ev = ExecutionEvent(
@@ -115,37 +116,37 @@ class TestExecutionEvent(unittest.TestCase):
             timestamp="ts",
             data={"error": "boom", "attempts": 3},
         )
-        self.assertEqual(ev.data["error"], "boom")
-        self.assertEqual(ev.data["attempts"], 3)
+        assert ev.data["error"] == "boom"
+        assert ev.data["attempts"] == 3
 
     def test_event_id_is_string(self):
         ev = ExecutionEvent(event_id="uuid-abc", event_type="e", task_id="t", timestamp="ts")
-        self.assertIsInstance(ev.event_id, str)
+        assert isinstance(ev.event_id, str)
 
     def test_different_event_types(self):
         for etype in ("task_started", "task_completed", "task_failed", "task_cancelled"):
             ev = ExecutionEvent(event_id="e", event_type=etype, task_id="t", timestamp="ts")
-            self.assertEqual(ev.event_type, etype)
+            assert ev.event_type == etype
 
     def test_data_independence_between_instances(self):
         ev1 = ExecutionEvent(event_id="e1", event_type="e", task_id="t", timestamp="ts")
         ev2 = ExecutionEvent(event_id="e2", event_type="e", task_id="t", timestamp="ts")
         ev1.data["key"] = "val"
-        self.assertNotIn("key", ev2.data)
+        assert "key" not in ev2.data
 
     def test_task_id_stored(self):
         ev = ExecutionEvent(event_id="e", event_type="e", task_id="my-task-99", timestamp="ts")
-        self.assertEqual(ev.task_id, "my-task-99")
+        assert ev.task_id == "my-task-99"
 
     def test_timestamp_stored(self):
         ts = datetime.now().isoformat()
         ev = ExecutionEvent(event_id="e", event_type="e", task_id="t", timestamp=ts)
-        self.assertEqual(ev.timestamp, ts)
+        assert ev.timestamp == ts
 
     def test_data_dict_mutation(self):
         ev = ExecutionEvent(event_id="e", event_type="e", task_id="t", timestamp="ts")
         ev.data["foo"] = "bar"
-        self.assertEqual(ev.data["foo"], "bar")
+        assert ev.data["foo"] == "bar"
 
 
 # ---------------------------------------------------------------------------
@@ -155,57 +156,57 @@ class TestExecutionEvent(unittest.TestCase):
 class TestCheckpoint(unittest.TestCase):
 
     def _make(self, **kwargs) -> Checkpoint:
-        defaults = dict(
-            checkpoint_id="cp-1",
-            plan_id="plan-abc",
-            created_at="2024-01-01T00:00:00",
-            graph_state={"plan_id": "plan-abc", "nodes": {}},
-            completed_tasks=["t1"],
-            running_tasks=[],
-        )
+        defaults = {
+            "checkpoint_id": "cp-1",
+            "plan_id": "plan-abc",
+            "created_at": "2024-01-01T00:00:00",
+            "graph_state": {"plan_id": "plan-abc", "nodes": {}},
+            "completed_tasks": ["t1"],
+            "running_tasks": [],
+        }
         defaults.update(kwargs)
         return Checkpoint(**defaults)
 
     def test_fields_stored(self):
         cp = self._make()
-        self.assertEqual(cp.checkpoint_id, "cp-1")
-        self.assertEqual(cp.plan_id, "plan-abc")
+        assert cp.checkpoint_id == "cp-1"
+        assert cp.plan_id == "plan-abc"
 
     def test_metadata_defaults_to_empty_dict(self):
         cp = self._make()
-        self.assertEqual(cp.metadata, {})
+        assert cp.metadata == {}
 
     def test_metadata_can_be_set(self):
         cp = self._make(metadata={"event_count": 5})
-        self.assertEqual(cp.metadata["event_count"], 5)
+        assert cp.metadata["event_count"] == 5
 
     def test_completed_tasks_list(self):
         cp = self._make(completed_tasks=["t1", "t2", "t3"])
-        self.assertEqual(len(cp.completed_tasks), 3)
+        assert len(cp.completed_tasks) == 3
 
     def test_running_tasks_list(self):
         cp = self._make(running_tasks=["t5"])
-        self.assertIn("t5", cp.running_tasks)
+        assert "t5" in cp.running_tasks
 
     def test_graph_state_dict(self):
         state = {"plan_id": "p", "nodes": {"n1": {}}}
         cp = self._make(graph_state=state)
-        self.assertEqual(cp.graph_state["plan_id"], "p")
+        assert cp.graph_state["plan_id"] == "p"
 
     def test_created_at_stored(self):
         ts = "2025-06-15T12:00:00"
         cp = self._make(created_at=ts)
-        self.assertEqual(cp.created_at, ts)
+        assert cp.created_at == ts
 
     def test_metadata_independence(self):
         cp1 = self._make()
         cp2 = self._make()
         cp1.metadata["x"] = 1
-        self.assertNotIn("x", cp2.metadata)
+        assert "x" not in cp2.metadata
 
     def test_plan_id_matches(self):
         cp = self._make(plan_id="unique-plan")
-        self.assertEqual(cp.plan_id, "unique-plan")
+        assert cp.plan_id == "unique-plan"
 
 
 # ---------------------------------------------------------------------------
@@ -222,51 +223,51 @@ class TestDurableExecutionEngineInit(unittest.TestCase):
 
     def test_default_max_concurrent(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertEqual(eng.max_concurrent, 4)
+        assert eng.max_concurrent == 4
 
     def test_default_timeout(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertEqual(eng.default_timeout, 300.0)
+        assert eng.default_timeout == 300.0
 
     def test_custom_max_concurrent(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir, max_concurrent=8)
-        self.assertEqual(eng.max_concurrent, 8)
+        assert eng.max_concurrent == 8
 
     def test_custom_timeout(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir, default_timeout=60.0)
-        self.assertEqual(eng.default_timeout, 60.0)
+        assert eng.default_timeout == 60.0
 
     def test_checkpoint_dir_created(self):
         new_dir = os.path.join(self.tmpdir, "sub", "checkpoints")
-        eng = DurableExecutionEngine(checkpoint_dir=new_dir)
-        self.assertTrue(Path(new_dir).exists())
+        DurableExecutionEngine(checkpoint_dir=new_dir)
+        assert Path(new_dir).exists()
 
     def test_checkpoint_dir_stored_as_path(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertIsInstance(eng.checkpoint_dir, Path)
+        assert isinstance(eng.checkpoint_dir, Path)
 
     def test_active_executions_empty(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertEqual(eng._active_executions, {})
+        assert eng._active_executions == {}
 
     def test_event_history_empty(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertEqual(eng._event_history, [])
+        assert eng._event_history == []
 
     def test_task_handlers_empty(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertEqual(eng._task_handlers, {})
+        assert eng._task_handlers == {}
 
     def test_callbacks_default_none(self):
         eng = DurableExecutionEngine(checkpoint_dir=self.tmpdir)
-        self.assertIsNone(eng._on_task_start)
-        self.assertIsNone(eng._on_task_complete)
-        self.assertIsNone(eng._on_task_fail)
+        assert eng._on_task_start is None
+        assert eng._on_task_complete is None
+        assert eng._on_task_fail is None
 
     def test_default_checkpoint_dir_used_when_none(self):
         # When no checkpoint_dir provided, engine creates a default dir
         eng = DurableExecutionEngine()
-        self.assertTrue(eng.checkpoint_dir.exists())
+        assert eng.checkpoint_dir.exists()
         # Clean up the default dir
         shutil.rmtree(eng.checkpoint_dir, ignore_errors=True)
 
@@ -287,34 +288,34 @@ class TestRegisterHandler(unittest.TestCase):
     def test_register_stores_handler(self):
         handler = Mock()
         self.eng.register_handler("my_type", handler)
-        self.assertIs(self.eng._task_handlers["my_type"], handler)
+        assert self.eng._task_handlers["my_type"] is handler
 
     def test_register_multiple_handlers(self):
         h1, h2 = Mock(), Mock()
         self.eng.register_handler("type_a", h1)
         self.eng.register_handler("type_b", h2)
-        self.assertIs(self.eng._task_handlers["type_a"], h1)
-        self.assertIs(self.eng._task_handlers["type_b"], h2)
+        assert self.eng._task_handlers["type_a"] is h1
+        assert self.eng._task_handlers["type_b"] is h2
 
     def test_overwrite_existing_handler(self):
         old, new = Mock(), Mock()
         self.eng.register_handler("alpha", old)
         self.eng.register_handler("alpha", new)
-        self.assertIs(self.eng._task_handlers["alpha"], new)
+        assert self.eng._task_handlers["alpha"] is new
 
     def test_handler_count_after_registrations(self):
         for i in range(5):
             self.eng.register_handler(f"type_{i}", Mock())
-        self.assertEqual(len(self.eng._task_handlers), 5)
+        assert len(self.eng._task_handlers) == 5
 
     def test_handler_is_callable(self):
         self.eng.register_handler("fn_type", lambda t: None)
-        self.assertTrue(callable(self.eng._task_handlers["fn_type"]))
+        assert callable(self.eng._task_handlers["fn_type"])
 
     def test_register_default_key(self):
         handler = Mock()
         self.eng.register_handler("default", handler)
-        self.assertIn("default", self.eng._task_handlers)
+        assert "default" in self.eng._task_handlers
 
 
 # ---------------------------------------------------------------------------
@@ -335,34 +336,34 @@ class TestSetCallbacks(unittest.TestCase):
         complete = Mock()
         fail = Mock()
         self.eng.set_callbacks(on_task_start=start, on_task_complete=complete, on_task_fail=fail)
-        self.assertIs(self.eng._on_task_start, start)
-        self.assertIs(self.eng._on_task_complete, complete)
-        self.assertIs(self.eng._on_task_fail, fail)
+        assert self.eng._on_task_start is start
+        assert self.eng._on_task_complete is complete
+        assert self.eng._on_task_fail is fail
 
     def test_set_only_start_callback(self):
         start = Mock()
         self.eng.set_callbacks(on_task_start=start)
-        self.assertIs(self.eng._on_task_start, start)
-        self.assertIsNone(self.eng._on_task_complete)
-        self.assertIsNone(self.eng._on_task_fail)
+        assert self.eng._on_task_start is start
+        assert self.eng._on_task_complete is None
+        assert self.eng._on_task_fail is None
 
     def test_set_only_complete_callback(self):
         complete = Mock()
         self.eng.set_callbacks(on_task_complete=complete)
-        self.assertIs(self.eng._on_task_complete, complete)
-        self.assertIsNone(self.eng._on_task_start)
+        assert self.eng._on_task_complete is complete
+        assert self.eng._on_task_start is None
 
     def test_set_only_fail_callback(self):
         fail = Mock()
         self.eng.set_callbacks(on_task_fail=fail)
-        self.assertIs(self.eng._on_task_fail, fail)
+        assert self.eng._on_task_fail is fail
 
     def test_overwrite_callbacks(self):
         first = Mock()
         second = Mock()
         self.eng.set_callbacks(on_task_start=first)
         self.eng.set_callbacks(on_task_start=second)
-        self.assertIs(self.eng._on_task_start, second)
+        assert self.eng._on_task_start is second
 
     def test_start_callback_called_on_task_execute(self):
         start_cb = Mock()
@@ -399,7 +400,7 @@ class TestSetCallbacks(unittest.TestCase):
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
         # engine should still complete despite callback error
-        self.assertEqual(result["completed"], 1)
+        assert result["completed"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -419,22 +420,22 @@ class TestExecutePlan(unittest.TestCase):
         graph = _make_graph()
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertEqual(result["total_tasks"], 0)
-        self.assertEqual(result["completed"], 0)
+        assert result["total_tasks"] == 0
+        assert result["completed"] == 0
 
     def test_single_task_completes(self):
         graph = _make_graph()
         graph.add_task("t1", "Task one")
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertEqual(result["completed"], 1)
-        self.assertEqual(result["failed"], 0)
+        assert result["completed"] == 1
+        assert result["failed"] == 0
 
     def test_plan_id_in_results(self):
         graph = _make_graph(plan_id="my-plan")
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertEqual(result["plan_id"], "my-plan")
+        assert result["plan_id"] == "my-plan"
 
     def test_multiple_independent_tasks(self):
         graph = _make_graph()
@@ -442,8 +443,8 @@ class TestExecutePlan(unittest.TestCase):
             graph.add_task(f"t{i}", f"Task {i}")
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertEqual(result["completed"], 4)
-        self.assertEqual(result["failed"], 0)
+        assert result["completed"] == 4
+        assert result["failed"] == 0
 
     def test_sequential_dependency_chain(self):
         graph = _make_graph()
@@ -458,15 +459,15 @@ class TestExecutePlan(unittest.TestCase):
 
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=ordered_handler)
-        self.assertEqual(result["completed"], 3)
-        self.assertEqual(completed_order, ["t1", "t2", "t3"])
+        assert result["completed"] == 3
+        assert completed_order == ["t1", "t2", "t3"]
 
     def test_graph_status_set_to_completed_on_success(self):
         graph = _make_graph()
         graph.add_task("t1", "Task one")
         with patch("time.sleep"):
             self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertEqual(graph.status, PlanStatus.COMPLETED)
+        assert graph.status == PlanStatus.COMPLETED
 
     def test_graph_status_set_to_failed_on_failure(self):
         graph = _make_graph()
@@ -474,7 +475,7 @@ class TestExecutePlan(unittest.TestCase):
         task.max_retries = 0
         with patch("time.sleep"):
             self.eng.execute_plan(graph, task_handler=_fail_handler)
-        self.assertEqual(graph.status, PlanStatus.FAILED)
+        assert graph.status == PlanStatus.FAILED
 
     def test_handler_registered_as_default(self):
         graph = _make_graph()
@@ -489,7 +490,7 @@ class TestExecutePlan(unittest.TestCase):
         graph.add_task("task-A", "Task A")
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertIn("task-A", result["task_results"])
+        assert "task-A" in result["task_results"]
 
     def test_no_handler_still_completes(self):
         graph = _make_graph()
@@ -497,7 +498,7 @@ class TestExecutePlan(unittest.TestCase):
         with patch("time.sleep"):
             # no handler registered, no task_handler arg
             result = self.eng.execute_plan(graph)
-        self.assertEqual(result["completed"], 1)
+        assert result["completed"] == 1
 
     def test_parallel_layer_executes_all_tasks(self):
         graph = _make_graph()
@@ -507,7 +508,7 @@ class TestExecutePlan(unittest.TestCase):
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_noop_handler)
         # All 3 in the same layer
-        self.assertEqual(result["completed"], 3)
+        assert result["completed"] == 3
 
     def test_checkpoint_saved_after_plan(self):
         graph = _make_graph(plan_id="cp-test-plan")
@@ -515,14 +516,14 @@ class TestExecutePlan(unittest.TestCase):
         with patch("time.sleep"):
             self.eng.execute_plan(graph, task_handler=_noop_handler)
         cp_file = Path(self.tmpdir) / "cp-test-plan_checkpoint.json"
-        self.assertTrue(cp_file.exists())
+        assert cp_file.exists()
 
     def test_event_history_populated(self):
         graph = _make_graph()
         graph.add_task("t1", "Task one")
         with patch("time.sleep"):
             self.eng.execute_plan(graph, task_handler=_noop_handler)
-        self.assertGreater(len(self.eng._event_history), 0)
+        assert len(self.eng._event_history) > 0
 
     def test_failed_count_reflects_failures(self):
         graph = _make_graph()
@@ -530,7 +531,7 @@ class TestExecutePlan(unittest.TestCase):
         task.max_retries = 0
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=_fail_handler)
-        self.assertEqual(result["failed"], 1)
+        assert result["failed"] == 1
 
     def test_mixed_success_and_failure(self):
         graph = _make_graph()
@@ -545,8 +546,8 @@ class TestExecutePlan(unittest.TestCase):
 
         with patch("time.sleep"):
             result = self.eng.execute_plan(graph, task_handler=mixed_handler)
-        self.assertEqual(result["completed"], 1)
-        self.assertEqual(result["failed"], 1)
+        assert result["completed"] == 1
+        assert result["failed"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +578,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             result = self.eng._execute_task(graph, task)
-        self.assertEqual(result["status"], "completed")
+        assert result["status"] == "completed"
         handler.assert_called_once()
 
     def test_task_status_set_to_completed(self):
@@ -586,7 +587,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
-        self.assertEqual(task.status, TaskStatus.COMPLETED)
+        assert task.status == TaskStatus.COMPLETED
 
     def test_task_started_at_set(self):
         self.eng._task_handlers["default"] = _noop_handler
@@ -594,7 +595,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
-        self.assertIsNotNone(task.started_at)
+        assert task.started_at is not None
 
     def test_task_completed_at_set_on_success(self):
         self.eng._task_handlers["default"] = _noop_handler
@@ -602,7 +603,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
-        self.assertIsNotNone(task.completed_at)
+        assert task.completed_at is not None
 
     def test_retry_once_then_succeed(self):
         call_count = {"n": 0}
@@ -618,8 +619,8 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             result = self.eng._execute_task(graph, task)
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(call_count["n"], 2)
+        assert result["status"] == "completed"
+        assert call_count["n"] == 2
 
     def test_retry_count_increments(self):
         call_count = {"n": 0}
@@ -634,7 +635,7 @@ class TestExecuteTask(unittest.TestCase):
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
         # max_retries=2 means 3 total attempts
-        self.assertEqual(call_count["n"], 3)
+        assert call_count["n"] == 3
 
     def test_max_retries_exhausted_returns_failed(self):
         self.eng._task_handlers["default"] = _fail_handler
@@ -642,7 +643,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             result = self.eng._execute_task(graph, task)
-        self.assertEqual(result["status"], "failed")
+        assert result["status"] == "failed"
 
     def test_task_status_failed_after_exhausted(self):
         self.eng._task_handlers["default"] = _fail_handler
@@ -650,7 +651,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
-        self.assertEqual(task.status, TaskStatus.FAILED)
+        assert task.status == TaskStatus.FAILED
 
     def test_error_message_stored_on_task(self):
         def fail_with_msg(t):
@@ -661,8 +662,8 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             result = self.eng._execute_task(graph, task)
-        self.assertIn("specific error message", result.get("error", ""))
-        self.assertIn("specific error message", task.error)
+        assert "specific error message" in result.get("error", "")
+        assert "specific error message" in task.error
 
     def test_exponential_backoff_sleep_called(self):
         self.eng._task_handlers["default"] = _fail_handler
@@ -672,7 +673,7 @@ class TestExecuteTask(unittest.TestCase):
             self.eng._execute_task(graph, task)
         # 3 attempts, sleep between attempt 1->2 (2**0=1) and 2->3 (2**1=2)
         calls = [c.args[0] for c in mock_sleep.call_args_list]
-        self.assertEqual(calls, [1, 2])  # 2**0, 2**1
+        assert calls == [1, 2]  # 2**0, 2**1
 
     def test_no_handler_completes_with_warning(self):
         # When no handler exists, task completes with warning
@@ -681,8 +682,8 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             result = self.eng._execute_task(graph, task)
-        self.assertEqual(result["status"], "completed")
-        self.assertIn("warning", result.get("output", {}))
+        assert result["status"] == "completed"
+        assert "warning" in result.get("output", {})
 
     def test_start_event_emitted(self):
         self.eng._task_handlers["default"] = _noop_handler
@@ -691,7 +692,7 @@ class TestExecuteTask(unittest.TestCase):
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
         event_types = [e.event_type for e in self.eng._event_history]
-        self.assertIn("task_started", event_types)
+        assert "task_started" in event_types
 
     def test_completed_event_emitted_on_success(self):
         self.eng._task_handlers["default"] = _noop_handler
@@ -700,7 +701,7 @@ class TestExecuteTask(unittest.TestCase):
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
         event_types = [e.event_type for e in self.eng._event_history]
-        self.assertIn("task_completed", event_types)
+        assert "task_completed" in event_types
 
     def test_failed_event_emitted_on_failure(self):
         self.eng._task_handlers["default"] = _fail_handler
@@ -709,7 +710,7 @@ class TestExecuteTask(unittest.TestCase):
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
         event_types = [e.event_type for e in self.eng._event_history]
-        self.assertIn("task_failed", event_types)
+        assert "task_failed" in event_types
 
     def test_output_data_stored_on_task(self):
         self.eng._task_handlers["default"] = lambda t: {"value": 42}
@@ -717,7 +718,7 @@ class TestExecuteTask(unittest.TestCase):
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
             self.eng._execute_task(graph, task)
-        self.assertEqual(task.output_data.get("value"), 42)
+        assert task.output_data.get("value") == 42
 
     def test_type_specific_handler_takes_priority(self):
         default_handler = Mock(return_value={"from": "default"})
@@ -728,7 +729,7 @@ class TestExecuteTask(unittest.TestCase):
         task.task_type = "code"
         graph = self._make_graph_with_task(task)
         with patch("time.sleep"):
-            result = self.eng._execute_task(graph, task)
+            self.eng._execute_task(graph, task)
         specific_handler.assert_called_once()
         default_handler.assert_not_called()
 
@@ -769,7 +770,7 @@ class TestHandleLayerFailure(unittest.TestCase):
         graph.nodes["f1"] = failed
         graph.nodes["d1"] = dep
         self.eng._handle_layer_failure(graph, [failed])
-        self.assertEqual(dep.status, TaskStatus.CANCELLED)
+        assert dep.status == TaskStatus.CANCELLED
 
     def test_transitive_cancellation(self):
         graph = _make_graph()
@@ -779,8 +780,8 @@ class TestHandleLayerFailure(unittest.TestCase):
         d2 = TaskNode(id="d2", description="Transitive dep", depends_on=["d1"])
         graph.nodes.update({"f1": f, "d1": d1, "d2": d2})
         self.eng._handle_layer_failure(graph, [f])
-        self.assertEqual(d1.status, TaskStatus.CANCELLED)
-        self.assertEqual(d2.status, TaskStatus.CANCELLED)
+        assert d1.status == TaskStatus.CANCELLED
+        assert d2.status == TaskStatus.CANCELLED
 
     def test_non_dependent_not_cancelled(self):
         graph = _make_graph()
@@ -789,7 +790,7 @@ class TestHandleLayerFailure(unittest.TestCase):
         independent = TaskNode(id="i1", description="Independent")
         graph.nodes.update({"f1": f, "i1": independent})
         self.eng._handle_layer_failure(graph, [f])
-        self.assertEqual(independent.status, TaskStatus.PENDING)
+        assert independent.status == TaskStatus.PENDING
 
     def test_already_completed_not_cancelled(self):
         graph = _make_graph()
@@ -799,7 +800,7 @@ class TestHandleLayerFailure(unittest.TestCase):
         completed.status = TaskStatus.COMPLETED
         graph.nodes.update({"f1": f, "c1": completed})
         self.eng._handle_layer_failure(graph, [f])
-        self.assertEqual(completed.status, TaskStatus.COMPLETED)
+        assert completed.status == TaskStatus.COMPLETED
 
     def test_cancel_event_emitted(self):
         graph = _make_graph()
@@ -809,8 +810,8 @@ class TestHandleLayerFailure(unittest.TestCase):
         graph.nodes.update({"f1": f, "d1": dep})
         self.eng._handle_layer_failure(graph, [f])
         cancelled_events = [e for e in self.eng._event_history if e.event_type == "task_cancelled"]
-        self.assertEqual(len(cancelled_events), 1)
-        self.assertEqual(cancelled_events[0].task_id, "d1")
+        assert len(cancelled_events) == 1
+        assert cancelled_events[0].task_id == "d1"
 
     def test_multiple_failed_tasks(self):
         graph = _make_graph()
@@ -822,8 +823,8 @@ class TestHandleLayerFailure(unittest.TestCase):
         d2 = TaskNode(id="d2", description="Dep of f2", depends_on=["f2"])
         graph.nodes.update({"f1": f1, "f2": f2, "d1": d1, "d2": d2})
         self.eng._handle_layer_failure(graph, [f1, f2])
-        self.assertEqual(d1.status, TaskStatus.CANCELLED)
-        self.assertEqual(d2.status, TaskStatus.CANCELLED)
+        assert d1.status == TaskStatus.CANCELLED
+        assert d2.status == TaskStatus.CANCELLED
 
     def test_deep_transitive_chain(self):
         graph = _make_graph()
@@ -843,14 +844,14 @@ class TestHandleLayerFailure(unittest.TestCase):
         self.eng._handle_layer_failure(graph, [nodes["t0"]])
         # t1..t4 should all be cancelled
         for i in range(1, 5):
-            self.assertEqual(nodes[f"t{i}"].status, TaskStatus.CANCELLED)
+            assert nodes[f"t{i}"].status == TaskStatus.CANCELLED
 
     def test_empty_failed_list_no_change(self):
         graph = _make_graph()
         t = TaskNode(id="t1", description="Task")
         graph.nodes["t1"] = t
         self.eng._handle_layer_failure(graph, [])
-        self.assertEqual(t.status, TaskStatus.PENDING)
+        assert t.status == TaskStatus.PENDING
 
     def test_cancel_reason_in_event_data(self):
         graph = _make_graph()
@@ -860,7 +861,7 @@ class TestHandleLayerFailure(unittest.TestCase):
         graph.nodes.update({"f1": f, "d1": dep})
         self.eng._handle_layer_failure(graph, [f])
         cancel_event = next(e for e in self.eng._event_history if e.event_type == "task_cancelled")
-        self.assertEqual(cancel_event.data.get("reason"), "dependency_failed")
+        assert cancel_event.data.get("reason") == "dependency_failed"
 
     def test_already_cancelled_not_double_cancelled(self):
         graph = _make_graph()
@@ -872,7 +873,7 @@ class TestHandleLayerFailure(unittest.TestCase):
         self.eng._handle_layer_failure(graph, [f])
         # Should remain cancelled, not generate new events
         cancelled_events = [e for e in self.eng._event_history if e.event_type == "task_cancelled"]
-        self.assertEqual(len(cancelled_events), 0)
+        assert len(cancelled_events) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -892,7 +893,7 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         graph = _make_graph(plan_id="save-test")
         self.eng._save_checkpoint("save-test", graph)
         cp_file = Path(self.tmpdir) / "save-test_checkpoint.json"
-        self.assertTrue(cp_file.exists())
+        assert cp_file.exists()
 
     def test_saved_file_is_valid_json(self):
         graph = _make_graph(plan_id="json-test")
@@ -900,7 +901,7 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "json-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertIsInstance(data, dict)
+        assert isinstance(data, dict)
 
     def test_saved_checkpoint_has_plan_id(self):
         graph = _make_graph(plan_id="has-plan-id")
@@ -908,7 +909,7 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "has-plan-id_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertEqual(data["plan_id"], "has-plan-id")
+        assert data["plan_id"] == "has-plan-id"
 
     def test_saved_checkpoint_has_graph_state(self):
         graph = _make_graph(plan_id="gs-test")
@@ -917,8 +918,8 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "gs-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertIn("graph_state", data)
-        self.assertIn("nodes", data["graph_state"])
+        assert "graph_state" in data
+        assert "nodes" in data["graph_state"]
 
     def test_completed_tasks_in_checkpoint(self):
         graph = _make_graph(plan_id="ct-test")
@@ -928,19 +929,19 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "ct-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertIn("t1", data["completed_tasks"])
+        assert "t1" in data["completed_tasks"]
 
     def test_load_returns_none_for_missing(self):
         result = self.eng.load_checkpoint("nonexistent-plan")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_load_restores_graph(self):
         graph = _make_graph(plan_id="load-test")
         graph.add_task("t1", "Task one")
         self.eng._save_checkpoint("load-test", graph)
         restored = self.eng.load_checkpoint("load-test")
-        self.assertIsNotNone(restored)
-        self.assertEqual(restored.plan_id, "load-test")
+        assert restored is not None
+        assert restored.plan_id == "load-test"
 
     def test_load_restores_tasks(self):
         graph = _make_graph(plan_id="tasks-restore")
@@ -948,14 +949,14 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         graph.add_task("t2", "Task two")
         self.eng._save_checkpoint("tasks-restore", graph)
         restored = self.eng.load_checkpoint("tasks-restore")
-        self.assertIn("t1", restored.nodes)
-        self.assertIn("t2", restored.nodes)
+        assert "t1" in restored.nodes
+        assert "t2" in restored.nodes
 
     def test_load_adds_to_active_executions(self):
         graph = _make_graph(plan_id="active-test")
         self.eng._save_checkpoint("active-test", graph)
         self.eng.load_checkpoint("active-test")
-        self.assertIn("active-test", self.eng._active_executions)
+        assert "active-test" in self.eng._active_executions
 
     def test_overwrite_checkpoint(self):
         graph = _make_graph(plan_id="overwrite-test")
@@ -967,12 +968,12 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "overwrite-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertIn("t1", data["completed_tasks"])
+        assert "t1" in data["completed_tasks"]
 
     def test_load_invalid_json_raises(self):
         bad_file = Path(self.tmpdir) / "bad-plan_checkpoint.json"
         bad_file.write_text("not valid json")
-        with self.assertRaises(Exception):
+        with pytest.raises(Exception):
             self.eng.load_checkpoint("bad-plan")
 
     def test_checkpoint_id_is_uuid(self):
@@ -981,9 +982,8 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "uuid-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        import re
         uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-        self.assertRegex(data["checkpoint_id"], uuid_pattern)
+        assert re.search(uuid_pattern, data["checkpoint_id"])
 
     def test_event_count_in_metadata(self):
         graph = _make_graph(plan_id="meta-test")
@@ -993,7 +993,7 @@ class TestSaveAndLoadCheckpoint(unittest.TestCase):
         cp_file = Path(self.tmpdir) / "meta-test_checkpoint.json"
         with open(cp_file) as f:
             data = json.load(f)
-        self.assertEqual(data["metadata"]["event_count"], 2)
+        assert data["metadata"]["event_count"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -1011,11 +1011,11 @@ class TestRecoverExecution(unittest.TestCase):
 
     def test_recover_no_checkpoint_returns_error(self):
         result = self.eng.recover_execution("no-such-plan")
-        self.assertEqual(result["status"], "error")
+        assert result["status"] == "error"
 
     def test_recover_error_message(self):
         result = self.eng.recover_execution("no-such-plan")
-        self.assertIn("message", result)
+        assert "message" in result
 
     def test_recover_resets_failed_tasks(self):
         graph = _make_graph(plan_id="recover-test")
@@ -1028,7 +1028,7 @@ class TestRecoverExecution(unittest.TestCase):
             self.eng.recover_execution("recover-test")
         # Task should have been reset to PENDING and re-executed
         # After execution, it will be COMPLETED (noop handler via no handler = completed)
-        pass  # No assertion needed — absence of exception is sufficient
+        # No assertion needed — absence of exception is sufficient
 
     def test_recover_executes_plan(self):
         graph = _make_graph(plan_id="re-exec")
@@ -1036,8 +1036,8 @@ class TestRecoverExecution(unittest.TestCase):
         self.eng._save_checkpoint("re-exec", graph)
         with patch("time.sleep"):
             result = self.eng.recover_execution("re-exec")
-        self.assertIn("plan_id", result)
-        self.assertEqual(result["plan_id"], "re-exec")
+        assert "plan_id" in result
+        assert result["plan_id"] == "re-exec"
 
     def test_failed_tasks_with_retries_exhausted_stay_failed(self):
         graph = _make_graph(plan_id="no-retry")
@@ -1053,7 +1053,7 @@ class TestRecoverExecution(unittest.TestCase):
         restored = self.eng.load_checkpoint("no-retry")
         # After recover, node status might be FAILED since it wasn't reset
         # The key check is the recover completed without crashing
-        self.assertIsNotNone(restored)
+        assert restored is not None
 
     def test_completed_tasks_not_reset(self):
         graph = _make_graph(plan_id="comp-stay")
@@ -1064,14 +1064,14 @@ class TestRecoverExecution(unittest.TestCase):
             result = self.eng.recover_execution("comp-stay")
         # Should complete with 0 failures (no tasks to retry, completed stays completed)
         # The plan has no PENDING tasks after restore, so the engine sees 0 tasks to run
-        self.assertIn("plan_id", result)
+        assert "plan_id" in result
 
     def test_recover_returns_dict(self):
         graph = _make_graph(plan_id="dict-return")
         self.eng._save_checkpoint("dict-return", graph)
         with patch("time.sleep"):
             result = self.eng.recover_execution("dict-return")
-        self.assertIsInstance(result, dict)
+        assert isinstance(result, dict)
 
     def test_recover_updates_active_executions(self):
         graph = _make_graph(plan_id="active-recover")
@@ -1079,7 +1079,7 @@ class TestRecoverExecution(unittest.TestCase):
         with patch("time.sleep"):
             self.eng.recover_execution("active-recover")
         # After recovery, plan should be in active executions
-        self.assertIn("active-recover", self.eng._active_executions)
+        assert "active-recover" in self.eng._active_executions
 
 
 # ---------------------------------------------------------------------------
@@ -1097,22 +1097,22 @@ class TestGetExecutionStatus(unittest.TestCase):
 
     def test_nonexistent_plan_returns_none(self):
         result = self.eng.get_execution_status("ghost-plan")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_active_plan_returns_status(self):
         graph = _make_graph(plan_id="active-plan")
         graph.add_task("t1", "Task one")
         self.eng._active_executions["active-plan"] = graph
         result = self.eng.get_execution_status("active-plan")
-        self.assertIsNotNone(result)
-        self.assertEqual(result["plan_id"], "active-plan")
+        assert result is not None
+        assert result["plan_id"] == "active-plan"
 
     def test_status_contains_required_keys(self):
         graph = _make_graph(plan_id="key-check")
         self.eng._active_executions["key-check"] = graph
         result = self.eng.get_execution_status("key-check")
         for key in ("plan_id", "status", "total_tasks", "completed", "failed", "blocked", "progress"):
-            self.assertIn(key, result)
+            assert key in result
 
     def test_total_tasks_count(self):
         graph = _make_graph(plan_id="task-count")
@@ -1120,7 +1120,7 @@ class TestGetExecutionStatus(unittest.TestCase):
             graph.add_task(f"t{i}", f"Task {i}")
         self.eng._active_executions["task-count"] = graph
         result = self.eng.get_execution_status("task-count")
-        self.assertEqual(result["total_tasks"], 3)
+        assert result["total_tasks"] == 3
 
     def test_completed_count_in_status(self):
         graph = _make_graph(plan_id="comp-count")
@@ -1128,7 +1128,7 @@ class TestGetExecutionStatus(unittest.TestCase):
         t.status = TaskStatus.COMPLETED
         self.eng._active_executions["comp-count"] = graph
         result = self.eng.get_execution_status("comp-count")
-        self.assertEqual(result["completed"], 1)
+        assert result["completed"] == 1
 
     def test_failed_count_in_status(self):
         graph = _make_graph(plan_id="fail-count")
@@ -1136,13 +1136,13 @@ class TestGetExecutionStatus(unittest.TestCase):
         t.status = TaskStatus.FAILED
         self.eng._active_executions["fail-count"] = graph
         result = self.eng.get_execution_status("fail-count")
-        self.assertEqual(result["failed"], 1)
+        assert result["failed"] == 1
 
     def test_progress_zero_for_empty_graph(self):
         graph = _make_graph(plan_id="prog-zero")
         self.eng._active_executions["prog-zero"] = graph
         result = self.eng.get_execution_status("prog-zero")
-        self.assertEqual(result["progress"], 0)
+        assert result["progress"] == 0
 
     def test_progress_one_when_all_done(self):
         graph = _make_graph(plan_id="prog-full")
@@ -1157,8 +1157,8 @@ class TestGetExecutionStatus(unittest.TestCase):
         graph = _make_graph(plan_id="cp-fallback")
         self.eng._save_checkpoint("cp-fallback", graph)
         result = self.eng.get_execution_status("cp-fallback")
-        self.assertIsNotNone(result)
-        self.assertEqual(result["plan_id"], "cp-fallback")
+        assert result is not None
+        assert result["plan_id"] == "cp-fallback"
 
 
 # ---------------------------------------------------------------------------
@@ -1176,42 +1176,42 @@ class TestListCheckpoints(unittest.TestCase):
 
     def test_empty_directory(self):
         result = self.eng.list_checkpoints()
-        self.assertEqual(result, [])
+        assert result == []
 
     def test_single_checkpoint(self):
         graph = _make_graph(plan_id="only-plan")
         self.eng._save_checkpoint("only-plan", graph)
         result = self.eng.list_checkpoints()
-        self.assertEqual(result, ["only-plan"])
+        assert result == ["only-plan"]
 
     def test_multiple_checkpoints(self):
         for pid in ("plan-a", "plan-b", "plan-c"):
             self.eng._save_checkpoint(pid, _make_graph(plan_id=pid))
         result = self.eng.list_checkpoints()
-        self.assertEqual(sorted(result), ["plan-a", "plan-b", "plan-c"])
+        assert sorted(result) == ["plan-a", "plan-b", "plan-c"]
 
     def test_non_checkpoint_files_excluded(self):
         # Write a file that does NOT end with _checkpoint.json
         other_file = Path(self.tmpdir) / "some_other_file.json"
         other_file.write_text("{}")
         result = self.eng.list_checkpoints()
-        self.assertEqual(result, [])
+        assert result == []
 
     def test_plan_id_stripped_from_filename(self):
         self.eng._save_checkpoint("my-plan", _make_graph(plan_id="my-plan"))
         result = self.eng.list_checkpoints()
-        self.assertIn("my-plan", result)
-        self.assertNotIn("my-plan_checkpoint", result)
+        assert "my-plan" in result
+        assert "my-plan_checkpoint" not in result
 
     def test_returns_list(self):
         result = self.eng.list_checkpoints()
-        self.assertIsInstance(result, list)
+        assert isinstance(result, list)
 
     def test_count_matches_saved(self):
         for i in range(7):
             self.eng._save_checkpoint(f"p{i}", _make_graph(plan_id=f"p{i}"))
         result = self.eng.list_checkpoints()
-        self.assertEqual(len(result), 7)
+        assert len(result) == 7
 
 
 # ---------------------------------------------------------------------------
@@ -1230,23 +1230,23 @@ class TestCreateExecution(unittest.TestCase):
     def test_returns_plan_id(self):
         graph = _make_graph(plan_id="ce-plan")
         result = self.eng.create_execution(graph)
-        self.assertEqual(result, "ce-plan")
+        assert result == "ce-plan"
 
     def test_added_to_active_executions(self):
         graph = _make_graph(plan_id="ae-plan")
         self.eng.create_execution(graph)
-        self.assertIn("ae-plan", self.eng._active_executions)
+        assert "ae-plan" in self.eng._active_executions
 
     def test_checkpoint_saved(self):
         graph = _make_graph(plan_id="ce-cp-plan")
         self.eng.create_execution(graph)
         cp_file = Path(self.tmpdir) / "ce-cp-plan_checkpoint.json"
-        self.assertTrue(cp_file.exists())
+        assert cp_file.exists()
 
     def test_graph_stored_by_reference(self):
         graph = _make_graph(plan_id="ref-plan")
         self.eng.create_execution(graph)
-        self.assertIs(self.eng._active_executions["ref-plan"], graph)
+        assert self.eng._active_executions["ref-plan"] is graph
 
 
 # ---------------------------------------------------------------------------
@@ -1264,25 +1264,25 @@ class TestEmitEvent(unittest.TestCase):
 
     def test_emit_adds_to_history(self):
         self.eng._emit_event("test_event", "t1", {"key": "val"})
-        self.assertEqual(len(self.eng._event_history), 1)
+        assert len(self.eng._event_history) == 1
 
     def test_emitted_event_fields(self):
         self.eng._emit_event("task_started", "my-task", {"x": 1})
         ev = self.eng._event_history[0]
-        self.assertEqual(ev.event_type, "task_started")
-        self.assertEqual(ev.task_id, "my-task")
-        self.assertEqual(ev.data["x"], 1)
+        assert ev.event_type == "task_started"
+        assert ev.task_id == "my-task"
+        assert ev.data["x"] == 1
 
     def test_multiple_events_accumulated(self):
         for i in range(5):
             self.eng._emit_event(f"event_{i}", "t1", {})
-        self.assertEqual(len(self.eng._event_history), 5)
+        assert len(self.eng._event_history) == 5
 
     def test_event_id_unique(self):
         for _ in range(10):
             self.eng._emit_event("e", "t", {})
         ids = [ev.event_id for ev in self.eng._event_history]
-        self.assertEqual(len(ids), len(set(ids)))
+        assert len(ids) == len(set(ids))
 
     def test_timestamp_is_iso_format(self):
         self.eng._emit_event("e", "t", {})
@@ -1325,12 +1325,12 @@ class TestConcurrentExecution(unittest.TestCase):
         for t in threads:
             t.join(timeout=30)
 
-        self.assertEqual(len(errors), 0)
-        self.assertEqual(len(results), 4)
+        assert len(errors) == 0
+        assert len(results) == 4
 
     def test_execution_lock_protects_active_executions(self):
         # Verify _execution_lock exists and is a Lock
-        self.assertIsNotNone(self.eng._execution_lock)
+        assert self.eng._execution_lock is not None
 
 
 # ---------------------------------------------------------------------------

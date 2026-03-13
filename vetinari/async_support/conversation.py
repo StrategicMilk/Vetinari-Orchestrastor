@@ -112,9 +112,7 @@ class ConversationStore:
     # Retrieval
     # ------------------------------------------------------------------
 
-    def get_history(
-        self, session_id: str, limit: int = 50
-    ) -> list[ConversationMessage]:
+    def get_history(self, session_id: str, limit: int = 50) -> list[ConversationMessage]:
         """Return up to *limit* most recent messages for a session.
 
         Args:
@@ -136,9 +134,7 @@ class ConversationStore:
             return messages[-limit:]
         return messages
 
-    def get_context_window(
-        self, session_id: str, max_tokens: int = 4096
-    ) -> list[ConversationMessage]:
+    def get_context_window(self, session_id: str, max_tokens: int = 4096) -> list[ConversationMessage]:
         """Return the most recent messages that fit within a token budget.
 
         Token count is estimated at :data:`_CHARS_PER_TOKEN` characters per
@@ -288,9 +284,7 @@ class ContextReconstructor:
 
         parts: list[str] = [self._SYSTEM_HEADER]
         if omitted_count > 0:
-            parts.append(
-                f"[{omitted_count} earlier message(s) not shown]\n\n"
-            )
+            parts.append(f"[{omitted_count} earlier message(s) not shown]\n\n")
         for msg in selected:
             parts.append(self._format_message(msg))
 

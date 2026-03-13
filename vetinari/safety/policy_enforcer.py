@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +31,20 @@ _JURISDICTION: dict[str, list[str]] = {
 }
 
 # Actions that are considered irreversible / destructive
-_DESTRUCTIVE_ACTIONS: frozenset[str] = frozenset({
-    "delete",
-    "drop",
-    "truncate",
-    "remove",
-    "purge",
-    "overwrite",
-    "wipe",
-    "destroy",
-    "rm",
-    "unlink",
-})
+_DESTRUCTIVE_ACTIONS: frozenset[str] = frozenset(
+    {
+        "delete",
+        "drop",
+        "truncate",
+        "remove",
+        "purge",
+        "overwrite",
+        "wipe",
+        "destroy",
+        "rm",
+        "unlink",
+    }
+)
 
 # Default resource budgets
 _DEFAULT_MAX_TOKENS: int = 100_000
@@ -100,10 +103,10 @@ class PolicyEnforcer:
             raise PermissionError(decision.reason)
     """
 
-    _instance: "PolicyEnforcer | None" = None
+    _instance: PolicyEnforcer | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "PolicyEnforcer":
+    def __new__(cls) -> PolicyEnforcer:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -130,7 +133,7 @@ class PolicyEnforcer:
     def register_policy(
         self,
         name: str,
-        check_fn: Callable[[str, str, str, dict[str, Any]], "PolicyDecision | None"],
+        check_fn: Callable[[str, str, str, dict[str, Any]], PolicyDecision | None],
     ) -> None:
         """Register a named policy check function.
 
@@ -183,7 +186,7 @@ class PolicyEnforcer:
         for name, check_fn in policies_snapshot:
             try:
                 result = check_fn(agent_lower, action_lower, target, context)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Policy %r raised unexpectedly: %s — skipping", name, exc)
                 continue
 
@@ -213,7 +216,7 @@ class PolicyEnforcer:
         action: str,
         target: str,
         context: dict[str, Any],
-    ) -> "PolicyDecision | None":
+    ) -> PolicyDecision | None:
         """Block write actions outside an agent's permitted path prefixes."""
         if action not in ("write", "create", "edit", "patch", "modify", "update"):
             return None  # read-only or unknown actions pass through
@@ -232,8 +235,7 @@ class PolicyEnforcer:
         return PolicyDecision(
             allowed=False,
             reason=(
-                f"Agent {agent_type!r} is not permitted to write to {target!r}. "
-                f"Allowed prefixes: {allowed_prefixes}"
+                f"Agent {agent_type!r} is not permitted to write to {target!r}. Allowed prefixes: {allowed_prefixes}"
             ),
             risk_level="high",
         )
@@ -244,7 +246,7 @@ class PolicyEnforcer:
         action: str,
         target: str,
         context: dict[str, Any],
-    ) -> "PolicyDecision | None":
+    ) -> PolicyDecision | None:
         """Block actions that exceed the maximum delegation depth."""
         depth = context.get("delegation_depth", 0)
         max_depth = context.get("max_delegation_depth", _DEFAULT_MAX_DELEGATION_DEPTH)
@@ -255,9 +257,7 @@ class PolicyEnforcer:
         if depth > max_depth:
             return PolicyDecision(
                 allowed=False,
-                reason=(
-                    f"Delegation depth {depth} exceeds maximum of {max_depth}"
-                ),
+                reason=(f"Delegation depth {depth} exceeds maximum of {max_depth}"),
                 risk_level="high",
             )
         return None
@@ -268,7 +268,7 @@ class PolicyEnforcer:
         action: str,
         target: str,
         context: dict[str, Any],
-    ) -> "PolicyDecision | None":
+    ) -> PolicyDecision | None:
         """Flag (but allow) destructive actions; block if context disallows them."""
         if action not in _DESTRUCTIVE_ACTIONS:
             return None
@@ -281,8 +281,7 @@ class PolicyEnforcer:
             return PolicyDecision(
                 allowed=False,
                 reason=(
-                    f"Action {action!r} is irreversible/destructive. "
-                    "Set context['allow_destructive']=True to permit."
+                    f"Action {action!r} is irreversible/destructive. Set context['allow_destructive']=True to permit."
                 ),
                 risk_level="high",
             )
@@ -300,32 +299,27 @@ class PolicyEnforcer:
         action: str,
         target: str,
         context: dict[str, Any],
-    ) -> "PolicyDecision | None":
+    ) -> PolicyDecision | None:
         """Block actions when resource budgets are exhausted."""
         tokens_used = context.get("tokens_used", 0)
         max_tokens = context.get("max_tokens", _DEFAULT_MAX_TOKENS)
         elapsed = context.get("elapsed_seconds", 0.0)
         max_time = context.get("max_time_seconds", _DEFAULT_MAX_TIME_SECONDS)
 
-        if isinstance(tokens_used, (int, float)) and isinstance(max_tokens, (int, float)):
+        if isinstance(tokens_used, (int, float)) and isinstance(max_tokens, (int, float)):  # noqa: SIM102
             if tokens_used > max_tokens:
                 return PolicyDecision(
                     allowed=False,
-                    reason=(
-                        f"Token budget exhausted: {tokens_used} > {max_tokens}"
-                    ),
+                    reason=(f"Token budget exhausted: {tokens_used} > {max_tokens}"),
                     risk_level="medium",
                 )
 
-        if isinstance(elapsed, (int, float)) and isinstance(max_time, (int, float)):
-            if elapsed > max_time:
-                return PolicyDecision(
-                    allowed=False,
-                    reason=(
-                        f"Time budget exhausted: {elapsed:.1f}s > {max_time:.1f}s"
-                    ),
-                    risk_level="medium",
-                )
+        if isinstance(elapsed, (int, float)) and isinstance(max_time, (int, float)) and elapsed > max_time:
+            return PolicyDecision(
+                allowed=False,
+                reason=(f"Time budget exhausted: {elapsed:.1f}s > {max_time:.1f}s"),
+                risk_level="medium",
+            )
 
         return None
 

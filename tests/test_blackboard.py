@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -38,15 +38,14 @@ sys.path.insert(0, str(project_root))
 
 import vetinari.blackboard as bb_module
 from vetinari.blackboard import (
+    REQUEST_TYPE_ROUTING,
     Blackboard,
     BlackboardEntry,
     EntryState,
     SharedExecutionContext,
-    REQUEST_TYPE_ROUTING,
     get_blackboard,
     get_capable_agents,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -623,7 +622,7 @@ class TestBlackboardDelegate:
     @pytest.fixture(autouse=True)
     def _real_agent_types(self):
         """Import real AgentType once for all delegate tests."""
-        from vetinari.agents.contracts import AgentType
+        from vetinari.types import AgentType
         self.AgentType = AgentType
 
     def _make_task(self):
@@ -778,7 +777,6 @@ class TestBlackboardRequestHelp:
 
     def test_request_help_stores_metadata(self, board):
         """Metadata passed to request_help should appear on the posted entry."""
-        posted_id = board.request_help.__func__  # ensure we go through real post
         # Spy on post
         original_post = board.post
         captured = {}
@@ -1015,7 +1013,7 @@ class TestBlackboardGetStats:
         assert stats.get("failed") == 1
 
     def test_stats_mixed_states(self, board):
-        eid1 = board.post("a", "code_search", "BUILDER")
+        board.post("a", "code_search", "BUILDER")
         eid2 = board.post("b", "code_search", "BUILDER")
         eid3 = board.post("c", "code_search", "BUILDER")
         board.complete(eid2, result="ok")
@@ -1329,4 +1327,4 @@ class TestSingleton:
 
         assert errors == []
         # All threads should get exactly the same instance
-        assert len(set(id(i) for i in instances)) == 1
+        assert len({id(i) for i in instances}) == 1

@@ -1,10 +1,11 @@
-"""
-Durable Execution Engine — Layer 2 of the Two-Layer Orchestration System.
+"""Durable Execution Engine — Layer 2 of the Two-Layer Orchestration System.
 
 Provides stateful task execution with checkpointing, retry policies,
 event sourcing, crash recovery, and deterministic replay.
 Inspired by Temporal workflow patterns.
 """
+
+from __future__ import annotations
 
 import concurrent.futures
 import json
@@ -12,10 +13,11 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
 from vetinari.types import PlanStatus, TaskStatus
@@ -31,7 +33,7 @@ class ExecutionEvent:
     event_type: str  # task_started, task_completed, task_failed, etc.
     task_id: str
     timestamp: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -41,15 +43,14 @@ class Checkpoint:
     checkpoint_id: str
     plan_id: str
     created_at: str
-    graph_state: Dict[str, Any]
-    completed_tasks: List[str]
-    running_tasks: List[str]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    graph_state: dict[str, Any]
+    completed_tasks: list[str]
+    running_tasks: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class DurableExecutionEngine:
-    """
-    Durable execution engine inspired by Temporal.
+    """Durable execution engine inspired by Temporal.
 
     Features:
     - State persistence with checkpoints
@@ -61,7 +62,7 @@ class DurableExecutionEngine:
 
     def __init__(
         self,
-        checkpoint_dir: str = None,
+        checkpoint_dir: str | None = None,
         max_concurrent: int = 4,
         default_timeout: float = 300.0,
     ):
@@ -72,23 +73,21 @@ class DurableExecutionEngine:
         self.default_timeout = default_timeout
 
         # Active executions
-        self._active_executions: Dict[str, ExecutionGraph] = {}
+        self._active_executions: dict[str, ExecutionGraph] = {}
         self._execution_lock = threading.Lock()
 
         # Event history
-        self._event_history: List[ExecutionEvent] = []
+        self._event_history: list[ExecutionEvent] = []
 
         # Task handlers
-        self._task_handlers: Dict[str, Callable] = {}
+        self._task_handlers: dict[str, Callable] = {}
 
         # Callbacks
-        self._on_task_start: Optional[Callable] = None
-        self._on_task_complete: Optional[Callable] = None
-        self._on_task_fail: Optional[Callable] = None
+        self._on_task_start: Callable | None = None
+        self._on_task_complete: Callable | None = None
+        self._on_task_fail: Callable | None = None
 
-        logger.info(
-            f"DurableExecutionEngine initialized (checkpoint_dir={self.checkpoint_dir})"
-        )
+        logger.info(f"DurableExecutionEngine initialized (checkpoint_dir={self.checkpoint_dir})")
 
     def register_handler(self, task_type: str, handler: Callable):
         """Register a handler for a task type."""
@@ -97,9 +96,9 @@ class DurableExecutionEngine:
 
     def set_callbacks(
         self,
-        on_task_start: Callable = None,
-        on_task_complete: Callable = None,
-        on_task_fail: Callable = None,
+        on_task_start: Callable | None = None,
+        on_task_complete: Callable | None = None,
+        on_task_fail: Callable | None = None,
     ):
         """Set execution callbacks."""
         self._on_task_start = on_task_start
@@ -118,10 +117,9 @@ class DurableExecutionEngine:
     def execute_plan(
         self,
         graph: ExecutionGraph,
-        task_handler: Callable = None,
-    ) -> Dict[str, Any]:
-        """
-        Execute a plan with durable semantics.
+        task_handler: Callable | None = None,
+    ) -> dict[str, Any]:
+        """Execute a plan with durable semantics.
 
         Args:
             graph: The execution graph
@@ -139,7 +137,7 @@ class DurableExecutionEngine:
         self.create_execution(graph)
         layers = graph.get_execution_order()
 
-        results: Dict[str, Any] = {
+        results: dict[str, Any] = {
             "plan_id": plan_id,
             "total_tasks": len(graph.nodes),
             "completed": 0,
@@ -148,10 +146,7 @@ class DurableExecutionEngine:
         }
 
         for layer_idx, layer in enumerate(layers):
-            logger.info(
-                f"Executing layer {layer_idx + 1}/{len(layers)} "
-                f"with {len(layer)} tasks"
-            )
+            logger.info(f"Executing layer {layer_idx + 1}/{len(layers)} with {len(layer)} tasks")
             layer_results = self._execute_layer(graph, layer)
 
             for task_id, result in layer_results.items():
@@ -165,25 +160,16 @@ class DurableExecutionEngine:
             if failed_tasks:
                 self._handle_layer_failure(graph, failed_tasks)
 
-        graph.status = (
-            PlanStatus.COMPLETED if results["failed"] == 0 else PlanStatus.FAILED
-        )
+        graph.status = PlanStatus.COMPLETED if results["failed"] == 0 else PlanStatus.FAILED
         self._save_checkpoint(plan_id, graph)
         return results
 
-    def _execute_layer(
-        self, graph: ExecutionGraph, layer: List[TaskNode]
-    ) -> Dict[str, Any]:
+    def _execute_layer(self, graph: ExecutionGraph, layer: list[TaskNode]) -> dict[str, Any]:
         """Execute a layer of tasks in parallel."""
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(len(layer), self.max_concurrent)
-        ) as executor:
-            future_to_task = {
-                executor.submit(self._execute_task, graph, task): task
-                for task in layer
-            }
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(layer), self.max_concurrent)) as executor:
+            future_to_task = {executor.submit(self._execute_task, graph, task): task for task in layer}
             for future in concurrent.futures.as_completed(future_to_task):
                 task = future_to_task[future]
                 try:
@@ -195,9 +181,7 @@ class DurableExecutionEngine:
 
         return results
 
-    def _execute_task(
-        self, graph: ExecutionGraph, task: TaskNode
-    ) -> Dict[str, Any]:
+    def _execute_task(self, graph: ExecutionGraph, task: TaskNode) -> dict[str, Any]:
         """Execute a single task with retry logic."""
         task_id = task.id
 
@@ -211,9 +195,7 @@ class DurableExecutionEngine:
             except Exception as e:
                 logger.warning("Task start callback failed: %s", e)
 
-        handler = self._task_handlers.get(task.task_type) or self._task_handlers.get(
-            "default"
-        )
+        handler = self._task_handlers.get(task.task_type) or self._task_handlers.get("default")
 
         if not handler:
             task.status = TaskStatus.COMPLETED
@@ -231,9 +213,7 @@ class DurableExecutionEngine:
 
                 task.status = TaskStatus.COMPLETED
                 task.completed_at = datetime.now().isoformat()
-                task.output_data = (
-                    output if isinstance(output, dict) else {"output": output}
-                )
+                task.output_data = output if isinstance(output, dict) else {"output": output}
 
                 self._emit_event(
                     "task_completed",
@@ -256,9 +236,7 @@ class DurableExecutionEngine:
             except Exception as e:
                 last_error = str(e)
                 task.retry_count = attempt + 1
-                logger.warning(
-                    f"Task {task_id} attempt {attempt + 1} failed: {e}"
-                )
+                logger.warning(f"Task {task_id} attempt {attempt + 1} failed: {e}")
                 if attempt < max_attempts - 1:
                     time.sleep(2**attempt)
 
@@ -287,16 +265,8 @@ class DurableExecutionEngine:
         """Record task outcome for the learning pipeline (non-fatal)."""
         try:
             output_str = output if isinstance(output, str) else str(output)[:800]
-            model_id = (
-                task.input_data.get("assigned_model")
-                or task.assigned_model
-                or "default"
-            )
-            task_type_str = (
-                task.task_type.lower()
-                if hasattr(task, "task_type") and task.task_type
-                else "general"
-            )
+            model_id = task.input_data.get("assigned_model") or task.assigned_model or "default"
+            task_type_str = task.task_type.lower() if hasattr(task, "task_type") and task.task_type else "general"
 
             from vetinari.learning.quality_scorer import get_quality_scorer
 
@@ -322,17 +292,13 @@ class DurableExecutionEngine:
 
             from vetinari.learning.model_selector import get_thompson_selector
 
-            get_thompson_selector().update(
-                model_id, task_type_str, q_score.overall_score, True
-            )
+            get_thompson_selector().update(model_id, task_type_str, q_score.overall_score, True)
         except Exception as _learn_err:
             logger.debug("Learning hook failed (non-fatal): %s", _learn_err)
 
-    def _handle_layer_failure(
-        self, graph: ExecutionGraph, failed_tasks: List[TaskNode]
-    ) -> None:
+    def _handle_layer_failure(self, graph: ExecutionGraph, failed_tasks: list[TaskNode]) -> None:
         """Handle failure in a layer — cancel dependent tasks transitively."""
-        cancelled_ids: Set[str] = {t.id for t in failed_tasks}
+        cancelled_ids: set[str] = {t.id for t in failed_tasks}
 
         changed = True
         while changed:
@@ -344,7 +310,7 @@ class DurableExecutionEngine:
                     TaskStatus.CANCELLED,
                 ):
                     continue
-                if any(dep in cancelled_ids for dep in node.depends_on):
+                if any(dep in cancelled_ids for dep in node.depends_on):  # noqa: SIM102
                     if node.id not in cancelled_ids:
                         node.status = TaskStatus.CANCELLED
                         cancelled_ids.add(node.id)
@@ -353,18 +319,12 @@ class DurableExecutionEngine:
                             node.id,
                             {
                                 "reason": "dependency_failed",
-                                "failed_dependencies": [
-                                    dep
-                                    for dep in node.depends_on
-                                    if dep in cancelled_ids
-                                ],
+                                "failed_dependencies": [dep for dep in node.depends_on if dep in cancelled_ids],
                             },
                         )
                         changed = True
 
-    def _emit_event(
-        self, event_type: str, task_id: str, data: Dict[str, Any]
-    ) -> None:
+    def _emit_event(self, event_type: str, task_id: str, data: dict[str, Any]) -> None:
         """Emit an execution event."""
         event = ExecutionEvent(
             event_id=str(uuid.uuid4()),
@@ -384,9 +344,7 @@ class DurableExecutionEngine:
             created_at=datetime.now().isoformat(),
             graph_state=graph.to_dict(),
             completed_tasks=[t.id for t in graph.get_completed_tasks()],
-            running_tasks=[
-                t.id for t in graph.nodes.values() if t.status == TaskStatus.RUNNING
-            ],
+            running_tasks=[t.id for t in graph.nodes.values() if t.status == TaskStatus.RUNNING],
             metadata={"event_count": len(self._event_history)},
         )
 
@@ -406,7 +364,7 @@ class DurableExecutionEngine:
                 indent=2,
             )
 
-    def load_checkpoint(self, plan_id: str) -> Optional[ExecutionGraph]:
+    def load_checkpoint(self, plan_id: str) -> ExecutionGraph | None:
         """Load a checkpoint to resume execution."""
         checkpoint_file = self.checkpoint_dir / f"{plan_id}_checkpoint.json"
 
@@ -414,7 +372,7 @@ class DurableExecutionEngine:
             logger.warning("No checkpoint found for plan: %s", plan_id)
             return None
 
-        with open(checkpoint_file, "r") as f:
+        with open(checkpoint_file) as f:
             data = json.load(f)
 
         graph_data = data["graph_state"]
@@ -438,7 +396,7 @@ class DurableExecutionEngine:
         logger.info("Loaded checkpoint for plan: %s", plan_id)
         return graph
 
-    def recover_execution(self, plan_id: str) -> Dict[str, Any]:
+    def recover_execution(self, plan_id: str) -> dict[str, Any]:
         """Recover and continue an execution from checkpoint."""
         graph = self.load_checkpoint(plan_id)
 
@@ -447,23 +405,18 @@ class DurableExecutionEngine:
 
         # Reset failed tasks for retry
         for node in graph.nodes.values():
-            if node.status == TaskStatus.FAILED:
-                if node.retry_count < node.max_retries:
-                    node.status = TaskStatus.PENDING
-                    node.error = ""
+            if node.status == TaskStatus.FAILED and node.retry_count < node.max_retries:
+                node.status = TaskStatus.PENDING
+                node.error = ""
 
         incomplete = [
-            n
-            for n in graph.nodes.values()
-            if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED, TaskStatus.FAILED)
+            n for n in graph.nodes.values() if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED, TaskStatus.FAILED)
         ]
-        logger.info(
-            f"Recovering {len(incomplete)} incomplete tasks for plan: {plan_id}"
-        )
+        logger.info(f"Recovering {len(incomplete)} incomplete tasks for plan: {plan_id}")
 
         return self.execute_plan(graph)
 
-    def get_execution_status(self, plan_id: str) -> Optional[Dict[str, Any]]:
+    def get_execution_status(self, plan_id: str) -> dict[str, Any] | None:
         """Get the status of an execution."""
         with self._execution_lock:
             graph = self._active_executions.get(plan_id)
@@ -481,16 +434,9 @@ class DurableExecutionEngine:
             "completed": len(graph.get_completed_tasks()),
             "failed": len(graph.get_failed_tasks()),
             "blocked": len(graph.get_blocked_tasks()),
-            "progress": (
-                len(graph.get_completed_tasks()) / len(graph.nodes)
-                if graph.nodes
-                else 0
-            ),
+            "progress": (len(graph.get_completed_tasks()) / len(graph.nodes) if graph.nodes else 0),
         }
 
-    def list_checkpoints(self) -> List[str]:
+    def list_checkpoints(self) -> list[str]:
         """List all available checkpoints."""
-        return [
-            f.stem.replace("_checkpoint", "")
-            for f in self.checkpoint_dir.glob("*_checkpoint.json")
-        ]
+        return [f.stem.replace("_checkpoint", "") for f in self.checkpoint_dir.glob("*_checkpoint.json")]

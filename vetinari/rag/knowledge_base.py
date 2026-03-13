@@ -1,5 +1,5 @@
-"""
-Vetinari RAG Knowledge Base
+r"""Vetinari RAG Knowledge Base.
+
 =============================
 Vector-backed knowledge base for Retrieval-Augmented Generation.
 
@@ -35,13 +35,12 @@ Usage::
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +53,30 @@ _CHROMA_DIR = os.environ.get(
 @dataclass
 class KBDocument:
     """A document chunk in the knowledge base."""
+
     doc_id: str
     content: str
-    source: str                    # File path or URL
-    category: str = "general"     # docs / code / pattern / error / etc.
-    score: float = 0.0            # Relevance score (populated by query)
+    source: str  # File path or URL
+    category: str = "general"  # docs / code / pattern / error / etc.
+    score: float = 0.0  # Relevance score (populated by query)
 
 
 class KnowledgeBase:
     """Vector-backed knowledge base with fallback to simple keyword search."""
 
-    _instance: Optional["KnowledgeBase"] = None
+    _instance: KnowledgeBase | None = None
     _cls_lock = threading.Lock()
 
     def __init__(self, persist_dir: str = _CHROMA_DIR):
         self._persist_dir = persist_dir
         self._chroma_available = False
         self._collection = None
-        self._fallback_docs: List[Dict] = []  # Simple in-memory fallback
+        self._fallback_docs: list[dict] = []  # Simple in-memory fallback
         self._lock = threading.RLock()
         self._init_chroma()
 
     @classmethod
-    def get_instance(cls) -> "KnowledgeBase":
+    def get_instance(cls) -> KnowledgeBase:
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -90,6 +90,7 @@ class KnowledgeBase:
         try:
             import chromadb
             from chromadb.config import Settings
+
             client = chromadb.PersistentClient(
                 path=self._persist_dir,
                 settings=Settings(anonymized_telemetry=False),
@@ -114,11 +115,11 @@ class KnowledgeBase:
         content: str,
         source: str,
         category: str = "general",
-        doc_id: Optional[str] = None,
+        doc_id: str | None = None,
     ) -> str:
         """Add a document chunk to the knowledge base."""
         if not doc_id:
-            doc_id = f"doc_{hashlib.md5(f'{source}:{content[:50]}'.encode()).hexdigest()[:8]}"
+            doc_id = f"doc_{hashlib.md5(f'{source}:{content[:50]}'.encode()).hexdigest()[:8]}"  # noqa: S324
 
         with self._lock:
             if self._chroma_available and self._collection is not None:
@@ -134,19 +135,21 @@ class KnowledgeBase:
 
             # Fallback: in-memory list
             self._fallback_docs = [d for d in self._fallback_docs if d["id"] != doc_id]
-            self._fallback_docs.append({
-                "id": doc_id,
-                "content": content[:5000],
-                "source": source,
-                "category": category,
-            })
+            self._fallback_docs.append(
+                {
+                    "id": doc_id,
+                    "content": content[:5000],
+                    "source": source,
+                    "category": category,
+                }
+            )
 
         return doc_id
 
     def ingest_directory(
         self,
         directory: str,
-        extensions: Optional[List[str]] = None,
+        extensions: list[str] | None = None,
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
     ) -> int:
@@ -161,8 +164,7 @@ class KnowledgeBase:
         for path in base.rglob("*"):
             if path.suffix.lower() not in extensions:
                 continue
-            if any(part.startswith(".") or part in ("__pycache__", "venv", "node_modules")
-                   for part in path.parts):
+            if any(part.startswith(".") or part in ("__pycache__", "venv", "node_modules") for part in path.parts):
                 continue
             try:
                 content = path.read_text(encoding="utf-8", errors="ignore")
@@ -173,7 +175,7 @@ class KnowledgeBase:
                         content=chunk,
                         source=str(path),
                         category=category,
-                        doc_id=f"doc_{hashlib.md5(f'{path}_{i}'.encode()).hexdigest()[:8]}",
+                        doc_id=f"doc_{hashlib.md5(f'{path}_{i}'.encode()).hexdigest()[:8]}",  # noqa: S324
                     )
                     count += 1
             except Exception as e:
@@ -191,8 +193,8 @@ class KnowledgeBase:
         query: str,
         k: int = 5,
         max_chars: int = 3000,
-        category: Optional[str] = None,
-    ) -> List[KBDocument]:
+        category: str | None = None,
+    ) -> list[KBDocument]:
         """Retrieve the k most relevant documents for a query.
 
         Args:
@@ -204,7 +206,7 @@ class KnowledgeBase:
         Returns:
             List of KBDocument sorted by relevance, truncated to max_chars total.
         """
-        results: List[KBDocument] = []
+        results: list[KBDocument] = []
 
         with self._lock:
             if self._chroma_available and self._collection is not None:
@@ -213,7 +215,7 @@ class KnowledgeBase:
                 results = self._query_fallback(query, k, category)
 
         # Respect character budget
-        filtered: List[KBDocument] = []
+        filtered: list[KBDocument] = []
         total_chars = 0
         for doc in results:
             if total_chars + len(doc.content) > max_chars:
@@ -227,9 +229,7 @@ class KnowledgeBase:
 
         return filtered
 
-    def _query_chroma(
-        self, query: str, k: int, category: Optional[str]
-    ) -> List[KBDocument]:
+    def _query_chroma(self, query: str, k: int, category: str | None) -> list[KBDocument]:
         try:
             where = {"category": category} if category else None
             kwargs = {
@@ -244,21 +244,21 @@ class KnowledgeBase:
             for i, doc_content in enumerate(result.get("documents", [[]])[0]):
                 meta = result.get("metadatas", [[]])[0][i] if result.get("metadatas") else {}
                 dist = result.get("distances", [[]])[0][i] if result.get("distances") else 0.0
-                docs.append(KBDocument(
-                    doc_id=result.get("ids", [[]])[0][i] if result.get("ids") else "",
-                    content=doc_content,
-                    source=meta.get("source", ""),
-                    category=meta.get("category", "general"),
-                    score=max(0.0, 1.0 - float(dist)),
-                ))
+                docs.append(
+                    KBDocument(
+                        doc_id=result.get("ids", [[]])[0][i] if result.get("ids") else "",
+                        content=doc_content,
+                        source=meta.get("source", ""),
+                        category=meta.get("category", "general"),
+                        score=max(0.0, 1.0 - float(dist)),
+                    )
+                )
             return docs
         except Exception as e:
             logger.debug("[KnowledgeBase] ChromaDB query failed: %s", e)
             return []
 
-    def _query_fallback(
-        self, query: str, k: int, category: Optional[str]
-    ) -> List[KBDocument]:
+    def _query_fallback(self, query: str, k: int, category: str | None) -> list[KBDocument]:
         """Simple keyword-overlap search for when ChromaDB is unavailable."""
         query_words = set(query.lower().split())
         scored = []
@@ -286,18 +286,18 @@ class KnowledgeBase:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _chunk(text: str, size: int, overlap: int) -> List[str]:
+    def _chunk(text: str, size: int, overlap: int) -> list[str]:
         """Split text into overlapping chunks."""
         if len(text) <= size:
             return [text]
         chunks = []
         i = 0
         while i < len(text):
-            chunks.append(text[i:i + size])
+            chunks.append(text[i : i + size])
             i += size - overlap
         return chunks
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         count = 0
         if self._chroma_available and self._collection:
             try:
@@ -317,7 +317,7 @@ class KnowledgeBase:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_kb: Optional[KnowledgeBase] = None
+_kb: KnowledgeBase | None = None
 _kb_lock = threading.Lock()
 
 

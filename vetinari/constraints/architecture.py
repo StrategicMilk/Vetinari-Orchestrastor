@@ -1,5 +1,5 @@
-"""
-Architecture Constraints
+"""Architecture Constraints.
+
 =========================
 Defines delegation rules, mode-to-agent validation, and task-type-to-agent
 validation.  These constraints enforce the hierarchical delegator-specialist
@@ -15,33 +15,39 @@ Key rules:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
 class ArchitectureConstraint:
     """Delegation and mode constraints for a single agent type."""
 
-    agent_type: str                                  # AgentType.value
-    can_delegate_to: List[str] = field(default_factory=list)
-    cannot_delegate_to: List[str] = field(default_factory=list)
+    agent_type: str  # AgentType.value
+    can_delegate_to: list[str] = field(default_factory=list)
+    cannot_delegate_to: list[str] = field(default_factory=list)
     max_delegation_depth: int = 3
-    allowed_modes: List[str] = field(default_factory=list)
-    allowed_task_types: List[str] = field(default_factory=list)
+    allowed_modes: list[str] = field(default_factory=list)
+    allowed_task_types: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Default architecture constraints (maps to current 6 consolidated agents)
 # ---------------------------------------------------------------------------
 
-ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
+ARCHITECTURE_CONSTRAINTS: dict[str, ArchitectureConstraint] = {
     # Core orchestration
     "PLANNER": ArchitectureConstraint(
         agent_type="PLANNER",
         can_delegate_to=[
-            "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
-            "BUILDER", "QUALITY", "OPERATIONS",
-            "ORCHESTRATOR", "ARCHITECT", "RESEARCHER", "PONDER",
+            "PLANNER",
+            "CONSOLIDATED_RESEARCHER",
+            "CONSOLIDATED_ORACLE",
+            "BUILDER",
+            "QUALITY",
+            "OPERATIONS",
+            "ORCHESTRATOR",
+            "ARCHITECT",
+            "RESEARCHER",
+            "PONDER",
         ],
         cannot_delegate_to=[],
         max_delegation_depth=5,
@@ -67,12 +73,15 @@ ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
         allowed_task_types=["verification", "code_review", "testing", "security"],
     ),
     # --- Consolidated agents ---
-
     "ORCHESTRATOR": ArchitectureConstraint(
         agent_type="ORCHESTRATOR",
         can_delegate_to=[
-            "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
-            "BUILDER", "ARCHITECT", "QUALITY", "OPERATIONS",
+            "CONSOLIDATED_RESEARCHER",
+            "CONSOLIDATED_ORACLE",
+            "BUILDER",
+            "ARCHITECT",
+            "QUALITY",
+            "OPERATIONS",
         ],
         cannot_delegate_to=[],
         max_delegation_depth=4,
@@ -85,8 +94,12 @@ ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
         cannot_delegate_to=["PLANNER", "ORCHESTRATOR"],
         max_delegation_depth=1,
         allowed_modes=[
-            "code_discovery", "domain_research", "api_lookup", "lateral_thinking",
-            "ui_design", "data_engineering",
+            "code_discovery",
+            "domain_research",
+            "api_lookup",
+            "lateral_thinking",
+            "ui_design",
+            "data_engineering",
         ],
         allowed_task_types=["research", "analysis", "ui", "design", "data"],
     ),
@@ -113,8 +126,14 @@ ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
         cannot_delegate_to=["PLANNER", "ORCHESTRATOR"],
         max_delegation_depth=1,
         allowed_modes=[
-            "documentation", "creative_writing", "cost_analysis", "experiment",
-            "error_recovery", "synthesis", "image_generation", "improvement",
+            "documentation",
+            "creative_writing",
+            "cost_analysis",
+            "experiment",
+            "error_recovery",
+            "synthesis",
+            "image_generation",
+            "improvement",
         ],
         allowed_task_types=["documentation", "creative", "operations", "error_recovery", "cost_analysis"],
     ),
@@ -125,15 +144,13 @@ ARCHITECTURE_CONSTRAINTS: Dict[str, ArchitectureConstraint] = {
 # Loop prevention and cost-aware delegation constraints
 # ---------------------------------------------------------------------------
 
-MAX_AGENT_RETRIES_PER_TASK = 3   # Prevent infinite retry loops
+MAX_AGENT_RETRIES_PER_TASK = 3  # Prevent infinite retry loops
 MAX_DELEGATION_CHAIN_LENGTH = 5  # Max depth already enforced per-agent above
-PREFER_LOCAL_FOR_SIMPLE_TASKS = True   # Route simple tasks to local models
-CLOUD_ESCALATION_THRESHOLD = 0.7       # Escalate to cloud when local quality < 0.7
+PREFER_LOCAL_FOR_SIMPLE_TASKS = True  # Route simple tasks to local models
+CLOUD_ESCALATION_THRESHOLD = 0.7  # Escalate to cloud when local quality < 0.7
 
 
-def validate_delegation(
-    from_agent: str, to_agent: str, current_depth: int = 0
-) -> Tuple[bool, str]:
+def validate_delegation(from_agent: str, to_agent: str, current_depth: int = 0) -> tuple[bool, str]:
     """Check if delegation from one agent to another is allowed.
 
     Returns ``(allowed, reason)`` where *reason* explains the denial.
@@ -155,6 +172,6 @@ def validate_delegation(
     return True, "allowed"
 
 
-def get_constraint(agent_type: str) -> Optional[ArchitectureConstraint]:
+def get_constraint(agent_type: str) -> ArchitectureConstraint | None:
     """Get the architecture constraint for an agent type."""
     return ARCHITECTURE_CONSTRAINTS.get(agent_type)

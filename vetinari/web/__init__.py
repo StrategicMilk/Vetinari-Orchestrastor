@@ -1,19 +1,20 @@
-"""
-Vetinari Web Blueprints — modular route groups extracted from web_ui.py.
+"""Vetinari Web Blueprints — modular route groups extracted from web_ui.py.
 
 Each blueprint is a self-contained route group with lazy imports to
 avoid circular dependencies.
 """
 
+from __future__ import annotations
+
 import hmac
 import os
 from functools import wraps
-from flask import request, jsonify
+
+from flask import jsonify, request
 
 
 def is_admin_user() -> bool:
-    """
-    Check if the current request comes from an admin user.
+    """Check if the current request comes from an admin user.
 
     Uses constant-time comparison (hmac.compare_digest) to prevent timing
     attacks when a VETINARI_ADMIN_TOKEN is configured.
@@ -45,8 +46,7 @@ def is_admin_user() -> bool:
 
 
 def require_admin(f):
-    """
-    Decorator that rejects non-admin requests with 403 before the route runs.
+    """Decorator that rejects non-admin requests with 403 before the route runs.
 
     Usage::
 
@@ -55,17 +55,18 @@ def require_admin(f):
         def my_route():
             ...
     """
+
     @wraps(f)
     def decorated(*args, **kwargs):
         if not is_admin_user():
             return jsonify({"error": "Admin privileges required"}), 403
         return f(*args, **kwargs)
+
     return decorated
 
 
 def validate_json_fields(data: dict, required: list) -> tuple:
-    """
-    Validate that all required fields are present and non-empty in a JSON body.
+    """Validate that all required fields are present and non-empty in a JSON body.
 
     Returns (True, None) on success, or (False, error_response_tuple) on failure.
     Callers should check: ok, err = validate_json_fields(...); if not ok: return err

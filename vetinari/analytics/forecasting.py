@@ -1,5 +1,4 @@
-"""
-Forecasting & Capacity Planning — vetinari.analytics.forecasting  (Phase 5)
+"""Forecasting & Capacity Planning — vetinari.analytics.forecasting  (Phase 5).
 
 Provides lightweight, dependency-free time-series forecasting suitable for
 short-horizon capacity planning:
@@ -24,8 +23,8 @@ Usage
         horizon=5,
         method="linear_trend",
     ))
-    print(result.predictions)   # list of 5 forecasted values
-    print(result.trend_slope)
+    logger.debug(result.predictions)   # list of 5 forecasted values
+    logger.debug(result.trend_slope)
 """
 
 from __future__ import annotations
@@ -33,10 +32,9 @@ from __future__ import annotations
 import logging
 import math
 import threading
-import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,49 +42,52 @@ logger = logging.getLogger(__name__)
 # Request / Result
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ForecastRequest:
     """Parameters for a forecast call."""
-    metric:     str
-    horizon:    int   = 5       # number of future steps to predict
-    method:     str   = "linear_trend"   # sma | exp_smoothing | linear_trend | seasonal
-    alpha:      float = 0.3     # smoothing factor for ES
-    period:     int   = 7       # season length for seasonal decomposition
 
-    def to_dict(self) -> Dict[str, Any]:
+    metric: str
+    horizon: int = 5  # number of future steps to predict
+    method: str = "linear_trend"  # sma | exp_smoothing | linear_trend | seasonal
+    alpha: float = 0.3  # smoothing factor for ES
+    period: int = 7  # season length for seasonal decomposition
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "metric":  self.metric,
+            "metric": self.metric,
             "horizon": self.horizon,
-            "method":  self.method,
-            "alpha":   self.alpha,
-            "period":  self.period,
+            "method": self.method,
+            "alpha": self.alpha,
+            "period": self.period,
         }
 
 
 @dataclass
 class ForecastResult:
     """Output of a forecast operation."""
-    metric:       str
-    method:       str
-    horizon:      int
-    predictions:  List[float]
-    confidence_lo: List[float]   # lower 80% confidence bound
-    confidence_hi: List[float]   # upper 80% confidence bound
-    trend_slope:  float = 0.0    # rate of change per step (linear_trend only)
-    rmse:         float = 0.0    # in-sample root mean squared error
-    samples_used: int   = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    metric: str
+    method: str
+    horizon: int
+    predictions: list[float]
+    confidence_lo: list[float]  # lower 80% confidence bound
+    confidence_hi: list[float]  # upper 80% confidence bound
+    trend_slope: float = 0.0  # rate of change per step (linear_trend only)
+    rmse: float = 0.0  # in-sample root mean squared error
+    samples_used: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "metric":        self.metric,
-            "method":        self.method,
-            "horizon":       self.horizon,
-            "predictions":   self.predictions,
+            "metric": self.metric,
+            "method": self.method,
+            "horizon": self.horizon,
+            "predictions": self.predictions,
             "confidence_lo": self.confidence_lo,
             "confidence_hi": self.confidence_hi,
-            "trend_slope":   self.trend_slope,
-            "rmse":          self.rmse,
-            "samples_used":  self.samples_used,
+            "trend_slope": self.trend_slope,
+            "rmse": self.rmse,
+            "samples_used": self.samples_used,
         }
 
 
@@ -94,37 +95,37 @@ class ForecastResult:
 # Math helpers
 # ---------------------------------------------------------------------------
 
-def _ols(y: List[float]) -> Tuple[float, float]:
+
+def _ols(y: list[float]) -> tuple[float, float]:
     """Return (slope, intercept) of the OLS line through enumerate(y)."""
     n = len(y)
-    sx = n * (n - 1) / 2           # sum of 0..n-1
+    sx = n * (n - 1) / 2  # sum of 0..n-1
     sx2 = n * (n - 1) * (2 * n - 1) / 6
-    sy  = sum(y)
+    sy = sum(y)
     sxy = sum(i * v for i, v in enumerate(y))
     denom = n * sx2 - sx * sx
     if denom == 0:
         return 0.0, sum(y) / n if y else 0.0
-    slope     = (n * sxy - sx * sy) / denom
+    slope = (n * sxy - sx * sy) / denom
     intercept = (sy - slope * sx) / n
     return slope, intercept
 
 
-def _rmse(actual: List[float], predicted: List[float]) -> float:
+def _rmse(actual: list[float], predicted: list[float]) -> float:
     if not actual:
         return 0.0
     n = min(len(actual), len(predicted))
     return math.sqrt(sum((actual[i] - predicted[i]) ** 2 for i in range(n)) / n)
 
 
-def _stddev(vals: List[float]) -> float:
+def _stddev(vals: list[float]) -> float:
     if len(vals) < 2:
         return 0.0
     m = sum(vals) / len(vals)
     return math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
 
 
-def _conf_bounds(preds: List[float], std: float, z: float = 1.28
-                 ) -> Tuple[List[float], List[float]]:
+def _conf_bounds(preds: list[float], std: float, z: float = 1.28) -> tuple[list[float], list[float]]:
     lo = [p - z * std for p in preds]
     hi = [p + z * std for p in preds]
     return lo, hi
@@ -134,8 +135,8 @@ def _conf_bounds(preds: List[float], std: float, z: float = 1.28
 # Forecasting methods (pure functions)
 # ---------------------------------------------------------------------------
 
-def _forecast_sma(history: List[float], horizon: int, window: int = 10
-                  ) -> ForecastResult:
+
+def _forecast_sma(history: list[float], horizon: int, window: int = 10) -> ForecastResult:
     w = history[-window:] if len(history) >= window else history
     pred = sum(w) / len(w) if w else 0.0
     preds = [pred] * horizon
@@ -143,22 +144,29 @@ def _forecast_sma(history: List[float], horizon: int, window: int = 10
     lo, hi = _conf_bounds(preds, std)
     fitted = [pred] * len(history)
     return ForecastResult(
-        metric="", method="sma", horizon=horizon,
-        predictions=preds, confidence_lo=lo, confidence_hi=hi,
-        rmse=_rmse(history, fitted), samples_used=len(history),
+        metric="",
+        method="sma",
+        horizon=horizon,
+        predictions=preds,
+        confidence_lo=lo,
+        confidence_hi=hi,
+        rmse=_rmse(history, fitted),
+        samples_used=len(history),
     )
 
 
-def _forecast_exp_smoothing(history: List[float], horizon: int,
-                             alpha: float = 0.3) -> ForecastResult:
+def _forecast_exp_smoothing(history: list[float], horizon: int, alpha: float = 0.3) -> ForecastResult:
     if not history:
         return ForecastResult(
-            metric="", method="exp_smoothing", horizon=horizon,
-            predictions=[0.0] * horizon, confidence_lo=[0.0] * horizon,
+            metric="",
+            method="exp_smoothing",
+            horizon=horizon,
+            predictions=[0.0] * horizon,
+            confidence_lo=[0.0] * horizon,
             confidence_hi=[0.0] * horizon,
         )
     level = history[0]
-    fitted: List[float] = []
+    fitted: list[float] = []
     for v in history:
         fitted.append(level)
         level = alpha * v + (1 - alpha) * level
@@ -167,18 +175,26 @@ def _forecast_exp_smoothing(history: List[float], horizon: int,
     std = _stddev(history)
     lo, hi = _conf_bounds(preds, std)
     return ForecastResult(
-        metric="", method="exp_smoothing", horizon=horizon,
-        predictions=preds, confidence_lo=lo, confidence_hi=hi,
-        rmse=_rmse(history, fitted), samples_used=len(history),
+        metric="",
+        method="exp_smoothing",
+        horizon=horizon,
+        predictions=preds,
+        confidence_lo=lo,
+        confidence_hi=hi,
+        rmse=_rmse(history, fitted),
+        samples_used=len(history),
     )
 
 
-def _forecast_linear_trend(history: List[float], horizon: int) -> ForecastResult:
+def _forecast_linear_trend(history: list[float], horizon: int) -> ForecastResult:
     if len(history) < 2:
         return ForecastResult(
-            metric="", method="linear_trend", horizon=horizon,
+            metric="",
+            method="linear_trend",
+            horizon=horizon,
             predictions=[history[-1] if history else 0.0] * horizon,
-            confidence_lo=[0.0] * horizon, confidence_hi=[0.0] * horizon,
+            confidence_lo=[0.0] * horizon,
+            confidence_hi=[0.0] * horizon,
         )
     slope, intercept = _ols(history)
     n = len(history)
@@ -187,15 +203,19 @@ def _forecast_linear_trend(history: List[float], horizon: int) -> ForecastResult
     std = _stddev([a - f for a, f in zip(history, fitted)])
     lo, hi = _conf_bounds(preds, std)
     return ForecastResult(
-        metric="", method="linear_trend", horizon=horizon,
-        predictions=preds, confidence_lo=lo, confidence_hi=hi,
-        trend_slope=slope, rmse=_rmse(history, fitted),
+        metric="",
+        method="linear_trend",
+        horizon=horizon,
+        predictions=preds,
+        confidence_lo=lo,
+        confidence_hi=hi,
+        trend_slope=slope,
+        rmse=_rmse(history, fitted),
         samples_used=n,
     )
 
 
-def _forecast_seasonal(history: List[float], horizon: int,
-                        period: int = 7) -> ForecastResult:
+def _forecast_seasonal(history: list[float], horizon: int, period: int = 7) -> ForecastResult:
     """Additive decomposition: trend (OLS) + seasonal indices."""
     n = len(history)
     if n < period * 2:
@@ -210,34 +230,36 @@ def _forecast_seasonal(history: List[float], horizon: int,
 
     # Seasonal indices (average residual per phase)
     indices = [0.0] * period
-    counts  = [0]   * period
+    counts = [0] * period
     for i, v in enumerate(detrended):
         p = i % period
         indices[p] += v
-        counts[p]  += 1
+        counts[p] += 1
     indices = [indices[i] / counts[i] if counts[i] else 0.0 for i in range(period)]
 
     # Forecast: trend + seasonal index
-    preds = [
-        intercept + slope * (n + h) + indices[(n + h) % period]
-        for h in range(horizon)
-    ]
+    preds = [intercept + slope * (n + h) + indices[(n + h) % period] for h in range(horizon)]
     fitted = [intercept + slope * i + indices[i % period] for i in range(n)]
     std = _stddev([a - f for a, f in zip(history, fitted)])
     lo, hi = _conf_bounds(preds, std)
     return ForecastResult(
-        metric="", method="seasonal", horizon=horizon,
-        predictions=preds, confidence_lo=lo, confidence_hi=hi,
-        trend_slope=slope, rmse=_rmse(history, fitted),
+        metric="",
+        method="seasonal",
+        horizon=horizon,
+        predictions=preds,
+        confidence_lo=lo,
+        confidence_hi=hi,
+        trend_slope=slope,
+        rmse=_rmse(history, fitted),
         samples_used=n,
     )
 
 
 _METHODS = {
-    "sma":           lambda h, req: _forecast_sma(h, req.horizon),
+    "sma": lambda h, req: _forecast_sma(h, req.horizon),
     "exp_smoothing": lambda h, req: _forecast_exp_smoothing(h, req.horizon, req.alpha),
-    "linear_trend":  lambda h, req: _forecast_linear_trend(h, req.horizon),
-    "seasonal":      lambda h, req: _forecast_seasonal(h, req.horizon, req.period),
+    "linear_trend": lambda h, req: _forecast_linear_trend(h, req.horizon),
+    "seasonal": lambda h, req: _forecast_seasonal(h, req.horizon, req.period),
 }
 
 
@@ -245,17 +267,18 @@ _METHODS = {
 # Forecaster
 # ---------------------------------------------------------------------------
 
+
 class Forecaster:
-    """
-    Manages time-series history and produces forecasts.
+    """Manages time-series history and produces forecasts.
+
     Singleton — use ``get_forecaster()``.
     """
 
-    _instance:   Optional["Forecaster"] = None
-    _class_lock  = threading.Lock()
-    MAX_HISTORY  = 1_000
+    _instance: Forecaster | None = None
+    _class_lock = threading.Lock()
+    MAX_HISTORY = 1_000
 
-    def __new__(cls) -> "Forecaster":
+    def __new__(cls) -> Forecaster:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -264,8 +287,8 @@ class Forecaster:
         return cls._instance
 
     def _setup(self) -> None:
-        self._lock    = threading.RLock()
-        self._history: Dict[str, Deque[float]] = {}
+        self._lock = threading.RLock()
+        self._history: dict[str, deque[float]] = {}
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -277,7 +300,7 @@ class Forecaster:
             q = self._history.setdefault(metric, deque(maxlen=self.MAX_HISTORY))
             q.append(value)
 
-    def ingest_many(self, metric: str, values: List[float]) -> None:
+    def ingest_many(self, metric: str, values: list[float]) -> None:
         for v in values:
             self.ingest(metric, v)
 
@@ -286,8 +309,7 @@ class Forecaster:
     # ------------------------------------------------------------------
 
     def forecast(self, request: ForecastRequest) -> ForecastResult:
-        """
-        Produce a forecast for *request.metric* using *request.method*.
+        """Produce a forecast for *request.metric* using *request.method*.
 
         Returns a ForecastResult with ``horizon`` predictions.
         If insufficient history exists (< 2 points) the last known value
@@ -299,10 +321,7 @@ class Forecaster:
         # Validate method name early (before any fallback paths)
         method_fn = _METHODS.get(request.method)
         if method_fn is None:
-            raise ValueError(
-                f"Unknown forecasting method '{request.method}'. "
-                f"Valid: {sorted(_METHODS)}"
-            )
+            raise ValueError(f"Unknown forecasting method '{request.method}'. Valid: {sorted(_METHODS)}")
 
         if len(history) < 2:
             if len(history) == 1:
@@ -311,10 +330,12 @@ class Forecaster:
             else:
                 preds = [0.0] * request.horizon
             return ForecastResult(
-                metric=request.metric, method=request.method,
+                metric=request.metric,
+                method=request.method,
                 horizon=request.horizon,
                 predictions=preds,
-                confidence_lo=preds, confidence_hi=preds,
+                confidence_lo=preds,
+                confidence_hi=preds,
                 samples_used=len(history),
             )
 
@@ -329,10 +350,12 @@ class Forecaster:
             lo = [p - spread * (1 + 0.1 * i) for i, p in enumerate(preds)]
             hi = [p + spread * (1 + 0.1 * i) for i, p in enumerate(preds)]
             return ForecastResult(
-                metric=request.metric, method=request.method,
+                metric=request.metric,
+                method=request.method,
                 horizon=request.horizon,
                 predictions=preds,
-                confidence_lo=lo, confidence_hi=hi,
+                confidence_lo=lo,
+                confidence_hi=hi,
                 samples_used=len(history),
             )
 
@@ -344,21 +367,20 @@ class Forecaster:
     # Capacity planning helpers
     # ------------------------------------------------------------------
 
-    def will_exceed(self, metric: str, threshold: float,
-                    horizon: int = 10, method: str = "linear_trend") -> bool:
-        """
-        Return True if the forecasted trajectory is predicted to exceed
+    def will_exceed(self, metric: str, threshold: float, horizon: int = 10, method: str = "linear_trend") -> bool:
+        """Return True if the forecasted trajectory is predicted to exceed.
+
         *threshold* within *horizon* steps.
         """
         req = ForecastRequest(metric=metric, horizon=horizon, method=method)
         result = self.forecast(req)
         return any(p > threshold for p in result.predictions)
 
-    def steps_until_threshold(self, metric: str, threshold: float,
-                               horizon: int = 50,
-                               method: str = "linear_trend") -> Optional[int]:
-        """
-        Return the number of steps until the forecast first exceeds *threshold*,
+    def steps_until_threshold(
+        self, metric: str, threshold: float, horizon: int = 50, method: str = "linear_trend"
+    ) -> int | None:
+        """Return the number of steps until the forecast first exceeds *threshold*,.
+
         or None if it does not within *horizon*.
         """
         req = ForecastRequest(metric=metric, horizon=horizon, method=method)
@@ -372,19 +394,19 @@ class Forecaster:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_history(self, metric: str) -> List[float]:
+    def get_history(self, metric: str) -> list[float]:
         with self._lock:
             return list(self._history.get(metric, []))
 
-    def list_metrics(self) -> List[str]:
+    def list_metrics(self) -> list[str]:
         with self._lock:
             return list(self._history.keys())
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "tracked_metrics": len(self._history),
-                "history_sizes":   {k: len(v) for k, v in self._history.items()},
+                "history_sizes": {k: len(v) for k, v in self._history.items()},
             }
 
     def clear(self) -> None:
@@ -395,6 +417,7 @@ class Forecaster:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_forecaster() -> Forecaster:
     return Forecaster()

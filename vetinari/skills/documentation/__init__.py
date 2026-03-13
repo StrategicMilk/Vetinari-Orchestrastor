@@ -1,13 +1,17 @@
-"""Documentation Agent Skill Tool Wrapper
+"""Documentation Agent Skill Tool Wrapper.
 
 .. deprecated:: 1.1.0
    DEPRECATED: Superseded by OperationsSkillTool (vetinari.skills.operations_skill).
    Will be removed in a future release.
 """
 
+from __future__ import annotations
+
 import logging
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,7 @@ class DocumentationSkill(Tool):
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "DocumentationSkill is deprecated since v1.1.0. "
             "Use OperationsSkillTool (vetinari.skills.operations_skill) instead.",
@@ -43,6 +48,7 @@ class DocumentationSkill(Tool):
         if self._agent is None:
             try:
                 from vetinari.agents.consolidated.operations_agent import get_operations_agent
+
                 self._agent = get_operations_agent()
             except Exception as e:
                 logger.warning("DocumentationAgent unavailable: %s", e)
@@ -53,15 +59,18 @@ class DocumentationSkill(Tool):
         if agent is None:
             return ToolResult(success=False, output=None, error="DocumentationAgent not available")
         try:
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.agents.contracts import AgentTask
+            from vetinari.types import AgentType
+
             task = AgentTask(
                 task_id="doc-gen",
                 agent_type=AgentType.DOCUMENTATION_AGENT,
-                description=f"Generate {kwargs.get('doc_type', 'documentation')} for: {str(kwargs.get('target',''))[:100]}",
+                description=f"Generate {kwargs.get('doc_type', 'documentation')} for: {str(kwargs.get('target', ''))[:100]}",
                 context=kwargs,
             )
             result = agent.execute(task)
-            return ToolResult(success=result.success, output=result.output,
-                              error="; ".join(result.errors) if result.errors else None)
+            return ToolResult(
+                success=result.success, output=result.output, error="; ".join(result.errors) if result.errors else None
+            )
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

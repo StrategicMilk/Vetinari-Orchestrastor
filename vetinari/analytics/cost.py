@@ -1,5 +1,4 @@
-"""
-Cost Attribution — vetinari.analytics.cost  (Phase 5)
+"""Cost Attribution — vetinari.analytics.cost  (Phase 5).
 
 Tracks token and compute costs per agent, task, provider and model.
 
@@ -28,8 +27,8 @@ Usage
     ))
 
     report = tracker.get_report()
-    print(report.total_cost_usd)
-    print(report.by_agent)
+    logger.debug(report.total_cost_usd)
+    logger.debug(report.by_agent)
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,31 +45,29 @@ logger = logging.getLogger(__name__)
 # Pricing table
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModelPricing:
     """USD cost per 1 000 tokens and per request."""
-    input_per_1k:   float = 0.0    # cost per 1k input tokens
-    output_per_1k:  float = 0.0    # cost per 1k output tokens
-    per_request:    float = 0.0    # flat fee per API call
+
+    input_per_1k: float = 0.0  # cost per 1k input tokens
+    output_per_1k: float = 0.0  # cost per 1k output tokens
+    per_request: float = 0.0  # flat fee per API call
 
     def compute(self, input_tokens: int, output_tokens: int) -> float:
-        return (
-            input_tokens  / 1000 * self.input_per_1k
-            + output_tokens / 1000 * self.output_per_1k
-            + self.per_request
-        )
+        return input_tokens / 1000 * self.input_per_1k + output_tokens / 1000 * self.output_per_1k + self.per_request
 
 
 # Built-in defaults (approximate public pricing as of early 2026)
-_DEFAULT_PRICING: Dict[str, ModelPricing] = {
-    "openai:gpt-4":             ModelPricing(input_per_1k=0.030, output_per_1k=0.060),
-    "openai:gpt-4o":            ModelPricing(input_per_1k=0.005, output_per_1k=0.015),
-    "openai:gpt-3.5-turbo":     ModelPricing(input_per_1k=0.001, output_per_1k=0.002),
-    "anthropic:claude-3-opus":  ModelPricing(input_per_1k=0.015, output_per_1k=0.075),
-    "anthropic:claude-3-sonnet":ModelPricing(input_per_1k=0.003, output_per_1k=0.015),
+_DEFAULT_PRICING: dict[str, ModelPricing] = {
+    "openai:gpt-4": ModelPricing(input_per_1k=0.030, output_per_1k=0.060),
+    "openai:gpt-4o": ModelPricing(input_per_1k=0.005, output_per_1k=0.015),
+    "openai:gpt-3.5-turbo": ModelPricing(input_per_1k=0.001, output_per_1k=0.002),
+    "anthropic:claude-3-opus": ModelPricing(input_per_1k=0.015, output_per_1k=0.075),
+    "anthropic:claude-3-sonnet": ModelPricing(input_per_1k=0.003, output_per_1k=0.015),
     "anthropic:claude-3-haiku": ModelPricing(input_per_1k=0.00025, output_per_1k=0.00125),
     # Local / LM Studio models — zero cost by default
-    "lmstudio:*":               ModelPricing(input_per_1k=0.0, output_per_1k=0.0),
+    "lmstudio:*": ModelPricing(input_per_1k=0.0, output_per_1k=0.0),
 }
 
 
@@ -78,30 +75,32 @@ _DEFAULT_PRICING: Dict[str, ModelPricing] = {
 # Cost entry
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CostEntry:
     """A single billable inference call."""
-    provider:      str
-    model:         str
-    input_tokens:  int   = 0
-    output_tokens: int   = 0
-    agent:         Optional[str] = None
-    task_id:       Optional[str] = None
-    timestamp:     float = field(default_factory=time.time)
-    cost_usd:      float = 0.0      # populated automatically by record()
-    latency_ms:    float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    provider: str
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    agent: str | None = None
+    task_id: str | None = None
+    timestamp: float = field(default_factory=time.time)
+    cost_usd: float = 0.0  # populated automatically by record()
+    latency_ms: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "provider":      self.provider,
-            "model":         self.model,
-            "input_tokens":  self.input_tokens,
+            "provider": self.provider,
+            "model": self.model,
+            "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
-            "agent":         self.agent,
-            "task_id":       self.task_id,
-            "timestamp":     self.timestamp,
-            "cost_usd":      self.cost_usd,
-            "latency_ms":    self.latency_ms,
+            "agent": self.agent,
+            "task_id": self.task_id,
+            "timestamp": self.timestamp,
+            "cost_usd": self.cost_usd,
+            "latency_ms": self.latency_ms,
         }
 
 
@@ -109,28 +108,30 @@ class CostEntry:
 # Report
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CostReport:
     """Aggregated cost breakdown."""
-    total_cost_usd:   float
-    total_tokens:     int
-    total_requests:   int
-    by_agent:         Dict[str, float]   # agent  -> total USD
-    by_provider:      Dict[str, float]   # provider -> total USD
-    by_model:         Dict[str, float]   # "provider:model" -> total USD
-    by_task:          Dict[str, float]   # task_id -> total USD
-    entries:          int                # raw entry count
 
-    def to_dict(self) -> Dict[str, Any]:
+    total_cost_usd: float
+    total_tokens: int
+    total_requests: int
+    by_agent: dict[str, float]  # agent  -> total USD
+    by_provider: dict[str, float]  # provider -> total USD
+    by_model: dict[str, float]  # "provider:model" -> total USD
+    by_task: dict[str, float]  # task_id -> total USD
+    entries: int  # raw entry count
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "total_cost_usd":  self.total_cost_usd,
-            "total_tokens":    self.total_tokens,
-            "total_requests":  self.total_requests,
-            "by_agent":        self.by_agent,
-            "by_provider":     self.by_provider,
-            "by_model":        self.by_model,
-            "by_task":         self.by_task,
-            "entries":         self.entries,
+            "total_cost_usd": self.total_cost_usd,
+            "total_tokens": self.total_tokens,
+            "total_requests": self.total_requests,
+            "by_agent": self.by_agent,
+            "by_provider": self.by_provider,
+            "by_model": self.by_model,
+            "by_task": self.by_task,
+            "entries": self.entries,
         }
 
 
@@ -138,15 +139,14 @@ class CostReport:
 # Tracker
 # ---------------------------------------------------------------------------
 
+
 class CostTracker:
-    """
-    Thread-safe cost attribution tracker.  Singleton — use ``get_cost_tracker()``.
-    """
+    """Thread-safe cost attribution tracker.  Singleton — use ``get_cost_tracker()``."""
 
-    _instance:   Optional["CostTracker"] = None
-    _class_lock  = threading.Lock()
+    _instance: CostTracker | None = None
+    _class_lock = threading.Lock()
 
-    def __new__(cls) -> "CostTracker":
+    def __new__(cls) -> CostTracker:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -155,9 +155,9 @@ class CostTracker:
         return cls._instance
 
     def _setup(self) -> None:
-        self._lock    = threading.RLock()
-        self._entries: List[CostEntry] = []
-        self._pricing: Dict[str, ModelPricing] = dict(_DEFAULT_PRICING)
+        self._lock = threading.RLock()
+        self._entries: list[CostEntry] = []
+        self._pricing: dict[str, ModelPricing] = dict(_DEFAULT_PRICING)
 
     # ------------------------------------------------------------------
     # Pricing
@@ -176,15 +176,15 @@ class CostTracker:
             wildcard = f"{provider}:*"
             if wildcard in self._pricing:
                 return self._pricing[wildcard]
-            return ModelPricing()   # free / unknown
+            return ModelPricing()  # free / unknown
 
     # ------------------------------------------------------------------
     # Recording
     # ------------------------------------------------------------------
 
     def record(self, entry: CostEntry) -> CostEntry:
-        """
-        Record a cost entry.  ``entry.cost_usd`` is calculated automatically
+        """Record a cost entry.  ``entry.cost_usd`` is calculated automatically.
+
         using the configured pricing if it is not already set (> 0).
         """
         with self._lock:
@@ -194,9 +194,12 @@ class CostTracker:
             self._entries.append(entry)
             logger.debug(
                 "Cost recorded: %s/%s  in=%d out=%d  $%.6f  agent=%s",
-                entry.provider, entry.model,
-                entry.input_tokens, entry.output_tokens,
-                entry.cost_usd, entry.agent,
+                entry.provider,
+                entry.model,
+                entry.input_tokens,
+                entry.output_tokens,
+                entry.cost_usd,
+                entry.agent,
             )
             return entry
 
@@ -206,12 +209,11 @@ class CostTracker:
 
     def get_report(
         self,
-        agent:    Optional[str] = None,
-        task_id:  Optional[str] = None,
-        since:    Optional[float] = None,
+        agent: str | None = None,
+        task_id: str | None = None,
+        since: float | None = None,
     ) -> CostReport:
-        """
-        Build an aggregated cost report, optionally filtered.
+        """Build an aggregated cost report, optionally filtered.
 
         Args:
             agent:   Only include entries from this agent.
@@ -228,24 +230,24 @@ class CostTracker:
         if since is not None:
             entries = [e for e in entries if e.timestamp >= since]
 
-        total_cost    = sum(e.cost_usd for e in entries)
-        total_tokens  = sum(e.input_tokens + e.output_tokens for e in entries)
+        total_cost = sum(e.cost_usd for e in entries)
+        total_tokens = sum(e.input_tokens + e.output_tokens for e in entries)
 
-        by_agent:    Dict[str, float] = {}
-        by_provider: Dict[str, float] = {}
-        by_model:    Dict[str, float] = {}
-        by_task:     Dict[str, float] = {}
+        by_agent: dict[str, float] = {}
+        by_provider: dict[str, float] = {}
+        by_model: dict[str, float] = {}
+        by_task: dict[str, float] = {}
 
         for e in entries:
-            key_a = e.agent    or "unknown"
+            key_a = e.agent or "unknown"
             key_p = e.provider or "unknown"
             key_m = f"{e.provider}:{e.model}"
-            key_t = e.task_id  or "unknown"
+            key_t = e.task_id or "unknown"
 
-            by_agent[key_a]    = by_agent.get(key_a, 0.0)    + e.cost_usd
+            by_agent[key_a] = by_agent.get(key_a, 0.0) + e.cost_usd
             by_provider[key_p] = by_provider.get(key_p, 0.0) + e.cost_usd
-            by_model[key_m]    = by_model.get(key_m, 0.0)    + e.cost_usd
-            by_task[key_t]     = by_task.get(key_t, 0.0)     + e.cost_usd
+            by_model[key_m] = by_model.get(key_m, 0.0) + e.cost_usd
+            by_task[key_t] = by_task.get(key_t, 0.0) + e.cost_usd
 
         return CostReport(
             total_cost_usd=total_cost,
@@ -258,13 +260,13 @@ class CostTracker:
             entries=len(entries),
         )
 
-    def get_top_agents(self, n: int = 5) -> List[Dict[str, Any]]:
+    def get_top_agents(self, n: int = 5) -> list[dict[str, Any]]:
         """Return the N most expensive agents."""
         report = self.get_report()
         ranked = sorted(report.by_agent.items(), key=lambda x: x[1], reverse=True)
         return [{"agent": k, "cost_usd": v} for k, v in ranked[:n]]
 
-    def get_top_models(self, n: int = 5) -> List[Dict[str, Any]]:
+    def get_top_models(self, n: int = 5) -> list[dict[str, Any]]:
         """Return the N most expensive provider/model combos."""
         report = self.get_report()
         ranked = sorted(report.by_model.items(), key=lambda x: x[1], reverse=True)
@@ -274,10 +276,10 @@ class CostTracker:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
-                "total_entries":     len(self._entries),
+                "total_entries": len(self._entries),
                 "configured_models": len(self._pricing),
             }
 
@@ -289,6 +291,7 @@ class CostTracker:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_cost_tracker() -> CostTracker:
     return CostTracker()

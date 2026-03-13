@@ -1,5 +1,4 @@
-"""
-Evaluator Skill Tool Wrapper
+"""Evaluator Skill Tool Wrapper.
 
 Migrates the evaluator skill to the Tool interface, providing code review,
 quality assessment, security auditing, and testing strategies as a standardized
@@ -19,33 +18,42 @@ The evaluator skill specializes in:
    Will be removed in a future release.
 """
 
+from __future__ import annotations
+
 import warnings
+
 warnings.warn(
     "vetinari.skills.evaluator is deprecated. Use vetinari.skills.quality_skill instead.",
     DeprecationWarning,
     stacklevel=2,
 )
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-import logging
-from enum import Enum
+import logging  # noqa: E402
+from dataclasses import dataclass, field  # noqa: E402
+from enum import Enum  # noqa: E402
+from typing import Any  # noqa: E402
 
-from vetinari.tool_interface import (
+from vetinari.execution_context import ToolPermission  # noqa: E402
+from vetinari.tool_interface import (  # noqa: E402
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode, SeverityLevel, QualityGrade as QualityScore  # canonical enums
+from vetinari.types import (  # canonical enums  # noqa: E402
+    ExecutionMode,
+    SeverityLevel,
+    ThinkingMode,
+)
+from vetinari.types import QualityGrade as QualityScore  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 class EvaluatorCapability(str, Enum):
     """Capabilities of the evaluator skill."""
+
     CODE_REVIEW = "code_review"
     QUALITY_ASSESSMENT = "quality_assessment"
     SECURITY_AUDIT = "security_audit"
@@ -57,13 +65,14 @@ class EvaluatorCapability(str, Enum):
 @dataclass
 class Issue:
     """Represents a code issue found during review."""
+
     title: str
     severity: SeverityLevel
-    location: Optional[str] = None
-    description: Optional[str] = None
-    suggestion: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    location: str | None = None
+    description: str | None = None
+    suggestion: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "title": self.title,
@@ -77,13 +86,14 @@ class Issue:
 @dataclass
 class ReviewRequest:
     """Request structure for evaluator operations."""
+
     capability: EvaluatorCapability
     code: str
-    context: Optional[str] = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
-    focus_areas: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    focus_areas: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "capability": self.capability.value,
@@ -97,14 +107,15 @@ class ReviewRequest:
 @dataclass
 class ReviewResult:
     """Result of an evaluator operation."""
+
     success: bool
-    issues: List[Issue] = field(default_factory=list)
-    quality_score: Optional[QualityScore] = None
-    summary: Optional[str] = None
-    recommendations: List[str] = field(default_factory=list)
-    test_coverage: Optional[float] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    issues: list[Issue] = field(default_factory=list)
+    quality_score: QualityScore | None = None
+    summary: str | None = None
+    recommendations: list[str] = field(default_factory=list)
+    test_coverage: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "success": self.success,
@@ -117,24 +128,24 @@ class ReviewResult:
 
 
 class EvaluatorSkillTool(Tool):
-    """
-    Tool wrapper for the evaluator skill.
-    
+    """Tool wrapper for the evaluator skill.
+
     Provides code review, quality assessment, security auditing, and testing
     strategies through a standardized Tool interface.
-    
+
     Permissions:
     - FILE_READ: Read code for analysis
     - MODEL_INFERENCE: Use LLM for evaluation
-    
+
     Allowed Modes:
     - EXECUTION: Full evaluation with all capabilities
     - PLANNING: Analysis only without modifications
     """
-    
+
     def __init__(self):
         """Initialize the evaluator skill tool."""
         import warnings
+
         warnings.warn(
             "EvaluatorSkillTool is deprecated since v1.1.0. "
             "Use QualitySkillTool (vetinari.skills.quality_skill) instead.",
@@ -201,18 +212,17 @@ class EvaluatorSkillTool(Tool):
             ],
         )
         super().__init__(metadata)
-    
-    def execute(self, **kwargs) -> ToolResult:
-        """
-        Execute an evaluator operation.
-        
+
+    def execute(self, **kwargs) -> ToolResult:  # noqa: D417
+        """Execute an evaluator operation.
+
         Args:
             capability: EvaluatorCapability to use
             code: Code to review or evaluate
             context: Additional context (optional)
             thinking_mode: Review depth (default: medium)
             focus_areas: Areas to focus on (optional)
-            
+
         Returns:
             ToolResult with review details
         """
@@ -223,7 +233,7 @@ class EvaluatorSkillTool(Tool):
             context = kwargs.get("context")
             thinking_mode_str = kwargs.get("thinking_mode", "medium")
             focus_areas = kwargs.get("focus_areas", [])
-            
+
             # Validate required parameters
             if not code:
                 return ToolResult(
@@ -231,7 +241,7 @@ class EvaluatorSkillTool(Tool):
                     output=None,
                     error="Code parameter is required",
                 )
-            
+
             # Convert to enums
             try:
                 capability = EvaluatorCapability(capability_str)
@@ -241,7 +251,7 @@ class EvaluatorSkillTool(Tool):
                     output=None,
                     error=f"Invalid capability: {capability_str}",
                 )
-            
+
             try:
                 thinking_mode = ThinkingMode(thinking_mode_str)
             except ValueError:
@@ -250,7 +260,7 @@ class EvaluatorSkillTool(Tool):
                     output=None,
                     error=f"Invalid thinking_mode: {thinking_mode_str}",
                 )
-            
+
             # Create request
             request = ReviewRequest(
                 capability=capability,
@@ -259,14 +269,14 @@ class EvaluatorSkillTool(Tool):
                 thinking_mode=thinking_mode,
                 focus_areas=focus_areas,
             )
-            
+
             # Get execution mode to determine capabilities
             ctx = self._context_manager.current_context
             execution_mode = ctx.mode
-            
+
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -278,32 +288,31 @@ class EvaluatorSkillTool(Tool):
                     "issues_found": len(result.issues),
                 },
             )
-        
+
         except Exception as e:
             logger.error("Evaluator tool execution failed: %s", e, exc_info=True)
             return ToolResult(
                 success=False,
                 output=None,
-                error=f"Evaluator tool execution failed: {str(e)}",
+                error=f"Evaluator tool execution failed: {e!s}",
             )
-    
+
     def _execute_capability(
         self,
         request: ReviewRequest,
         execution_mode: ExecutionMode,
     ) -> ReviewResult:
-        """
-        Execute a specific evaluator capability.
-        
+        """Execute a specific evaluator capability.
+
         Args:
             request: The review request
             execution_mode: Current execution mode
-            
+
         Returns:
             ReviewResult with operation details
         """
         capability = request.capability
-        
+
         if capability == EvaluatorCapability.CODE_REVIEW:
             return self._perform_code_review(request, execution_mode)
         elif capability == EvaluatorCapability.QUALITY_ASSESSMENT:
@@ -321,7 +330,7 @@ class EvaluatorSkillTool(Tool):
                 success=False,
                 summary=f"Unknown capability: {capability.value}",
             )
-    
+
     def _perform_code_review(
         self,
         request: ReviewRequest,
@@ -329,7 +338,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Perform a general code review."""
         logger.info("Performing code review (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -338,36 +347,40 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate detailed review."
                 ),
             )
-        
+
         # Simulate review based on code length and thinking mode
-        code_lines = len(request.code.split('\n'))
+        code_lines = len(request.code.split("\n"))
         issues = []
         recommendations = []
-        
+
         # Check for common issues
         if "TODO" in request.code or "FIXME" in request.code:
-            issues.append(Issue(
-                title="Unresolved TODOs or FIXMEs",
-                severity=SeverityLevel.MEDIUM,
-                description="Code contains TODO or FIXME comments that should be resolved",
-                suggestion="Address all outstanding TODOs and FIXMEs before merge",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="Unresolved TODOs or FIXMEs",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Code contains TODO or FIXME comments that should be resolved",
+                    suggestion="Address all outstanding TODOs and FIXMEs before merge",
+                )
+            )
+
         if "{" in request.code and request.code.count("{") != request.code.count("}"):
-            issues.append(Issue(
-                title="Unbalanced braces",
-                severity=SeverityLevel.HIGH,
-                description="Opening and closing braces do not match",
-                suggestion="Check brace pairing in the code",
-            ))
-        
-        if len(request.code.split('\n')) > 200 and request.thinking_mode in [ThinkingMode.MEDIUM, ThinkingMode.HIGH]:
+            issues.append(
+                Issue(
+                    title="Unbalanced braces",
+                    severity=SeverityLevel.HIGH,
+                    description="Opening and closing braces do not match",
+                    suggestion="Check brace pairing in the code",
+                )
+            )
+
+        if len(request.code.split("\n")) > 200 and request.thinking_mode in [ThinkingMode.MEDIUM, ThinkingMode.HIGH]:
             recommendations.append("Consider breaking this file into smaller, more focused modules")
-        
+
         quality_score = QualityScore.B if len(issues) <= 2 else QualityScore.C
         if len(issues) == 0:
             quality_score = QualityScore.A
-        
+
         return ReviewResult(
             success=True,
             issues=issues,
@@ -376,7 +389,7 @@ class EvaluatorSkillTool(Tool):
             recommendations=recommendations,
             test_coverage=75.0 if request.thinking_mode.value != "low" else None,
         )
-    
+
     def _assess_quality(
         self,
         request: ReviewRequest,
@@ -384,7 +397,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Assess code quality."""
         logger.info("Assessing code quality (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -393,33 +406,35 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate quality report."
                 ),
             )
-        
+
         issues = []
-        code_lines = len(request.code.split('\n'))
-        
+        code_lines = len(request.code.split("\n"))
+
         # Check code length (possible complexity issue)
         if code_lines > 500:
-            issues.append(Issue(
-                title="High code complexity",
-                severity=SeverityLevel.MEDIUM,
-                description="Function or file is too long, reducing maintainability",
-                suggestion="Break into smaller, more focused functions",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="High code complexity",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Function or file is too long, reducing maintainability",
+                    suggestion="Break into smaller, more focused functions",
+                )
+            )
+
         # Check for naming conventions in higher modes
-        if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
+        if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:  # noqa: SIM102
             if "var " in request.code or "val " in request.code:
-                issues.append(Issue(
-                    title="Non-descriptive variable names",
-                    severity=SeverityLevel.LOW,
-                    description="Variable names like 'var' or 'val' are not descriptive",
-                    suggestion="Use meaningful variable names that describe the value",
-                ))
-        
-        quality_score = QualityScore.A if len(issues) == 0 else (
-            QualityScore.B if len(issues) <= 2 else QualityScore.C
-        )
-        
+                issues.append(
+                    Issue(
+                        title="Non-descriptive variable names",
+                        severity=SeverityLevel.LOW,
+                        description="Variable names like 'var' or 'val' are not descriptive",
+                        suggestion="Use meaningful variable names that describe the value",
+                    )
+                )
+
+        quality_score = QualityScore.A if len(issues) == 0 else (QualityScore.B if len(issues) <= 2 else QualityScore.C)
+
         return ReviewResult(
             success=True,
             issues=issues,
@@ -431,7 +446,7 @@ class EvaluatorSkillTool(Tool):
                 "Document complex logic with comments",
             ],
         )
-    
+
     def _audit_security(
         self,
         request: ReviewRequest,
@@ -439,7 +454,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Audit code for security vulnerabilities."""
         logger.info("Auditing security (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -448,9 +463,9 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate security report."
                 ),
             )
-        
+
         issues = []
-        
+
         # Check for common security issues
         security_keywords = {
             "eval": "Use of eval() is dangerous",
@@ -458,26 +473,30 @@ class EvaluatorSkillTool(Tool):
             "pickle": "Pickle can execute arbitrary code",
             "input": "input() can be unsafe without validation",
         }
-        
+
         for keyword, warning in security_keywords.items():
             if keyword in request.code.lower():
                 severity = SeverityLevel.CRITICAL if keyword in ["eval", "exec"] else SeverityLevel.HIGH
-                issues.append(Issue(
-                    title=f"Potential security issue: {keyword}",
-                    severity=severity,
-                    description=warning,
-                    suggestion=f"Review usage of {keyword} and consider safer alternatives",
-                ))
-        
+                issues.append(
+                    Issue(
+                        title=f"Potential security issue: {keyword}",
+                        severity=severity,
+                        description=warning,
+                        suggestion=f"Review usage of {keyword} and consider safer alternatives",
+                    )
+                )
+
         # Check for hardcoded secrets (basic)
         if "password" in request.code.lower() or "api_key" in request.code.lower():
-            issues.append(Issue(
-                title="Potential hardcoded credentials",
-                severity=SeverityLevel.CRITICAL,
-                description="Code may contain hardcoded passwords or API keys",
-                suggestion="Move credentials to environment variables or secure configuration",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="Potential hardcoded credentials",
+                    severity=SeverityLevel.CRITICAL,
+                    description="Code may contain hardcoded passwords or API keys",
+                    suggestion="Move credentials to environment variables or secure configuration",
+                )
+            )
+
         return ReviewResult(
             success=True,
             issues=issues,
@@ -489,7 +508,7 @@ class EvaluatorSkillTool(Tool):
                 "Use HTTPS for all external communications",
             ],
         )
-    
+
     def _create_test_strategy(
         self,
         request: ReviewRequest,
@@ -497,7 +516,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Create a test strategy for the code."""
         logger.info("Creating test strategy (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -506,18 +525,18 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate strategy."
                 ),
             )
-        
+
         recommendations = []
-        
+
         # Suggest tests based on thinking mode
         recommendations.append("Write unit tests for each function")
         recommendations.append("Write integration tests for component interactions")
-        
+
         if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
             recommendations.append("Write end-to-end tests for user workflows")
             recommendations.append("Add performance benchmarks")
             recommendations.append("Test error handling and edge cases")
-        
+
         return ReviewResult(
             success=True,
             issues=[],
@@ -526,7 +545,7 @@ class EvaluatorSkillTool(Tool):
             recommendations=recommendations,
             test_coverage=80.0,
         )
-    
+
     def _review_performance(
         self,
         request: ReviewRequest,
@@ -534,7 +553,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Review code for performance issues."""
         logger.info("Reviewing performance (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -543,26 +562,30 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate performance report."
                 ),
             )
-        
+
         issues = []
-        
+
         # Check for common performance issues
         if "for " in request.code and request.code.count("for ") > 2:
-            issues.append(Issue(
-                title="Nested loops detected",
-                severity=SeverityLevel.MEDIUM,
-                description="Multiple nested loops may cause O(n²) or worse performance",
-                suggestion="Consider optimizing with data structures or algorithms",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="Nested loops detected",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Multiple nested loops may cause O(n²) or worse performance",
+                    suggestion="Consider optimizing with data structures or algorithms",
+                )
+            )
+
         if "while True" in request.code:
-            issues.append(Issue(
-                title="Infinite loop risk",
-                severity=SeverityLevel.HIGH,
-                description="while True loops should have clear exit conditions",
-                suggestion="Ensure loop has proper termination condition",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="Infinite loop risk",
+                    severity=SeverityLevel.HIGH,
+                    description="while True loops should have clear exit conditions",
+                    suggestion="Ensure loop has proper termination condition",
+                )
+            )
+
         return ReviewResult(
             success=True,
             issues=issues,
@@ -575,7 +598,7 @@ class EvaluatorSkillTool(Tool):
                 "Use generators for large datasets",
             ],
         )
-    
+
     def _check_best_practices(
         self,
         request: ReviewRequest,
@@ -583,7 +606,7 @@ class EvaluatorSkillTool(Tool):
     ) -> ReviewResult:
         """Check code against best practices."""
         logger.info("Checking best practices (mode: %s)", request.thinking_mode.value)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ReviewResult(
                 success=True,
@@ -592,30 +615,34 @@ class EvaluatorSkillTool(Tool):
                     f"Switch to EXECUTION mode to generate report."
                 ),
             )
-        
+
         issues = []
-        
+
         # Check for DRY principle
         if request.code.count("def ") > 1:
             # Check for similar code blocks (simple heuristic)
-            lines = request.code.split('\n')
+            lines = request.code.split("\n")
             if len(lines) > 50:
-                issues.append(Issue(
-                    title="Possible code duplication",
-                    severity=SeverityLevel.LOW,
-                    description="Code may violate DRY (Don't Repeat Yourself) principle",
-                    suggestion="Extract common code into reusable functions",
-                ))
-        
+                issues.append(
+                    Issue(
+                        title="Possible code duplication",
+                        severity=SeverityLevel.LOW,
+                        description="Code may violate DRY (Don't Repeat Yourself) principle",
+                        suggestion="Extract common code into reusable functions",
+                    )
+                )
+
         # Check for single responsibility
         if request.code.count("def ") > 5 and len(request.code) < 500:
-            issues.append(Issue(
-                title="Too many functions in small file",
-                severity=SeverityLevel.LOW,
-                description="May indicate functions are too granular",
-                suggestion="Review function granularity and consider grouping",
-            ))
-        
+            issues.append(
+                Issue(
+                    title="Too many functions in small file",
+                    severity=SeverityLevel.LOW,
+                    description="May indicate functions are too granular",
+                    suggestion="Review function granularity and consider grouping",
+                )
+            )
+
         return ReviewResult(
             success=True,
             issues=issues,

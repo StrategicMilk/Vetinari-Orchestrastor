@@ -13,11 +13,10 @@ Comprehensive tests for five uncovered Vetinari modules:
 from __future__ import annotations
 
 import json
-import os
 import sys
 import warnings
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -347,7 +346,7 @@ class TestKnowledgeBaseQuery:
         cache.mkdir(parents=True)
         (cache / "cached.py").write_text("# cached", encoding="utf-8")
         (docs_dir / "real.py").write_text("# real code", encoding="utf-8")
-        count = kb.ingest_directory(str(docs_dir))
+        kb.ingest_directory(str(docs_dir))
         # Only real.py should be ingested
         sources = [d["source"] for d in kb._fallback_docs]
         assert all("__pycache__" not in s for s in sources)
@@ -576,7 +575,7 @@ def _make_mock_tool_interface():
             self.metadata = metadata
 
         def execute(self, **kwargs):
-            raise NotImplementedError
+            raise NotImplementedError  # noqa: VET033
 
     class _ToolRegistry:
         def __init__(self):
@@ -667,7 +666,6 @@ class TestToolWrappers:
         try:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                import vetinari.tools.tool_registry_integration  # noqa: F811
                 # Module is no longer deprecated — verify no deprecation warning
                 dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)
                                 and "tool_registry_integration" in str(x.message)]
@@ -692,7 +690,7 @@ class TestToolWrappers:
         assert "search" in w.metadata.tags
 
     def test_web_search_execute_success(self, tool_registry_env):
-        tri_mod, mock_ti = tool_registry_env
+        tri_mod, _mock_ti = tool_registry_env
         w = tri_mod.WebSearchToolWrapper()
         mock_search_tool = MagicMock()
         mock_response = MagicMock()
@@ -938,7 +936,7 @@ class TestRegisterAllTools:
     """Tests for the register_all_tools() function."""
 
     def test_register_all_tools_returns_count(self, tool_registry_env):
-        tri_mod, mock_ti = tool_registry_env
+        tri_mod, _mock_ti = tool_registry_env
         count = tri_mod.register_all_tools()
         assert count == 7
 
@@ -990,8 +988,8 @@ class TestRegisterAllTools:
 sys.modules.pop("vetinari.web.config", None)
 sys.modules.pop("vetinari.web", None)
 
-from vetinari.web.config import VetinariConfig, get_config
 import vetinari.web.config as _web_config_mod
+from vetinari.web.config import VetinariConfig, get_config
 
 
 class TestVetinariConfig:
@@ -1216,7 +1214,7 @@ class TestDataEngineerSkill:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
                 from vetinari.skills.data_engineer import DataEngineerSkill
-                skill = DataEngineerSkill()
+                DataEngineerSkill()
                 dep = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(dep) >= 1
                 assert "deprecated" in str(dep[0].message).lower()
@@ -1392,7 +1390,6 @@ class TestDataEngineerSkill:
 
         mock_contracts = MagicMock()
         # Capture the AgentTask construction args
-        captured_tasks = []
         original_task_cls = MagicMock(side_effect=lambda **kw: MagicMock(**kw))
         mock_contracts.AgentTask = original_task_cls
         mock_contracts.AgentType.DATA_ENGINEER = "data_engineer"

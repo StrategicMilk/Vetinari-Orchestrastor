@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 import requests
-from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +27,14 @@ class Upgrader:
             config.get("discovery_filters", {}).get("max_model_memory_gb", 96),
         )
 
-    def check_for_upgrades(self) -> List[Dict[str, Any]]:
+    def check_for_upgrades(self) -> list[dict[str, Any]]:
         """Fetch upgrade candidates from the configured benchmarks source.
 
         Returns a (possibly empty) list of candidate dicts, each containing at
         least ``name``, ``version``, and ``memory_gb`` keys.  Candidates whose
         ``memory_gb`` exceeds the configured budget are filtered out.
         """
-        candidates: List[Dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
 
         # Resolve the benchmarks URL from config
         source = self.config.get("benchmarks_source")
@@ -63,7 +66,9 @@ class Upgrader:
                 else:
                     logger.debug(
                         "Skipping upgrade candidate %s — exceeds memory budget (%sGB > %sGB)",
-                        m.get("name", "?"), mem, self._memory_budget_gb,
+                        m.get("name", "?"),
+                        mem,
+                        self._memory_budget_gb,
                     )
         except requests.exceptions.RequestException as e:
             logger.warning("Upgrade check failed (network): %s", e)
@@ -108,19 +113,19 @@ class Upgrader:
             if resp.status_code in (200, 202):
                 logger.info(
                     "LM Studio accepted download for %s v%s (model_id=%s)",
-                    name, version, model_id,
+                    name,
+                    version,
+                    model_id,
                 )
                 return True
             elif resp.status_code == 404:
                 # Endpoint not supported in this LM Studio version
-                logger.info(
-                    "LM Studio /api/v0/models/download not available (404) — "
-                    "falling back to URL logging"
-                )
+                logger.info("LM Studio /api/v0/models/download not available (404) — falling back to URL logging")
             else:
                 logger.warning(
                     "LM Studio download API returned %d: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
         except requests.exceptions.ConnectionError:
             logger.info(
@@ -137,12 +142,15 @@ class Upgrader:
                 hf_url = f"https://huggingface.co/{hf_repo}/resolve/main/{filename}"
             logger.info(
                 "Manual download available for %s v%s: %s",
-                name, version, hf_url,
+                name,
+                version,
+                hf_url,
             )
             return True
 
         logger.warning(
             "Install requested for %s v%s but no HF repo or LM Studio API available",
-            name, version,
+            name,
+            version,
         )
         return False

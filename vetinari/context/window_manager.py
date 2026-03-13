@@ -1,5 +1,5 @@
-"""
-Context Window Manager (C4)
+"""Context Window Manager (C4).
+
 ============================
 Tracks token usage per conversation and compresses context when approaching
 the model's context window limit.
@@ -10,7 +10,7 @@ Strategy:
   - Stage-boundary compression between pipeline stages
   - Configurable per-model context window sizes
 
-Token estimation uses a simple heuristic (words × 1.3) unless a proper
+Token estimation uses a simple heuristic (words x 1.3) unless a proper
 tokenizer is available.
 """
 
@@ -19,14 +19,14 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 # ── Known context window sizes ────────────────────────────────────────
 
-_MODEL_CONTEXT_WINDOWS: Dict[str, int] = {
+_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     # Local models (LM Studio)
     "qwen2.5-coder-7b": 32768,
     "qwen2.5-coder-14b": 32768,
@@ -62,11 +62,12 @@ def estimate_tokens(text: str) -> int:
 @dataclass
 class ConversationMessage:
     """A single message in the conversation context."""
+
     role: str  # "system", "user", "assistant"
     content: str
     token_count: int = 0
     is_compressed: bool = False
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.token_count == 0:
@@ -76,6 +77,7 @@ class ConversationMessage:
 @dataclass
 class WindowState:
     """Tracks the state of a context window."""
+
     model_id: str
     max_tokens: int
     used_tokens: int = 0
@@ -108,13 +110,11 @@ class ContextWindowManager:
         self._max_context_ratio = max_context_ratio
         self._compression_target = compression_target
         self._summary_max_tokens = summary_max_tokens
-        self._messages: List[ConversationMessage] = []
+        self._messages: list[ConversationMessage] = []
         self._lock = threading.Lock()
 
         # Determine window size
-        self._window_size = _MODEL_CONTEXT_WINDOWS.get(
-            model_id, _MODEL_CONTEXT_WINDOWS["default"]
-        )
+        self._window_size = _MODEL_CONTEXT_WINDOWS.get(model_id, _MODEL_CONTEXT_WINDOWS["default"])
         self._threshold = int(self._window_size * self._max_context_ratio)
 
     @property
@@ -148,7 +148,7 @@ class ContextWindowManager:
         """Check if compression is needed (usage > threshold)."""
         return self.used_tokens > self._threshold
 
-    def compress(self, summary_fn: Optional[Any] = None) -> int:
+    def compress(self, summary_fn: Any | None = None) -> int:
         """Compress the oldest 50% of messages into a summary.
 
         Args:
@@ -168,9 +168,7 @@ class ContextWindowManager:
             to_keep = self._messages[midpoint:]
 
             # Build text to summarize
-            original_text = "\n".join(
-                f"[{m.role}]: {m.content}" for m in to_compress
-            )
+            original_text = "\n".join(f"[{m.role}]: {m.content}" for m in to_compress)
             original_tokens = sum(m.token_count for m in to_compress)
 
             # Generate summary
@@ -192,11 +190,12 @@ class ContextWindowManager:
             )
 
             saved = original_tokens - compressed_msg.token_count
-            self._messages = [compressed_msg] + to_keep
+            self._messages = [compressed_msg, *to_keep]
 
             logger.info(
                 "Context compressed: %d msgs → 1 summary, saved %d tokens (%.0f%%)",
-                len(to_compress), saved,
+                len(to_compress),
+                saved,
                 (saved / original_tokens * 100) if original_tokens > 0 else 0,
             )
             return saved
@@ -212,12 +211,9 @@ class ContextWindowManager:
             return self.compress()
         return 0
 
-    def get_messages(self) -> List[Dict[str, str]]:
+    def get_messages(self) -> list[dict[str, str]]:
         """Return messages in the format expected by LLM APIs."""
-        return [
-            {"role": m.role, "content": m.content}
-            for m in self._messages
-        ]
+        return [{"role": m.role, "content": m.content} for m in self._messages]
 
     def get_state(self) -> WindowState:
         """Return current window state."""
@@ -242,7 +238,7 @@ class ContextWindowManager:
         half = target_words // 2
         return " ".join(words[:half]) + "\n[...compressed...]\n" + " ".join(words[-half:])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Dashboard-friendly state."""
         return {
             "model_id": self._model_id,
@@ -258,7 +254,7 @@ class ContextWindowManager:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_window_manager: Optional[ContextWindowManager] = None
+_window_manager: ContextWindowManager | None = None
 
 
 def get_window_manager(model_id: str = "default") -> ContextWindowManager:

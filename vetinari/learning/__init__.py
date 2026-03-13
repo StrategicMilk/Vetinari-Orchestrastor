@@ -1,14 +1,16 @@
 """Vetinari Learning Pipeline — self-improvement subsystem."""
 
+from __future__ import annotations
+
 __all__ = [
-    "quality_scorer",
+    "auto_tuner",
+    "episode_memory",
     "feedback_loop",
     "model_selector",
     "prompt_evolver",
+    "quality_scorer",
+    "self_refinement",
     "training_data",
     "training_manager",
-    "episode_memory",
-    "auto_tuner",
     "workflow_learner",
-    "self_refinement",
 ]

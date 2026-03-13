@@ -1,4 +1,7 @@
 """Resilience subsystem — circuit breakers, retries, and fault tolerance."""
+
+from __future__ import annotations
+
 from vetinari.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerRegistry,

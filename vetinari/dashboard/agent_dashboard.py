@@ -1,5 +1,5 @@
-"""
-Agent Performance Dashboard (C10)
+"""Agent Performance Dashboard (C10).
+
 ==================================
 Aggregates metrics from CostTracker, CircuitBreakerRegistry, and agent
 execution data into a unified dashboard view.
@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentMetrics:
     """Performance metrics for a single agent type."""
+
     agent_type: str
     total_executions: int = 0
     successful: int = 0
@@ -29,7 +30,7 @@ class AgentMetrics:
     total_tokens: int = 0
     total_cost: float = 0.0
     circuit_breaker_state: str = "CLOSED"
-    active_modes: List[str] = field(default_factory=list)
+    active_modes: list[str] = field(default_factory=list)
     token_budget_remaining: int = 0
     last_execution: str = ""
 
@@ -39,7 +40,7 @@ class AgentMetrics:
             return 0.0
         return self.successful / self.total_executions
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "agent_type": self.agent_type,
             "total_executions": self.total_executions,
@@ -60,16 +61,17 @@ class AgentMetrics:
 @dataclass
 class SystemHealth:
     """Overall system health summary."""
+
     status: str = "healthy"  # healthy, degraded, unhealthy
     uptime_seconds: float = 0.0
     total_agents: int = 6
     healthy_agents: int = 6
-    open_circuit_breakers: List[str] = field(default_factory=list)
+    open_circuit_breakers: list[str] = field(default_factory=list)
     total_cost_24h: float = 0.0
     total_tokens_24h: int = 0
     active_plans: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "uptime_seconds": round(self.uptime_seconds, 1),
@@ -83,24 +85,44 @@ class SystemHealth:
 
 
 _AGENT_TYPES = [
-    "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
-    "BUILDER", "QUALITY", "OPERATIONS",
+    "PLANNER",
+    "CONSOLIDATED_RESEARCHER",
+    "CONSOLIDATED_ORACLE",
+    "BUILDER",
+    "QUALITY",
+    "OPERATIONS",
 ]
 
 _AGENT_MODES = {
     "PLANNER": ["plan", "clarify", "summarise", "prune", "extract", "consolidate"],
     "CONSOLIDATED_RESEARCHER": [
-        "code_discovery", "domain_research", "api_lookup", "lateral_thinking",
-        "ui_design", "database", "devops", "git_workflow",
+        "code_discovery",
+        "domain_research",
+        "api_lookup",
+        "lateral_thinking",
+        "ui_design",
+        "database",
+        "devops",
+        "git_workflow",
     ],
     "CONSOLIDATED_ORACLE": [
-        "architecture", "risk_assessment", "ontological_analysis", "contrarian_review",
+        "architecture",
+        "risk_assessment",
+        "ontological_analysis",
+        "contrarian_review",
     ],
     "BUILDER": ["build", "image_generation"],
     "QUALITY": ["code_review", "security_audit", "test_generation", "simplification"],
     "OPERATIONS": [
-        "documentation", "creative_writing", "cost_analysis", "experiment",
-        "error_recovery", "synthesis", "improvement", "monitor", "devops_ops",
+        "documentation",
+        "creative_writing",
+        "cost_analysis",
+        "experiment",
+        "error_recovery",
+        "synthesis",
+        "improvement",
+        "monitor",
+        "devops_ops",
     ],
 }
 
@@ -121,26 +143,28 @@ class AgentDashboard:
         # Pull circuit breaker state
         try:
             from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
             cb = get_circuit_breaker_registry().get(agent_type)
             metrics.circuit_breaker_state = cb.state.value
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         # Pull cost data
         try:
             from vetinari.analytics.cost import get_cost_tracker
+
             tracker = get_cost_tracker()
             agent_costs = tracker.query_by_agent(agent_type)
             if agent_costs:
                 metrics.total_cost = agent_costs.get("total_cost", 0.0)
                 metrics.total_tokens = agent_costs.get("total_tokens", 0)
                 metrics.total_executions = agent_costs.get("count", 0)
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         return metrics
 
-    def get_all_agent_metrics(self) -> List[AgentMetrics]:
+    def get_all_agent_metrics(self) -> list[AgentMetrics]:
         """Get metrics for all agent types."""
         return [self.get_agent_metrics(at) for at in _AGENT_TYPES]
 
@@ -153,12 +177,13 @@ class AgentDashboard:
         # Check circuit breakers
         try:
             from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
             registry = get_circuit_breaker_registry()
             for at in _AGENT_TYPES:
                 cb = registry.get(at)
                 if cb.state.value == "open":
                     health.open_circuit_breakers.append(at)
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         health.healthy_agents = health.total_agents - len(health.open_circuit_breakers)
@@ -170,15 +195,16 @@ class AgentDashboard:
         # Cost summary
         try:
             from vetinari.analytics.cost import get_cost_tracker
+
             summary = get_cost_tracker().get_summary()
             health.total_cost_24h = summary.get("total_cost", 0.0)
             health.total_tokens_24h = summary.get("total_tokens", 0)
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         return health
 
-    def get_dashboard_data(self) -> Dict[str, Any]:
+    def get_dashboard_data(self) -> dict[str, Any]:
         """Complete dashboard payload."""
         return {
             "health": self.get_system_health().to_dict(),
@@ -189,7 +215,7 @@ class AgentDashboard:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_dashboard: Optional[AgentDashboard] = None
+_dashboard: AgentDashboard | None = None
 
 
 def get_agent_dashboard() -> AgentDashboard:

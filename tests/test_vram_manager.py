@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import vetinari.vram_manager as vram_mod
 from vetinari.vram_manager import (
@@ -17,7 +17,6 @@ from vetinari.vram_manager import (
     VRAMSnapshot,
     get_vram_manager,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +46,7 @@ def _make_manager() -> VRAMManager:
 class TestVRAMSnapshot(unittest.TestCase):
     def test_fields_stored_correctly(self):
         snap = VRAMSnapshot(gpu_index=0, total_gb=32.0, used_gb=8.0, free_gb=24.0)
-        self.assertEqual(snap.gpu_index, 0)
+        assert snap.gpu_index == 0
         self.assertAlmostEqual(snap.total_gb, 32.0)
         self.assertAlmostEqual(snap.used_gb, 8.0)
         self.assertAlmostEqual(snap.free_gb, 24.0)
@@ -56,8 +55,8 @@ class TestVRAMSnapshot(unittest.TestCase):
         before = time.time()
         snap = VRAMSnapshot(gpu_index=0, total_gb=32.0, used_gb=0.0, free_gb=32.0)
         after = time.time()
-        self.assertGreaterEqual(snap.timestamp, before)
-        self.assertLessEqual(snap.timestamp, after)
+        assert snap.timestamp >= before
+        assert snap.timestamp <= after
 
 
 # ---------------------------------------------------------------------------
@@ -67,15 +66,15 @@ class TestVRAMSnapshot(unittest.TestCase):
 class TestModelVRAMEstimate(unittest.TestCase):
     def test_fields_stored_correctly(self):
         est = ModelVRAMEstimate(model_id="llama3-8b", gpu_gb=8.0, cpu_gb=0.0, last_used=1234.0)
-        self.assertEqual(est.model_id, "llama3-8b")
+        assert est.model_id == "llama3-8b"
         self.assertAlmostEqual(est.gpu_gb, 8.0)
         self.assertAlmostEqual(est.cpu_gb, 0.0)
         self.assertAlmostEqual(est.last_used, 1234.0)
-        self.assertEqual(est.priority, 5)  # default
+        assert est.priority == 5  # default
 
     def test_custom_priority(self):
         est = ModelVRAMEstimate(model_id="x", gpu_gb=1.0, cpu_gb=0.0, last_used=0.0, priority=2)
-        self.assertEqual(est.priority, 2)
+        assert est.priority == 2
 
 
 # ---------------------------------------------------------------------------
@@ -94,14 +93,14 @@ class TestVRAMManagerInit(unittest.TestCase):
         self.assertAlmostEqual(mgr._gpu_total_gb, 32.0)
         self.assertAlmostEqual(mgr._cpu_offload_gb, 30.0)
         self.assertAlmostEqual(mgr._overhead_gb, 2.0)
-        self.assertEqual(mgr._estimates, {})
+        assert mgr._estimates == {}
 
     def test_get_gpu_snapshot_returns_none_without_pynvml(self):
         mgr = _make_manager()
         # _PYNVML_AVAILABLE is False in test env
         with patch.object(vram_mod, "_PYNVML_AVAILABLE", False):
             snap = mgr.get_gpu_snapshot()
-        self.assertIsNone(snap)
+        assert snap is None
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +116,7 @@ class TestRegisterLoad(unittest.TestCase):
 
     def test_model_appears_in_estimates(self):
         self.mgr.register_load("llama3-8b", vram_gb=8.0)
-        self.assertIn("llama3-8b", self.mgr._estimates)
+        assert "llama3-8b" in self.mgr._estimates
 
     def test_gpu_gb_recorded(self):
         self.mgr.register_load("mistral-7b", vram_gb=7.0, cpu_gb=1.5)
@@ -140,7 +139,7 @@ class TestRegisterUnload(unittest.TestCase):
     def test_model_removed(self):
         self.mgr.register_load("llama3-8b", vram_gb=8.0)
         self.mgr.register_unload("llama3-8b")
-        self.assertNotIn("llama3-8b", self.mgr._estimates)
+        assert "llama3-8b" not in self.mgr._estimates
 
     def test_unload_nonexistent_does_not_raise(self):
         # Should silently succeed (pop with default)
@@ -161,12 +160,12 @@ class TestCanLoadAvailable(unittest.TestCase):
 
     def test_small_model_fits(self):
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=8.0):
-            self.assertTrue(self.mgr.can_load("small-model"))
+            assert self.mgr.can_load("small-model")
 
     def test_exactly_free_vram_fits(self):
         # Nothing loaded: free = 32 - 2 = 30 GB
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=30.0):
-            self.assertTrue(self.mgr.can_load("exact-fit"))
+            assert self.mgr.can_load("exact-fit")
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +186,7 @@ class TestCanLoadInsufficient(unittest.TestCase):
         # With cpu_offload_gb = 0, cpu_free = 0, so cpu_portion (5) > cpu_free (0) -> False.
         self.mgr._cpu_offload_gb = 0.0
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=35.0):
-            self.assertFalse(self.mgr.can_load("too-big"))
+            assert not self.mgr.can_load("too-big")
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +206,7 @@ class TestMarkUsed(unittest.TestCase):
         time.sleep(0.01)
         self.mgr.mark_used("model-a")
         new_ts = self.mgr._estimates["model-a"].last_used
-        self.assertGreater(new_ts, old_ts)
+        assert new_ts > old_ts
 
     def test_mark_used_unknown_model_does_not_raise(self):
         self.mgr.mark_used("nonexistent")
@@ -228,7 +227,7 @@ class TestGetModelVRAMRequirement(unittest.TestCase):
         # Patch both registry and utils so no real I/O occurs
         with patch("vetinari.vram_manager.VRAMManager.get_model_vram_requirement", return_value=14.0):
             result = self.mgr.get_model_vram_requirement("qwen2-14b")
-        self.assertIsInstance(result, float)
+        assert isinstance(result, float)
 
     def test_uses_utils_when_registry_fails(self):
         # Patch estimate_model_memory_gb at import site in vram_manager module.
@@ -238,7 +237,7 @@ class TestGetModelVRAMRequirement(unittest.TestCase):
                        wraps=self.mgr.get_model_vram_requirement):
                 # Just verify the real method returns a float for an unknown model.
                 result = self.mgr.get_model_vram_requirement("unknown-model-xyz")
-        self.assertIsInstance(result, (int, float))
+        assert isinstance(result, (int, float))
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +264,7 @@ class TestRecommendEvictionLRU(unittest.TestCase):
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=15.0), \
              patch.object(self.mgr, "get_free_vram_gb", return_value=5.0):
             evict = self.mgr.recommend_eviction("new-model")
-        self.assertEqual(evict, "model-old")
+        assert evict == "model-old"
 
 
 # ---------------------------------------------------------------------------
@@ -283,14 +282,14 @@ class TestRecommendEvictionNone(unittest.TestCase):
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=5.0), \
              patch.object(self.mgr, "get_free_vram_gb", return_value=30.0):
             result = self.mgr.recommend_eviction("small-model")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_returns_none_when_fits_without_eviction(self):
         self.mgr.register_load("model-a", vram_gb=4.0)
         with patch.object(self.mgr, "get_model_vram_requirement", return_value=2.0), \
              patch.object(self.mgr, "get_free_vram_gb", return_value=26.0):
             result = self.mgr.recommend_eviction("tiny-model")
-        self.assertIsNone(result)
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -314,13 +313,13 @@ class TestStatusSummary(unittest.TestCase):
             "cpu_offload_budget_gb", "cpu_offload_used_gb",
             "pynvml_available", "loaded_models",
         }
-        self.assertEqual(set(summary.keys()), expected_keys)
+        assert set(summary.keys()) == expected_keys
 
     def test_loaded_models_included(self):
         with patch.object(self.mgr, "refresh", return_value=None), \
              patch.object(vram_mod, "_PYNVML_AVAILABLE", False):
             summary = self.mgr.status_summary()
-        self.assertIn("model-a", summary["loaded_models"])
+        assert "model-a" in summary["loaded_models"]
         self.assertAlmostEqual(summary["loaded_models"]["model-a"]["gpu_gb"], 6.0)
 
     def test_numeric_fields_consistent(self):
@@ -385,7 +384,7 @@ class TestMultipleLoads(unittest.TestCase):
         self.mgr.register_load("a", vram_gb=4.0)
         self.mgr.register_load("b", vram_gb=6.0)
         self.mgr.register_load("c", vram_gb=8.0)
-        self.assertEqual(len(self.mgr._estimates), 3)
+        assert len(self.mgr._estimates) == 3
 
     def test_combined_vram_usage(self):
         self.mgr.register_load("a", vram_gb=4.0)
@@ -399,8 +398,8 @@ class TestMultipleLoads(unittest.TestCase):
         self.mgr.register_load("a", vram_gb=4.0)
         self.mgr.register_load("b", vram_gb=6.0)
         self.mgr.register_unload("a")
-        self.assertNotIn("a", self.mgr._estimates)
-        self.assertIn("b", self.mgr._estimates)
+        assert "a" not in self.mgr._estimates
+        assert "b" in self.mgr._estimates
 
 
 # ---------------------------------------------------------------------------
@@ -417,19 +416,19 @@ class TestGetVRAMManagerSingleton(unittest.TestCase):
     def test_returns_vram_manager_instance(self):
         with patch.object(VRAMManager, "_load_hardware_config", return_value=None):
             mgr = get_vram_manager()
-        self.assertIsInstance(mgr, VRAMManager)
+        assert isinstance(mgr, VRAMManager)
 
     def test_same_instance_on_repeated_calls(self):
         with patch.object(VRAMManager, "_load_hardware_config", return_value=None):
             mgr1 = get_vram_manager()
             mgr2 = get_vram_manager()
-        self.assertIs(mgr1, mgr2)
+        assert mgr1 is mgr2
 
     def test_class_get_instance_singleton(self):
         with patch.object(VRAMManager, "_load_hardware_config", return_value=None):
             a = VRAMManager.get_instance()
             b = VRAMManager.get_instance()
-        self.assertIs(a, b)
+        assert a is b
 
 
 if __name__ == "__main__":

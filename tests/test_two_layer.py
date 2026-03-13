@@ -9,14 +9,13 @@ Strategy:
 - Reset singleton in setUp via tl._two_layer_orchestrator = None.
 """
 
+import importlib.util as _tl_ilu
 import os as _tl_os
 import sys
 import types
 import unittest
-import importlib.util as _tl_ilu
 from enum import Enum
-from unittest.mock import MagicMock, patch, call
-
+from unittest.mock import MagicMock, call, patch
 
 # ---------------------------------------------------------------------------
 # Build minimal stubs for everything the orchestration package's __init__.py
@@ -54,6 +53,18 @@ def _mod(name, is_pkg=False, **attrs):
 # Defined as proper Enum subclasses so .value lookups always succeed even when
 # these classes end up being used in a context where the real types haven't
 # been loaded yet.
+class _FakeAgentType(str, Enum):
+    PLANNER = "PLANNER"
+    CONSOLIDATED_RESEARCHER = "CONSOLIDATED_RESEARCHER"
+    CONSOLIDATED_ORACLE = "CONSOLIDATED_ORACLE"
+    BUILDER = "BUILDER"
+    QUALITY = "QUALITY"
+    OPERATIONS = "OPERATIONS"
+    ORCHESTRATOR = "ORCHESTRATOR"
+    ARCHITECT = "ARCHITECT"
+    RESEARCHER = "RESEARCHER"
+
+
 class _FakePlanStatus(str, Enum):
     DRAFT = "draft"; RUNNING = "running"; COMPLETED = "completed"
     FAILED = "failed"; PENDING = "pending"
@@ -68,6 +79,7 @@ class _FakeTaskStatus(str, Enum):
 # We only add the attrs that are missing; the real module (which may have been
 # loaded already by test_agent_graph.py) is never corrupted.
 _mod("vetinari.types",
+     AgentType=_FakeAgentType,
      PlanStatus=_FakePlanStatus,
      TaskStatus=_FakeTaskStatus,
      ModelTier=MagicMock())
@@ -180,18 +192,16 @@ _c.Task = MagicMock
 # Instead we forcibly import the submodule directly.
 # Pop any incomplete stub left by earlier test files (e.g. test_cli.py)
 sys.modules.pop("vetinari.orchestration.two_layer", None)
-import importlib as _il
-import vetinari.orchestration  # triggers __init__ but uses our stubs above
-import vetinari.orchestration.two_layer as tl  # noqa: E402
 
-from vetinari.orchestration.two_layer import (  # noqa: E402
+import vetinari.orchestration.two_layer as tl
+from vetinari.orchestration.two_layer import (
+    _GOAL_CATEGORY_KEYWORDS,
+    _GOAL_ROUTING_TABLE,
     TwoLayerOrchestrator,
     classify_goal,
     get_goal_routing,
     get_two_layer_orchestrator,
     init_two_layer_orchestrator,
-    _GOAL_CATEGORY_KEYWORDS,
-    _GOAL_ROUTING_TABLE,
 )
 
 # Patch the names two_layer.py imported at module level so tests can
@@ -237,164 +247,164 @@ def _make_exec_results(completed=2, failed=0, task_results=None):
 class TestClassifyGoal(unittest.TestCase):
 
     def test_security_keyword_security(self):
-        self.assertEqual(classify_goal("run a security scan"), "security")
+        assert classify_goal("run a security scan") == "security"
 
     def test_security_keyword_audit(self):
-        self.assertEqual(classify_goal("audit the system"), "security")
+        assert classify_goal("audit the system") == "security"
 
     def test_security_keyword_vulnerability(self):
-        self.assertEqual(classify_goal("find vulnerability"), "security")
+        assert classify_goal("find vulnerability") == "security"
 
     def test_security_keyword_pentest(self):
-        self.assertEqual(classify_goal("run a pentest"), "security")
+        assert classify_goal("run a pentest") == "security"
 
     def test_security_keyword_cve(self):
-        self.assertEqual(classify_goal("patch this cve"), "security")
+        assert classify_goal("patch this cve") == "security"
 
     def test_security_keyword_owasp(self):
-        self.assertEqual(classify_goal("check owasp top ten"), "security")
+        assert classify_goal("check owasp top ten") == "security"
 
     def test_security_keyword_exploit(self):
-        self.assertEqual(classify_goal("simulate exploit"), "security")
+        assert classify_goal("simulate exploit") == "security"
 
     def test_devops_keyword_deploy(self):
-        self.assertEqual(classify_goal("deploy to production"), "devops")
+        assert classify_goal("deploy to production") == "devops"
 
     def test_devops_keyword_docker(self):
-        self.assertEqual(classify_goal("dockerize the app"), "devops")
+        assert classify_goal("dockerize the app") == "devops"
 
     def test_devops_keyword_kubernetes(self):
-        self.assertEqual(classify_goal("setup kubernetes cluster"), "devops")
+        assert classify_goal("setup kubernetes cluster") == "devops"
 
     def test_devops_keyword_cicd(self):
-        self.assertEqual(classify_goal("set up ci/cd pipeline"), "devops")
+        assert classify_goal("set up ci/cd pipeline") == "devops"
 
     def test_devops_keyword_terraform(self):
-        self.assertEqual(classify_goal("write terraform config"), "devops")
+        assert classify_goal("write terraform config") == "devops"
 
     def test_devops_keyword_helm(self):
-        self.assertEqual(classify_goal("create helm chart"), "devops")
+        assert classify_goal("create helm chart") == "devops"
 
     def test_image_keyword_logo(self):
-        self.assertEqual(classify_goal("design a logo"), "image")
+        assert classify_goal("design a logo") == "image"
 
     def test_image_keyword_icon(self):
-        self.assertEqual(classify_goal("create an icon"), "image")
+        assert classify_goal("create an icon") == "image"
 
     def test_image_keyword_mockup(self):
-        self.assertEqual(classify_goal("make a mockup"), "image")
+        assert classify_goal("make a mockup") == "image"
 
     def test_image_keyword_diagram(self):
-        self.assertEqual(classify_goal("draw a diagram"), "image")
+        assert classify_goal("draw a diagram") == "image"
 
     def test_creative_keyword_story(self):
-        self.assertEqual(classify_goal("write a story"), "creative")
+        assert classify_goal("write a story") == "creative"
 
     def test_creative_keyword_poem(self):
-        self.assertEqual(classify_goal("compose a poem"), "creative")
+        assert classify_goal("compose a poem") == "creative"
 
     def test_creative_keyword_fiction(self):
-        self.assertEqual(classify_goal("generate fiction"), "creative")
+        assert classify_goal("generate fiction") == "creative"
 
     def test_creative_keyword_novel(self):
-        self.assertEqual(classify_goal("write a novel"), "creative")
+        assert classify_goal("write a novel") == "creative"
 
     def test_data_keyword_database(self):
-        self.assertEqual(classify_goal("design a database schema"), "data")
+        assert classify_goal("design a database schema") == "data"
 
     def test_data_keyword_migration(self):
-        self.assertEqual(classify_goal("run migration scripts"), "data")
+        assert classify_goal("run migration scripts") == "data"
 
     def test_data_keyword_etl(self):
         # avoid "pipeline" which is a devops keyword matched earlier
-        self.assertEqual(classify_goal("run an etl job"), "data")
+        assert classify_goal("run an etl job") == "data"
 
     def test_data_keyword_sql(self):
-        self.assertEqual(classify_goal("write sql queries"), "data")
+        assert classify_goal("write sql queries") == "data"
 
     def test_ui_keyword_ui(self):
-        self.assertEqual(classify_goal("build a ui component"), "ui")
+        assert classify_goal("build a ui component") == "ui"
 
     def test_ui_keyword_ux(self):
-        self.assertEqual(classify_goal("improve ux flow"), "ui")
+        assert classify_goal("improve ux flow") == "ui"
 
     def test_ui_keyword_frontend(self):
-        self.assertEqual(classify_goal("create frontend page"), "ui")
+        assert classify_goal("create frontend page") == "ui"
 
     def test_ui_keyword_wireframe(self):
-        self.assertEqual(classify_goal("draw wireframe"), "ui")
+        assert classify_goal("draw wireframe") == "ui"
 
     def test_ui_keyword_css(self):
-        self.assertEqual(classify_goal("style with css"), "ui")
+        assert classify_goal("style with css") == "ui"
 
     def test_docs_keyword_document(self):
-        self.assertEqual(classify_goal("write documentation"), "docs")
+        assert classify_goal("write documentation") == "docs"
 
     def test_docs_keyword_readme(self):
-        self.assertEqual(classify_goal("update the readme"), "docs")
+        assert classify_goal("update the readme") == "docs"
 
     def test_docs_keyword_api_docs(self):
-        self.assertEqual(classify_goal("generate api docs"), "docs")
+        assert classify_goal("generate api docs") == "docs"
 
     def test_docs_keyword_tutorial(self):
-        self.assertEqual(classify_goal("create a tutorial"), "docs")
+        assert classify_goal("create a tutorial") == "docs"
 
     def test_research_keyword_research(self):
-        self.assertEqual(classify_goal("research machine learning"), "research")
+        assert classify_goal("research machine learning") == "research"
 
     def test_research_keyword_analyze(self):
-        self.assertEqual(classify_goal("analyze the dataset"), "research")
+        assert classify_goal("analyze the dataset") == "research"
 
     def test_research_keyword_investigate(self):
-        self.assertEqual(classify_goal("investigate the bug"), "research")
+        assert classify_goal("investigate the bug") == "research"
 
     def test_research_keyword_study(self):
-        self.assertEqual(classify_goal("study the codebase"), "research")
+        assert classify_goal("study the codebase") == "research"
 
     def test_research_keyword_explore(self):
-        self.assertEqual(classify_goal("explore alternatives"), "research")
+        assert classify_goal("explore alternatives") == "research"
 
     def test_code_keyword_code(self):
-        self.assertEqual(classify_goal("write code for sorting"), "code")
+        assert classify_goal("write code for sorting") == "code"
 
     def test_code_keyword_implement(self):
-        self.assertEqual(classify_goal("implement the feature"), "code")
+        assert classify_goal("implement the feature") == "code"
 
     def test_code_keyword_build(self):
         # "build" contains "ui" as substring so use "develop" instead
-        self.assertEqual(classify_goal("develop the module"), "code")
+        assert classify_goal("develop the module") == "code"
 
     def test_code_keyword_refactor(self):
-        self.assertEqual(classify_goal("refactor the class"), "code")
+        assert classify_goal("refactor the class") == "code"
 
     def test_code_keyword_function(self):
-        self.assertEqual(classify_goal("create a function"), "code")
+        assert classify_goal("create a function") == "code"
 
     def test_general_fallback_unknown(self):
-        self.assertEqual(classify_goal("do something unrecognised"), "general")
+        assert classify_goal("do something unrecognised") == "general"
 
     def test_general_fallback_empty(self):
-        self.assertEqual(classify_goal(""), "general")
+        assert classify_goal("") == "general"
 
     def test_case_insensitive_security(self):
-        self.assertEqual(classify_goal("SECURITY audit"), "security")
+        assert classify_goal("SECURITY audit") == "security"
 
     def test_case_insensitive_code(self):
-        self.assertEqual(classify_goal("IMPLEMENT the feature"), "code")
+        assert classify_goal("IMPLEMENT the feature") == "code"
 
     def test_case_insensitive_devops(self):
-        self.assertEqual(classify_goal("DEPLOY the service"), "devops")
+        assert classify_goal("DEPLOY the service") == "devops"
 
     def test_mixed_case(self):
-        self.assertEqual(classify_goal("ReFaCtoR the module"), "code")
+        assert classify_goal("ReFaCtoR the module") == "code"
 
     def test_first_matching_category_wins(self):
         # "security" comes before "code" in _GOAL_CATEGORY_KEYWORDS
         result = classify_goal("security audit the code implementation")
-        self.assertEqual(result, "security")
+        assert result == "security"
 
     def test_all_nine_categories_covered(self):
-        self.assertEqual(len(_GOAL_CATEGORY_KEYWORDS), 9)
+        assert len(_GOAL_CATEGORY_KEYWORDS) == 9
 
 
 # ---------------------------------------------------------------------------
@@ -405,64 +415,64 @@ class TestGetGoalRouting(unittest.TestCase):
 
     def test_returns_3_tuple(self):
         result = get_goal_routing("write code")
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 3)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
 
     def test_code_routing(self):
         agent, mode, tier = get_goal_routing("implement the feature")
-        self.assertEqual(agent, "BUILDER")
-        self.assertEqual(mode, "build")
-        self.assertEqual(tier, "coder")
+        assert agent == "BUILDER"
+        assert mode == "build"
+        assert tier == "coder"
 
     def test_research_routing(self):
-        agent, mode, tier = get_goal_routing("research the topic")
-        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
-        self.assertEqual(mode, "domain_research")
+        agent, mode, _tier = get_goal_routing("research the topic")
+        assert agent == "CONSOLIDATED_RESEARCHER"
+        assert mode == "domain_research"
 
     def test_docs_routing(self):
-        agent, mode, tier = get_goal_routing("write readme")
-        self.assertEqual(agent, "OPERATIONS")
+        agent, _mode, _tier = get_goal_routing("write readme")
+        assert agent == "OPERATIONS"
 
     def test_creative_routing(self):
-        agent, mode, tier = get_goal_routing("write a story")
-        self.assertEqual(agent, "OPERATIONS")
-        self.assertEqual(mode, "creative_writing")
+        agent, mode, _tier = get_goal_routing("write a story")
+        assert agent == "OPERATIONS"
+        assert mode == "creative_writing"
 
     def test_security_routing(self):
-        agent, mode, tier = get_goal_routing("security audit")
-        self.assertEqual(agent, "QUALITY")
+        agent, _mode, _tier = get_goal_routing("security audit")
+        assert agent == "QUALITY"
 
     def test_data_routing(self):
-        agent, mode, tier = get_goal_routing("design database")
-        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
+        agent, _mode, _tier = get_goal_routing("design database")
+        assert agent == "CONSOLIDATED_RESEARCHER"
 
     def test_devops_routing(self):
-        agent, mode, tier = get_goal_routing("deploy to kubernetes")
-        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
+        agent, _mode, _tier = get_goal_routing("deploy to kubernetes")
+        assert agent == "CONSOLIDATED_RESEARCHER"
 
     def test_ui_routing(self):
-        agent, mode, tier = get_goal_routing("build ui component")
-        self.assertEqual(agent, "CONSOLIDATED_RESEARCHER")
+        agent, _mode, _tier = get_goal_routing("build ui component")
+        assert agent == "CONSOLIDATED_RESEARCHER"
 
     def test_image_routing(self):
-        agent, mode, tier = get_goal_routing("create a logo")
-        self.assertEqual(agent, "BUILDER")
+        agent, _mode, _tier = get_goal_routing("create a logo")
+        assert agent == "BUILDER"
 
     def test_general_fallback(self):
-        agent, mode, tier = get_goal_routing("do something unknown xyz")
-        self.assertEqual(agent, "PLANNER")
-        self.assertEqual(mode, "plan")
+        agent, mode, _tier = get_goal_routing("do something unknown xyz")
+        assert agent == "PLANNER"
+        assert mode == "plan"
 
     def test_all_categories_in_routing_table(self):
         for cat in _GOAL_CATEGORY_KEYWORDS:
-            self.assertIn(cat, _GOAL_ROUTING_TABLE, f"Missing routing for {cat}")
+            assert cat in _GOAL_ROUTING_TABLE, f"Missing routing for {cat}"
 
     def test_routing_table_has_general(self):
-        self.assertIn("general", _GOAL_ROUTING_TABLE)
+        assert "general" in _GOAL_ROUTING_TABLE
 
     def test_all_routing_entries_3_elements(self):
         for cat, entry in _GOAL_ROUTING_TABLE.items():
-            self.assertEqual(len(entry), 3, f"{cat} entry should have 3 elements")
+            assert len(entry) == 3, f"{cat} entry should have 3 elements"
 
 
 # ---------------------------------------------------------------------------
@@ -504,40 +514,40 @@ class TestInit(unittest.TestCase):
              patch.object(tl, "DurableExecutionEngine"):
             orch = TwoLayerOrchestrator(model_router=mock_router)
             MockPG.assert_called_once_with(mock_router)
-            self.assertIs(orch.model_router, mock_router)
+            assert orch.model_router is mock_router
 
     def test_custom_agent_context(self):
         ctx = {"key": "value"}
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             orch = TwoLayerOrchestrator(agent_context=ctx)
-            self.assertEqual(orch.agent_context, ctx)
+            assert orch.agent_context == ctx
 
     def test_default_model_router_is_none(self):
         orch = _make_orchestrator()
-        self.assertIsNone(orch.model_router)
+        assert orch.model_router is None
 
     def test_default_agent_context_is_empty_dict(self):
         orch = _make_orchestrator()
-        self.assertEqual(orch.agent_context, {})
+        assert orch.agent_context == {}
 
     def test_agents_cache_starts_empty(self):
         orch = _make_orchestrator()
-        self.assertEqual(orch._agents, {})
+        assert orch._agents == {}
 
     def test_plan_generator_stored_as_attribute(self):
         mock_pg = MagicMock()
         with patch.object(tl, "PlanGenerator", return_value=mock_pg), \
              patch.object(tl, "DurableExecutionEngine"):
             orch = TwoLayerOrchestrator()
-            self.assertIs(orch.plan_generator, mock_pg)
+            assert orch.plan_generator is mock_pg
 
     def test_execution_engine_stored_as_attribute(self):
         mock_de = MagicMock()
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine", return_value=mock_de):
             orch = TwoLayerOrchestrator()
-            self.assertIs(orch.execution_engine, mock_de)
+            assert orch.execution_engine is mock_de
 
 
 # ---------------------------------------------------------------------------
@@ -559,10 +569,10 @@ class TestSetTaskHandlers(unittest.TestCase):
         h1, h2, h3 = MagicMock(), MagicMock(), MagicMock()
         self.orch.set_task_handlers({"a": h1, "b": h2, "c": h3})
         calls = self.orch.execution_engine.register_handler.call_args_list
-        self.assertEqual(len(calls), 3)
-        self.assertIn(call("a", h1), calls)
-        self.assertIn(call("b", h2), calls)
-        self.assertIn(call("c", h3), calls)
+        assert len(calls) == 3
+        assert call("a", h1) in calls
+        assert call("b", h2) in calls
+        assert call("c", h3) in calls
 
     def test_empty_handlers_no_register_calls(self):
         self.orch.set_task_handlers({})
@@ -582,21 +592,21 @@ class TestSetAgentContext(unittest.TestCase):
     def test_updates_context(self):
         ctx = {"adapter_manager": MagicMock()}
         self.orch.set_agent_context(ctx)
-        self.assertIs(self.orch.agent_context, ctx)
+        assert self.orch.agent_context is ctx
 
     def test_clears_agents_cache(self):
         self.orch._agents = {"PLANNER": MagicMock()}
         self.orch.set_agent_context({"new": "ctx"})
-        self.assertEqual(self.orch._agents, {})
+        assert self.orch._agents == {}
 
     def test_replaces_old_context(self):
         self.orch.agent_context = {"old": "value"}
         self.orch.set_agent_context({"new": "value"})
-        self.assertEqual(self.orch.agent_context, {"new": "value"})
+        assert self.orch.agent_context == {"new": "value"}
 
     def test_empty_context_accepted(self):
         self.orch.set_agent_context({})
-        self.assertEqual(self.orch.agent_context, {})
+        assert self.orch.agent_context == {}
 
 
 # ---------------------------------------------------------------------------
@@ -612,19 +622,19 @@ class TestGetAgent(unittest.TestCase):
 
     def test_unknown_type_returns_none(self):
         result = self.orch._get_agent("UNKNOWN_AGENT_XYZ")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_cache_hit_returns_cached(self):
         cached = MagicMock()
         self.orch._agents["PLANNER"] = cached
         result = self.orch._get_agent("PLANNER")
-        self.assertIs(result, cached)
+        assert result is cached
 
     def test_cache_hit_case_insensitive_input(self):
         cached = MagicMock()
         self.orch._agents["PLANNER"] = cached
         result = self.orch._get_agent("planner")
-        self.assertIs(result, cached)
+        assert result is cached
 
     def test_successful_import_returns_agent(self):
         mock_agent = MagicMock()
@@ -632,7 +642,7 @@ class TestGetAgent(unittest.TestCase):
         mock_mod.get_planner_agent = MagicMock(return_value=mock_agent)
         with patch("importlib.import_module", return_value=mock_mod):
             result = self.orch._get_agent("PLANNER")
-        self.assertIs(result, mock_agent)
+        assert result is mock_agent
 
     def test_successful_import_stores_in_cache(self):
         mock_agent = MagicMock()
@@ -640,7 +650,7 @@ class TestGetAgent(unittest.TestCase):
         mock_mod.get_planner_agent = MagicMock(return_value=mock_agent)
         with patch("importlib.import_module", return_value=mock_mod):
             self.orch._get_agent("PLANNER")
-        self.assertIn("PLANNER", self.orch._agents)
+        assert "PLANNER" in self.orch._agents
 
     def test_agent_initialized_with_context_when_context_present(self):
         ctx = {"key": "val"}
@@ -664,33 +674,33 @@ class TestGetAgent(unittest.TestCase):
     def test_import_error_returns_none(self):
         with patch("importlib.import_module", side_effect=ImportError("missing")):
             result = self.orch._get_agent("PLANNER")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_missing_getter_fn_returns_none(self):
         mock_mod = MagicMock(spec=[])  # no attributes at all
         with patch("importlib.import_module", return_value=mock_mod):
             result = self.orch._get_agent("PLANNER")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_getter_raises_returns_none(self):
         mock_mod = MagicMock()
         mock_mod.get_planner_agent = MagicMock(side_effect=RuntimeError("crash"))
         with patch("importlib.import_module", return_value=mock_mod):
             result = self.orch._get_agent("PLANNER")
-        self.assertIsNone(result)
+        assert result is None
 
     def test_agent_module_map_has_entries(self):
         # v0.4.0: 26 entries (6 consolidated + 20 legacy redirects)
-        self.assertEqual(len(TwoLayerOrchestrator._AGENT_MODULE_MAP), 26)
+        assert len(TwoLayerOrchestrator._AGENT_MODULE_MAP) == 26
 
     def test_agent_module_map_all_values_are_2_tuples(self):
         for key, val in TwoLayerOrchestrator._AGENT_MODULE_MAP.items():
-            self.assertIsInstance(val, tuple)
-            self.assertEqual(len(val), 2, f"{key} should map to 2-tuple")
+            assert isinstance(val, tuple)
+            assert len(val) == 2, f"{key} should map to 2-tuple"
 
     def test_agent_module_map_getter_names_start_with_get(self):
         for key, (_, fn) in TwoLayerOrchestrator._AGENT_MODULE_MAP.items():
-            self.assertTrue(fn.startswith("get_"), f"{key}: getter '{fn}' must start with 'get_'")
+            assert fn.startswith("get_"), f"{key}: getter '{fn}' must start with 'get_'"
 
     def test_all_expected_agent_types_present(self):
         # v0.4.0: 6 consolidated + legacy redirects
@@ -704,7 +714,7 @@ class TestGetAgent(unittest.TestCase):
             "IMPROVEMENT", "USER_INTERACTION", "DEVOPS", "VERSION_CONTROL",
             "ERROR_RECOVERY", "CONTEXT_MANAGER", "IMAGE_GENERATOR",
         }
-        self.assertEqual(set(TwoLayerOrchestrator._AGENT_MODULE_MAP.keys()), expected)
+        assert set(TwoLayerOrchestrator._AGENT_MODULE_MAP.keys()) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -733,19 +743,19 @@ class TestRouteModelForTask(unittest.TestCase):
     def test_returns_model_id_on_success(self):
         self.orch.model_router.select_model.return_value = self._ok_selection("gpt-4")
         result = self.orch._route_model_for_task(self._task("analysis"))
-        self.assertEqual(result, "gpt-4")
+        assert result == "gpt-4"
 
     def test_returns_default_when_selection_is_none(self):
         self.orch.model_router.select_model.return_value = None
         result = self.orch._route_model_for_task(self._task())
-        self.assertEqual(result, "default")
+        assert result == "default"
 
     def test_returns_default_when_selection_model_is_none(self):
         sel = MagicMock()
         sel.model = None
         self.orch.model_router.select_model.return_value = sel
         result = self.orch._route_model_for_task(self._task())
-        self.assertEqual(result, "default")
+        assert result == "default"
 
     def test_lazy_init_router_when_none(self):
         self.orch.model_router = None
@@ -766,7 +776,7 @@ class TestRouteModelForTask(unittest.TestCase):
         dmr.TaskType = FakeTT
 
         result = self.orch._route_model_for_task(self._task("analysis"))
-        self.assertEqual(result, "local")
+        assert result == "local"
 
     def test_returns_default_when_router_init_fails(self):
         self.orch.model_router = None
@@ -776,24 +786,24 @@ class TestRouteModelForTask(unittest.TestCase):
             sys.modules["vetinari.dynamic_model_router"] = dmr
         dmr.get_model_router = MagicMock(side_effect=RuntimeError("no router"))
         result = self.orch._route_model_for_task(self._task())
-        self.assertEqual(result, "default")
+        assert result == "default"
         # restore
         dmr.get_model_router = MagicMock(return_value=MagicMock())
 
     def test_returns_default_on_select_exception(self):
         self.orch.model_router.select_model.side_effect = RuntimeError("fail")
         result = self.orch._route_model_for_task(self._task())
-        self.assertEqual(result, "default")
+        assert result == "default"
 
     def test_implementation_task_type_mapped(self):
         self.orch.model_router.select_model.return_value = self._ok_selection("coder")
         result = self.orch._route_model_for_task(self._task("implementation"))
-        self.assertEqual(result, "coder")
+        assert result == "coder"
 
     def test_unknown_task_type_falls_to_general(self):
         self.orch.model_router.select_model.return_value = self._ok_selection("gen")
         result = self.orch._route_model_for_task(self._task("completely_unknown"))
-        self.assertEqual(result, "gen")
+        assert result == "gen"
 
 
 # ---------------------------------------------------------------------------
@@ -803,30 +813,30 @@ class TestRouteModelForTask(unittest.TestCase):
 class TestEnrichGoal(unittest.TestCase):
 
     def test_no_context_returns_goal_unchanged(self):
-        self.assertEqual(TwoLayerOrchestrator._enrich_goal("build it", {}), "build it")
+        assert TwoLayerOrchestrator._enrich_goal("build it", {}) == "build it"
 
     def test_required_features_appended(self):
         ctx = {"required_features": ["auth", "logging"]}
         result = TwoLayerOrchestrator._enrich_goal("build it", ctx)
-        self.assertIn("Required features:", result)
-        self.assertIn("- auth", result)
-        self.assertIn("- logging", result)
+        assert "Required features:" in result
+        assert "- auth" in result
+        assert "- logging" in result
 
     def test_things_to_avoid_appended(self):
         ctx = {"things_to_avoid": ["jQuery", "PHP"]}
         result = TwoLayerOrchestrator._enrich_goal("build it", ctx)
-        self.assertIn("Do NOT include:", result)
-        self.assertIn("- jQuery", result)
+        assert "Do NOT include:" in result
+        assert "- jQuery" in result
 
     def test_tech_stack_appended(self):
         ctx = {"tech_stack": "Python, FastAPI"}
         result = TwoLayerOrchestrator._enrich_goal("build it", ctx)
-        self.assertIn("Tech stack: Python, FastAPI", result)
+        assert "Tech stack: Python, FastAPI" in result
 
     def test_priority_appended(self):
         ctx = {"priority": "high"}
         result = TwoLayerOrchestrator._enrich_goal("build it", ctx)
-        self.assertIn("Priority: high", result)
+        assert "Priority: high" in result
 
     def test_all_fields_combined(self):
         ctx = {
@@ -836,19 +846,19 @@ class TestEnrichGoal(unittest.TestCase):
             "priority": "critical",
         }
         result = TwoLayerOrchestrator._enrich_goal("goal", ctx)
-        self.assertIn("Required features:", result)
-        self.assertIn("Do NOT include:", result)
-        self.assertIn("Tech stack: Go", result)
-        self.assertIn("Priority: critical", result)
+        assert "Required features:" in result
+        assert "Do NOT include:" in result
+        assert "Tech stack: Go" in result
+        assert "Priority: critical" in result
 
     def test_empty_required_features_list_not_appended(self):
         ctx = {"required_features": []}
         result = TwoLayerOrchestrator._enrich_goal("goal", ctx)
-        self.assertNotIn("Required features:", result)
+        assert "Required features:" not in result
 
     def test_goal_text_preserved_at_start(self):
         result = TwoLayerOrchestrator._enrich_goal("my goal", {"priority": "low"})
-        self.assertTrue(result.startswith("my goal"))
+        assert result.startswith("my goal")
 
 
 # ---------------------------------------------------------------------------
@@ -865,98 +875,98 @@ class TestAnalyzeInput(unittest.TestCase):
         result = self.orch._analyze_input("simple goal", {})
         for k in ("goal", "estimated_complexity", "domain", "needs_research",
                   "needs_code", "needs_ui"):
-            self.assertIn(k, result)
+            assert k in result
 
     def test_needs_code_for_code_keyword(self):
-        self.assertTrue(self.orch._analyze_input("write code", {})["needs_code"])
+        assert self.orch._analyze_input("write code", {})["needs_code"]
 
     def test_needs_code_for_implement_keyword(self):
-        self.assertTrue(self.orch._analyze_input("implement feature", {})["needs_code"])
+        assert self.orch._analyze_input("implement feature", {})["needs_code"]
 
     def test_needs_code_for_build_keyword(self):
-        self.assertTrue(self.orch._analyze_input("build app", {})["needs_code"])
+        assert self.orch._analyze_input("build app", {})["needs_code"]
 
     def test_needs_code_for_create_keyword(self):
-        self.assertTrue(self.orch._analyze_input("create module", {})["needs_code"])
+        assert self.orch._analyze_input("create module", {})["needs_code"]
 
     def test_needs_code_for_program_keyword(self):
-        self.assertTrue(self.orch._analyze_input("program script", {})["needs_code"])
+        assert self.orch._analyze_input("program script", {})["needs_code"]
 
     def test_needs_code_false_for_research(self):
-        self.assertFalse(self.orch._analyze_input("research topic", {})["needs_code"])
+        assert not self.orch._analyze_input("research topic", {})["needs_code"]
 
     def test_needs_research_for_research_keyword(self):
-        self.assertTrue(self.orch._analyze_input("research this", {})["needs_research"])
+        assert self.orch._analyze_input("research this", {})["needs_research"]
 
     def test_needs_research_for_analyze_keyword(self):
-        self.assertTrue(self.orch._analyze_input("analyze data", {})["needs_research"])
+        assert self.orch._analyze_input("analyze data", {})["needs_research"]
 
     def test_needs_research_for_investigate_keyword(self):
-        self.assertTrue(self.orch._analyze_input("investigate bug", {})["needs_research"])
+        assert self.orch._analyze_input("investigate bug", {})["needs_research"]
 
     def test_needs_research_for_study_keyword(self):
-        self.assertTrue(self.orch._analyze_input("study the code", {})["needs_research"])
+        assert self.orch._analyze_input("study the code", {})["needs_research"]
 
     def test_needs_research_false(self):
-        self.assertFalse(self.orch._analyze_input("build app", {})["needs_research"])
+        assert not self.orch._analyze_input("build app", {})["needs_research"]
 
     def test_needs_ui_for_ui_keyword(self):
-        self.assertTrue(self.orch._analyze_input("make a ui", {})["needs_ui"])
+        assert self.orch._analyze_input("make a ui", {})["needs_ui"]
 
     def test_needs_ui_for_frontend_keyword(self):
-        self.assertTrue(self.orch._analyze_input("create frontend", {})["needs_ui"])
+        assert self.orch._analyze_input("create frontend", {})["needs_ui"]
 
     def test_needs_ui_for_interface_keyword(self):
-        self.assertTrue(self.orch._analyze_input("design interface", {})["needs_ui"])
+        assert self.orch._analyze_input("design interface", {})["needs_ui"]
 
     def test_needs_ui_for_dashboard_keyword(self):
-        self.assertTrue(self.orch._analyze_input("build dashboard", {})["needs_ui"])
+        assert self.orch._analyze_input("build dashboard", {})["needs_ui"]
 
     def test_needs_ui_false(self):
-        self.assertFalse(self.orch._analyze_input("analyze data", {})["needs_ui"])
+        assert not self.orch._analyze_input("analyze data", {})["needs_ui"]
 
     def test_complexity_simple_under_10_words(self):
-        self.assertEqual(self.orch._analyze_input("build it now", {})["estimated_complexity"], "simple")
+        assert self.orch._analyze_input("build it now", {})["estimated_complexity"] == "simple"
 
     def test_complexity_simple_nine_words(self):
         goal = " ".join(["w"] * 9)
-        self.assertEqual(self.orch._analyze_input(goal, {})["estimated_complexity"], "simple")
+        assert self.orch._analyze_input(goal, {})["estimated_complexity"] == "simple"
 
     def test_complexity_medium_ten_words(self):
         goal = " ".join(["w"] * 10)
-        self.assertEqual(self.orch._analyze_input(goal, {})["estimated_complexity"], "medium")
+        assert self.orch._analyze_input(goal, {})["estimated_complexity"] == "medium"
 
     def test_complexity_medium_twenty_words(self):
         goal = " ".join(["w"] * 20)
-        self.assertEqual(self.orch._analyze_input(goal, {})["estimated_complexity"], "medium")
+        assert self.orch._analyze_input(goal, {})["estimated_complexity"] == "medium"
 
     def test_complexity_medium_thirty_words(self):
         goal = " ".join(["w"] * 30)
-        self.assertEqual(self.orch._analyze_input(goal, {})["estimated_complexity"], "medium")
+        assert self.orch._analyze_input(goal, {})["estimated_complexity"] == "medium"
 
     def test_complexity_complex_over_thirty_words(self):
         goal = " ".join(["w"] * 31)
-        self.assertEqual(self.orch._analyze_input(goal, {})["estimated_complexity"], "complex")
+        assert self.orch._analyze_input(goal, {})["estimated_complexity"] == "complex"
 
     def test_domain_coding_when_needs_code(self):
         result = self.orch._analyze_input("implement feature", {})
-        self.assertEqual(result["domain"], "coding")
+        assert result["domain"] == "coding"
 
     def test_domain_research_when_needs_research_not_code(self):
         result = self.orch._analyze_input("research topic", {})
-        self.assertEqual(result["domain"], "research")
+        assert result["domain"] == "research"
 
     def test_domain_general_otherwise(self):
         result = self.orch._analyze_input("do something", {})
-        self.assertEqual(result["domain"], "general")
+        assert result["domain"] == "general"
 
     def test_goal_preserved_in_result(self):
         result = self.orch._analyze_input("my specific goal", {})
-        self.assertEqual(result["goal"], "my specific goal")
+        assert result["goal"] == "my specific goal"
 
     def test_case_insensitive_detection(self):
         result = self.orch._analyze_input("IMPLEMENT the feature", {})
-        self.assertTrue(result["needs_code"])
+        assert result["needs_code"]
 
 
 # ---------------------------------------------------------------------------
@@ -983,73 +993,73 @@ class TestGenerateAndExecute(unittest.TestCase):
             return self.orch.generate_and_execute(goal, **kwargs)
 
     def test_result_has_plan_id(self):
-        self.assertIn("plan_id", self._run())
+        assert "plan_id" in self._run()
 
     def test_result_has_goal(self):
-        self.assertIn("goal", self._run())
+        assert "goal" in self._run()
 
     def test_result_has_completed(self):
-        self.assertIn("completed", self._run())
+        assert "completed" in self._run()
 
     def test_result_has_failed(self):
-        self.assertIn("failed", self._run())
+        assert "failed" in self._run()
 
     def test_result_has_outputs(self):
-        self.assertIn("outputs", self._run())
+        assert "outputs" in self._run()
 
     def test_result_has_review_result(self):
-        self.assertIn("review_result", self._run())
+        assert "review_result" in self._run()
 
     def test_result_has_final_output(self):
-        self.assertIn("final_output", self._run())
+        assert "final_output" in self._run()
 
     def test_result_has_stages(self):
-        self.assertIn("stages", self._run())
+        assert "stages" in self._run()
 
     def test_result_has_total_time_ms(self):
-        self.assertIn("total_time_ms", self._run())
+        assert "total_time_ms" in self._run()
 
     def test_plan_id_matches_graph(self):
-        self.assertEqual(self._run()["plan_id"], "plan-123")
+        assert self._run()["plan_id"] == "plan-123"
 
     def test_goal_preserved_in_result(self):
-        self.assertEqual(self._run("my goal")["goal"], "my goal")
+        assert self._run("my goal")["goal"] == "my goal"
 
     def test_completed_count(self):
-        self.assertEqual(self._run()["completed"], 2)
+        assert self._run()["completed"] == 2
 
     def test_failed_count(self):
-        self.assertEqual(self._run()["failed"], 0)
+        assert self._run()["failed"] == 0
 
     def test_outputs_from_task_results(self):
-        self.assertEqual(self._run()["outputs"], {"t1": "r1", "t2": "r2"})
+        assert self._run()["outputs"] == {"t1": "r1", "t2": "r2"}
 
     def test_total_time_ms_nonnegative(self):
-        self.assertGreaterEqual(self._run()["total_time_ms"], 0)
+        assert self._run()["total_time_ms"] >= 0
 
     def test_stages_contains_input_analysis(self):
-        self.assertIn("input_analysis", self._run()["stages"])
+        assert "input_analysis" in self._run()["stages"]
 
     def test_stages_contains_plan(self):
-        self.assertIn("plan", self._run()["stages"])
+        assert "plan" in self._run()["stages"]
 
     def test_stages_contains_model_assignment(self):
-        self.assertIn("model_assignment", self._run()["stages"])
+        assert "model_assignment" in self._run()["stages"]
 
     def test_stages_contains_execution(self):
-        self.assertIn("execution", self._run()["stages"])
+        assert "execution" in self._run()["stages"]
 
     def test_stages_contains_review(self):
-        self.assertIn("review", self._run()["stages"])
+        assert "review" in self._run()["stages"]
 
     def test_stages_contains_final_assembly(self):
-        self.assertIn("final_assembly", self._run()["stages"])
+        assert "final_assembly" in self._run()["stages"]
 
     def test_plan_generator_called_with_enriched_goal(self):
         self._run("build it", context={"priority": "high"})
         call_args = self.orch.plan_generator.generate_plan.call_args[0][0]
-        self.assertIn("build it", call_args)
-        self.assertIn("Priority: high", call_args)
+        assert "build it" in call_args
+        assert "Priority: high" in call_args
 
     def test_custom_task_handler_passed_to_engine(self):
         handler = MagicMock()
@@ -1083,7 +1093,7 @@ class TestGenerateAndExecute(unittest.TestCase):
              patch.object(self.orch, "_assemble_final_output", return_value=""):
             self.orch.generate_and_execute("build it")
             mock_rm.assert_called_once_with(node)
-            self.assertEqual(node.input_data["assigned_model"], "gpt-4")
+            assert node.input_data["assigned_model"] == "gpt-4"
 
 
 # ---------------------------------------------------------------------------
@@ -1099,17 +1109,17 @@ class TestReviewOutputs(unittest.TestCase):
     def test_fallback_when_no_evaluator(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._review_outputs({"task_results": {}}, "goal")
-        self.assertEqual(result["verdict"], "inconclusive")
+        assert result["verdict"] == "inconclusive"
 
     def test_fallback_has_quality_score(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._review_outputs({}, "goal")
-        self.assertEqual(result["quality_score"], 0.5)
+        assert result["quality_score"] == 0.5
 
     def test_fallback_has_summary(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._review_outputs({}, "goal")
-        self.assertIn("summary", result)
+        assert "summary" in result
 
     def test_uses_evaluator_output_on_success(self):
         mock_eval = MagicMock()
@@ -1120,14 +1130,14 @@ class TestReviewOutputs(unittest.TestCase):
 
         with patch.object(self.orch, "_get_agent", return_value=mock_eval):
             result = self.orch._review_outputs({"task_results": {"t1": "out"}}, "goal")
-        self.assertEqual(result["verdict"], "pass")
+        assert result["verdict"] == "pass"
 
     def test_fallback_when_evaluator_execute_raises(self):
         mock_eval = MagicMock()
         mock_eval.execute.side_effect = RuntimeError("crash")
         with patch.object(self.orch, "_get_agent", return_value=mock_eval):
             result = self.orch._review_outputs({"task_results": {}}, "goal")
-        self.assertEqual(result["verdict"], "inconclusive")
+        assert result["verdict"] == "inconclusive"
 
     def test_fallback_when_evaluator_result_not_success(self):
         mock_eval = MagicMock()
@@ -1136,7 +1146,7 @@ class TestReviewOutputs(unittest.TestCase):
         mock_eval.execute.return_value = mock_res
         with patch.object(self.orch, "_get_agent", return_value=mock_eval):
             result = self.orch._review_outputs({"task_results": {}}, "goal")
-        self.assertIn("quality_score", result)
+        assert "quality_score" in result
 
 
 # ---------------------------------------------------------------------------
@@ -1159,7 +1169,7 @@ class TestAssembleFinalOutput(unittest.TestCase):
             result = self.orch._assemble_final_output(
                 {"task_results": {"t1": "r1"}}, {}, "goal"
             )
-        self.assertEqual(result, "the final text")
+        assert result == "the final text"
 
     def test_str_output_when_no_synthesized_artifact_key(self):
         mock_synth = MagicMock()
@@ -1169,20 +1179,20 @@ class TestAssembleFinalOutput(unittest.TestCase):
         mock_synth.execute.return_value = mock_res
         with patch.object(self.orch, "_get_agent", return_value=mock_synth):
             result = self.orch._assemble_final_output({"task_results": {}}, {}, "goal")
-        self.assertIsInstance(result, str)
+        assert isinstance(result, str)
 
     def test_fallback_join_when_no_synthesizer(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._assemble_final_output(
                 {"task_results": {"t1": "output1"}}, {}, "goal"
             )
-        self.assertIn("t1", result)
-        self.assertIn("output1", result)
+        assert "t1" in result
+        assert "output1" in result
 
     def test_fallback_completed_goal_when_empty_task_results(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._assemble_final_output({"task_results": {}}, {}, "do X")
-        self.assertIn("do X", result)
+        assert "do X" in result
 
     def test_fallback_when_synthesizer_raises(self):
         mock_synth = MagicMock()
@@ -1191,12 +1201,12 @@ class TestAssembleFinalOutput(unittest.TestCase):
             result = self.orch._assemble_final_output(
                 {"task_results": {"t1": "r1"}}, {}, "goal"
             )
-        self.assertIn("t1", result)
+        assert "t1" in result
 
     def test_returns_string(self):
         with patch.object(self.orch, "_get_agent", return_value=None):
             result = self.orch._assemble_final_output({"task_results": {}}, {}, "goal")
-        self.assertIsInstance(result, str)
+        assert isinstance(result, str)
 
 
 # ---------------------------------------------------------------------------
@@ -1223,7 +1233,7 @@ class TestMakeDefaultHandler(unittest.TestCase):
         }))
 
     def test_returns_callable(self):
-        self.assertTrue(callable(self.orch._make_default_handler()))
+        assert callable(self.orch._make_default_handler())
 
     def test_success_with_adapter_manager(self):
         am = MagicMock()
@@ -1238,9 +1248,9 @@ class TestMakeDefaultHandler(unittest.TestCase):
         handler = self.orch._make_default_handler()
         result = handler(self._task())
 
-        self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["result"], "result text")
-        self.assertEqual(result["task_id"], "t1")
+        assert result["status"] == "ok"
+        assert result["result"] == "result text"
+        assert result["task_id"] == "t1"
 
     def test_fallback_lmstudio_when_no_adapter_manager(self):
         self.orch.agent_context = {}
@@ -1254,8 +1264,8 @@ class TestMakeDefaultHandler(unittest.TestCase):
         handler = self.orch._make_default_handler()
         result = handler(self._task())
 
-        self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["result"], "lm result")
+        assert result["status"] == "ok"
+        assert result["result"] == "lm result"
 
     def test_error_status_when_everything_fails(self):
         self.orch.agent_context = {}
@@ -1266,9 +1276,9 @@ class TestMakeDefaultHandler(unittest.TestCase):
         handler = self.orch._make_default_handler()
         result = handler(self._task())
 
-        self.assertEqual(result["status"], "error")
-        self.assertIn("error", result)
-        self.assertEqual(result["task_id"], "t1")
+        assert result["status"] == "error"
+        assert "error" in result
+        assert result["task_id"] == "t1"
 
     def test_adapter_manager_failure_falls_back_to_lmstudio(self):
         am = MagicMock()
@@ -1285,8 +1295,8 @@ class TestMakeDefaultHandler(unittest.TestCase):
         handler = self.orch._make_default_handler()
         result = handler(self._task())
 
-        self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["result"], "lm fallback")
+        assert result["status"] == "ok"
+        assert result["result"] == "lm fallback"
 
     def test_token_optimizer_failure_uses_defaults(self):
         self.orch.agent_context = {}
@@ -1300,7 +1310,7 @@ class TestMakeDefaultHandler(unittest.TestCase):
         handler = self.orch._make_default_handler()
         result = handler(self._task())
 
-        self.assertEqual(result["status"], "ok")
+        assert result["status"] == "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -1349,20 +1359,20 @@ class TestExecuteWithAgentGraph(unittest.TestCase):
         mock_r.output = "out"
         mock_r.errors = []
 
-        mock_graph, mock_ag, _ = self._setup_happy_path(nodes={"t1": node})
+        _mock_graph, mock_ag, _ = self._setup_happy_path(nodes={"t1": node})
         mock_ag.execute_plan.return_value = {"t1": mock_r}
 
         result = self.orch.execute_with_agent_graph("build something")
 
-        self.assertIn("plan_id", result)
-        self.assertIn("backend", result)
-        self.assertIn("completed", result)
-        self.assertIn("failed", result)
+        assert "plan_id" in result
+        assert "backend" in result
+        assert "completed" in result
+        assert "failed" in result
 
     def test_backend_is_agent_graph(self):
         self._setup_happy_path("plan-ag2", nodes={})
         result = self.orch.execute_with_agent_graph("goal")
-        self.assertEqual(result.get("backend"), "agent_graph")
+        assert result.get("backend") == "agent_graph"
 
     def test_falls_back_to_generate_and_execute_on_exception(self):
         self._ag_mod.get_agent_graph = MagicMock(side_effect=RuntimeError("ag unavailable"))
@@ -1370,7 +1380,7 @@ class TestExecuteWithAgentGraph(unittest.TestCase):
                           return_value={"plan_id": "fallback"}) as mock_gen:
             result = self.orch.execute_with_agent_graph("build it")
             mock_gen.assert_called_once()
-        self.assertEqual(result["plan_id"], "fallback")
+        assert result["plan_id"] == "fallback"
 
     def test_none_context_does_not_raise(self):
         self._ag_mod.get_agent_graph = MagicMock(side_effect=RuntimeError("fail"))
@@ -1394,7 +1404,7 @@ class TestDelegationMethods(unittest.TestCase):
         self.orch.plan_generator.generate_plan.return_value = mock_graph
         result = self.orch.generate_plan_only("goal", {"k": "v"})
         self.orch.plan_generator.generate_plan.assert_called_once_with("goal", {"k": "v"})
-        self.assertIs(result, mock_graph)
+        assert result is mock_graph
 
     def test_generate_plan_only_delegates_without_constraints(self):
         self.orch.plan_generator.generate_plan.return_value = MagicMock()
@@ -1408,7 +1418,7 @@ class TestDelegationMethods(unittest.TestCase):
         self.orch.execution_engine.execute_plan.return_value = mock_result
         result = self.orch.execute_plan(mock_graph, mock_handler)
         self.orch.execution_engine.execute_plan.assert_called_once_with(mock_graph, mock_handler)
-        self.assertIs(result, mock_result)
+        assert result is mock_result
 
     def test_execute_plan_delegates_without_handler(self):
         mock_graph = MagicMock()
@@ -1420,27 +1430,27 @@ class TestDelegationMethods(unittest.TestCase):
         self.orch.execution_engine.recover_execution.return_value = {"status": "ok"}
         result = self.orch.recover_plan("plan-abc")
         self.orch.execution_engine.recover_execution.assert_called_once_with("plan-abc")
-        self.assertEqual(result, {"status": "ok"})
+        assert result == {"status": "ok"}
 
     def test_get_plan_status_delegates(self):
         self.orch.execution_engine.get_execution_status.return_value = {"status": "running"}
         result = self.orch.get_plan_status("plan-abc")
         self.orch.execution_engine.get_execution_status.assert_called_once_with("plan-abc")
-        self.assertEqual(result, {"status": "running"})
+        assert result == {"status": "running"}
 
     def test_get_plan_status_returns_none_when_not_found(self):
         self.orch.execution_engine.get_execution_status.return_value = None
-        self.assertIsNone(self.orch.get_plan_status("missing"))
+        assert self.orch.get_plan_status("missing") is None
 
     def test_list_checkpoints_delegates(self):
         self.orch.execution_engine.list_checkpoints.return_value = ["p1", "p2"]
         result = self.orch.list_checkpoints()
         self.orch.execution_engine.list_checkpoints.assert_called_once()
-        self.assertEqual(result, ["p1", "p2"])
+        assert result == ["p1", "p2"]
 
     def test_list_checkpoints_empty(self):
         self.orch.execution_engine.list_checkpoints.return_value = []
-        self.assertEqual(self.orch.list_checkpoints(), [])
+        assert self.orch.list_checkpoints() == []
 
 
 # ---------------------------------------------------------------------------
@@ -1459,31 +1469,31 @@ class TestSingletons(unittest.TestCase):
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             orch = get_two_layer_orchestrator()
-        self.assertIsInstance(orch, TwoLayerOrchestrator)
+        assert isinstance(orch, TwoLayerOrchestrator)
 
     def test_get_returns_same_instance_twice(self):
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             a = get_two_layer_orchestrator()
             b = get_two_layer_orchestrator()
-        self.assertIs(a, b)
+        assert a is b
 
     def test_get_returns_existing_instance(self):
         existing = MagicMock()
         tl._two_layer_orchestrator = existing
-        self.assertIs(get_two_layer_orchestrator(), existing)
+        assert get_two_layer_orchestrator() is existing
 
     def test_init_creates_new_instance(self):
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             orch = init_two_layer_orchestrator("/tmp/ck")
-        self.assertIsInstance(orch, TwoLayerOrchestrator)
+        assert isinstance(orch, TwoLayerOrchestrator)
 
     def test_init_updates_global(self):
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             orch = init_two_layer_orchestrator()
-        self.assertIs(tl._two_layer_orchestrator, orch)
+        assert tl._two_layer_orchestrator is orch
 
     def test_init_replaces_existing(self):
         old = MagicMock()
@@ -1491,7 +1501,7 @@ class TestSingletons(unittest.TestCase):
         with patch.object(tl, "PlanGenerator"), \
              patch.object(tl, "DurableExecutionEngine"):
             new = init_two_layer_orchestrator()
-        self.assertIsNot(new, old)
+        assert new is not old
 
     def test_init_passes_checkpoint_dir(self):
         with patch.object(tl, "PlanGenerator"), \
@@ -1513,25 +1523,25 @@ class TestSingletons(unittest.TestCase):
 class TestStructural(unittest.TestCase):
 
     def test_goal_category_keywords_has_exactly_9_categories(self):
-        self.assertEqual(len(_GOAL_CATEGORY_KEYWORDS), 9)
+        assert len(_GOAL_CATEGORY_KEYWORDS) == 9
 
     def test_goal_routing_table_has_10_entries(self):
         # 9 categories + "general"
-        self.assertEqual(len(_GOAL_ROUTING_TABLE), 10)
+        assert len(_GOAL_ROUTING_TABLE) == 10
 
     def test_routing_table_values_are_3_tuples(self):
         for cat, entry in _GOAL_ROUTING_TABLE.items():
-            self.assertEqual(len(entry), 3, f"{cat} should be 3-tuple")
+            assert len(entry) == 3, f"{cat} should be 3-tuple"
 
     def test_enrich_goal_is_static_method(self):
-        self.assertTrue(callable(TwoLayerOrchestrator._enrich_goal))
+        assert callable(TwoLayerOrchestrator._enrich_goal)
 
     def test_agent_module_map_is_class_attribute(self):
-        self.assertIn("_AGENT_MODULE_MAP", TwoLayerOrchestrator.__dict__)
+        assert "_AGENT_MODULE_MAP" in TwoLayerOrchestrator.__dict__
 
     def test_classify_goal_with_whitespace_only(self):
         result = classify_goal("   ")
-        self.assertEqual(result, "general")
+        assert result == "general"
 
     def test_get_goal_routing_delegates_to_classify_goal(self):
         with patch("vetinari.orchestration.two_layer.classify_goal",
@@ -1557,9 +1567,9 @@ class TestStructural(unittest.TestCase):
             r1 = orch._get_agent("PLANNER")
             r2 = orch._get_agent("BUILDER")
 
-        self.assertIs(r1, a1)
-        self.assertIs(r2, a2)
-        self.assertEqual(len(orch._agents), 2)
+        assert r1 is a1
+        assert r2 is a2
+        assert len(orch._agents) == 2
 
 
 if __name__ == "__main__":

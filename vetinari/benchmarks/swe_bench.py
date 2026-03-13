@@ -13,9 +13,8 @@ Metrics: pass@1, patch correctness, test pass rate.
 
 from __future__ import annotations
 
-import hashlib
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
@@ -25,10 +24,9 @@ from vetinari.benchmarks.runner import (
     BenchmarkTier,
 )
 
-
 # -- Sample SWE-bench-style cases (mock data for local testing) --
 
-_SAMPLE_CASES: List[Dict[str, Any]] = [
+_SAMPLE_CASES: list[dict[str, Any]] = [
     {
         "instance_id": "swe-lite-001",
         "repo": "psf/requests",
@@ -74,11 +72,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "The exists() method should add LIMIT 1 to the SQL query for "
             "efficiency, but currently executes the full query."
         ),
-        "base_code": (
-            "class QuerySet:\n"
-            "    def exists(self):\n"
-            "        return len(self._execute()) > 0\n"
-        ),
+        "base_code": ("class QuerySet:\n    def exists(self):\n        return len(self._execute()) > 0\n"),
         "expected_patch": (
             "class QuerySet:\n"
             "    def exists(self):\n"
@@ -99,8 +93,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         "repo": "scikit-learn/scikit-learn",
         "issue": "StandardScaler ignores sample_weight in partial_fit",
         "description": (
-            "StandardScaler.partial_fit should account for sample_weight "
-            "when computing running mean and variance."
+            "StandardScaler.partial_fit should account for sample_weight when computing running mean and variance."
         ),
         "base_code": (
             "class StandardScaler:\n"
@@ -206,25 +199,27 @@ class SWEBenchAdapter(BenchmarkSuiteAdapter):
     layer = BenchmarkLayer.PIPELINE
     tier = BenchmarkTier.SLOW
 
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
-            cases.append(BenchmarkCase(
-                case_id=item["instance_id"],
-                suite_name=self.name,
-                description=item["description"],
-                input_data={
-                    "repo": item["repo"],
-                    "issue": item["issue"],
-                    "base_code": item["base_code"],
-                    "test_patch": item["test_patch"],
-                },
-                expected={
-                    "expected_patch": item["expected_patch"],
-                },
-                tags=item.get("tags", []),
-            ))
+            cases.append(
+                BenchmarkCase(
+                    case_id=item["instance_id"],
+                    suite_name=self.name,
+                    description=item["description"],
+                    input_data={
+                        "repo": item["repo"],
+                        "issue": item["issue"],
+                        "base_code": item["base_code"],
+                        "test_patch": item["test_patch"],
+                    },
+                    expected={
+                        "expected_patch": item["expected_patch"],
+                    },
+                    tags=item.get("tags", []),
+                )
+            )
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:

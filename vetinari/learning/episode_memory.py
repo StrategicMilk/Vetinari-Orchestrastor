@@ -1,5 +1,5 @@
-"""
-Vetinari Episodic Memory System
+"""Vetinari Episodic Memory System.
+
 ==================================
 Stores structured records of past agent executions and retrieves relevant
 past experiences via lightweight embedding similarity.
@@ -37,7 +37,7 @@ Usage::
     # Recall relevant past episodes for a new task
     episodes = mem.recall("Implement a cache layer for our API", k=3, min_score=0.7)
     for ep in episodes:
-        print(ep.task_summary, ep.output_summary)
+        logger.debug(ep.task_summary, ep.output_summary)
 """
 
 from __future__ import annotations
@@ -48,11 +48,9 @@ import logging
 import os
 import sqlite3
 import threading
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -64,21 +62,22 @@ _MAX_EPISODES = int(os.environ.get("VETINARI_MAX_EPISODES", "10000"))
 # Embedding
 # ---------------------------------------------------------------------------
 
-def _simple_embedding(text: str, dim: int = 256) -> List[float]:
+
+def _simple_embedding(text: str, dim: int = 256) -> list[float]:
     """Character n-gram hashing embedding — CPU only, no dependencies."""
     vec = [0.0] * dim
     text_lower = text.lower()
     for n in (2, 3, 4):
         for i in range(len(text_lower) - n + 1):
-            gram = text_lower[i:i + n]
-            h = int(hashlib.md5(gram.encode()).hexdigest(), 16)
+            gram = text_lower[i : i + n]
+            h = int(hashlib.md5(gram.encode()).hexdigest(), 16)  # noqa: S324
             vec[h % dim] += 1.0
     # L2-normalise
     norm = (sum(x * x for x in vec) ** 0.5) or 1.0
     return [x / norm for x in vec]
 
 
-def _cosine_similarity(a: List[float], b: List[float]) -> float:
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
     return max(0.0, min(1.0, dot))
 
@@ -87,9 +86,10 @@ def _get_embedder():
     """Try to load sentence-transformers; fall back to simple hashing."""
     try:
         from sentence_transformers import SentenceTransformer
+
         model = SentenceTransformer("all-MiniLM-L6-v2")
 
-        def encode(text: str) -> List[float]:
+        def encode(text: str) -> list[float]:
             return model.encode([text], show_progress_bar=False)[0].tolist()
 
         return encode
@@ -101,22 +101,24 @@ def _get_embedder():
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Episode:
     """A single past execution record."""
+
     episode_id: str
     timestamp: str
-    task_summary: str          # Truncated task description (for display)
+    task_summary: str  # Truncated task description (for display)
     agent_type: str
     task_type: str
-    output_summary: str        # Truncated output (key facts)
+    output_summary: str  # Truncated output (key facts)
     quality_score: float
     success: bool
     model_id: str
-    embedding: List[float]     # For similarity search
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    embedding: list[float]  # For similarity search
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "episode_id": self.episode_id,
             "timestamp": self.timestamp,
@@ -135,10 +137,11 @@ class Episode:
 # Memory
 # ---------------------------------------------------------------------------
 
+
 class EpisodeMemory:
     """Persistent episodic memory with similarity-based retrieval."""
 
-    _instance: Optional["EpisodeMemory"] = None
+    _instance: EpisodeMemory | None = None
     _cls_lock = threading.Lock()
 
     def __init__(self, db_path: str = _DB_PATH):
@@ -146,7 +149,7 @@ class EpisodeMemory:
         self._lock = threading.RLock()
         self._embedder = _get_embedder()
         # In-memory embedding index: list of (episode_id, embedding)
-        self._index: List[tuple] = []
+        self._index: list[tuple] = []
         self._init_db()
         self._load_index()
 
@@ -155,7 +158,7 @@ class EpisodeMemory:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls, db_path: str = _DB_PATH) -> "EpisodeMemory":
+    def get_instance(cls, db_path: str = _DB_PATH) -> EpisodeMemory:
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls(db_path=db_path)
@@ -192,15 +195,10 @@ class EpisodeMemory:
         try:
             with sqlite3.connect(self._db_path) as conn:
                 rows = conn.execute(
-                    "SELECT episode_id, embedding FROM episodes ORDER BY created_at DESC LIMIT ?",
-                    (_MAX_EPISODES,)
+                    "SELECT episode_id, embedding FROM episodes ORDER BY created_at DESC LIMIT ?", (_MAX_EPISODES,)
                 ).fetchall()
             with self._lock:
-                self._index = [
-                    (row[0], json.loads(row[1]))
-                    for row in rows
-                    if row[1]
-                ]
+                self._index = [(row[0], json.loads(row[1])) for row in rows if row[1]]
         except Exception as e:
             logger.debug("[EpisodeMemory] Index load failed: %s", e)
 
@@ -217,10 +215,11 @@ class EpisodeMemory:
         quality_score: float,
         success: bool,
         model_id: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Record a new episode. Returns the episode_id."""
         import uuid
+
         episode_id = f"ep_{uuid.uuid4().hex[:8]}"
         task_summary = task_description[:300]
         output_summary = output_summary[:500]
@@ -282,11 +281,11 @@ class EpisodeMemory:
         try:
             with sqlite3.connect(self._db_path) as conn:
                 # Delete bottom 10% by importance
-                cutoff = max(0, _MAX_EPISODES - _MAX_EPISODES // 10)
+                max(0, _MAX_EPISODES - _MAX_EPISODES // 10)
                 conn.execute(
-                    f"DELETE FROM episodes WHERE episode_id IN "
-                    f"(SELECT episode_id FROM episodes ORDER BY importance ASC LIMIT ?)",
-                    (_MAX_EPISODES // 10,)
+                    "DELETE FROM episodes WHERE episode_id IN "
+                    "(SELECT episode_id FROM episodes ORDER BY importance ASC LIMIT ?)",
+                    (_MAX_EPISODES // 10,),
                 )
             # Rebuild index
             self._load_index()
@@ -306,9 +305,9 @@ class EpisodeMemory:
         query: str,
         k: int = 5,
         min_score: float = 0.0,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         successful_only: bool = False,
-    ) -> List[Episode]:
+    ) -> list[Episode]:
         """Return the k most relevant past episodes for a query.
 
         Episodes with ``benchmark_score > 0.8`` in their metadata receive a
@@ -328,31 +327,28 @@ class EpisodeMemory:
             index_snapshot = list(self._index)
 
         # Score all index entries
-        scored = [
-            (ep_id, _cosine_similarity(query_emb, emb))
-            for ep_id, emb in index_snapshot
-        ]
+        scored = [(ep_id, _cosine_similarity(query_emb, emb)) for ep_id, emb in index_snapshot]
         scored.sort(key=lambda x: -x[1])
-        top_ids = [ep_id for ep_id, _ in scored[:k * 3]]  # Fetch 3x for filtering
+        top_ids = [ep_id for ep_id, _ in scored[: k * 3]]  # Fetch 3x for filtering
 
         if not top_ids:
             return []
 
         # Build a similarity lookup for re-ranking with benchmark boost
-        similarity_map = {ep_id: sim for ep_id, sim in scored[:k * 3]}
+        similarity_map = dict(scored[: k * 3])
 
         # Fetch full records from DB
         try:
             placeholders = ",".join("?" for _ in top_ids)
-            query_sql = f"SELECT episode_id, timestamp, task_summary, agent_type, task_type, output_summary, quality_score, success, model_id, embedding, metadata FROM episodes WHERE episode_id IN ({placeholders})"
+            query_sql = f"SELECT episode_id, timestamp, task_summary, agent_type, task_type, output_summary, quality_score, success, model_id, embedding, metadata FROM episodes WHERE episode_id IN ({placeholders})"  # noqa: S608
             params = top_ids
 
             if min_score > 0:
                 query_sql += " AND quality_score >= ?"
-                params = list(params) + [min_score]
+                params = [*list(params), min_score]
             if task_type:
                 query_sql += " AND task_type = ?"
-                params = list(params) + [task_type]
+                params = [*list(params), task_type]
             if successful_only:
                 query_sql += " AND success = 1"
 
@@ -392,7 +388,7 @@ class EpisodeMemory:
             logger.debug("[EpisodeMemory] Recall failed: %s", e)
             return []
 
-    def get_failure_patterns(self, agent_type: str, task_type: str) -> List[str]:
+    def get_failure_patterns(self, agent_type: str, task_type: str) -> list[str]:
         """Return common failure summaries for an agent/task combination."""
         try:
             with sqlite3.connect(self._db_path) as conn:
@@ -406,7 +402,7 @@ class EpisodeMemory:
         except Exception:
             return []
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return memory statistics."""
         try:
             with sqlite3.connect(self._db_path) as conn:
@@ -428,7 +424,7 @@ class EpisodeMemory:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_episode_memory: Optional[EpisodeMemory] = None
+_episode_memory: EpisodeMemory | None = None
 _mem_lock = threading.Lock()
 
 

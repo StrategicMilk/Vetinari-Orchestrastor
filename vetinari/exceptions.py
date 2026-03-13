@@ -1,5 +1,5 @@
-"""
-Vetinari Exception Hierarchy
+"""Vetinari Exception Hierarchy.
+
 =============================
 
 Centralized exception definitions. Import from here rather than defining
@@ -11,6 +11,8 @@ Usage::
 
     raise InferenceError("Model not responding", model_id="qwen-7b")
 """
+
+from __future__ import annotations
 
 
 class VetinariError(Exception):

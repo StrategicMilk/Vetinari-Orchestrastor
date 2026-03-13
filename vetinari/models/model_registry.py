@@ -1,5 +1,5 @@
-"""
-Vetinari Unified Model Registry
+"""Vetinari Unified Model Registry.
+
 ================================
 Single source of truth for all model state in the system.
 
@@ -32,7 +32,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 # Ordered: more specific patterns first
-_CAPABILITY_PATTERNS: List[tuple] = [
+_CAPABILITY_PATTERNS: list[tuple] = [
     # Vision-language
     (r"\bvl\b|vision.?language|multimodal|visual", ["vision", "coding", "reasoning"]),
     # Uncensored / heretic variants
@@ -63,8 +63,8 @@ _CAPABILITY_PATTERNS: List[tuple] = [
     (r"yi.?\d", ["reasoning"]),
 ]
 
-_CONTEXT_PATTERNS: List[tuple] = [
-    (r"llama.?3", 131072),          # Llama 3.x default
+_CONTEXT_PATTERNS: list[tuple] = [
+    (r"llama.?3", 131072),  # Llama 3.x default
     (r"qwen3", 32768),
     (r"qwen2\.5", 32768),
     (r"gemma.?2", 8192),
@@ -75,7 +75,7 @@ _CONTEXT_PATTERNS: List[tuple] = [
 ]
 
 
-def _infer_capabilities(model_id: str) -> List[str]:
+def _infer_capabilities(model_id: str) -> list[str]:
     """Infer capability tags from a model ID string."""
     lower = model_id.lower()
     caps: set = set()
@@ -101,27 +101,29 @@ def _infer_context_window(model_id: str) -> int:
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModelInfo:
     """Runtime record for a single model."""
+
     model_id: str
     display_name: str
-    provider: str                          # "lmstudio" | "openai" | "claude" | …
-    capabilities: List[str] = field(default_factory=list)
+    provider: str  # "lmstudio" | "openai" | "claude" | …
+    capabilities: list[str] = field(default_factory=list)
     context_window: int = 8192
     memory_requirements_gb: int = 8
     quantization: str = "unknown"
-    latency_hint: str = "medium"           # "fast" | "medium" | "slow"
-    privacy_level: str = "local"           # "local" | "public"
+    latency_hint: str = "medium"  # "fast" | "medium" | "slow"
+    privacy_level: str = "local"  # "local" | "public"
     cost_per_1k_tokens: float = 0.0
     requires_cpu_offload: bool = False
-    preferred_for: List[str] = field(default_factory=list)
-    is_loaded: bool = False                # currently hot in LM Studio
-    last_seen: float = 0.0                 # epoch timestamp
+    preferred_for: list[str] = field(default_factory=list)
+    is_loaded: bool = False  # currently hot in LM Studio
+    last_seen: float = 0.0  # epoch timestamp
     endpoint: str = ""
-    source: str = "discovered"            # "config" | "discovered" | "merged"
+    source: str = "discovered"  # "config" | "discovered" | "merged"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.model_id,
             "model_id": self.model_id,
@@ -129,8 +131,8 @@ class ModelInfo:
             "provider": self.provider,
             "capabilities": self.capabilities,
             "context_window": self.context_window,
-            "context_len": self.context_window,       # compat alias
-            "context_length": self.context_window,    # compat alias
+            "context_len": self.context_window,  # compat alias
+            "context_length": self.context_window,  # compat alias
             "memory_requirements_gb": self.memory_requirements_gb,
             "quantization": self.quantization,
             "latency_hint": self.latency_hint,
@@ -150,17 +152,18 @@ class ModelInfo:
 # Registry
 # ---------------------------------------------------------------------------
 
+
 class ModelRegistry:
     """Unified model registry with LM Studio discovery + static config merging."""
 
-    _instance: Optional["ModelRegistry"] = None
+    _instance: ModelRegistry | None = None
     _lock = threading.Lock()
 
     # How often to auto-refresh from LM Studio (seconds)
     REFRESH_INTERVAL = 30
 
     def __init__(self):
-        self._models: Dict[str, ModelInfo] = {}
+        self._models: dict[str, ModelInfo] = {}
         self._last_refresh: float = 0.0
         self._refresh_lock = threading.Lock()
         self._lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
@@ -174,7 +177,7 @@ class ModelRegistry:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls) -> "ModelRegistry":
+    def get_instance(cls) -> ModelRegistry:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -191,6 +194,7 @@ class ModelRegistry:
             return
         try:
             from vetinari.utils import load_yaml
+
             cfg = load_yaml(str(self._config_path))
         except Exception as e:
             logger.warning(f"[ModelRegistry] Failed to load models.yaml: {e}")
@@ -243,6 +247,7 @@ class ModelRegistry:
         """Internal: query LM Studio and update registry."""
         try:
             import requests as _req
+
             resp = _req.get(
                 f"{self._lmstudio_host}/v1/models",
                 timeout=5,
@@ -282,6 +287,7 @@ class ModelRegistry:
             else:
                 # New model not in config — create inferred entry
                 from vetinari.utils import estimate_model_memory_gb
+
                 self._models[mid] = ModelInfo(
                     model_id=mid,
                     display_name=raw.get("id", mid),
@@ -300,8 +306,7 @@ class ModelRegistry:
                 )
 
         logger.debug(
-            f"[ModelRegistry] Refreshed: {len(loaded_ids)} loaded in LM Studio, "
-            f"{len(self._models)} total in registry"
+            f"[ModelRegistry] Refreshed: {len(loaded_ids)} loaded in LM Studio, {len(self._models)} total in registry"
         )
 
     # ------------------------------------------------------------------
@@ -331,7 +336,7 @@ class ModelRegistry:
         return "medium"
 
     @staticmethod
-    def _build_auth_headers() -> Dict[str, str]:
+    def _build_auth_headers() -> dict[str, str]:
         token = os.environ.get("LM_STUDIO_API_TOKEN", "")
         return {"Authorization": f"Bearer {token}"} if token else {}
 
@@ -341,10 +346,10 @@ class ModelRegistry:
 
     def get_available_models(
         self,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         loaded_only: bool = False,
-        capability: Optional[str] = None,
-    ) -> List[ModelInfo]:
+        capability: str | None = None,
+    ) -> list[ModelInfo]:
         """Return models matching optional filters.
 
         Args:
@@ -364,25 +369,25 @@ class ModelRegistry:
             results.append(info)
         return results
 
-    def get_loaded_local_models(self) -> List[ModelInfo]:
+    def get_loaded_local_models(self) -> list[ModelInfo]:
         """Return all models currently loaded in LM Studio."""
         return self.get_available_models(provider="lmstudio", loaded_only=True)
 
-    def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Return info for a specific model ID, refreshing if needed."""
         self.refresh()
         return self._models.get(model_id)
 
-    def get_all_as_dicts(self) -> List[Dict[str, Any]]:
+    def get_all_as_dicts(self) -> list[dict[str, Any]]:
         """Return all models as plain dicts (compatible with legacy routing code)."""
         self.refresh()
         return [m.to_dict() for m in self._models.values()]
 
-    def get_loaded_as_dicts(self) -> List[Dict[str, Any]]:
+    def get_loaded_as_dicts(self) -> list[dict[str, Any]]:
         """Return currently-loaded LM Studio models as plain dicts."""
         return [m.to_dict() for m in self.get_loaded_local_models()]
 
-    def list_loaded_models(self) -> List[Dict[str, Any]]:
+    def list_loaded_models(self) -> list[dict[str, Any]]:
         """Compat shim for ponder.py which calls adapter.list_loaded_models()."""
         return self.get_loaded_as_dicts()
 
@@ -390,7 +395,7 @@ class ModelRegistry:
         """Manually register or override a model entry."""
         self._models[info.model_id] = info
 
-    def get_registry_stats(self) -> Dict[str, Any]:
+    def get_registry_stats(self) -> dict[str, Any]:
         """Return a summary of registry state."""
         all_models = list(self._models.values())
         loaded = [m for m in all_models if m.is_loaded]
@@ -408,7 +413,7 @@ class ModelRegistry:
 # Module-level singleton accessor
 # ---------------------------------------------------------------------------
 
-_registry: Optional[ModelRegistry] = None
+_registry: ModelRegistry | None = None
 _registry_lock = threading.Lock()
 
 

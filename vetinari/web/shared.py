@@ -2,8 +2,10 @@
 
 All global mutable state and cross-cutting helpers live here so that
 both the main ``web_ui`` module and individual Flask Blueprints can
-import them without circular dependencies.
+reference them without circular dependencies.
 """
+
+from __future__ import annotations
 
 import hmac
 import logging
@@ -33,7 +35,7 @@ if _env_file.exists():
                 _k, _v = _k.strip(), _v.strip()
                 if _k and _v and _k not in os.environ:
                     os.environ[_k] = _v
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
 # ---------------------------------------------------------------------------
@@ -44,16 +46,21 @@ current_config = {
     "config_path": "manifest/vetinari.yaml",
     "api_token": os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
     "default_models": ["qwen3-coder-next", "qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8"],
-    "fallback_models": ["llama-3.2-1b-instruct", "qwen2.5-0.5b-instruct", "devstral-small-2505-deepseek-v3.2-speciale-distill"],
-    "uncensored_fallback_models": ["qwen3-vl-32b-gemini-heretic-uncensored-thinking", "glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max"],
+    "fallback_models": [
+        "llama-3.2-1b-instruct",
+        "qwen2.5-0.5b-instruct",
+        "devstral-small-2505-deepseek-v3.2-speciale-distill",
+    ],
+    "uncensored_fallback_models": [
+        "qwen3-vl-32b-gemini-heretic-uncensored-thinking",
+        "glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max",
+    ],
     "memory_budget_gb": 48,
     "active_model_id": None,
 }
 
 # Global feature flag for external model discovery (default enabled)
-ENABLE_EXTERNAL_DISCOVERY = str(
-    os.environ.get("ENABLE_EXTERNAL_DISCOVERY", "true")
-).lower() in ("1", "true", "yes")
+ENABLE_EXTERNAL_DISCOVERY = str(os.environ.get("ENABLE_EXTERNAL_DISCOVERY", "true")).lower() in ("1", "true", "yes")
 
 # ---------------------------------------------------------------------------
 # Task cancellation registry  (thread-safe)
@@ -62,7 +69,7 @@ _cancel_flags: dict = {}  # project_id -> threading.Event
 _cancel_flags_lock = threading.Lock()
 
 
-def _register_project_task(project_id: str) -> "threading.Event":
+def _register_project_task(project_id: str) -> threading.Event:
     flag = threading.Event()
     with _cancel_flags_lock:
         _cancel_flags[project_id] = flag
@@ -99,9 +106,9 @@ def _push_sse_event(project_id: str, event_type: str, data: dict) -> None:
     with _sse_streams_lock:
         q = _sse_streams.get(project_id)
     if q:
-        try:
+        try:  # noqa: SIM105
             q.put_nowait({"event": event_type, "data": _json.dumps(data)})
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass  # Queue full — drop event
 
 
@@ -112,9 +119,9 @@ def _cleanup_project_state(project_id: str) -> None:
     with _sse_streams_lock:
         q = _sse_streams.pop(project_id, None)
     if q:
-        try:
+        try:  # noqa: SIM105
             q.put_nowait(None)  # Sentinel to close any active SSE stream
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
 
@@ -168,6 +175,7 @@ def get_orchestrator():
     global orchestrator
     if orchestrator is None:
         import sys
+
         sys.path.insert(0, str(PROJECT_ROOT))
         from vetinari.orchestrator import Orchestrator
 
@@ -190,6 +198,7 @@ def refresh_model_cache():
         search_engine = ModelSearchEngine()
         search_engine.refresh_all_caches()
         from datetime import datetime
+
         logger.info(f"Model cache refreshed at {datetime.now()}")
     except Exception as e:
         logger.error(f"Error refreshing model cache: {e}")
@@ -205,12 +214,10 @@ def trigger_light_search(project_id: str, task_description: str):
         try:
             from vetinari.model_pool import ModelPool
 
-            model_pool = ModelPool(
-                current_config, current_config.get("host", "http://localhost:1234")
-            )
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
             model_pool.discover_models()
             lm_models = model_pool.list_models()
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         candidates = search_engine.search_for_task(task_description, lm_models)
@@ -241,11 +248,12 @@ def _project_external_model_enabled(project_dir) -> bool:
     """Check if external model discovery is enabled for a specific project."""
     try:
         import yaml
+
         config_file = Path(project_dir) / "project.yaml"
         if config_file.exists():
             with open(config_file) as f:
                 cfg = yaml.safe_load(f) or {}
             return cfg.get("enable_external_model_discovery", ENABLE_EXTERNAL_DISCOVERY)
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
     return ENABLE_EXTERNAL_DISCOVERY

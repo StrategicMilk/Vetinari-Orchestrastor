@@ -1,4 +1,8 @@
 """Legacy redirect — use OperationsAgent directly."""
-from vetinari.agents.consolidated.operations_agent import OperationsAgent as DocumentationAgent, get_operations_agent as get_documentation_agent  # noqa: F401
+
+from __future__ import annotations
+
+from vetinari.agents.consolidated.operations_agent import OperationsAgent as DocumentationAgent
+from vetinari.agents.consolidated.operations_agent import get_operations_agent as get_documentation_agent
 
 __all__ = ["DocumentationAgent", "get_documentation_agent"]

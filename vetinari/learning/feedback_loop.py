@@ -1,20 +1,19 @@
-"""
-Feedback Loop - Vetinari Self-Improvement Subsystem
+"""Feedback Loop - Vetinari Self-Improvement Subsystem.
 
 Closes the learning loop: execution outcomes → model performance updates.
 Feeds quality scores back into ModelPerformance table and DynamicModelRouter.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class FeedbackLoop:
-    """
-    Closes the feedback loop between execution outcomes and model selection.
+    """Closes the feedback loop between execution outcomes and model selection.
 
     After each task completes, this component:
     1. Fetches the quality score for the task
@@ -33,6 +32,7 @@ class FeedbackLoop:
         if self._memory is None:
             try:
                 from vetinari.memory import get_memory_store
+
                 self._memory = get_memory_store()
             except Exception:
                 logger.debug("Failed to initialize memory store for feedback loop", exc_info=True)
@@ -42,6 +42,7 @@ class FeedbackLoop:
         if self._router is None:
             try:
                 from vetinari.dynamic_model_router import get_model_router
+
                 self._router = get_model_router()
             except Exception:
                 logger.debug("Failed to initialize model router for feedback loop", exc_info=True)
@@ -56,10 +57,9 @@ class FeedbackLoop:
         latency_ms: int = 0,
         cost_usd: float = 0.0,
         success: bool = True,
-        benchmark_result: Optional[Dict] = None,
+        benchmark_result: dict | None = None,
     ) -> None:
-        """
-        Record a task outcome and propagate it to all performance tracking systems.
+        """Record a task outcome and propagate it to all performance tracking systems.
 
         Args:
             task_id: The task identifier.
@@ -100,10 +100,9 @@ class FeedbackLoop:
     def record_benchmark_outcome(
         self,
         model_id: str,
-        benchmark_result: Dict,
+        benchmark_result: dict,
     ) -> None:
-        """
-        Record a standalone benchmark outcome (not tied to a specific task).
+        """Record a standalone benchmark outcome (not tied to a specific task).
 
         Extracts pass_rate and task_type from the benchmark result and updates
         all performance tracking systems with benchmark-weighted signals.
@@ -128,19 +127,18 @@ class FeedbackLoop:
 
         self._process_benchmark_result(model_id, task_type, benchmark_result)
 
-    def _process_benchmark_result(
-        self, model_id: str, task_type: str, benchmark_result: Dict
-    ) -> None:
+    def _process_benchmark_result(self, model_id: str, task_type: str, benchmark_result: dict) -> None:
         """Process a benchmark result and propagate to all learning subsystems."""
         pass_rate = float(benchmark_result.get("pass_rate", 0.0))
         n_trials = int(benchmark_result.get("n_trials", 1))
-        avg_score = float(benchmark_result.get("avg_score", pass_rate))
+        float(benchmark_result.get("avg_score", pass_rate))
         suite_name = benchmark_result.get("suite_name", "unknown")
         bench_task_type = benchmark_result.get("task_type", task_type)
 
         # Update Thompson Sampling with 3x weight (benchmarks are more reliable)
         try:
             from vetinari.learning.model_selector import get_thompson_selector
+
             get_thompson_selector().update_from_benchmark(
                 model_id=model_id,
                 pass_rate=pass_rate,
@@ -159,18 +157,21 @@ class FeedbackLoop:
                 # Benchmark signals get higher EMA weight
                 benchmark_ema = 0.5
                 new_rate = (1 - benchmark_ema) * old_rate + benchmark_ema * pass_rate
-                mem.update_model_performance(model_id, bench_task_type, {
-                    "success_rate": round(new_rate, 4),
-                    "benchmark_pass_rate": round(pass_rate, 4),
-                    "benchmark_suite": suite_name,
-                    "total_uses": existing.get("total_uses", 0),
-                })
+                mem.update_model_performance(
+                    model_id,
+                    bench_task_type,
+                    {
+                        "success_rate": round(new_rate, 4),
+                        "benchmark_pass_rate": round(pass_rate, 4),
+                        "benchmark_suite": suite_name,
+                        "total_uses": existing.get("total_uses", 0),
+                    },
+                )
         except Exception as e:
             logger.debug(f"Memory benchmark update failed: {e}")
 
     def _update_memory_performance(
-        self, model_id: str, task_type: str, quality: float,
-        latency_ms: int, success: bool
+        self, model_id: str, task_type: str, quality: float, latency_ms: int, success: bool
     ) -> None:
         """Update the ModelPerformance running averages in the memory store."""
         mem = self._get_memory()
@@ -189,17 +190,20 @@ class FeedbackLoop:
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
 
             # Pass dict-form update (new signature)
-            mem.update_model_performance(model_id, task_type, {
-                "success_rate": round(new_rate, 4),
-                "avg_latency": int(new_latency),
-                "total_uses": old_uses + 1,
-            })
+            mem.update_model_performance(
+                model_id,
+                task_type,
+                {
+                    "success_rate": round(new_rate, 4),
+                    "avg_latency": int(new_latency),
+                    "total_uses": old_uses + 1,
+                },
+            )
         except Exception as e:
             logger.debug("Memory performance update failed: %s", e)
 
     def _update_router_cache(
-        self, model_id: str, task_type: str, quality: float,
-        latency_ms: int, success: bool
+        self, model_id: str, task_type: str, quality: float, latency_ms: int, success: bool
     ) -> None:
         """Update the DynamicModelRouter's in-memory performance cache."""
         router = self._get_router()
@@ -215,12 +219,15 @@ class FeedbackLoop:
             new_rate = (1 - self.EMA_ALPHA) * old_rate + self.EMA_ALPHA * signal
             new_latency = (1 - self.EMA_ALPHA) * old_latency + self.EMA_ALPHA * (latency_ms or old_latency)
 
-            router.update_performance_cache(cache_key, {
-                "success_rate": round(new_rate, 4),
-                "avg_latency_ms": int(new_latency),
-                "quality_score": round(quality, 4),
-                "last_updated": datetime.now().isoformat(),
-            })
+            router.update_performance_cache(
+                cache_key,
+                {
+                    "success_rate": round(new_rate, 4),
+                    "avg_latency_ms": int(new_latency),
+                    "quality_score": round(quality, 4),
+                    "last_updated": datetime.now().isoformat(),
+                },
+            )
         except Exception as e:
             logger.debug("Router cache update failed: %s", e)
 
@@ -234,19 +241,18 @@ class FeedbackLoop:
         except Exception as e:
             logger.debug("Subtask quality update failed: %s", e)
 
-    def _update_thompson_arms(
-        self, model_id: str, task_type: str, quality: float, success: bool
-    ) -> None:
+    def _update_thompson_arms(self, model_id: str, task_type: str, quality: float, success: bool) -> None:
         """Update Thompson Sampling arm for this model+task_type pair."""
         try:
             from vetinari.learning.model_selector import get_thompson_selector
+
             get_thompson_selector().update(model_id, task_type, quality, success)
         except Exception as e:
             logger.debug(f"Thompson arm update failed: {e}")
 
 
 # Singleton
-_feedback_loop: Optional[FeedbackLoop] = None
+_feedback_loop: FeedbackLoop | None = None
 
 
 def get_feedback_loop() -> FeedbackLoop:

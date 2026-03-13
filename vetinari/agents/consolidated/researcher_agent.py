@@ -1,5 +1,5 @@
-"""
-Consolidated Researcher Agent (v0.4.0)
+"""Consolidated Researcher Agent (v0.4.0).
+
 ========================================
 Replaces: EXPLORER + RESEARCHER + LIBRARIAN + UI_PLANNER + DATA_ENGINEER +
           DEVOPS + VERSION_CONTROL
@@ -20,17 +20,20 @@ Modes:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult
 from vetinari.agents.multi_mode_agent import MultiModeAgent
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
 
 class ConsolidatedResearcherAgent(MultiModeAgent):
-    """Unified research agent for code discovery, domain research, API lookup,
-    and architecture design (UI, database, DevOps, git workflow)."""
+    """Unified research agent for code discovery, domain research, API lookup,.
+
+    and architecture design (UI, database, DevOps, git workflow).
+    """
 
     MODES = {
         "code_discovery": "_execute_code_discovery",
@@ -44,22 +47,75 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
     }
     DEFAULT_MODE = "code_discovery"
     MODE_KEYWORDS = {
-        "code_discovery": ["code", "file", "class", "function", "pattern", "codebase",
-                           "discover", "explore", "search code"],
+        "code_discovery": [
+            "code",
+            "file",
+            "class",
+            "function",
+            "pattern",
+            "codebase",
+            "discover",
+            "explore",
+            "search code",
+        ],
         "domain_research": ["research", "feasib", "competit", "market", "domain", "analys"],
-        "api_lookup": ["api", "library", "framework", "package", "documentation", "docs",
-                       "license", "dependency"],
-        "lateral_thinking": ["lateral", "creative", "alternative", "novel", "brainstorm",
-                             "unconventional"],
-        "ui_design": ["ui", "ux", "frontend", "component", "wireframe", "layout",
-                      "design token", "accessibility", "wcag", "responsive", "css",
-                      "react", "interface"],
-        "database": ["database", "schema", "table", "migration", "etl", "pipeline", "sql",
-                     "data model", "foreign key", "index", "query", "orm"],
-        "devops": ["ci/cd", "docker", "kubernetes", "terraform", "ansible", "deploy",
-                   "container", "pipeline", "helm", "monitoring", "infrastructure"],
-        "git_workflow": ["git", "branch", "commit", "merge", "pull request", "pr",
-                         "release", "changelog", "tag", "rebase", "version"],
+        "api_lookup": ["api", "library", "framework", "package", "documentation", "docs", "license", "dependency"],
+        "lateral_thinking": ["lateral", "creative", "alternative", "novel", "brainstorm", "unconventional"],
+        "ui_design": [
+            "ui",
+            "ux",
+            "frontend",
+            "component",
+            "wireframe",
+            "layout",
+            "design token",
+            "accessibility",
+            "wcag",
+            "responsive",
+            "css",
+            "react",
+            "interface",
+        ],
+        "database": [
+            "database",
+            "schema",
+            "table",
+            "migration",
+            "etl",
+            "pipeline",
+            "sql",
+            "data model",
+            "foreign key",
+            "index",
+            "query",
+            "orm",
+        ],
+        "devops": [
+            "ci/cd",
+            "docker",
+            "kubernetes",
+            "terraform",
+            "ansible",
+            "deploy",
+            "container",
+            "pipeline",
+            "helm",
+            "monitoring",
+            "infrastructure",
+        ],
+        "git_workflow": [
+            "git",
+            "branch",
+            "commit",
+            "merge",
+            "pull request",
+            "pr",
+            "release",
+            "changelog",
+            "tag",
+            "rebase",
+            "version",
+        ],
     }
     LEGACY_TYPE_TO_MODE = {
         "EXPLORER": "code_discovery",
@@ -72,7 +128,7 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         "ARCHITECT": "ui_design",
     }
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.CONSOLIDATED_RESEARCHER, config)
 
     def _get_base_system_prompt(self) -> str:
@@ -196,14 +252,14 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
                 "5. Is this speculative or from a single source? -> confidence=0.1-0.34\n\n"
                 "FEW-SHOT EXAMPLE 1 — Framework selection:\n"
                 'Query: "Research async web frameworks for Python"\n'
-                'Output: alternatives=[\n'
+                "Output: alternatives=[\n"
                 '  {name:"FastAPI",fit_score:0.9,maturity:"production",pros:["auto OpenAPI","type hints"],cons:["ASGI only"]},\n'
                 '  {name:"aiohttp",fit_score:0.75,maturity:"production",pros:["mature","full control"],cons:["verbose"]},\n'
                 '  {name:"Litestar",fit_score:0.7,maturity:"beta",pros:["fast","modern"],cons:["smaller community"]}\n'
                 "]\n\n"
                 "FEW-SHOT EXAMPLE 2 — Feasibility assessment:\n"
                 'Query: "Is it feasible to process 1M records/day with SQLite?"\n'
-                'Output: feasibility_score=0.4,\n'
+                "Output: feasibility_score=0.4,\n"
                 'findings=[{topic:"SQLite write throughput",summary:"SQLite handles ~100k writes/sec in WAL mode.",confidence:0.85}],\n'
                 'risks=["WAL mode required","no concurrent writers","file locking on NFS"]\n\n'
                 "ERROR HANDLING:\n"
@@ -262,7 +318,7 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
                 "7. Is it deprecated? -> fit_score -0.5\n\n"
                 "FEW-SHOT EXAMPLE 1 — HTTP client lookup:\n"
                 'Query: "Best Python HTTP client library"\n'
-                'Output: findings=[\n'
+                "Output: findings=[\n"
                 '  {name:"httpx",type:"library",license:"BSD-3",fit_score:0.92,maintenance_status:"active",\n'
                 '   pros:["async+sync","HTTP/2","type hints"],install_command:"pip install httpx"},\n'
                 '  {name:"requests",type:"library",license:"Apache-2.0",fit_score:0.85,maintenance_status:"maintained",\n'
@@ -270,8 +326,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
                 "]\n\n"
                 "FEW-SHOT EXAMPLE 2 — Deprecated library warning:\n"
                 'Query: "aiohttp vs httpx"\n'
-                'Output: findings include security_notes for any known vulnerabilities,\n'
-                'compatibility_matrix shows Python version requirements\n\n'
+                "Output: findings include security_notes for any known vulnerabilities,\n"
+                "compatibility_matrix shows Python version requirements\n\n"
                 "ERROR HANDLING:\n"
                 "- If library is unknown, return fit_score=null and note as unverified\n"
                 "- If version cannot be confirmed, use 'unknown' not a fabricated version\n"
@@ -327,12 +383,12 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
                 "5. Is this just a variation of the standard solution? -> novelty <= 0.3\n\n"
                 "FEW-SHOT EXAMPLE 1 — Rate limiting problem:\n"
                 'Problem: "API is being hammered by bots"\n'
-                'Approaches:\n'
-                '  1. Token Bucket (standard) — feasibility=0.95, novelty=0.2\n'
-                '  2. Proof-of-Work Challenge (crypto-inspired) — feasibility=0.7, novelty=0.8\n'
-                '  3. Honeypot Endpoints (security domain) — feasibility=0.8, novelty=0.75\n'
-                '  4. Intentional Slowdown (queuing theory) — feasibility=0.85, novelty=0.6\n'
-                '  5. Request Auction (economics) — feasibility=0.4, novelty=0.95\n\n'
+                "Approaches:\n"
+                "  1. Token Bucket (standard) — feasibility=0.95, novelty=0.2\n"
+                "  2. Proof-of-Work Challenge (crypto-inspired) — feasibility=0.7, novelty=0.8\n"
+                "  3. Honeypot Endpoints (security domain) — feasibility=0.8, novelty=0.75\n"
+                "  4. Intentional Slowdown (queuing theory) — feasibility=0.85, novelty=0.6\n"
+                "  5. Request Auction (economics) — feasibility=0.4, novelty=0.95\n\n"
                 "FEW-SHOT EXAMPLE 2 — Performance problem:\n"
                 'Problem: "Database queries too slow"\n'
                 'assumptions_challenged=[{assumption:"Must query in real-time",challenge:"Pre-compute results at write time (CQRS)"}]\n\n'
@@ -661,10 +717,14 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         if isinstance(output, dict):
             has_findings = bool(
-                output.get("findings") or output.get("results")
-                or output.get("recommendations") or output.get("design")
-                or output.get("schema") or output.get("pipeline")
-                or output.get("components") or output.get("workflow")
+                output.get("findings")
+                or output.get("results")
+                or output.get("recommendations")
+                or output.get("design")
+                or output.get("schema")
+                or output.get("pipeline")
+                or output.get("components")
+                or output.get("workflow")
             )
             return VerificationResult(passed=has_findings, score=0.8 if has_findings else 0.3)
         return VerificationResult(passed=True, score=0.6)
@@ -687,7 +747,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"findings": [], "patterns": []})
         return AgentResult(
-            success=True, output=result or {"findings": []},
+            success=True,
+            output=result or {"findings": []},
             metadata={"mode": "code_discovery", "scope": scope},
         )
 
@@ -738,7 +799,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"findings": [], "recommendations": []})
         return AgentResult(
-            success=True, output=result or {"findings": []},
+            success=True,
+            output=result or {"findings": []},
             metadata={"mode": "domain_research", "search_results": len(search_results)},
         )
 
@@ -767,7 +829,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"findings": [], "recommendations": []})
         return AgentResult(
-            success=True, output=result or {"findings": []},
+            success=True,
+            output=result or {"findings": []},
             metadata={"mode": "api_lookup"},
         )
 
@@ -791,7 +854,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"approaches": [], "recommendations": []})
         return AgentResult(
-            success=True, output=result or {"approaches": []},
+            success=True,
+            output=result or {"approaches": []},
             metadata={"mode": "lateral_thinking"},
         )
 
@@ -815,7 +879,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"design": {"summary": request}, "components": []})
         return AgentResult(
-            success=True, output=result,
+            success=True,
+            output=result,
             metadata={"mode": "ui_design", "framework": framework},
         )
 
@@ -839,7 +904,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"schema": {"tables": []}, "migrations": []})
         return AgentResult(
-            success=True, output=result,
+            success=True,
+            output=result,
             metadata={"mode": "database", "db_type": db_type},
         )
 
@@ -863,7 +929,8 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"pipeline": {"stages": []}, "containerization": {}})
         return AgentResult(
-            success=True, output=result,
+            success=True,
+            output=result,
             metadata={"mode": "devops", "platform": platform},
         )
 
@@ -886,28 +953,45 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         )
         result = self._infer_json(prompt, fallback={"workflow": {"strategy": strategy}, "commit_convention": {}})
         return AgentResult(
-            success=True, output=result,
+            success=True,
+            output=result,
             metadata={"mode": "git_workflow", "strategy": strategy},
         )
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "code_discovery", "pattern_extraction", "project_mapping",
-            "domain_research", "feasibility_analysis", "competitive_analysis",
-            "api_lookup", "library_evaluation", "license_assessment",
-            "lateral_thinking", "creative_problem_solving",
-            "ui_design", "wireframing", "design_tokens", "accessibility",
-            "database_schema", "migration_design", "etl_pipeline",
-            "cicd_pipeline", "containerization", "infrastructure_as_code",
-            "branch_strategy", "commit_conventions", "release_management",
+            "code_discovery",
+            "pattern_extraction",
+            "project_mapping",
+            "domain_research",
+            "feasibility_analysis",
+            "competitive_analysis",
+            "api_lookup",
+            "library_evaluation",
+            "license_assessment",
+            "lateral_thinking",
+            "creative_problem_solving",
+            "ui_design",
+            "wireframing",
+            "design_tokens",
+            "accessibility",
+            "database_schema",
+            "migration_design",
+            "etl_pipeline",
+            "cicd_pipeline",
+            "containerization",
+            "infrastructure_as_code",
+            "branch_strategy",
+            "commit_conventions",
+            "release_management",
         ]
 
 
 # Singleton
-_consolidated_researcher_agent: Optional[ConsolidatedResearcherAgent] = None
+_consolidated_researcher_agent: ConsolidatedResearcherAgent | None = None
 
 
-def get_consolidated_researcher_agent(config: Optional[Dict[str, Any]] = None) -> ConsolidatedResearcherAgent:
+def get_consolidated_researcher_agent(config: dict[str, Any] | None = None) -> ConsolidatedResearcherAgent:
     global _consolidated_researcher_agent
     if _consolidated_researcher_agent is None:
         _consolidated_researcher_agent = ConsolidatedResearcherAgent(config)

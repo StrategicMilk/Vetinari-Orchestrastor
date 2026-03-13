@@ -1,5 +1,4 @@
-"""
-Cascade Model Router — vetinari.cascade_router
+"""Cascade Model Router — vetinari.cascade_router.
 
 Implements a cost-optimised routing strategy that starts inference with the
 cheapest/smallest model and escalates to larger models when the response
@@ -44,8 +43,9 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -58,29 +58,32 @@ _CASCADE_ENABLED = os.environ.get("CASCADE_ENABLED", "1").lower() not in ("0", "
 # Data types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CascadeTier:
     """A single model tier in the cascade chain."""
+
     model_id: str
     cost_per_1k_tokens: float = 0.0
-    priority: int = 0                   # lower = tried first
-    max_tokens_override: Optional[int] = None
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    priority: int = 0  # lower = tried first
+    max_tokens_override: int | None = None
+    tags: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class CascadeResult:
     """Result of a cascade routing attempt."""
-    response: Any                        # InferenceResponse
+
+    response: Any  # InferenceResponse
     model_id: str
     confidence: float
     escalation_count: int = 0
     total_latency_ms: float = 0.0
-    tiers_tried: List[str] = field(default_factory=list)
+    tiers_tried: list[str] = field(default_factory=list)
     cost_saved_vs_largest: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_id": self.model_id,
             "confidence": self.confidence,
@@ -95,9 +98,9 @@ class CascadeResult:
 # Confidence estimators
 # ---------------------------------------------------------------------------
 
+
 def _heuristic_confidence(response_text: str) -> float:
-    """
-    Estimate confidence from response text heuristics.
+    """Estimate confidence from response text heuristics.
 
     Signals of LOW confidence (reduce score):
     - Very short responses (< 20 chars)
@@ -149,7 +152,7 @@ def _heuristic_confidence(response_text: str) -> float:
     # Repetition (same sentence repeated 3+ times)
     sentences = re.split(r"[.!?]+", text)
     if len(sentences) > 3:
-        unique = len(set(s.strip().lower() for s in sentences if s.strip()))
+        unique = len({s.strip().lower() for s in sentences if s.strip()})
         if unique < len(sentences) * 0.5:
             score -= 0.2
 
@@ -160,9 +163,9 @@ def _heuristic_confidence(response_text: str) -> float:
 # CascadeRouter
 # ---------------------------------------------------------------------------
 
+
 class CascadeRouter:
-    """
-    Cost-optimising cascade router.
+    """Cost-optimising cascade router.
 
     Tries the cheapest model first; escalates to more capable models
     only when confidence is below the threshold.
@@ -175,41 +178,43 @@ class CascadeRouter:
         confidence_threshold: float = _CONFIDENCE_THRESHOLD,
         max_escalations: int = _MAX_ESCALATIONS,
         enabled: bool = _CASCADE_ENABLED,
-        confidence_estimator: Optional[Callable[[str], float]] = None,
+        confidence_estimator: Callable[[str], float] | None = None,
     ):
-        """
-        Args:
-            confidence_threshold: Accept response if confidence >= this value.
-            max_escalations: Maximum number of escalation steps after first attempt.
-            enabled: If False, always use the cheapest tier (no escalation).
-            confidence_estimator: Custom function(response_text) -> float [0,1].
-                                  Defaults to built-in heuristic estimator.
+        """Args:.
+
+        confidence_threshold: Accept response if confidence >= this value.
+        max_escalations: Maximum number of escalation steps after first attempt.
+        enabled: If False, always use the cheapest tier (no escalation).
+        confidence_estimator: Custom function(response_text) -> float [0,1].
+                              Defaults to built-in heuristic estimator.
         """
         self.confidence_threshold = confidence_threshold
         self.max_escalations = max_escalations
         self.enabled = enabled
         self._estimate_confidence = confidence_estimator or _heuristic_confidence
 
-        self._tiers: List[CascadeTier] = []
+        self._tiers: list[CascadeTier] = []
         self._lock = threading.RLock()
 
         # Stats
         self._stats = {
             "total_requests": 0,
             "escalations": 0,
-            "accepted_at_tier": {},   # tier_index -> count
+            "accepted_at_tier": {},  # tier_index -> count
             "total_cost_usd": 0.0,
         }
 
         logger.info(
             "CascadeRouter initialized (threshold=%.2f, max_escalations=%d, enabled=%s)",
-            confidence_threshold, max_escalations, enabled,
+            confidence_threshold,
+            max_escalations,
+            enabled,
         )
 
-    def add_tier(self, model_id: str, cost_per_1k_tokens: float = 0.0,
-                 priority: Optional[int] = None, **kwargs) -> "CascadeRouter":
-        """
-        Add a model tier to the cascade chain.
+    def add_tier(  # noqa: D417
+        self, model_id: str, cost_per_1k_tokens: float = 0.0, priority: int | None = None, **kwargs
+    ) -> CascadeRouter:
+        """Add a model tier to the cascade chain.
 
         Args:
             model_id: Model identifier.
@@ -231,11 +236,12 @@ class CascadeRouter:
             )
             self._tiers.append(tier)
             self._tiers.sort(key=lambda t: t.priority)
-            logger.debug("CascadeRouter: added tier %s (priority=%d, cost=%.4f)",
-                         model_id, priority, cost_per_1k_tokens)
+            logger.debug(
+                "CascadeRouter: added tier %s (priority=%d, cost=%.4f)", model_id, priority, cost_per_1k_tokens
+            )
         return self
 
-    def get_tiers(self) -> List[CascadeTier]:
+    def get_tiers(self) -> list[CascadeTier]:
         """Return ordered list of tiers (cheapest first)."""
         with self._lock:
             return list(self._tiers)
@@ -244,10 +250,9 @@ class CascadeRouter:
         self,
         request: Any,
         adapter_fn: Callable[[Any], Any],
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> CascadeResult:
-        """
-        Route a request through the cascade chain.
+        """Route a request through the cascade chain.
 
         Args:
             request: InferenceRequest (or any object with .model_id and .max_tokens).
@@ -264,7 +269,7 @@ class CascadeRouter:
             raise ValueError("CascadeRouter has no tiers configured. Call add_tier() first.")
 
         start_total = time.monotonic()
-        tiers_tried: List[str] = []
+        tiers_tried: list[str] = []
         best_response = None
         best_confidence = 0.0
         best_model = tiers[0].model_id
@@ -297,8 +302,12 @@ class CascadeRouter:
                 continue
 
             confidence = self._estimate_confidence(output_text)
-            logger.debug("CascadeRouter: tier %s confidence=%.3f (threshold=%.2f)",
-                         tier.model_id, confidence, self.confidence_threshold)
+            logger.debug(
+                "CascadeRouter: tier %s confidence=%.3f (threshold=%.2f)",
+                tier.model_id,
+                confidence,
+                self.confidence_threshold,
+            )
 
             if confidence > best_confidence:
                 best_confidence = confidence
@@ -312,9 +321,13 @@ class CascadeRouter:
 
             # Escalate
             if i < max_tiers - 1:
-                logger.info("CascadeRouter: confidence %.3f < %.2f, escalating %s -> %s",
-                            confidence, self.confidence_threshold,
-                            tier.model_id, tiers[i + 1].model_id if i + 1 < len(tiers) else "end")
+                logger.info(
+                    "CascadeRouter: confidence %.3f < %.2f, escalating %s -> %s",
+                    confidence,
+                    self.confidence_threshold,
+                    tier.model_id,
+                    tiers[i + 1].model_id if i + 1 < len(tiers) else "end",
+                )
                 escalation_count += 1
                 self._record_accepted(None)
             else:
@@ -336,6 +349,7 @@ class CascadeRouter:
         if best_response is None:
             # Absolute fallback — should not happen
             from vetinari.adapters.base import InferenceResponse
+
             best_response = InferenceResponse(
                 model_id=tiers[0].model_id,
                 output="",
@@ -358,27 +372,25 @@ class CascadeRouter:
     def _apply_tier(self, request: Any, tier: CascadeTier) -> Any:
         """Return a copy of the request with the tier's model_id applied."""
         import copy
+
         new_req = copy.copy(request)
         new_req.model_id = tier.model_id
         if tier.max_tokens_override is not None:
             new_req.max_tokens = tier.max_tokens_override
         return new_req
 
-    def _record_accepted(self, tier_index: Optional[int]) -> None:
+    def _record_accepted(self, tier_index: int | None) -> None:
         if tier_index is not None:
             key = str(tier_index)
             with self._lock:
-                self._stats["accepted_at_tier"][key] = (
-                    self._stats["accepted_at_tier"].get(key, 0) + 1
-                )
+                self._stats["accepted_at_tier"][key] = self._stats["accepted_at_tier"].get(key, 0) + 1
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return routing statistics."""
         with self._lock:
             stats = dict(self._stats)
             stats["tiers"] = [
-                {"model_id": t.model_id, "priority": t.priority,
-                 "cost_per_1k": t.cost_per_1k_tokens}
+                {"model_id": t.model_id, "priority": t.priority, "cost_per_1k": t.cost_per_1k_tokens}
                 for t in self._tiers
             ]
             stats["confidence_threshold"] = self.confidence_threshold
@@ -405,14 +417,15 @@ class CascadeRouter:
 # Integration helper: wire into DynamicModelRouter
 # ---------------------------------------------------------------------------
 
+
 def build_cascade_from_router(
     dynamic_router: Any,
     task_type: Any,
     confidence_threshold: float = _CONFIDENCE_THRESHOLD,
     max_escalations: int = _MAX_ESCALATIONS,
 ) -> CascadeRouter:
-    """
-    Build a CascadeRouter from the models registered in a DynamicModelRouter,
+    """Build a CascadeRouter from the models registered in a DynamicModelRouter,.
+
     ordered by cost (cheapest first).
 
     Args:
@@ -435,17 +448,13 @@ def build_cascade_from_router(
     models_sorted = sorted(
         models,
         key=lambda m: (
-            getattr(m, "metadata", {}).get("cost_per_1k_tokens", 0.0)
-            if hasattr(m, "metadata") else 0.0,
+            getattr(m, "metadata", {}).get("cost_per_1k_tokens", 0.0) if hasattr(m, "metadata") else 0.0,
             getattr(m, "avg_latency_ms", 0.0),
         ),
     )
 
     for priority, model in enumerate(models_sorted):
-        cost = (
-            model.metadata.get("cost_per_1k_tokens", 0.0)
-            if hasattr(model, "metadata") and model.metadata else 0.0
-        )
+        cost = model.metadata.get("cost_per_1k_tokens", 0.0) if hasattr(model, "metadata") and model.metadata else 0.0
         cr.add_tier(model.id, cost_per_1k_tokens=cost, priority=priority)
 
     return cr
@@ -455,7 +464,7 @@ def build_cascade_from_router(
 # Singleton
 # ---------------------------------------------------------------------------
 
-_cascade_router: Optional[CascadeRouter] = None
+_cascade_router: CascadeRouter | None = None
 _cr_lock = threading.Lock()
 
 

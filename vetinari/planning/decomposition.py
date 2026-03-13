@@ -1,15 +1,17 @@
-"""
-Decomposition Engine
+"""Decomposition Engine.
+
 ====================
 Provides task decomposition services used by the Decomposition Lab UI.
 Wraps the PlannerAgent and planning infrastructure.
 """
 
+from __future__ import annotations
+
 import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_DEPTH = 14
 MIN_MAX_DEPTH = 12
 MAX_MAX_DEPTH = 16
-SEED_RATE = 0.3   # 30% of tasks seeded with refined subtasks
-SEED_MIX = 0.5    # Balance between breadth and depth seeding
+SEED_RATE = 0.3  # 30% of tasks seeded with refined subtasks
+SEED_MIX = 0.5  # Balance between breadth and depth seeding
 
 # Definition of Done criteria per level
 _DOD_CRITERIA = {
@@ -71,34 +73,36 @@ _DOR_CRITERIA = {
 @dataclass
 class SubtaskSpec:
     """A single decomposed subtask."""
+
     subtask_id: str
     parent_task_id: str
     description: str
     agent_type: str
     depth: int
-    inputs: List[str] = field(default_factory=list)
-    outputs: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
-    dod_criteria: List[str] = field(default_factory=list)
-    dor_criteria: List[str] = field(default_factory=list)
+    inputs: list[str] = field(default_factory=list)
+    outputs: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    dod_criteria: list[str] = field(default_factory=list)
+    dor_criteria: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 @dataclass
 class DecompositionEvent:
     """A historical decomposition event."""
+
     event_id: str
     plan_id: str
     task_id: str
     depth: int
-    seeds_used: List[str]
+    seeds_used: list[str]
     subtasks_created: int
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 class DecompositionEngine:
-    """
-    Orchestrates task decomposition using the PlannerAgent.
+    """Orchestrates task decomposition using the PlannerAgent.
+
     Used by the Decomposition Lab in the web UI.
     """
 
@@ -109,10 +113,10 @@ class DecompositionEngine:
     MAX_MAX_DEPTH = MAX_MAX_DEPTH
 
     def __init__(self):
-        self._history: List[DecompositionEvent] = []
-        self._templates: List[Dict[str, Any]] = self._build_default_templates()
+        self._history: list[DecompositionEvent] = []
+        self._templates: list[dict[str, Any]] = self._build_default_templates()
 
-    def _build_default_templates(self) -> List[Dict[str, Any]]:
+    def _build_default_templates(self) -> list[dict[str, Any]]:
         """Build built-in decomposition templates."""
         return [
             {
@@ -326,7 +330,17 @@ class DecompositionEngine:
             {
                 "template_id": "infrastructure",
                 "name": "Infrastructure and DevOps",
-                "keywords": ["infrastructure", "devops", "deployment", "kubernetes", "terraform", "ansible", "ci", "cd", "cloud"],
+                "keywords": [
+                    "infrastructure",
+                    "devops",
+                    "deployment",
+                    "kubernetes",
+                    "terraform",
+                    "ansible",
+                    "ci",
+                    "cd",
+                    "cloud",
+                ],
                 "agent_type": "BUILDER",
                 "dod_level": "Hard",
                 "subtasks": [
@@ -342,28 +356,25 @@ class DecompositionEngine:
 
     def get_templates(
         self,
-        keywords: Optional[List[str]] = None,
-        agent_type: Optional[str] = None,
-        dod_level: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        keywords: list[str] | None = None,
+        agent_type: str | None = None,
+        dod_level: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Return matching decomposition templates."""
         results = self._templates[:]
         if keywords:
             kw_lower = [k.lower() for k in keywords]
-            results = [
-                t for t in results
-                if any(kw in t.get("keywords", []) for kw in kw_lower)
-            ]
+            results = [t for t in results if any(kw in t.get("keywords", []) for kw in kw_lower)]
         if agent_type:
             results = [t for t in results if t.get("agent_type") == agent_type.upper()]
         if dod_level:
             results = [t for t in results if t.get("dod_level") == dod_level]
         return results
 
-    def get_dod_criteria(self, level: str = "Standard") -> List[str]:
+    def get_dod_criteria(self, level: str = "Standard") -> list[str]:
         return _DOD_CRITERIA.get(level, _DOD_CRITERIA["Standard"])
 
-    def get_dor_criteria(self, level: str = "Standard") -> List[str]:
+    def get_dor_criteria(self, level: str = "Standard") -> list[str]:
         return _DOR_CRITERIA.get(level, _DOR_CRITERIA["Standard"])
 
     def decompose_task(
@@ -373,9 +384,9 @@ class DecompositionEngine:
         depth: int = 0,
         max_depth: int = DEFAULT_MAX_DEPTH,
         plan_id: str = "default",
-    ) -> List[Dict[str, Any]]:
-        """
-        Decompose a task into subtasks using the PlannerAgent.
+    ) -> list[dict[str, Any]]:
+        """Decompose a task into subtasks using the PlannerAgent.
+
         Falls back to keyword-based decomposition.
         """
         max_depth = max(MIN_MAX_DEPTH, min(max_depth, MAX_MAX_DEPTH))
@@ -385,8 +396,10 @@ class DecompositionEngine:
             return []
 
         try:
+            from vetinari.agents.contracts import AgentTask
             from vetinari.agents.planner_agent import get_planner_agent
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.types import AgentType
+
             planner = get_planner_agent()
             agent_task = AgentTask(
                 task_id=f"decomp_{uuid.uuid4().hex[:8]}",
@@ -414,14 +427,16 @@ class DecompositionEngine:
                     subtasks.append(subtask)
 
                 # Record history
-                self._history.append(DecompositionEvent(
-                    event_id=str(uuid.uuid4()),
-                    plan_id=plan_id,
-                    task_id=parent_task_id,
-                    depth=depth,
-                    seeds_used=[],
-                    subtasks_created=len(subtasks),
-                ))
+                self._history.append(
+                    DecompositionEvent(
+                        event_id=str(uuid.uuid4()),
+                        plan_id=plan_id,
+                        task_id=parent_task_id,
+                        depth=depth,
+                        seeds_used=[],
+                        subtasks_created=len(subtasks),
+                    )
+                )
                 return subtasks
         except Exception as e:
             logger.warning("LLM decomposition failed, using keyword fallback: %s", e)
@@ -429,14 +444,12 @@ class DecompositionEngine:
         # Keyword fallback
         return self._keyword_decompose(task_prompt, parent_task_id, depth)
 
-    def _keyword_decompose(
-        self, task_prompt: str, parent_task_id: str, depth: int
-    ) -> List[Dict[str, Any]]:
+    def _keyword_decompose(self, task_prompt: str, parent_task_id: str, depth: int) -> list[dict[str, Any]]:
         """Simple keyword-based decomposition fallback."""
         task_lower = task_prompt.lower()
         subtasks = []
 
-        def make_subtask(desc: str, agent: str, deps: List[str] = None) -> Dict[str, Any]:
+        def make_subtask(desc: str, agent: str, deps: list[str] | None = None) -> dict[str, Any]:
             sid = f"st_{uuid.uuid4().hex[:6]}"
             return {
                 "subtask_id": sid,
@@ -468,9 +481,7 @@ class DecompositionEngine:
 
         return subtasks
 
-    def get_decomposition_history(
-        self, plan_id: Optional[str] = None
-    ) -> List[DecompositionEvent]:
+    def get_decomposition_history(self, plan_id: str | None = None) -> list[DecompositionEvent]:
         """Return decomposition history, optionally filtered by plan_id."""
         if plan_id:
             return [e for e in self._history if e.plan_id == plan_id]
@@ -478,7 +489,7 @@ class DecompositionEngine:
 
 
 # Module-level singleton
-_decomposition_engine: Optional[DecompositionEngine] = None
+_decomposition_engine: DecompositionEngine | None = None
 
 
 def _get_engine() -> DecompositionEngine:

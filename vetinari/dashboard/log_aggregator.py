@@ -1,5 +1,4 @@
-"""
-Log Aggregation Integration for Vetinari Dashboard  (Phase 4 Step 4)
+"""Log Aggregation Integration for Vetinari Dashboard  (Phase 4 Step 4).
 
 Provides a unified interface for exporting structured log records to multiple
 centralised logging backends, plus a lightweight in-process log store that the
@@ -33,15 +32,16 @@ Usage
     results = agg.search(trace_id="abc-123", limit=10)
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import threading
 import time
-import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -49,27 +49,28 @@ logger = logging.getLogger(__name__)
 # Log record
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class LogRecord:
     """A structured log record ready for aggregation."""
 
     message: str
-    level: str = "INFO"                          # DEBUG / INFO / WARNING / ERROR / CRITICAL
+    level: str = "INFO"  # DEBUG / INFO / WARNING / ERROR / CRITICAL
     timestamp: float = field(default_factory=time.time)
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-    request_id: Optional[str] = None
-    logger_name: Optional[str] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    trace_id: str | None = None
+    span_id: str | None = None
+    request_id: str | None = None
+    logger_name: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "message":     self.message,
-            "level":       self.level,
-            "timestamp":   self.timestamp,
-            "trace_id":    self.trace_id,
-            "span_id":     self.span_id,
-            "request_id":  self.request_id,
+            "message": self.message,
+            "level": self.level,
+            "timestamp": self.timestamp,
+            "trace_id": self.trace_id,
+            "span_id": self.span_id,
+            "request_id": self.request_id,
             "logger_name": self.logger_name,
             **self.extra,
         }
@@ -82,6 +83,7 @@ class LogRecord:
 # Backend protocol
 # ---------------------------------------------------------------------------
 
+
 class BackendBase:
     """Abstract base for log aggregation backends."""
 
@@ -90,12 +92,12 @@ class BackendBase:
     def configure(self, **kwargs: Any) -> None:
         """Apply backend-specific configuration."""
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         """Send a batch of records. Returns True on success.
 
         Subclasses must override this method.
         """
-        raise NotImplementedError(f"{type(self).__name__} must implement send()")
+        raise NotImplementedError(f"{type(self).__name__} must implement send()")  # noqa: VET033
 
     def close(self) -> None:
         """Release any resources held by this backend."""
@@ -105,40 +107,41 @@ class BackendBase:
 # File backend
 # ---------------------------------------------------------------------------
 
+
 class FileBackend(BackendBase):
     """Appends newline-delimited JSON to a local file."""
 
     name = "file"
 
     def __init__(self) -> None:
-        self._path: Optional[str] = None
+        self._path: str | None = None
         self._lock = threading.Lock()
 
     def configure(self, path: str = "logs/vetinari_audit.jsonl", **_: Any) -> None:
         self._path = path
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         if not self._path:
             logger.warning("FileBackend not configured (no path set).")
             return False
         try:
-            with self._lock:
-                with open(self._path, "a", encoding="utf-8") as fh:
-                    for rec in records:
-                        fh.write(rec.to_json() + "\n")
+            with self._lock, open(self._path, "a", encoding="utf-8") as fh:
+                for rec in records:
+                    fh.write(rec.to_json() + "\n")
             return True
         except OSError as exc:
             logger.error("FileBackend.send failed: %s", exc)
             return False
 
     def close(self) -> None:
-        pass   # File is opened/closed per call — nothing to release
+        pass  # noqa: VET031  (intentional: file opened/closed per send call — nothing to release)
 
 
 # ---------------------------------------------------------------------------
 # Elasticsearch backend
 # ---------------------------------------------------------------------------
+
 
 class ElasticsearchBackend(BackendBase):
     """Sends records via the Elasticsearch Bulk API."""
@@ -146,23 +149,23 @@ class ElasticsearchBackend(BackendBase):
     name = "elasticsearch"
 
     def __init__(self) -> None:
-        self._url:   Optional[str] = None
+        self._url: str | None = None
         self._index: str = "vetinari-logs"
-        self._headers: Dict[str, str] = {"Content-Type": "application/x-ndjson"}
+        self._headers: dict[str, str] = {"Content-Type": "application/x-ndjson"}
 
     def configure(
         self,
-        url:   str = "http://localhost:9200",
+        url: str = "http://localhost:9200",
         index: str = "vetinari-logs",
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         **_: Any,
     ) -> None:
-        self._url   = url.rstrip("/")
+        self._url = url.rstrip("/")
         self._index = index
         if api_key:
             self._headers["Authorization"] = f"ApiKey {api_key}"
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         if not self._url:
             logger.warning("ElasticsearchBackend not configured.")
             return False
@@ -173,7 +176,7 @@ class ElasticsearchBackend(BackendBase):
             return False
 
         # Build NDJSON bulk body
-        lines: List[str] = []
+        lines: list[str] = []
         for rec in records:
             action = json.dumps({"index": {"_index": self._index}})
             lines.append(action)
@@ -190,7 +193,8 @@ class ElasticsearchBackend(BackendBase):
             if resp.status_code not in (200, 201):
                 logger.error(
                     "ElasticsearchBackend received HTTP %s: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 return False
             return True
@@ -203,31 +207,32 @@ class ElasticsearchBackend(BackendBase):
 # Splunk HEC backend
 # ---------------------------------------------------------------------------
 
+
 class SplunkBackend(BackendBase):
     """Sends records via Splunk HTTP Event Collector."""
 
     name = "splunk"
 
     def __init__(self) -> None:
-        self._url:   Optional[str] = None
-        self._token: Optional[str] = None
+        self._url: str | None = None
+        self._token: str | None = None
         self._source: str = "vetinari"
         self._sourcetype: str = "_json"
 
     def configure(
         self,
-        url:        str = "http://localhost:8088",
-        token:      str = "",
-        source:     str = "vetinari",
+        url: str = "http://localhost:8088",
+        token: str = "",
+        source: str = "vetinari",
         sourcetype: str = "_json",
         **_: Any,
     ) -> None:
-        self._url        = url.rstrip("/")
-        self._token      = token
-        self._source     = source
+        self._url = url.rstrip("/")
+        self._token = token
+        self._source = source
         self._sourcetype = sourcetype
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         if not self._url or not self._token:
             logger.warning("SplunkBackend not configured (url/token missing).")
             return False
@@ -243,12 +248,14 @@ class SplunkBackend(BackendBase):
         }
         # Each record is a separate HEC event
         body = "".join(
-            json.dumps({
-                "time":       rec.timestamp,
-                "source":     self._source,
-                "sourcetype": self._sourcetype,
-                "event":      rec.to_dict(),
-            })
+            json.dumps(
+                {
+                    "time": rec.timestamp,
+                    "source": self._source,
+                    "sourcetype": self._sourcetype,
+                    "event": rec.to_dict(),
+                }
+            )
             for rec in records
         )
         try:
@@ -261,7 +268,8 @@ class SplunkBackend(BackendBase):
             if resp.status_code != 200:
                 logger.error(
                     "SplunkBackend received HTTP %s: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 return False
             return True
@@ -274,6 +282,7 @@ class SplunkBackend(BackendBase):
 # Datadog backend
 # ---------------------------------------------------------------------------
 
+
 class DatadogBackend(BackendBase):
     """Sends records via the Datadog Logs Intake API."""
 
@@ -281,25 +290,25 @@ class DatadogBackend(BackendBase):
     _DD_URL = "https://http-intake.logs.datadoghq.com/api/v2/logs"
 
     def __init__(self) -> None:
-        self._api_key: Optional[str] = None
+        self._api_key: str | None = None
         self._service: str = "vetinari"
         self._ddsource: str = "python"
         self._ddtags: str = ""
 
     def configure(
         self,
-        api_key:  str = "",
-        service:  str = "vetinari",
+        api_key: str = "",
+        service: str = "vetinari",
         ddsource: str = "python",
-        ddtags:   str = "",
+        ddtags: str = "",
         **_: Any,
     ) -> None:
-        self._api_key  = api_key
-        self._service  = service
+        self._api_key = api_key
+        self._service = service
         self._ddsource = ddsource
-        self._ddtags   = ddtags
+        self._ddtags = ddtags
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         if not self._api_key:
             logger.warning("DatadogBackend not configured (api_key missing).")
             return False
@@ -312,16 +321,16 @@ class DatadogBackend(BackendBase):
         payload = [
             {
                 "ddsource": self._ddsource,
-                "ddtags":   self._ddtags,
-                "service":  self._service,
-                "message":  rec.message,
-                "status":   rec.level,
+                "ddtags": self._ddtags,
+                "service": self._service,
+                "message": rec.message,
+                "status": rec.level,
                 **rec.to_dict(),
             }
             for rec in records
         ]
         headers = {
-            "DD-API-KEY":   self._api_key,
+            "DD-API-KEY": self._api_key,
             "Content-Type": "application/json",
         }
         try:
@@ -334,7 +343,8 @@ class DatadogBackend(BackendBase):
             if resp.status_code not in (200, 202):
                 logger.error(
                     "DatadogBackend received HTTP %s: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 return False
             return True
@@ -347,24 +357,24 @@ class DatadogBackend(BackendBase):
 # Webhook backend (generic HTTP POST)
 # ---------------------------------------------------------------------------
 
+
 class WebhookBackend(BackendBase):
     """POST aggregated logs to an external webhook URL."""
 
     name = "webhook"
 
     def __init__(self) -> None:
-        self._url: Optional[str] = None
-        self._headers: Dict[str, str] = {"Content-Type": "application/json"}
+        self._url: str | None = None
+        self._headers: dict[str, str] = {"Content-Type": "application/json"}
         self._timeout: int = 10
 
-    def configure(self, url: str = "", headers: Optional[Dict[str, str]] = None,
-                  timeout: int = 10, **_: Any) -> None:
+    def configure(self, url: str = "", headers: dict[str, str] | None = None, timeout: int = 10, **_: Any) -> None:
         self._url = url
         if headers:
             self._headers.update(headers)
         self._timeout = timeout
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         if not self._url:
             logger.warning("WebhookBackend not configured (url missing).")
             return False
@@ -377,13 +387,16 @@ class WebhookBackend(BackendBase):
         payload = [rec.to_dict() for rec in records]
         try:
             resp = requests.post(
-                self._url, json=payload, headers=self._headers,
+                self._url,
+                json=payload,
+                headers=self._headers,
                 timeout=self._timeout,
             )
             if not resp.ok:
                 logger.error(
                     "WebhookBackend received HTTP %s: %s",
-                    resp.status_code, resp.text[:200],
+                    resp.status_code,
+                    resp.text[:200],
                 )
                 return False
             return True
@@ -396,12 +409,12 @@ class WebhookBackend(BackendBase):
 # Backend registry
 # ---------------------------------------------------------------------------
 
-_BACKEND_CLASSES: Dict[str, type] = {
-    "file":          FileBackend,
+_BACKEND_CLASSES: dict[str, type] = {
+    "file": FileBackend,
     "elasticsearch": ElasticsearchBackend,
-    "splunk":        SplunkBackend,
-    "datadog":       DatadogBackend,
-    "webhook":       WebhookBackend,
+    "splunk": SplunkBackend,
+    "datadog": DatadogBackend,
+    "webhook": WebhookBackend,
 }
 
 
@@ -409,9 +422,9 @@ _BACKEND_CLASSES: Dict[str, type] = {
 # LogAggregator — core class
 # ---------------------------------------------------------------------------
 
+
 class LogAggregator:
-    """
-    Central log aggregation hub.
+    """Central log aggregation hub.
 
     * Maintains an in-process circular buffer of recent records for dashboard
       search / correlation.
@@ -419,11 +432,11 @@ class LogAggregator:
     * Thread-safe singleton — obtain via ``get_log_aggregator()``.
     """
 
-    _instance: Optional["LogAggregator"] = None
+    _instance: LogAggregator | None = None
     _class_lock = threading.Lock()
-    MAX_BUFFER = 5_000   # maximum records kept in memory
+    MAX_BUFFER = 5_000  # maximum records kept in memory
 
-    def __new__(cls) -> "LogAggregator":
+    def __new__(cls) -> LogAggregator:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -436,19 +449,18 @@ class LogAggregator:
     # ------------------------------------------------------------------
 
     def _setup(self) -> None:
-        self._lock     = threading.RLock()
+        self._lock = threading.RLock()
         self._buffer: deque = deque(maxlen=self.MAX_BUFFER)
-        self._backends: Dict[str, BackendBase] = {}
+        self._backends: dict[str, BackendBase] = {}
         self._batch_size: int = 100
-        self._pending: List[LogRecord] = []
+        self._pending: list[LogRecord] = []
 
     # ------------------------------------------------------------------
     # Backend management
     # ------------------------------------------------------------------
 
     def configure_backend(self, name: str, **kwargs: Any) -> None:
-        """
-        Add and configure a named backend.
+        """Add and configure a named backend.
 
         Args:
             name: One of ``file``, ``elasticsearch``, ``splunk``, ``datadog``.
@@ -460,10 +472,7 @@ class LogAggregator:
         """
         cls = _BACKEND_CLASSES.get(name)
         if cls is None:
-            raise ValueError(
-                f"Unknown backend '{name}'. "
-                f"Valid options: {sorted(_BACKEND_CLASSES)}"
-            )
+            raise ValueError(f"Unknown backend '{name}'. Valid options: {sorted(_BACKEND_CLASSES)}")
         with self._lock:
             backend = cls()
             backend.configure(**kwargs)
@@ -479,7 +488,7 @@ class LogAggregator:
                 logger.info("Removed log aggregation backend: %s", name)
             return b is not None
 
-    def list_backends(self) -> List[str]:
+    def list_backends(self) -> list[str]:
         with self._lock:
             return list(self._backends.keys())
 
@@ -488,8 +497,7 @@ class LogAggregator:
     # ------------------------------------------------------------------
 
     def ingest(self, record: LogRecord) -> None:
-        """
-        Ingest a single log record.
+        """Ingest a single log record.
 
         The record is appended to the in-process buffer immediately and
         queued for backend dispatch. When the pending queue reaches
@@ -501,7 +509,7 @@ class LogAggregator:
             if len(self._pending) >= self._batch_size:
                 self._flush_locked()
 
-    def ingest_many(self, records: List[LogRecord]) -> None:
+    def ingest_many(self, records: list[LogRecord]) -> None:
         """Ingest multiple records at once."""
         for rec in records:
             self.ingest(rec)
@@ -531,15 +539,14 @@ class LogAggregator:
 
     def search(
         self,
-        trace_id:   Optional[str] = None,
-        level:      Optional[str] = None,
-        logger_name: Optional[str] = None,
-        message_contains: Optional[str] = None,
-        since:      Optional[float] = None,   # unix timestamp
-        limit:      int = 100,
-    ) -> List[LogRecord]:
-        """
-        Search the in-process buffer.
+        trace_id: str | None = None,
+        level: str | None = None,
+        logger_name: str | None = None,
+        message_contains: str | None = None,
+        since: float | None = None,  # unix timestamp
+        limit: int = 100,
+    ) -> list[LogRecord]:
+        """Search the in-process buffer.
 
         All supplied filters are ANDed together.
 
@@ -555,7 +562,7 @@ class LogAggregator:
             List of matching LogRecord objects (newest first).
         """
         with self._lock:
-            results: List[LogRecord] = []
+            results: list[LogRecord] = []
             for rec in reversed(list(self._buffer)):
                 if trace_id and rec.trace_id != trace_id:
                     continue
@@ -572,32 +579,29 @@ class LogAggregator:
                     break
         return results
 
-    def get_trace_records(self, trace_id: str) -> List[LogRecord]:
+    def get_trace_records(self, trace_id: str) -> list[LogRecord]:
         """Return all records belonging to a trace, ordered oldest-first."""
         with self._lock:
             records = [r for r in self._buffer if r.trace_id == trace_id]
         return sorted(records, key=lambda r: r.timestamp)
 
-    def correlate_span(self, trace_id: str, span_id: str) -> List[LogRecord]:
+    def correlate_span(self, trace_id: str, span_id: str) -> list[LogRecord]:
         """Return all records for a specific span within a trace."""
         with self._lock:
-            return [
-                r for r in self._buffer
-                if r.trace_id == trace_id and r.span_id == span_id
-            ]
+            return [r for r in self._buffer if r.trace_id == trace_id and r.span_id == span_id]
 
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
-                "buffer_size":   len(self._buffer),
-                "pending":       len(self._pending),
-                "backends":      list(self._backends.keys()),
-                "max_buffer":    self.MAX_BUFFER,
-                "batch_size":    self._batch_size,
+                "buffer_size": len(self._buffer),
+                "pending": len(self._pending),
+                "backends": list(self._backends.keys()),
+                "max_buffer": self.MAX_BUFFER,
+                "batch_size": self._batch_size,
             }
 
     def clear_buffer(self) -> None:
@@ -611,9 +615,9 @@ class LogAggregator:
 # Python logging handler — bridge from stdlib logging to LogAggregator
 # ---------------------------------------------------------------------------
 
+
 class AggregatorHandler(logging.Handler):
-    """
-    A stdlib ``logging.Handler`` that feeds records into the ``LogAggregator``.
+    """A stdlib ``logging.Handler`` that feeds records into the ``LogAggregator``.
 
     Attach it to any logger to automatically capture structured log output:
 
@@ -636,15 +640,35 @@ class AggregatorHandler(logging.Handler):
                 request_id=getattr(record, "request_id", None),
                 logger_name=record.name,
                 extra={
-                    k: v for k, v in record.__dict__.items()
+                    k: v
+                    for k, v in record.__dict__.items()
                     if k not in logging.LogRecord.__dict__
                     and not k.startswith("_")
-                    and k not in ("message", "asctime", "args", "msg",
-                                  "levelname", "levelno", "name", "pathname",
-                                  "filename", "module", "exc_info", "exc_text",
-                                  "stack_info", "lineno", "funcName", "created",
-                                  "msecs", "relativeCreated", "thread",
-                                  "threadName", "processName", "process")
+                    and k
+                    not in (
+                        "message",
+                        "asctime",
+                        "args",
+                        "msg",
+                        "levelname",
+                        "levelno",
+                        "name",
+                        "pathname",
+                        "filename",
+                        "module",
+                        "exc_info",
+                        "exc_text",
+                        "stack_info",
+                        "lineno",
+                        "funcName",
+                        "created",
+                        "msecs",
+                        "relativeCreated",
+                        "thread",
+                        "threadName",
+                        "processName",
+                        "process",
+                    )
                 },
             )
             agg.ingest(lr)
@@ -655,6 +679,7 @@ class AggregatorHandler(logging.Handler):
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_log_aggregator() -> LogAggregator:
     """Return the global LogAggregator singleton."""
@@ -674,9 +699,9 @@ def reset_log_aggregator() -> None:
 # SSE (Server-Sent Events) Backend — streams log records to connected clients
 # ---------------------------------------------------------------------------
 
+
 class SSEBackend(BackendBase):
-    """
-    Backend that buffers log records for Server-Sent Events (SSE) streaming.
+    """Backend that buffers log records for Server-Sent Events (SSE) streaming.
 
     Dashboard clients connect via an SSE endpoint and receive real-time log
     updates. Records are kept in a bounded deque; older entries are discarded
@@ -693,13 +718,13 @@ class SSEBackend(BackendBase):
         with self._lock:
             self._buffer = deque(maxlen=max_buffer)
 
-    def send(self, records: List[LogRecord]) -> bool:
+    def send(self, records: list[LogRecord]) -> bool:
         with self._lock:
             for rec in records:
                 self._buffer.append(rec)
         return True
 
-    def get_recent(self, limit: int = 50) -> List[LogRecord]:
+    def get_recent(self, limit: int = 50) -> list[LogRecord]:
         """Return the most recent records (newest last)."""
         with self._lock:
             items = list(self._buffer)
@@ -710,7 +735,7 @@ class SSEBackend(BackendBase):
             self._buffer.clear()
 
 
-_sse_backend_instance: Optional[SSEBackend] = None
+_sse_backend_instance: SSEBackend | None = None
 _sse_lock = threading.Lock()
 
 

@@ -1,31 +1,35 @@
-"""
-Milestone Checkpoint System — structured approval gates during execution.
+"""Milestone Checkpoint System — structured approval gates during execution.
 
 Provides MilestonePolicy configuration and MilestoneReached/MilestoneApproval
 events for pausing execution at feature boundaries.
 """
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class MilestoneGranularity(Enum):
     """How often to pause for user approval."""
-    ALL = "all"            # Checkpoint after every task
+
+    ALL = "all"  # Checkpoint after every task
     FEATURES = "features"  # Checkpoint after each feature/component (DEFAULT)
-    PHASES = "phases"      # Checkpoint only at phase transitions
+    PHASES = "phases"  # Checkpoint only at phase transitions
     CRITICAL = "critical"  # Checkpoint only on high-risk/destructive tasks
-    NONE = "none"          # No checkpoints (fully autonomous)
+    NONE = "none"  # No checkpoints (fully autonomous)
 
 
 class MilestoneAction(Enum):
     """User response to a milestone checkpoint."""
+
     APPROVE = "approve"
     REVISE = "revise"
     SKIP_REMAINING = "skip_remaining"
@@ -35,16 +39,17 @@ class MilestoneAction(Enum):
 @dataclass
 class MilestoneReached:
     """Event emitted when a milestone is reached during execution."""
+
     milestone_name: str
     task_id: str
     task_description: str
-    completed_tasks: List[str]
-    test_results: Optional[Dict[str, Any]] = None
-    artifacts: List[str] = field(default_factory=list)
+    completed_tasks: list[str]
+    test_results: dict[str, Any] | None = None
+    artifacts: list[str] = field(default_factory=list)
     quality_score: float = 0.0
-    next_steps: List[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "milestone_name": self.milestone_name,
             "task_id": self.task_id,
@@ -67,24 +72,25 @@ class MilestoneReached:
 @dataclass
 class MilestoneApproval:
     """User's response to a milestone checkpoint."""
+
     action: MilestoneAction
     feedback: str = ""
     timestamp: float = field(default_factory=time.time)
 
     @classmethod
-    def approve(cls) -> "MilestoneApproval":
+    def approve(cls) -> MilestoneApproval:
         return cls(action=MilestoneAction.APPROVE)
 
     @classmethod
-    def revise(cls, feedback: str) -> "MilestoneApproval":
+    def revise(cls, feedback: str) -> MilestoneApproval:
         return cls(action=MilestoneAction.REVISE, feedback=feedback)
 
     @classmethod
-    def skip_remaining(cls) -> "MilestoneApproval":
+    def skip_remaining(cls) -> MilestoneApproval:
         return cls(action=MilestoneAction.SKIP_REMAINING)
 
     @classmethod
-    def abort(cls) -> "MilestoneApproval":
+    def abort(cls) -> MilestoneApproval:
         return cls(action=MilestoneAction.ABORT)
 
 
@@ -94,6 +100,7 @@ class MilestonePolicy:
 
     Controls when and how execution pauses for user approval.
     """
+
     granularity: MilestoneGranularity = MilestoneGranularity.FEATURES
     auto_approve_on_success: bool = True
     auto_approve_quality_threshold: float = 0.8
@@ -126,7 +133,7 @@ class MilestonePolicy:
             return requires_approval
         return False
 
-    def should_auto_approve(self, milestone: "MilestoneReached") -> bool:
+    def should_auto_approve(self, milestone: MilestoneReached) -> bool:
         """Check if a milestone can be auto-approved.
 
         Auto-approves when: task succeeded + quality above threshold + no issues.
@@ -135,7 +142,7 @@ class MilestonePolicy:
             return False
         return milestone.quality_score >= self.auto_approve_quality_threshold
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "granularity": self.granularity.value,
             "auto_approve_on_success": self.auto_approve_on_success,
@@ -145,7 +152,7 @@ class MilestonePolicy:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MilestonePolicy":
+    def from_dict(cls, data: dict[str, Any]) -> MilestonePolicy:
         return cls(
             granularity=MilestoneGranularity(data.get("granularity", "features")),
             auto_approve_on_success=data.get("auto_approve_on_success", True),
@@ -162,13 +169,13 @@ class MilestoneManager:
     (CLI or web) to pause, collect approval, and resume execution.
     """
 
-    def __init__(self, policy: Optional[MilestonePolicy] = None):
+    def __init__(self, policy: MilestonePolicy | None = None):
         self._policy = policy or MilestonePolicy()
-        self._pending: Optional[MilestoneReached] = None
+        self._pending: MilestoneReached | None = None
         self._approval_event = threading.Event()
-        self._approval: Optional[MilestoneApproval] = None
-        self._history: List[Dict[str, Any]] = []
-        self._approval_callback: Optional[Callable] = None
+        self._approval: MilestoneApproval | None = None
+        self._history: list[dict[str, Any]] = []
+        self._approval_callback: Callable | None = None
 
     @property
     def policy(self) -> MilestonePolicy:
@@ -187,7 +194,7 @@ class MilestoneManager:
         self,
         task: Any,
         result: Any,
-        completed_tasks: List[str],
+        completed_tasks: list[str],
     ) -> MilestoneApproval:
         """Check if task is a milestone and wait for approval if needed.
 
@@ -252,13 +259,15 @@ class MilestoneManager:
             logger.info("[Milestone] Skip remaining enabled — no more checkpoints")
 
     def _record(self, milestone: MilestoneReached, approval: MilestoneApproval, auto: bool) -> None:
-        self._history.append({
-            "milestone": milestone.to_dict(),
-            "action": approval.action.value,
-            "feedback": approval.feedback,
-            "auto_approved": auto,
-            "timestamp": time.time(),
-        })
+        self._history.append(
+            {
+                "milestone": milestone.to_dict(),
+                "action": approval.action.value,
+                "feedback": approval.feedback,
+                "auto_approved": auto,
+                "timestamp": time.time(),
+            }
+        )
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         return list(self._history)

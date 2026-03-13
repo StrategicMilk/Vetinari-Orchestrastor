@@ -19,7 +19,7 @@ Metrics: API selection accuracy, parameter extraction, chain completion,
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
@@ -29,10 +29,9 @@ from vetinari.benchmarks.runner import (
     BenchmarkTier,
 )
 
-
 # -- Mock API definitions --
 
-_API_CATALOG: List[Dict[str, Any]] = [
+_API_CATALOG: list[dict[str, Any]] = [
     {
         "name": "UserService.get_user",
         "description": "Get user profile by user ID",
@@ -98,7 +97,7 @@ _API_CATALOG: List[Dict[str, Any]] = [
 
 # -- Sample cases --
 
-_SAMPLE_CASES: List[Dict[str, Any]] = [
+_SAMPLE_CASES: list[dict[str, Any]] = [
     {
         "case_id": "ab-l1-001",
         "level": 1,
@@ -140,12 +139,17 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         "expected_api_chain": [
             {"api": "UserService.search_users", "params": {"query": "john@acme.com", "limit": 1}},
             {"api": "OrderService.get_orders", "params": {"user_id": 101, "status": "completed"}},
-            {"api": "PaymentService.process_refund", "params": {
-                "order_id": 5001, "amount": 89.99, "reason": "customer request"
-            }},
-            {"api": "NotificationService.send_email", "params": {
-                "to": "john@acme.com", "subject": "Refund Confirmation",
-            }},
+            {
+                "api": "PaymentService.process_refund",
+                "params": {"order_id": 5001, "amount": 89.99, "reason": "customer request"},
+            },
+            {
+                "api": "NotificationService.send_email",
+                "params": {
+                    "to": "john@acme.com",
+                    "subject": "Refund Confirmation",
+                },
+            },
         ],
         "expected_answer": {
             "refund_id": "ref-001",
@@ -170,12 +174,13 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         ),
         "expected_api_chain": [
             {"api": "InventoryService.check_stock", "params": {"product_id": 777}},
-            {"api": "InventoryService.reserve_stock", "params": {
-                "product_id": 777, "quantity": 3
-            }},
-            {"api": "NotificationService.send_email", "params": {
-                "to": "warehouse@company.com",
-            }},
+            {"api": "InventoryService.reserve_stock", "params": {"product_id": 777, "quantity": 3}},
+            {
+                "api": "NotificationService.send_email",
+                "params": {
+                    "to": "warehouse@company.com",
+                },
+            },
         ],
         "expected_answer": {
             "available": True,
@@ -199,9 +204,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "then find their largest order and show its details."
         ),
         "expected_api_chain": [
-            {"api": "AnalyticsService.get_user_stats", "params": {
-                "user_id": 42, "period": "month"
-            }},
+            {"api": "AnalyticsService.get_user_stats", "params": {"user_id": 42, "period": "month"}},
             {"api": "OrderService.get_orders", "params": {"user_id": 42}},
             {"api": "OrderService.get_order_details", "params": {"order_id": 3001}},
         ],
@@ -212,12 +215,13 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         },
         "mock_responses": [
             {"orders_count": 8, "total_spent": 450.00, "avg_order": 56.25},
-            {"orders": [
-                {"order_id": 3001, "total": 189.99, "status": "completed"},
-                {"order_id": 3002, "total": 45.00, "status": "completed"},
-            ]},
-            {"order_id": 3001, "items": ["widget-a", "gadget-b"],
-             "total": 189.99, "address": "123 Main St"},
+            {
+                "orders": [
+                    {"order_id": 3001, "total": 189.99, "status": "completed"},
+                    {"order_id": 3002, "total": 45.00, "status": "completed"},
+                ]
+            },
+            {"order_id": 3001, "items": ["widget-a", "gadget-b"], "total": 189.99, "address": "123 Main St"},
         ],
         "tags": ["level-3", "multi-step", "analytics"],
     },
@@ -231,26 +235,28 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
     layer = BenchmarkLayer.ORCHESTRATION
     tier = BenchmarkTier.MEDIUM
 
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
-            cases.append(BenchmarkCase(
-                case_id=item["case_id"],
-                suite_name=self.name,
-                description=item["description"],
-                input_data={
-                    "user_query": item["user_query"],
-                    "level": item["level"],
-                    "api_catalog": _API_CATALOG,
-                    "mock_responses": item["mock_responses"],
-                },
-                expected={
-                    "expected_api_chain": item["expected_api_chain"],
-                    "expected_answer": item["expected_answer"],
-                },
-                tags=item.get("tags", []),
-            ))
+            cases.append(
+                BenchmarkCase(
+                    case_id=item["case_id"],
+                    suite_name=self.name,
+                    description=item["description"],
+                    input_data={
+                        "user_query": item["user_query"],
+                        "level": item["level"],
+                        "api_catalog": _API_CATALOG,
+                        "mock_responses": item["mock_responses"],
+                    },
+                    expected={
+                        "expected_api_chain": item["expected_api_chain"],
+                        "expected_answer": item["expected_answer"],
+                    },
+                    tags=item.get("tags", []),
+                )
+            )
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
@@ -307,9 +313,8 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
         if expected_chain:
             correct_apis = 0
             for i, exp_call in enumerate(expected_chain):
-                if i < len(actual_chain):
-                    if actual_chain[i].get("api") == exp_call["api"]:
-                        correct_apis += 1
+                if i < len(actual_chain) and actual_chain[i].get("api") == exp_call["api"]:
+                    correct_apis += 1
             api_score = correct_apis / len(expected_chain)
             score += 0.35 * api_score
 
@@ -322,8 +327,7 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
                     act_params = actual_chain[i].get("params", {})
                     if exp_params:
                         matching = sum(
-                            1 for k, v in exp_params.items()
-                            if k in act_params and str(act_params[k]) == str(v)
+                            1 for k, v in exp_params.items() if k in act_params and str(act_params[k]) == str(v)
                         )
                         param_score_sum += matching / len(exp_params)
             param_score = param_score_sum / len(expected_chain)
@@ -353,20 +357,18 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
 
         return round(min(score, 1.0), 4)
 
-    def _run_via_orchestrator(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _run_via_orchestrator(self, case: BenchmarkCase) -> dict[str, Any]:
         """Attempt execution via Vetinari orchestrator."""
         from vetinari.two_layer_orchestration import get_two_layer_orchestrator
 
         orch = get_two_layer_orchestrator()
-        result = orch.generate_and_execute(
-            goal=case.input_data["user_query"]
-        )
+        result = orch.generate_and_execute(goal=case.input_data["user_query"])
         return {
             "api_chain": result.get("api_calls", []),
             "answer": result.get("final_output", {}),
         }
 
-    def _mock_run(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _mock_run(self, case: BenchmarkCase) -> dict[str, Any]:
         """Mock execution returning expected API chain and answers."""
         expected = case.expected or {}
         return {

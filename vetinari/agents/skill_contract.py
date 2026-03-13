@@ -1,6 +1,8 @@
 """Universal skill output contract for all Vetinari agents."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional
 from enum import Enum
 
 
@@ -13,7 +15,7 @@ class Severity(Enum):
 
 
 class Verdict(Enum):
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105
     FAIL = "fail"
     NEEDS_REVIEW = "needs_review"
 
@@ -36,14 +38,14 @@ class ArtifactType(Enum):
 
 @dataclass
 class Finding:
-    id: str                    # e.g., "SEC-001", "TEST-003"
+    id: str  # e.g., "SEC-001", "TEST-003"
     severity: Severity
-    category: str              # Agent-specific category
-    title: str                 # One-line summary
-    location: str              # File:line or component name
-    evidence: str              # ACTUAL code/data — NOT invented
-    recommendation: str        # SPECIFIC fix — NOT generic advice
-    confidence: float = 0.8    # 0.0-1.0
+    category: str  # Agent-specific category
+    title: str  # One-line summary
+    location: str  # File:line or component name
+    evidence: str  # ACTUAL code/data — NOT invented
+    recommendation: str  # SPECIFIC fix — NOT generic advice
+    confidence: float = 0.8  # 0.0-1.0
 
     def to_dict(self) -> dict:
         return {
@@ -63,7 +65,7 @@ class Artifact:
     filename: str
     content: str
     artifact_type: ArtifactType
-    language: str = "text"     # e.g., "python", "yaml", "markdown"
+    language: str = "text"  # e.g., "python", "yaml", "markdown"
     validated: bool = False
 
     def to_dict(self) -> dict:
@@ -79,18 +81,19 @@ class Artifact:
 @dataclass
 class SkillOutput:
     """Universal structured output for all Vetinari agents and skills."""
+
     agent_type: str
     task_summary: str
     verdict: Verdict
     confidence: float
-    findings: List[Finding] = field(default_factory=list)
-    scores: Dict[str, float] = field(default_factory=dict)
+    findings: list[Finding] = field(default_factory=list)
+    scores: dict[str, float] = field(default_factory=dict)
     overall_score: float = 0.0
-    artifacts: List[Artifact] = field(default_factory=list)
-    sources: List[str] = field(default_factory=list)
+    artifacts: list[Artifact] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     data_provenance: DataProvenance = DataProvenance.UNKNOWN
     self_check_passed: bool = False
-    self_check_issues: List[str] = field(default_factory=list)
+    self_check_issues: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -109,31 +112,37 @@ class SkillOutput:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SkillOutput":
+    def from_dict(cls, d: dict) -> SkillOutput:
         return cls(
             agent_type=d.get("agent_type", "unknown"),
             task_summary=d.get("task_summary", ""),
             verdict=Verdict(d.get("verdict", "needs_review")),
             confidence=d.get("confidence", 0.0),
-            findings=[Finding(
-                id=f.get("id", ""),
-                severity=Severity(f.get("severity", "info")),
-                category=f.get("category", ""),
-                title=f.get("title", ""),
-                location=f.get("location", ""),
-                evidence=f.get("evidence", ""),
-                recommendation=f.get("recommendation", ""),
-                confidence=f.get("confidence", 0.8),
-            ) for f in d.get("findings", [])],
+            findings=[
+                Finding(
+                    id=f.get("id", ""),
+                    severity=Severity(f.get("severity", "info")),
+                    category=f.get("category", ""),
+                    title=f.get("title", ""),
+                    location=f.get("location", ""),
+                    evidence=f.get("evidence", ""),
+                    recommendation=f.get("recommendation", ""),
+                    confidence=f.get("confidence", 0.8),
+                )
+                for f in d.get("findings", [])
+            ],
             scores=d.get("scores", {}),
             overall_score=d.get("overall_score", 0.0),
-            artifacts=[Artifact(
-                filename=a.get("filename", ""),
-                content=a.get("content", ""),
-                artifact_type=ArtifactType(a.get("artifact_type", "report")),
-                language=a.get("language", "text"),
-                validated=a.get("validated", False),
-            ) for a in d.get("artifacts", [])],
+            artifacts=[
+                Artifact(
+                    filename=a.get("filename", ""),
+                    content=a.get("content", ""),
+                    artifact_type=ArtifactType(a.get("artifact_type", "report")),
+                    language=a.get("language", "text"),
+                    validated=a.get("validated", False),
+                )
+                for a in d.get("artifacts", [])
+            ],
             sources=d.get("sources", []),
             data_provenance=DataProvenance(d.get("data_provenance", "unknown")),
             self_check_passed=d.get("self_check_passed", False),
@@ -196,7 +205,7 @@ SCORING_RUBRICS = {
 }
 
 
-def compute_overall_score(scores: Dict[str, float], agent_type: str) -> float:
+def compute_overall_score(scores: dict[str, float], agent_type: str) -> float:
     """Compute weighted overall score using the agent's rubric."""
     rubric = SCORING_RUBRICS.get(agent_type, {})
     if not rubric or not scores:

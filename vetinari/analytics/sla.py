@@ -1,5 +1,4 @@
-"""
-SLA Tracking — vetinari.analytics.sla  (Phase 5)
+"""SLA Tracking — vetinari.analytics.sla  (Phase 5).
 
 Tracks Service Level Objectives (SLOs) and computes SLA compliance metrics.
 
@@ -35,19 +34,18 @@ Usage
     tracker.record_latency("openai:gpt-4", latency_ms=320.0)
 
     report = tracker.get_report("api-latency-p95")
-    print(report.compliance_pct, report.is_compliant)
+    logger.debug(report.compliance_pct, report.is_compliant)
 """
 
 from __future__ import annotations
 
 import logging
-import math
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -55,36 +53,39 @@ logger = logging.getLogger(__name__)
 # Enumerations
 # ---------------------------------------------------------------------------
 
+
 class SLOType(Enum):
-    LATENCY_P50    = "latency_p50"
-    LATENCY_P95    = "latency_p95"
-    LATENCY_P99    = "latency_p99"
-    SUCCESS_RATE   = "success_rate"    # budget = minimum % (e.g. 99.0)
-    ERROR_RATE     = "error_rate"      # budget = maximum % (e.g. 1.0)
-    THROUGHPUT     = "throughput"      # budget = minimum req/s
-    APPROVAL_RATE  = "approval_rate"   # budget = minimum % (e.g. 90.0)
+    LATENCY_P50 = "latency_p50"
+    LATENCY_P95 = "latency_p95"
+    LATENCY_P99 = "latency_p99"
+    SUCCESS_RATE = "success_rate"  # budget = minimum % (e.g. 99.0)
+    ERROR_RATE = "error_rate"  # budget = maximum % (e.g. 1.0)
+    THROUGHPUT = "throughput"  # budget = minimum req/s
+    APPROVAL_RATE = "approval_rate"  # budget = minimum % (e.g. 90.0)
 
 
 # ---------------------------------------------------------------------------
 # SLO target definition
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SLOTarget:
     """A single Service Level Objective."""
-    name:           str
-    slo_type:       SLOType
-    budget:         float               # threshold value (semantics depend on type)
-    window_seconds: float = 3600.0      # rolling window for compliance evaluation
-    description:    str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    name: str
+    slo_type: SLOType
+    budget: float  # threshold value (semantics depend on type)
+    window_seconds: float = 3600.0  # rolling window for compliance evaluation
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "name":           self.name,
-            "slo_type":       self.slo_type.value,
-            "budget":         self.budget,
+            "name": self.name,
+            "slo_type": self.slo_type.value,
+            "budget": self.budget,
             "window_seconds": self.window_seconds,
-            "description":    self.description,
+            "description": self.description,
         }
 
 
@@ -92,19 +93,21 @@ class SLOTarget:
 # Breach record
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SLABreach:
     """A single moment when an SLO was violated."""
-    slo_name:  str
-    value:     float
-    budget:    float
+
+    slo_name: str
+    value: float
+    budget: float
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "slo_name":  self.slo_name,
-            "value":     self.value,
-            "budget":    self.budget,
+            "slo_name": self.slo_name,
+            "value": self.value,
+            "budget": self.budget,
             "timestamp": self.timestamp,
         }
 
@@ -113,30 +116,32 @@ class SLABreach:
 # SLA report
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SLAReport:
     """Computed compliance for a single SLO."""
-    slo:            SLOTarget
-    window_start:   float
-    window_end:     float
-    total_samples:  int
-    good_samples:   int
-    compliance_pct: float
-    is_compliant:   bool
-    current_value:  float     # latest computed metric value
-    breaches:       List[SLABreach] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    slo: SLOTarget
+    window_start: float
+    window_end: float
+    total_samples: int
+    good_samples: int
+    compliance_pct: float
+    is_compliant: bool
+    current_value: float  # latest computed metric value
+    breaches: list[SLABreach] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "slo":            self.slo.to_dict(),
-            "window_start":   self.window_start,
-            "window_end":     self.window_end,
-            "total_samples":  self.total_samples,
-            "good_samples":   self.good_samples,
+            "slo": self.slo.to_dict(),
+            "window_start": self.window_start,
+            "window_end": self.window_end,
+            "total_samples": self.total_samples,
+            "good_samples": self.good_samples,
             "compliance_pct": self.compliance_pct,
-            "is_compliant":   self.is_compliant,
-            "current_value":  self.current_value,
-            "breaches":       [b.to_dict() for b in self.breaches],
+            "is_compliant": self.is_compliant,
+            "current_value": self.current_value,
+            "breaches": [b.to_dict() for b in self.breaches],
         }
 
 
@@ -144,14 +149,15 @@ class SLAReport:
 # Internal observation
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _Obs:
-    value:     float
+    value: float
     timestamp: float
-    success:   bool = True   # for success/error rate SLOs
+    success: bool = True  # for success/error rate SLOs
 
 
-def _percentile(vals: List[float], p: float) -> float:
+def _percentile(vals: list[float], p: float) -> float:
     if not vals:
         return 0.0
     s = sorted(vals)
@@ -165,15 +171,14 @@ def _percentile(vals: List[float], p: float) -> float:
 # Tracker
 # ---------------------------------------------------------------------------
 
+
 class SLATracker:
-    """
-    Thread-safe SLA / SLO tracker.  Singleton — use ``get_sla_tracker()``.
-    """
+    """Thread-safe SLA / SLO tracker.  Singleton — use ``get_sla_tracker()``."""
 
-    _instance:   Optional["SLATracker"] = None
-    _class_lock  = threading.Lock()
+    _instance: SLATracker | None = None
+    _class_lock = threading.Lock()
 
-    def __new__(cls) -> "SLATracker":
+    def __new__(cls) -> SLATracker:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -182,13 +187,13 @@ class SLATracker:
         return cls._instance
 
     def _setup(self) -> None:
-        self._lock    = threading.RLock()
-        self._slos:   Dict[str, SLOTarget] = {}
+        self._lock = threading.RLock()
+        self._slos: dict[str, SLOTarget] = {}
         # keyed by SLO name → deque of _Obs within a rolling window
-        self._obs:    Dict[str, Deque[_Obs]] = {}
-        self._breaches: List[SLABreach] = []
+        self._obs: dict[str, deque[_Obs]] = {}
+        self._breaches: list[SLABreach] = []
         # Per-model latency observations for model-level compliance queries
-        self._model_obs: Dict[str, Deque[_Obs]] = {}
+        self._model_obs: dict[str, deque[_Obs]] = {}
 
     # ------------------------------------------------------------------
     # SLO management
@@ -207,7 +212,7 @@ class SLATracker:
             self._obs.pop(name, None)
             return existed
 
-    def list_slos(self) -> List[SLOTarget]:
+    def list_slos(self) -> list[SLOTarget]:
         with self._lock:
             return list(self._slos.values())
 
@@ -245,8 +250,7 @@ class SLATracker:
         with self._lock:
             for slo in self._slos.values():
                 if slo.slo_type == SLOType.APPROVAL_RATE:
-                    self._push(slo.name, _Obs(value=1.0 if approved else 0.0,
-                                              timestamp=now, success=approved))
+                    self._push(slo.name, _Obs(value=1.0 if approved else 0.0, timestamp=now, success=approved))
 
     def record_metric(self, slo_name: str, value: float, success: bool = True) -> None:
         """Directly push a value to a named SLO's observation queue."""
@@ -268,7 +272,7 @@ class SLATracker:
     # Reporting
     # ------------------------------------------------------------------
 
-    def get_report(self, slo_name: str) -> Optional[SLAReport]:
+    def get_report(self, slo_name: str) -> SLAReport | None:
         """Compute the compliance report for a named SLO."""
         with self._lock:
             slo = self._slos.get(slo_name)
@@ -279,51 +283,53 @@ class SLATracker:
         if not obs_list:
             now = time.time()
             return SLAReport(
-                slo=slo, window_start=now - slo.window_seconds,
-                window_end=now, total_samples=0, good_samples=0,
-                compliance_pct=100.0, is_compliant=True, current_value=0.0,
+                slo=slo,
+                window_start=now - slo.window_seconds,
+                window_end=now,
+                total_samples=0,
+                good_samples=0,
+                compliance_pct=100.0,
+                is_compliant=True,
+                current_value=0.0,
             )
 
-        now         = time.time()
+        now = time.time()
         window_start = now - slo.window_seconds
-        values      = [o.value for o in obs_list]
-        n           = len(obs_list)
+        values = [o.value for o in obs_list]
+        n = len(obs_list)
 
         # Compute current metric value and good/bad split
         if slo.slo_type == SLOType.LATENCY_P50:
             current = _percentile(values, 50)
-            good    = sum(1 for v in values if v <= slo.budget)
+            good = sum(1 for v in values if v <= slo.budget)
         elif slo.slo_type == SLOType.LATENCY_P95:
             current = _percentile(values, 95)
-            good    = sum(1 for v in values if v <= slo.budget)
+            good = sum(1 for v in values if v <= slo.budget)
         elif slo.slo_type == SLOType.LATENCY_P99:
             current = _percentile(values, 99)
-            good    = sum(1 for v in values if v <= slo.budget)
+            good = sum(1 for v in values if v <= slo.budget)
         elif slo.slo_type == SLOType.SUCCESS_RATE:
             current = (sum(o.success for o in obs_list) / n) * 100
-            good    = n if current >= slo.budget else 0
+            good = n if current >= slo.budget else 0
         elif slo.slo_type == SLOType.ERROR_RATE:
             current = (sum(not o.success for o in obs_list) / n) * 100
-            good    = n if current <= slo.budget else 0
+            good = n if current <= slo.budget else 0
         elif slo.slo_type == SLOType.THROUGHPUT:
             elapsed = max((obs_list[-1].timestamp - obs_list[0].timestamp), 1.0)
             current = n / elapsed
-            good    = n if current >= slo.budget else 0
+            good = n if current >= slo.budget else 0
         elif slo.slo_type == SLOType.APPROVAL_RATE:
             current = (sum(o.success for o in obs_list) / n) * 100
-            good    = n if current >= slo.budget else 0
+            good = n if current >= slo.budget else 0
         else:
             current = _percentile(values, 95)
-            good    = n
+            good = n
 
         compliance_pct = (good / n * 100) if n > 0 else 100.0
-        is_compliant   = compliance_pct >= 99.0   # 99% good samples = in-SLA
+        is_compliant = compliance_pct >= 99.0  # 99% good samples = in-SLA
 
         # Collect breaches within window
-        window_breaches = [
-            b for b in self._breaches
-            if b.slo_name == slo_name and b.timestamp >= window_start
-        ]
+        window_breaches = [b for b in self._breaches if b.slo_name == slo_name and b.timestamp >= window_start]
 
         return SLAReport(
             slo=slo,
@@ -337,13 +343,13 @@ class SLATracker:
             breaches=window_breaches,
         )
 
-    def get_all_reports(self) -> List[SLAReport]:
+    def get_all_reports(self) -> list[SLAReport]:
         """Return reports for every registered SLO."""
         with self._lock:
             names = list(self._slos.keys())
         return [r for name in names if (r := self.get_report(name)) is not None]
 
-    def get_model_compliance(self, model_id: str, budget_ms: float = 500.0) -> Optional[float]:
+    def get_model_compliance(self, model_id: str, budget_ms: float = 500.0) -> float | None:
         """Get latency SLA compliance % for a specific model.
 
         Computes the percentage of recorded latency observations that were
@@ -366,12 +372,12 @@ class SLATracker:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "registered_slos": len(self._slos),
-                "total_breaches":  len(self._breaches),
-                "slo_names":       list(self._slos.keys()),
+                "total_breaches": len(self._breaches),
+                "slo_names": list(self._slos.keys()),
             }
 
     def clear(self) -> None:
@@ -386,6 +392,7 @@ class SLATracker:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_sla_tracker() -> SLATracker:
     return SLATracker()
@@ -403,18 +410,34 @@ def register_default_slos() -> None:
     """
     tracker = get_sla_tracker()
     defaults = [
-        SLOTarget(name="latency-p95", slo_type=SLOType.LATENCY_P95,
-                  budget=2000.0, window_seconds=3600,
-                  description="95th percentile latency under 2s"),
-        SLOTarget(name="success-rate", slo_type=SLOType.SUCCESS_RATE,
-                  budget=95.0, window_seconds=3600,
-                  description="At least 95% successful requests"),
-        SLOTarget(name="error-rate", slo_type=SLOType.ERROR_RATE,
-                  budget=5.0, window_seconds=3600,
-                  description="Error rate below 5%"),
-        SLOTarget(name="approval-rate", slo_type=SLOType.APPROVAL_RATE,
-                  budget=80.0, window_seconds=86400,
-                  description="Plan approval rate above 80%"),
+        SLOTarget(
+            name="latency-p95",
+            slo_type=SLOType.LATENCY_P95,
+            budget=2000.0,
+            window_seconds=3600,
+            description="95th percentile latency under 2s",
+        ),
+        SLOTarget(
+            name="success-rate",
+            slo_type=SLOType.SUCCESS_RATE,
+            budget=95.0,
+            window_seconds=3600,
+            description="At least 95% successful requests",
+        ),
+        SLOTarget(
+            name="error-rate",
+            slo_type=SLOType.ERROR_RATE,
+            budget=5.0,
+            window_seconds=3600,
+            description="Error rate below 5%",
+        ),
+        SLOTarget(
+            name="approval-rate",
+            slo_type=SLOType.APPROVAL_RATE,
+            budget=80.0,
+            window_seconds=86400,
+            description="Plan approval rate above 80%",
+        ),
     ]
     for slo in defaults:
         tracker.register_slo(slo)

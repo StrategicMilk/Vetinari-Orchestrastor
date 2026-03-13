@@ -27,12 +27,11 @@ sys.modules.pop("vetinari.config.inference_config", None)
 from vetinari.config.inference_config import (
     InferenceConfigManager,
     InferenceProfile,
-    _classify_model_size,
     _clamp,
+    _classify_model_size,
     get_inference_config,
     reset_inference_config,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -1,5 +1,5 @@
-"""
-Vetinari Rules Manager
+"""Vetinari Rules Manager.
+
 =======================
 Hierarchical rules system that injects user-defined rules into agent
 system prompts at different scopes:
@@ -10,33 +10,35 @@ Rules are stored in rules.yaml in the project root and loaded at startup.
 They are injected into every agent system prompt by the prompt assembler.
 """
 
-import json
+from __future__ import annotations
+
 import logging
-import os
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_RULES_FILE = Path(__file__).resolve().parents[1] / "rules.yaml"
 
 
-def _load_yaml_safe(path: Path) -> Dict[str, Any]:
+def _load_yaml_safe(path: Path) -> dict[str, Any]:
     """Load a YAML file safely, returning empty dict on error."""
     try:
         import yaml
-        with open(path, "r", encoding="utf-8") as f:
+
+        with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except Exception as e:
         logger.debug("Could not load %s: %s", path, e)
         return {}
 
 
-def _save_yaml(path: Path, data: Dict[str, Any]) -> None:
+def _save_yaml(path: Path, data: dict[str, Any]) -> None:
     """Save data to a YAML file."""
     try:
         import yaml
+
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
@@ -45,8 +47,7 @@ def _save_yaml(path: Path, data: Dict[str, Any]) -> None:
 
 
 class RulesManager:
-    """
-    Manages the hierarchical rules configuration for Vetinari.
+    """Manages the hierarchical rules configuration for Vetinari.
 
     Scope hierarchy (later scopes override earlier):
         global → project → model → project+model
@@ -61,10 +62,10 @@ class RulesManager:
         rules_text = rules.format_rules(project_id="my_app", model_id="qwen2.5-7b")
     """
 
-    def __init__(self, rules_file: Optional[Path] = None):
+    def __init__(self, rules_file: Path | None = None):
         self._path = rules_file or _DEFAULT_RULES_FILE
         self._lock = threading.RLock()
-        self._data: Dict[str, Any] = {}
+        self._data: dict[str, Any] = {}
         self._load()
 
     def _load(self) -> None:
@@ -86,12 +87,12 @@ class RulesManager:
 
     # ─── Global rules ────────────────────────────────────────────────────────
 
-    def get_global_rules(self) -> List[str]:
+    def get_global_rules(self) -> list[str]:
         """Return the global rules list."""
         with self._lock:
             return list(self._data.get("global", []))
 
-    def set_global_rules(self, rules: List[str]) -> None:
+    def set_global_rules(self, rules: list[str]) -> None:
         """Replace the global rules list."""
         with self._lock:
             self._data["global"] = [r.strip() for r in rules if r.strip()]
@@ -110,12 +111,12 @@ class RulesManager:
 
     # ─── Project rules ───────────────────────────────────────────────────────
 
-    def get_project_rules(self, project_id: str) -> List[str]:
+    def get_project_rules(self, project_id: str) -> list[str]:
         """Return rules for a specific project."""
         with self._lock:
             return list(self._data.get("projects", {}).get(project_id, []))
 
-    def set_project_rules(self, project_id: str, rules: List[str]) -> None:
+    def set_project_rules(self, project_id: str, rules: list[str]) -> None:
         """Set rules for a specific project."""
         with self._lock:
             if "projects" not in self._data:
@@ -125,12 +126,12 @@ class RulesManager:
 
     # ─── Model rules ─────────────────────────────────────────────────────────
 
-    def get_model_rules(self, model_id: str) -> List[str]:
+    def get_model_rules(self, model_id: str) -> list[str]:
         """Return rules for a specific model."""
         with self._lock:
             return list(self._data.get("models", {}).get(model_id, []))
 
-    def set_model_rules(self, model_id: str, rules: List[str]) -> None:
+    def set_model_rules(self, model_id: str, rules: list[str]) -> None:
         """Set rules for a specific model."""
         with self._lock:
             if "models" not in self._data:
@@ -142,19 +143,19 @@ class RulesManager:
 
     def get_rules(
         self,
-        project_id: Optional[str] = None,
-        model_id: Optional[str] = None,
-    ) -> List[str]:
-        """
-        Get all applicable rules for the given context, in injection order:
+        project_id: str | None = None,
+        model_id: str | None = None,
+    ) -> list[str]:
+        """Get all applicable rules for the given context, in injection order:.
+
         global → project → model → project+model (combined).
 
         Returns deduplicated list preserving order.
         """
-        rules: List[str] = []
+        rules: list[str] = []
         seen: set = set()
 
-        def add(r_list: List[str]) -> None:
+        def add(r_list: list[str]) -> None:
             for r in r_list:
                 if r and r not in seen:
                     rules.append(r)
@@ -174,11 +175,11 @@ class RulesManager:
 
     def format_rules(
         self,
-        project_id: Optional[str] = None,
-        model_id: Optional[str] = None,
+        project_id: str | None = None,
+        model_id: str | None = None,
     ) -> str:
-        """
-        Format applicable rules as a string for injection into system prompts.
+        """Format applicable rules as a string for injection into system prompts.
+
         Returns empty string if no rules are defined.
         """
         rules = self.get_rules(project_id=project_id, model_id=model_id)
@@ -189,11 +190,11 @@ class RulesManager:
 
     def build_system_prompt_prefix(
         self,
-        project_id: Optional[str] = None,
-        model_id: Optional[str] = None,
+        project_id: str | None = None,
+        model_id: str | None = None,
     ) -> str:
-        """
-        Build the full system prompt prefix to prepend to every agent's system prompt.
+        """Build the full system prompt prefix to prepend to every agent's system prompt.
+
         Includes: global system prompt + formatted rules.
         """
         parts = []
@@ -205,7 +206,7 @@ class RulesManager:
             parts.append(rules_text)
         return "\n\n".join(parts)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize rules to dict for API responses."""
         with self._lock:
             return dict(self._data)
@@ -213,7 +214,7 @@ class RulesManager:
 
 # ─── Module-level singleton ───────────────────────────────────────────────────
 
-_rules_manager: Optional[RulesManager] = None
+_rules_manager: RulesManager | None = None
 _rules_lock = threading.Lock()
 
 

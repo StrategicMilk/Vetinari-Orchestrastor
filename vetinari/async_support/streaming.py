@@ -86,7 +86,7 @@ class SSEStreamHandler(StreamHandler):
 
         handler = SSEStreamHandler()
         await handler.on_chunk(StreamChunk("Hello", 0, False))
-        print(handler.events[0])
+        logger.debug(handler.events[0])
         # data: {"content": "Hello", "index": 0, "is_final": false}
     """
 

@@ -1,6 +1,6 @@
 """Test harness for LM Studio chat API."""
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestChatEndpoint(unittest.TestCase):
@@ -23,11 +23,11 @@ class TestChatEndpoint(unittest.TestCase):
         }
 
         r = requests.post(url, json=payload, timeout=60)
-        self.assertEqual(r.status_code, 200)
+        assert r.status_code == 200
 
         data = r.json()
-        self.assertIn("output", data)
-        self.assertEqual(data["output"], "Hello in a rhyme!")
+        assert "output" in data
+        assert data["output"] == "Hello in a rhyme!"
 
         mock_post.assert_called_once_with(url, json=payload, timeout=60)
 
@@ -42,7 +42,7 @@ class TestChatEndpoint(unittest.TestCase):
         import requests
         r = requests.post("http://localhost:1234/api/v1/chat",
                           json={}, timeout=60)
-        self.assertNotEqual(r.status_code, 200)
+        assert r.status_code != 200
 
     @patch("requests.post")
     def test_chat_endpoint_missing_output_field(self, mock_post):
@@ -56,7 +56,7 @@ class TestChatEndpoint(unittest.TestCase):
         r = requests.post("http://localhost:1234/api/v1/chat",
                           json={}, timeout=60)
         data = r.json()
-        self.assertNotIn("output", data)
+        assert "output" not in data
 
 
 if __name__ == "__main__":

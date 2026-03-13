@@ -1,5 +1,4 @@
-"""
-Prompt Evolver - Vetinari Self-Improvement Subsystem
+"""Prompt Evolver - Vetinari Self-Improvement Subsystem.
 
 A/B tests prompt variations for each agent and promotes variants that
 achieve statistically better quality scores.
@@ -12,13 +11,15 @@ Enhanced in Wave 4:
 - Max concurrent A/B tests per agent (default 3) to avoid traffic dilution.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import random
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PromptVariant:
     """A candidate prompt variant with performance tracking."""
+
     variant_id: str
     agent_type: str
     prompt_text: str
@@ -33,8 +35,8 @@ class PromptVariant:
     trials: int = 0
     total_quality: float = 0.0
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    promoted_at: Optional[str] = None
-    status: str = "testing"   # "testing" | "promoted" | "deprecated"
+    promoted_at: str | None = None
+    status: str = "testing"  # "testing" | "promoted" | "deprecated"
 
     @property
     def avg_quality(self) -> float:
@@ -46,8 +48,7 @@ class PromptVariant:
 
 
 class PromptEvolver:
-    """
-    Automatically evolves agent system prompts through A/B testing.
+    """Automatically evolves agent system prompts through A/B testing.
 
     Strategy:
     1. Baseline prompt is the current system prompt for each agent.
@@ -57,20 +58,20 @@ class PromptEvolver:
     5. Store all variants and their performance in memory.
     """
 
-    MIN_TRIALS = 20              # Minimum trials before promotion decision
-    VARIANT_FRACTION = 0.3       # Fraction of tasks routed to variant
-    MIN_IMPROVEMENT = 0.05       # Minimum mean quality improvement to promote
-    MIN_EFFECT_SIZE = 0.2        # Cohen's d threshold (avoid noise-driven promotions)
-    P_VALUE_THRESHOLD = 0.05     # Statistical significance threshold
-    MAX_CONCURRENT_TESTS = 3     # Max A/B tests per agent (avoid traffic dilution)
+    MIN_TRIALS = 20  # Minimum trials before promotion decision
+    VARIANT_FRACTION = 0.3  # Fraction of tasks routed to variant
+    MIN_IMPROVEMENT = 0.05  # Minimum mean quality improvement to promote
+    MIN_EFFECT_SIZE = 0.2  # Cohen's d threshold (avoid noise-driven promotions)
+    P_VALUE_THRESHOLD = 0.05  # Statistical significance threshold
+    MAX_CONCURRENT_TESTS = 3  # Max A/B tests per agent (avoid traffic dilution)
     BENCHMARK_PASS_THRESHOLD = 0.5  # Minimum benchmark pass rate to promote
 
     def __init__(self, adapter_manager=None):
         self._adapter_manager = adapter_manager
         # agent_type -> list of variants
-        self._variants: Dict[str, List[PromptVariant]] = {}
+        self._variants: dict[str, list[PromptVariant]] = {}
         # Per-variant score history for statistical testing
-        self._score_history: Dict[str, List[float]] = {}
+        self._score_history: dict[str, list[float]] = {}
         self._lock = threading.Lock()
         self._load_variants()
 
@@ -96,9 +97,8 @@ class PromptEvolver:
         )
         self._variants[agent_type].append(variant)
 
-    def select_prompt(self, agent_type: str) -> Tuple[str, str]:
-        """
-        Select which prompt to use for this invocation.
+    def select_prompt(self, agent_type: str) -> tuple[str, str]:
+        """Select which prompt to use for this invocation.
 
         Returns:
             Tuple of (prompt_text, variant_id).
@@ -111,9 +111,9 @@ class PromptEvolver:
             promoted = [v for v in variants if v.status == "promoted"]
             testing = [v for v in variants if v.status == "testing"]
 
-            if testing and random.random() < self.VARIANT_FRACTION:
+            if testing and random.random() < self.VARIANT_FRACTION:  # noqa: S311
                 # Route to a testing variant
-                v = random.choice(testing)
+                v = random.choice(testing)  # noqa: S311
                 return v.prompt_text, v.variant_id
 
             if promoted:
@@ -147,9 +147,7 @@ class PromptEvolver:
         variants = self._variants.get(agent_type, [])
         baseline = next((v for v in variants if v.is_baseline and v.status == "promoted"), None)
         baseline_quality = baseline.avg_quality if baseline and baseline.trials > 0 else 0.65
-        baseline_scores = self._score_history.get(
-            baseline.variant_id if baseline else "", []
-        )
+        baseline_scores = self._score_history.get(baseline.variant_id if baseline else "", [])
 
         for v in variants:
             if v.status != "testing" or v.trials < self.MIN_TRIALS:
@@ -160,9 +158,7 @@ class PromptEvolver:
 
             if mean_diff >= self.MIN_IMPROVEMENT:
                 # Run statistical test before promoting
-                significant, effect_size = self._test_significance(
-                    baseline_scores, variant_scores
-                )
+                significant, effect_size = self._test_significance(baseline_scores, variant_scores)
                 if significant and effect_size >= self.MIN_EFFECT_SIZE:
                     # Benchmark gate: validate variant before promotion
                     if not self._validate_variant_with_benchmark(v):
@@ -194,8 +190,8 @@ class PromptEvolver:
 
     @staticmethod
     def _test_significance(
-        baseline_scores: List[float],
-        variant_scores: List[float],
+        baseline_scores: list[float],
+        variant_scores: list[float],
     ) -> tuple:
         """Return (is_significant, cohens_d).
 
@@ -217,6 +213,7 @@ class PromptEvolver:
 
         try:
             from scipy import stats
+
             _, p_value = stats.ttest_rel(baseline_scores, variant_scores)
             return p_value < 0.05, cohens_d
         except ImportError:
@@ -257,8 +254,7 @@ class PromptEvolver:
             if result.cases_run == 0:
                 # No benchmark cases for this agent type -- pass by default
                 logger.debug(
-                    f"[PromptEvolver] No benchmark cases for {variant.agent_type}; "
-                    f"skipping benchmark validation"
+                    f"[PromptEvolver] No benchmark cases for {variant.agent_type}; skipping benchmark validation"
                 )
                 return True
 
@@ -289,7 +285,7 @@ class PromptEvolver:
             # On error, don't block promotion -- fail open
             return True
 
-    def generate_variant(self, agent_type: str, baseline_prompt: str) -> Optional[str]:
+    def generate_variant(self, agent_type: str, baseline_prompt: str) -> str | None:
         """Use LLM to generate an improved prompt variant."""
         if not self._adapter_manager:
             return None
@@ -320,7 +316,7 @@ Respond with ONLY the improved prompt text, no explanations.""",
             resp = self._adapter_manager.infer(req)
             if resp.status == "ok" and resp.output.strip():
                 with self._lock:
-                    variant_id = f"{agent_type}_v{len(self._variants.get(agent_type, []))+1}"
+                    variant_id = f"{agent_type}_v{len(self._variants.get(agent_type, [])) + 1}"
                     variant = PromptVariant(
                         variant_id=variant_id,
                         agent_type=agent_type,
@@ -336,14 +332,17 @@ Respond with ONLY the improved prompt text, no explanations.""",
             logger.debug("Variant generation failed: %s", e)
         return None
 
-    def get_stats(self, agent_type: str) -> Dict[str, Any]:
+    def get_stats(self, agent_type: str) -> dict[str, Any]:
         """Get evolution statistics for an agent type."""
         variants = self._variants.get(agent_type, [])
         return {
             "agent_type": agent_type,
             "total_variants": len(variants),
-            "promoted": [{"id": v.variant_id, "quality": round(v.avg_quality, 3), "trials": v.trials}
-                         for v in variants if v.status == "promoted"],
+            "promoted": [
+                {"id": v.variant_id, "quality": round(v.avg_quality, 3), "trials": v.trials}
+                for v in variants
+                if v.status == "promoted"
+            ],
             "testing": len([v for v in variants if v.status == "testing"]),
             "deprecated": len([v for v in variants if v.status == "deprecated"]),
         }
@@ -351,9 +350,9 @@ Respond with ONLY the improved prompt text, no explanations.""",
     def _load_variants(self) -> None:
         try:
             import os
+
             path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-                ".vetinari", "prompt_variants.json"
+                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari", "prompt_variants.json"
             )
             if os.path.exists(path):
                 with open(path) as f:
@@ -367,9 +366,8 @@ Respond with ONLY the improved prompt text, no explanations.""",
         try:
             import os
             from dataclasses import asdict
-            state_dir = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari"
-            )
+
+            state_dir = os.path.join(os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari")
             os.makedirs(state_dir, exist_ok=True)
             path = os.path.join(state_dir, "prompt_variants.json")
             data = {k: [asdict(v) for v in vs] for k, vs in self._variants.items()}
@@ -379,7 +377,7 @@ Respond with ONLY the improved prompt text, no explanations.""",
             logger.debug("Could not save prompt variants: %s", e)
 
 
-_prompt_evolver: Optional[PromptEvolver] = None
+_prompt_evolver: PromptEvolver | None = None
 
 
 def get_prompt_evolver() -> PromptEvolver:

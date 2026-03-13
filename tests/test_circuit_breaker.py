@@ -19,7 +19,6 @@ from vetinari.orchestration.circuit_breaker import (
     StagnationDetector,
 )
 
-
 # ---------------------------------------------------------------------------
 # CircuitBreaker — construction
 # ---------------------------------------------------------------------------

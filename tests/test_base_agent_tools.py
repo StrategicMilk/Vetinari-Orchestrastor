@@ -5,16 +5,12 @@ Phase 1 of the tool layer integration plan.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
-
-import pytest
+from typing import Any
 
 from vetinari.agents.base_agent import BaseAgent
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
-from vetinari.execution_context import ExecutionMode
-from vetinari.tool_interface import Tool, ToolMetadata, ToolCategory, ToolResult, ToolRegistry
-
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolRegistry, ToolResult
+from vetinari.types import AgentType, ExecutionMode
 
 # ---------------------------------------------------------------------------
 # Concrete agent stub for testing (BaseAgent is abstract)

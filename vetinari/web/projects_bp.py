@@ -1,40 +1,44 @@
-"""
-Flask Blueprint for all project-related API routes.
+"""Flask Blueprint for all project-related API routes.
 
 Extracted from vetinari/web_ui.py. All route handlers are copied verbatim;
 only the decorator prefix changes from @app.route to @projects_bp.route.
 """
 
-import os
+from __future__ import annotations
+
 import json
 import logging
-import yaml
-import uuid
-import time
 import threading
-from pathlib import Path
-from datetime import datetime, timedelta
+import time
+import uuid
+from datetime import datetime
 
-from flask import Blueprint, jsonify, request, Response
+import yaml
+from flask import Blueprint, Response, jsonify, request
 
-from vetinari.web.shared import (
-    PROJECT_ROOT, current_config, ENABLE_EXTERNAL_DISCOVERY,
-    get_orchestrator,
-    _register_project_task, _cancel_project_task,
-    _get_sse_queue, _push_sse_event, _cleanup_project_state,
-    _get_models_cached, trigger_light_search,
-    _is_admin_user, _project_external_model_enabled,
-)
 from vetinari.web import require_admin
+from vetinari.web.shared import (
+    ENABLE_EXTERNAL_DISCOVERY,
+    PROJECT_ROOT,
+    _cancel_project_task,
+    _cleanup_project_state,
+    _get_sse_queue,
+    _project_external_model_enabled,
+    _push_sse_event,
+    _register_project_task,
+    current_config,
+    get_orchestrator,
+)
 
 logger = logging.getLogger(__name__)
 
-projects_bp = Blueprint('projects', __name__)
+projects_bp = Blueprint("projects", __name__)
 
 
 # ---------------------------------------------------------------------------
 # P2.1: Pipeline-aware adapter helper
 # ---------------------------------------------------------------------------
+
 
 def _execute_via_pipeline(
     orb,
@@ -44,7 +48,8 @@ def _execute_via_pipeline(
     agent_type: str = "OPERATIONS",
     task_id: str | None = None,
 ) -> dict:
-    """Route an LLM call through the agent pipeline instead of calling the
+    """Route an LLM call through the agent pipeline instead of calling the.
+
     adapter directly.
 
     This wrapper ensures every web-triggered inference goes through the same
@@ -79,6 +84,7 @@ def _execute_via_pipeline(
     temperature = 0.3
     try:
         from vetinari.config.inference_config import get_inference_config
+
         _profile_key = agent_type.lower()
         _eff = get_inference_config().get_effective_params(_profile_key, model_id)
         max_tokens = _eff.get("max_tokens", max_tokens)
@@ -86,14 +92,16 @@ def _execute_via_pipeline(
     except Exception:
         try:
             from vetinari.token_optimizer import get_token_optimizer
+
             _p = get_token_optimizer().get_task_profile(agent_type.lower())
             max_tokens, temperature = _p[0], _p[1]
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
     # ── 2. Record request in shared memory ───────────────────────────────────
     try:
         from vetinari.shared_memory import SharedMemory
+
         _mem = SharedMemory.get_instance()
         if _mem is not None and hasattr(_mem, "store"):
             _mem.store(
@@ -106,12 +114,13 @@ def _execute_via_pipeline(
                 },
                 ttl=3600,
             )
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
     # ── 3. Emit trace event ───────────────────────────────────────────────────
     try:
         from vetinari.structured_logging import log_event
+
         log_event(
             "info",
             f"web.{agent_type.lower()}",
@@ -119,7 +128,7 @@ def _execute_via_pipeline(
             task_id=_task_id,
             model_id=model_id,
         )
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
     # ── 4. Run inference via adapter_manager when available ───────────────────
@@ -132,12 +141,14 @@ def _execute_via_pipeline(
         if _adapter_manager is None:
             try:
                 from vetinari.adapter_manager import get_adapter_manager
+
                 _adapter_manager = get_adapter_manager()
-            except Exception:
+            except Exception:  # noqa: S110, VET022
                 pass
 
         if _adapter_manager is not None:
             from vetinari.adapters.base import InferenceRequest
+
             _req = InferenceRequest(
                 model_id=model_id,
                 prompt=user_prompt,
@@ -163,6 +174,7 @@ def _execute_via_pipeline(
     _elapsed_ms = int((time.time() - _start) * 1000)
     try:
         from vetinari.shared_memory import SharedMemory
+
         _mem = SharedMemory.get_instance()
         if _mem is not None and hasattr(_mem, "store"):
             _mem.store(
@@ -176,11 +188,12 @@ def _execute_via_pipeline(
                 },
                 ttl=3600,
             )
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
     try:
         from vetinari.structured_logging import log_event
+
         log_event(
             "info",
             f"web.{agent_type.lower()}",
@@ -189,22 +202,26 @@ def _execute_via_pipeline(
             model_id=model_id,
             elapsed_ms=_elapsed_ms,
         )
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
     logger.debug(
         "_execute_via_pipeline task=%s agent=%s model=%s elapsed_ms=%d",
-        _task_id, agent_type, model_id, _elapsed_ms,
+        _task_id,
+        agent_type,
+        model_id,
+        _elapsed_ms,
     )
     return result
 
 
 # API: Server-Sent Events stream for real-time task updates
-@projects_bp.route('/api/project/<project_id>/stream')
+@projects_bp.route("/api/project/<project_id>/stream")
 def api_project_stream(project_id):
     """SSE endpoint — subscribe to real-time events for a project."""
-    from flask import Response, stream_with_context
     import json as _json
+
+    from flask import stream_with_context
 
     def generate():
         q = _get_sse_queue(project_id)
@@ -233,7 +250,7 @@ def api_project_stream(project_id):
 
 
 # API: Cancel a running project task
-@projects_bp.route('/api/project/<project_id>/cancel', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/cancel", methods=["POST"])
 @require_admin
 def api_cancel_project(project_id):
     """Cancel a running project execution."""
@@ -242,15 +259,15 @@ def api_cancel_project(project_id):
 
     # Update project status in config
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
-        config_path = project_dir / 'project.yaml'
+        project_dir = PROJECT_ROOT / "projects" / project_id
+        config_path = project_dir / "project.yaml"
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, encoding="utf-8") as f:
                 project_config = yaml.safe_load(f) or {}
-            project_config['status'] = 'cancelled'
-            with open(config_path, 'w', encoding='utf-8') as f:
+            project_config["status"] = "cancelled"
+            with open(config_path, "w", encoding="utf-8") as f:
                 yaml.dump(project_config, f)
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
 
     # Clean up in-memory state after cancellation
@@ -259,22 +276,22 @@ def api_cancel_project(project_id):
     return jsonify({"status": "cancelled" if cancelled else "not_found", "project_id": project_id})
 
 
-@projects_bp.route('/api/new-project', methods=['POST'])
+@projects_bp.route("/api/new-project", methods=["POST"])
 @require_admin
 def api_new_project():
     data = request.json
-    goal = data.get('goal', '')
-    model = data.get('model', '')
-    system_prompt = data.get('system_prompt', 'You are a helpful coding assistant.')
-    auto_run = data.get('auto_run', False)
-    project_name = data.get('project_name', '')
-    project_rules = data.get('project_rules', '')
-    required_features = data.get('required_features', [])
-    things_to_avoid = data.get('things_to_avoid', [])
-    expected_outputs = data.get('expected_outputs', [])
-    tech_stack = data.get('tech_stack', '')
-    platforms = data.get('platforms', [])
-    priority = data.get('priority', 'quality')
+    goal = data.get("goal", "")
+    model = data.get("model", "")
+    system_prompt = data.get("system_prompt", "You are a helpful coding assistant.")
+    auto_run = data.get("auto_run", False)
+    project_name = data.get("project_name", "")
+    project_rules = data.get("project_rules", "")
+    required_features = data.get("required_features", [])
+    things_to_avoid = data.get("things_to_avoid", [])
+    expected_outputs = data.get("expected_outputs", [])
+    tech_stack = data.get("tech_stack", "")
+    platforms = data.get("platforms", [])
+    priority = data.get("priority", "quality")
 
     if not goal:
         return jsonify({"error": "goal is required"}), 400
@@ -298,11 +315,12 @@ def api_new_project():
 
         # Initialize planning engine with memory budget and fallbacks
         from vetinari.planning_engine import PlanningEngine
+
         planner = PlanningEngine(
             default_models=default_models,
             fallback_models=fallback_models,
             uncensored_fallback_models=uncensored_fallback_models,
-            memory_budget_gb=memory_budget_gb
+            memory_budget_gb=memory_budget_gb,
         )
 
         # Create the plan
@@ -312,11 +330,11 @@ def api_new_project():
         tasks = [t.to_dict() for t in plan.tasks]
 
         # Save tasks to config
-        project_dir = PROJECT_ROOT / 'projects' / f'project_{uuid.uuid4().hex[:12]}'
+        project_dir = PROJECT_ROOT / "projects" / f"project_{uuid.uuid4().hex[:12]}"
         project_dir.mkdir(parents=True, exist_ok=True)
 
         # Create project config
-        planning_model = plan.notes.split(": ")[-1] if plan.notes else (model or available_models[0].get('name', ''))
+        planning_model = plan.notes.split(": ")[-1] if plan.notes else (model or available_models[0].get("name", ""))
         project_config = {
             "project_name": project_name or goal[:50],
             "description": goal,
@@ -336,25 +354,28 @@ def api_new_project():
             "platforms": platforms,
             "priority": priority,
             "status": "planned" if not auto_run else "running",
-            "archived": False
+            "archived": False,
         }
 
         # Save project rules to RulesManager for injection into agent prompts
         if project_rules:
             try:
                 from vetinari.rules_manager import get_rules_manager
+
                 rm = get_rules_manager()
                 rules_list = [r.strip() for r in project_rules.splitlines() if r.strip()]
                 rm.set_project_rules(project_dir.name, rules_list)
             except Exception as _re:
                 logging.warning(f"Could not save project rules: {_re}")
 
-        config_path = project_dir / 'project.yaml'
-        with open(config_path, 'w', encoding='utf-8') as f:
+        config_path = project_dir / "project.yaml"
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(project_config, f)
 
         # Build a comprehensive system prompt for the AI agent
-        agent_system_prompt = system_prompt or """You are Vetinari, an autonomous AI orchestration agent. Your role is to:
+        agent_system_prompt = (
+            system_prompt
+            or """You are Vetinari, an autonomous AI orchestration agent. Your role is to:
 1. Understand the user's goal
 2. Plan the best workflow to accomplish it
 3. Break down the work into clear, executable tasks
@@ -369,18 +390,26 @@ When the user provides a goal:
 - Respond directly to the user with your analysis and plan
 
 Be concise but thorough. Focus on creating actionable, clear tasks."""
+        )
 
         # Call the model with the user's actual goal
-        planning_model_id = (model or plan.notes.split(": ")[-1]) if plan.notes else (model or (available_models[0].get('name', '') if available_models else ''))
+        planning_model_id = (
+            (model or plan.notes.split(": ")[-1])
+            if plan.notes
+            else (model or (available_models[0].get("name", "") if available_models else ""))
+        )
 
         model_response = ""
         try:
             # Send the user's actual goal to the model and get its response
             result = _execute_via_pipeline(
-                orb, planning_model_id, agent_system_prompt, goal,
+                orb,
+                planning_model_id,
+                agent_system_prompt,
+                goal,
                 agent_type="PLANNER",
             )
-            model_response = result.get('output', '')
+            model_response = result.get("output", "")
             logger.debug(f"Model response received: {len(model_response)} chars")
         except Exception as e:
             logger.error(f"Error getting model response: {e}")
@@ -393,16 +422,15 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
             # Fallback to structured plan if model response is empty/short
             task_plan = f"I've analyzed your goal and created {len(tasks)} tasks to complete it.\n\n"
             task_plan += "Warnings:\n" + "\n".join([f"- {w}" for w in plan.warnings]) + "\n\n" if plan.warnings else ""
-            task_plan += "Plan:\n" + "\n".join([f"- {t['id']}: {t['description']} (using: {t['assigned_model_id']})" for t in tasks])
+            task_plan += "Plan:\n" + "\n".join(
+                [f"- {t['id']}: {t['description']} (using: {t['assigned_model_id']})" for t in tasks]
+            )
 
-        conversation = [
-            {"role": "user", "content": goal},
-            {"role": "assistant", "content": task_plan}
-        ]
+        conversation = [{"role": "user", "content": goal}, {"role": "assistant", "content": task_plan}]
 
         # Save conversation to JSON file
-        conv_file = project_dir / 'conversation.json'
-        with open(conv_file, 'w', encoding='utf-8') as f:
+        conv_file = project_dir / "conversation.json"
+        with open(conv_file, "w", encoding="utf-8") as f:
             json.dump(conversation, f, indent=2)
 
         # If auto_run is True, run tasks in background thread
@@ -415,7 +443,7 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
                 try:
                     # Update config to show running
                     project_config["status"] = "running"
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         yaml.dump(project_config, f)
 
                     _push_sse_event(_proj_id, "status", {"status": "running", "total_tasks": len(tasks)})
@@ -429,145 +457,168 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
                             _push_sse_event(_proj_id, "cancelled", {"message": "Cancelled by user"})
                             break
 
-                        task_id = task['id']
-                        task_model = task['assigned_model_id'] or model or available_models[0].get('name', '')
+                        task_id = task["id"]
+                        task_model = task["assigned_model_id"] or model or available_models[0].get("name", "")
 
-                        _push_sse_event(_proj_id, "task_start", {
-                            "task_id": task_id,
-                            "task_index": idx,
-                            "total": len(tasks),
-                            "description": task['description'],
-                            "model": task_model,
-                        })
+                        _push_sse_event(
+                            _proj_id,
+                            "task_start",
+                            {
+                                "task_id": task_id,
+                                "task_index": idx,
+                                "total": len(tasks),
+                                "description": task["description"],
+                                "model": task_model,
+                            },
+                        )
 
-                        task_prompt = f"""Task: {task['description']}
+                        task_prompt = f"""Task: {task["description"]}
 
-Inputs: {', '.join(task['inputs'])}
-Outputs: {', '.join(task['outputs'])}
+Inputs: {", ".join(task["inputs"])}
+Outputs: {", ".join(task["outputs"])}
 
 Implement this task. Output the code as code blocks with filenames."""
 
                         task_result = _execute_via_pipeline(
-                            orb, task_model, system_prompt or "", task_prompt,
+                            orb,
+                            task_model,
+                            system_prompt or "",
+                            task_prompt,
                             agent_type="BUILDER",
                             task_id=task_id,
                         )
-                        task_output = task_result.get('output', '')
-                        tokens_used = task_result.get('tokens_used', 0)
+                        task_output = task_result.get("output", "")
+                        tokens_used = task_result.get("tokens_used", 0)
 
                         # Save task output
-                        task_output_dir = project_dir / 'outputs' / task_id
+                        task_output_dir = project_dir / "outputs" / task_id
                         task_output_dir.mkdir(parents=True, exist_ok=True)
-                        (task_output_dir / 'output.txt').write_text(task_output, encoding='utf-8')
+                        (task_output_dir / "output.txt").write_text(task_output, encoding="utf-8")
 
                         code_blocks = orb.executor._parse_code_blocks(task_output)
                         if code_blocks:
-                            generated_dir = task_output_dir / 'generated'
+                            generated_dir = task_output_dir / "generated"
                             generated_dir.mkdir(parents=True, exist_ok=True)
                             for filename, code in code_blocks.items():
                                 filepath = generated_dir / filename
-                                filepath.write_text(code, encoding='utf-8')
+                                filepath.write_text(code, encoding="utf-8")
                                 logger.debug(f"Written: {filepath}")
 
-                        results.append({
-                            "task_id": task_id,
-                            "model_used": task_model,
-                            "status": "completed",
-                            "output": task_output,
-                        })
+                        results.append(
+                            {
+                                "task_id": task_id,
+                                "model_used": task_model,
+                                "status": "completed",
+                                "output": task_output,
+                            }
+                        )
 
                         task_outputs_text.append(
                             f"=== Task {task_id} (using {task_model}): {task['description']} ===\n\n{task_output}"
                         )
 
-                        _push_sse_event(_proj_id, "task_complete", {
-                            "task_id": task_id,
-                            "task_index": idx,
-                            "total": len(tasks),
-                            "status": "completed",
-                            "tokens_used": tokens_used,
-                            "output_length": len(task_output),
-                        })
+                        _push_sse_event(
+                            _proj_id,
+                            "task_complete",
+                            {
+                                "task_id": task_id,
+                                "task_index": idx,
+                                "total": len(tasks),
+                                "status": "completed",
+                                "tokens_used": tokens_used,
+                                "output_length": len(task_output),
+                            },
+                        )
 
                     # Add results to conversation
-                    results_text = "Tasks completed! Here are the results:\n\n" + "="*50 + "\n\n".join(task_outputs_text)
+                    results_text = (
+                        "Tasks completed! Here are the results:\n\n" + "=" * 50 + "\n\n".join(task_outputs_text)
+                    )
                     conversation.append({"role": "assistant", "content": results_text})
 
-                    with open(conv_file, 'w', encoding='utf-8') as f:
+                    with open(conv_file, "w", encoding="utf-8") as f:
                         json.dump(conversation, f, indent=2)
 
                     # Update config to show completed
                     project_config["status"] = "completed"
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         yaml.dump(project_config, f)
 
-                    _push_sse_event(_proj_id, "status", {
-                        "status": "completed",
-                        "total_tasks": len(tasks),
-                        "completed_tasks": len(results),
-                    })
+                    _push_sse_event(
+                        _proj_id,
+                        "status",
+                        {
+                            "status": "completed",
+                            "total_tasks": len(tasks),
+                            "completed_tasks": len(results),
+                        },
+                    )
 
                     # Assemble final deliverable
                     try:
-                        final_dir = project_dir / 'final_delivery'
+                        final_dir = project_dir / "final_delivery"
                         final_dir.mkdir(parents=True, exist_ok=True)
-                        final_report_path = final_dir / 'final_report.md'
+                        final_report_path = final_dir / "final_report.md"
 
                         task_entries = []
                         for task in tasks:
-                            tid = task['id']
-                            output_path = project_dir / 'outputs' / tid / 'output.txt'
-                            output = output_path.read_text(encoding='utf-8') if output_path.exists() else ''
-                            gen_dir = project_dir / 'outputs' / tid / 'generated'
+                            tid = task["id"]
+                            output_path = project_dir / "outputs" / tid / "output.txt"
+                            output = output_path.read_text(encoding="utf-8") if output_path.exists() else ""
+                            gen_dir = project_dir / "outputs" / tid / "generated"
                             generated = []
                             if gen_dir.exists():
                                 for x in gen_dir.iterdir():
                                     if x.is_file():
                                         generated.append(x.name)
-                            task_entries.append({
-                                'id': tid,
-                                'description': task.get('description', ''),
-                                'assigned_model': task.get('assigned_model_id', ''),
-                                'output': output,
-                                'generated': generated
-                            })
+                            task_entries.append(
+                                {
+                                    "id": tid,
+                                    "description": task.get("description", ""),
+                                    "assigned_model": task.get("assigned_model_id", ""),
+                                    "output": output,
+                                    "generated": generated,
+                                }
+                            )
 
                         lines = []
                         lines.append(f"# Final Deliverable for {project_dir.name}")
                         lines.append("")
                         lines.append("## Project Summary")
                         lines.append(f"**Goal:** {project_config.get('high_level_goal', 'N/A')}")
-                        lines.append(f"**Status:** completed")
+                        lines.append("**Status:** completed")
                         lines.append("")
                         lines.append("## Task Summary")
                         for te in task_entries:
-                            status = "✓" if te['output'] else "○"
-                            lines.append(f"- [{status}] [{te['id']}] {te['description']} (Model: {te['assigned_model']})")
+                            status = "✓" if te["output"] else "○"
+                            lines.append(
+                                f"- [{status}] [{te['id']}] {te['description']} (Model: {te['assigned_model']})"
+                            )
                         lines.append("")
                         lines.append("## Detailed Outputs by Task")
                         for te in task_entries:
-                            if te['output']:
+                            if te["output"]:
                                 lines.append(f"### Task {te['id']}: {te['description']}")
                                 lines.append(f"**Model:** {te['assigned_model']}")
                                 lines.append("")
                                 lines.append("**Output:**")
                                 lines.append("```text")
-                                content = te['output']
+                                content = te["output"]
                                 if len(content) > 4000:
                                     content = content[:4000] + "\n... [truncated] ..."
                                 lines.append(content)
                                 lines.append("```")
-                                if te['generated']:
+                                if te["generated"]:
                                     lines.append("")
                                     lines.append("**Generated Files:**")
-                                    for gf in te['generated']:
+                                    for gf in te["generated"]:
                                         lines.append(f"- {gf}")
                                 lines.append("")
 
                         final_content = "\n".join(lines)
-                        final_report_path.write_text(final_content, encoding='utf-8')
+                        final_report_path.write_text(final_content, encoding="utf-8")
                         project_config["final_delivery_path"] = str(final_report_path)
-                        with open(config_path, 'w', encoding='utf-8') as f:
+                        with open(config_path, "w", encoding="utf-8") as f:
                             yaml.dump(project_config, f)
 
                         logger.info(f"Final deliverable assembled: {final_report_path}")
@@ -578,46 +629,49 @@ Implement this task. Output the code as code blocks with filenames."""
                     logging.error(f"Error running tasks: {e}")
                     project_config["status"] = "error"
                     project_config["error"] = str(e)
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         yaml.dump(project_config, f)
 
             thread = threading.Thread(target=run_tasks_background)
             thread.start()
 
-        return jsonify({
-            "status": "planned" if not auto_run else "started",
-            "project_id": project_dir.name,
-            "project_path": str(project_dir),
-            "tasks": tasks,
-            "results": [],
-            "model": project_config["model"],
-            "active_model_id": project_config.get("active_model_id", ""),
-            "warnings": plan.warnings,
-            "conversation": conversation,
-            "needs_context": plan.needs_context,
-            "follow_up_question": plan.follow_up_question
-        })
+        return jsonify(
+            {
+                "status": "planned" if not auto_run else "started",
+                "project_id": project_dir.name,
+                "project_path": str(project_dir),
+                "tasks": tasks,
+                "results": [],
+                "model": project_config["model"],
+                "active_model_id": project_config.get("active_model_id", ""),
+                "warnings": plan.warnings,
+                "conversation": conversation,
+                "needs_context": plan.needs_context,
+                "follow_up_question": plan.follow_up_question,
+            }
+        )
 
     except Exception as e:
         import traceback
+
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
 # API: List all projects
-@projects_bp.route('/api/projects')
+@projects_bp.route("/api/projects")
 @require_admin
 def api_projects():
     try:
-        include_archived = request.args.get('include_archived', 'false').lower() == 'true'
-        projects_dir = PROJECT_ROOT / 'projects'
+        include_archived = request.args.get("include_archived", "false").lower() == "true"
+        projects_dir = PROJECT_ROOT / "projects"
         projects = []
 
         if projects_dir.exists():
             for p in sorted(projects_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
                 if p.is_dir():
-                    config_file = p / 'project.yaml'
-                    conv_file = p / 'conversation.json'
-                    outputs_dir = p / 'outputs'
+                    config_file = p / "project.yaml"
+                    conv_file = p / "conversation.json"
+                    outputs_dir = p / "outputs"
 
                     project_data = {
                         "id": p.name,
@@ -625,12 +679,13 @@ def api_projects():
                         "path": str(p),
                         "tasks": [],
                         "status": "unknown",
-                        "archived": False
+                        "archived": False,
                     }
 
                     if config_file.exists():
                         import yaml
-                        with open(config_file, 'r', encoding='utf-8') as f:
+
+                        with open(config_file, encoding="utf-8") as f:
                             config = yaml.safe_load(f) or {}
                             project_data["name"] = config.get("project_name", p.name)
                             project_data["description"] = config.get("description", "")
@@ -653,24 +708,29 @@ def api_projects():
                             if outputs_dir.exists():
                                 for task_dir in outputs_dir.iterdir():
                                     if task_dir.is_dir():
-                                        output_file = task_dir / 'output.txt'
+                                        output_file = task_dir / "output.txt"
                                         if output_file.exists():
                                             completed_tasks.add(task_dir.name)
 
                             # Build task status
                             for t in planned_tasks:
                                 task_id = t.get("id", "")
-                                project_data["tasks"].append({
-                                    "id": task_id,
-                                    "description": t.get("description", ""),
-                                    "assigned_model": t.get("assigned_model_id", ""),
-                                    "status": "completed" if task_id in completed_tasks else ("running" if project_data["status"] == "running" else "pending"),
-                                    "model_override": t.get("model_override", "")
-                                })
+                                project_data["tasks"].append(
+                                    {
+                                        "id": task_id,
+                                        "description": t.get("description", ""),
+                                        "assigned_model": t.get("assigned_model_id", ""),
+                                        "status": "completed"
+                                        if task_id in completed_tasks
+                                        else ("running" if project_data["status"] == "running" else "pending"),
+                                        "model_override": t.get("model_override", ""),
+                                    }
+                                )
 
                     if conv_file.exists():
                         import json
-                        with open(conv_file, 'r', encoding='utf-8') as f:
+
+                        with open(conv_file, encoding="utf-8") as f:
                             conv = json.load(f)
                             project_data["message_count"] = len(conv)
 
@@ -682,29 +742,31 @@ def api_projects():
 
 
 # API: Get single project details
-@projects_bp.route('/api/project/<project_id>')
+@projects_bp.route("/api/project/<project_id>")
 @require_admin
 def api_project(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
         # Load config
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         config = {}
         if config_file.exists():
             import yaml
-            with open(config_file, 'r', encoding='utf-8') as f:
+
+            with open(config_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
         # Load conversation
-        conv_file = project_dir / 'conversation.json'
+        conv_file = project_dir / "conversation.json"
         conversation = []
         if conv_file.exists():
             import json
-            with open(conv_file, 'r', encoding='utf-8') as f:
+
+            with open(conv_file, encoding="utf-8") as f:
                 conversation = json.load(f)
 
         # Get task outputs - but also include planned tasks from config
@@ -714,20 +776,20 @@ def api_project(project_id):
         # Check which tasks have outputs
         completed_task_ids = set()
         task_outputs = {}
-        outputs_dir = project_dir / 'outputs'
+        outputs_dir = project_dir / "outputs"
         if outputs_dir.exists():
             for task_dir in sorted(outputs_dir.iterdir()):
                 if task_dir.is_dir():
                     task_id = task_dir.name
-                    output_file = task_dir / 'output.txt'
+                    output_file = task_dir / "output.txt"
                     output = ""
                     if output_file.exists():
-                        output = output_file.read_text(encoding='utf-8')
+                        output = output_file.read_text(encoding="utf-8")
                         completed_task_ids.add(task_id)
                         task_outputs[task_id] = output
 
                     # Get generated files
-                    generated_dir = task_dir / 'generated'
+                    generated_dir = task_dir / "generated"
                     files = []
                     if generated_dir.exists():
                         for f in generated_dir.iterdir():
@@ -740,49 +802,50 @@ def api_project(project_id):
         project_status = config.get("status", "unknown")
         for t in planned_tasks:
             task_id = t.get("id", "")
-            tasks.append({
-                "id": task_id,
-                "description": t.get("description", ""),
-                "assigned_model": t.get("assigned_model_id", ""),
-                "output": task_outputs.get(task_id, ""),
-                "files": task_outputs.get(task_id + "_files", []),
-                "status": "completed" if task_id in completed_task_ids else ("running" if project_status == "running" else "pending")
-            })
+            tasks.append(
+                {
+                    "id": task_id,
+                    "description": t.get("description", ""),
+                    "assigned_model": t.get("assigned_model_id", ""),
+                    "output": task_outputs.get(task_id, ""),
+                    "files": task_outputs.get(task_id + "_files", []),
+                    "status": "completed"
+                    if task_id in completed_task_ids
+                    else ("running" if project_status == "running" else "pending"),
+                }
+            )
 
         # Also include any output tasks that weren't in the planned tasks
         for task_id in completed_task_ids:
             if not any(t["id"] == task_id for t in tasks):
-                tasks.append({
-                    "id": task_id,
-                    "description": "Additional task",
-                    "assigned_model": "",
-                    "output": task_outputs.get(task_id, ""),
-                    "files": task_outputs.get(task_id + "_files", []),
-                    "status": "completed"
-                })
+                tasks.append(
+                    {
+                        "id": task_id,
+                        "description": "Additional task",
+                        "assigned_model": "",
+                        "output": task_outputs.get(task_id, ""),
+                        "files": task_outputs.get(task_id + "_files", []),
+                        "status": "completed",
+                    }
+                )
 
-        return jsonify({
-            "id": project_id,
-            "config": config,
-            "conversation": conversation,
-            "tasks": tasks
-        })
+        return jsonify({"id": project_id, "config": config, "conversation": conversation, "tasks": tasks})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # API: Send message to existing project
-@projects_bp.route('/api/project/<project_id>/message', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/message", methods=["POST"])
 @require_admin
 def api_project_message(project_id):
     try:
         data = request.json
-        message = data.get('message', '')
+        message = data.get("message", "")
 
         if not message:
             return jsonify({"error": "message is required"}), 400
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
@@ -790,19 +853,21 @@ def api_project_message(project_id):
         orb = get_orchestrator()
 
         # Load existing conversation
-        conv_file = project_dir / 'conversation.json'
+        conv_file = project_dir / "conversation.json"
         conversation = []
         if conv_file.exists():
             import json
-            with open(conv_file, 'r', encoding='utf-8') as f:
+
+            with open(conv_file, encoding="utf-8") as f:
                 conversation = json.load(f)
 
         # Get model from project config
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         model = "qwen2.5-0.5b-instruct"
         if config_file.exists():
             import yaml
-            with open(config_file, 'r', encoding='utf-8') as f:
+
+            with open(config_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
                 model = config.get("model", model)
 
@@ -815,70 +880,72 @@ def api_project_message(project_id):
         # Get AI response
         system_prompt = "You are a helpful coding assistant. Provide detailed, practical code solutions."
         result = _execute_via_pipeline(
-            orb, model, system_prompt, context,
+            orb,
+            model,
+            system_prompt,
+            context,
             agent_type="OPERATIONS",
         )
-        response = result.get('output', '')
+        response = result.get("output", "")
 
         # Add assistant response
         conversation.append({"role": "assistant", "content": response})
 
         # Save conversation
         import json
-        with open(conv_file, 'w', encoding='utf-8') as f:
+
+        with open(conv_file, "w", encoding="utf-8") as f:
             json.dump(conversation, f, indent=2)
 
-        return jsonify({
-            "status": "completed",
-            "response": response,
-            "conversation": conversation
-        })
+        return jsonify({"status": "completed", "response": response, "conversation": conversation})
     except Exception as e:
         import traceback
+
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
 # API: Add task to project
-@projects_bp.route('/api/project/<project_id>/task', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/task", methods=["POST"])
 @require_admin
 def api_add_task(project_id):
     try:
         data = request.json
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         if not config_file.exists():
             return jsonify({"error": "Project config not found"}), 404
 
         import yaml
-        with open(config_file, 'r', encoding='utf-8') as f:
+
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         tasks = config.get("tasks", [])
 
         # Generate new task ID
-        new_id = data.get('id', f"t{len(tasks) + 1}")
+        new_id = data.get("id", f"t{len(tasks) + 1}")
 
         # Check if ID already exists
-        if any(t['id'] == new_id for t in tasks):
+        if any(t["id"] == new_id for t in tasks):
             return jsonify({"error": f"Task ID '{new_id}' already exists"}), 400
 
         new_task = {
             "id": new_id,
-            "description": data.get('description', ''),
-            "inputs": data.get('inputs', []),
-            "outputs": data.get('outputs', []),
-            "dependencies": data.get('dependencies', []),
-            "model_override": data.get('model_override', '')
+            "description": data.get("description", ""),
+            "inputs": data.get("inputs", []),
+            "outputs": data.get("outputs", []),
+            "dependencies": data.get("dependencies", []),
+            "model_override": data.get("model_override", ""),
         }
 
         tasks.append(new_task)
-        config['tasks'] = tasks
+        config["tasks"] = tasks
 
-        with open(config_file, 'w', encoding='utf-8') as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f)
 
         return jsonify({"status": "added", "task": new_task})
@@ -887,49 +954,50 @@ def api_add_task(project_id):
 
 
 # API: Update task
-@projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['PUT'])
+@projects_bp.route("/api/project/<project_id>/task/<task_id>", methods=["PUT"])
 @require_admin
 def api_update_task(project_id, task_id):
     try:
         data = request.json
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         if not config_file.exists():
             return jsonify({"error": "Project config not found"}), 404
 
         import yaml
-        with open(config_file, 'r', encoding='utf-8') as f:
+
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         tasks = config.get("tasks", [])
         task_found = False
 
         for i, task in enumerate(tasks):
-            if task['id'] == task_id:
+            if task["id"] == task_id:
                 # Update fields
-                if 'description' in data:
-                    tasks[i]['description'] = data['description']
-                if 'inputs' in data:
-                    tasks[i]['inputs'] = data['inputs']
-                if 'outputs' in data:
-                    tasks[i]['outputs'] = data['outputs']
-                if 'dependencies' in data:
-                    tasks[i]['dependencies'] = data['dependencies']
-                if 'model_override' in data:
-                    tasks[i]['model_override'] = data['model_override']
+                if "description" in data:
+                    tasks[i]["description"] = data["description"]
+                if "inputs" in data:
+                    tasks[i]["inputs"] = data["inputs"]
+                if "outputs" in data:
+                    tasks[i]["outputs"] = data["outputs"]
+                if "dependencies" in data:
+                    tasks[i]["dependencies"] = data["dependencies"]
+                if "model_override" in data:
+                    tasks[i]["model_override"] = data["model_override"]
                 task_found = True
                 break
 
         if not task_found:
             return jsonify({"error": "Task not found"}), 404
 
-        config['tasks'] = tasks
+        config["tasks"] = tasks
 
-        with open(config_file, 'w', encoding='utf-8') as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f)
 
         return jsonify({"status": "updated", "task": tasks[i]})
@@ -938,34 +1006,35 @@ def api_update_task(project_id, task_id):
 
 
 # API: Delete task
-@projects_bp.route('/api/project/<project_id>/task/<task_id>', methods=['DELETE'])
+@projects_bp.route("/api/project/<project_id>/task/<task_id>", methods=["DELETE"])
 @require_admin
 def api_delete_task(project_id, task_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         if not config_file.exists():
             return jsonify({"error": "Project config not found"}), 404
 
         import yaml
-        with open(config_file, 'r', encoding='utf-8') as f:
+
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         tasks = config.get("tasks", [])
-        tasks = [t for t in tasks if t['id'] != task_id]
+        tasks = [t for t in tasks if t["id"] != task_id]
 
         # Also remove this task from any dependencies
         for task in tasks:
-            if task_id in task.get('dependencies', []):
-                task['dependencies'] = [d for d in task['dependencies'] if d != task_id]
+            if task_id in task.get("dependencies", []):
+                task["dependencies"] = [d for d in task["dependencies"] if d != task_id]
 
-        config['tasks'] = tasks
+        config["tasks"] = tasks
 
-        with open(config_file, 'w', encoding='utf-8') as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f)
 
         return jsonify({"status": "deleted", "task_id": task_id})
@@ -974,31 +1043,32 @@ def api_delete_task(project_id, task_id):
 
 
 # API: Get project outputs for review
-@projects_bp.route('/api/project/<project_id>/review')
+@projects_bp.route("/api/project/<project_id>/review")
 @require_admin
 def api_project_review(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
         # Load config
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         config = {}
         if config_file.exists():
             import yaml
-            with open(config_file, 'r', encoding='utf-8') as f:
+
+            with open(config_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
         # Get task outputs
-        outputs_dir = project_dir / 'outputs'
+        outputs_dir = project_dir / "outputs"
         review_data = {
             "project_id": project_id,
             "goal": config.get("high_level_goal", ""),
             "tasks": [],
             "model": config.get("model", ""),
-            "has_all_outputs": True
+            "has_all_outputs": True,
         }
 
         tasks = config.get("tasks", [])
@@ -1013,30 +1083,29 @@ def api_project_review(project_id):
             if task_output_dir.exists():
                 output_file = task_output_dir / "output.txt"
                 if output_file.exists():
-                    output_content = output_file.read_text(encoding='utf-8')
+                    output_content = output_file.read_text(encoding="utf-8")
                     status = "completed"
 
                 generated_dir = task_output_dir / "generated"
                 if generated_dir.exists():
                     for f in generated_dir.iterdir():
                         if f.is_file():
-                            files.append({
-                                "name": f.name,
-                                "path": str(f)
-                            })
+                            files.append({"name": f.name, "path": str(f)})
 
             if status == "pending":
                 review_data["has_all_outputs"] = False
 
-            review_data["tasks"].append({
-                "id": task_id,
-                "description": task.get("description", ""),
-                "model_override": task.get("model_override", ""),
-                "status": status,
-                "output": output_content[:2000] if output_content else "",  # Truncate for UI
-                "output_length": len(output_content) if output_content else 0,
-                "files": files
-            })
+            review_data["tasks"].append(
+                {
+                    "id": task_id,
+                    "description": task.get("description", ""),
+                    "model_override": task.get("model_override", ""),
+                    "status": status,
+                    "output": output_content[:2000] if output_content else "",  # Truncate for UI
+                    "output_length": len(output_content) if output_content else 0,
+                    "files": files,
+                }
+            )
 
         return jsonify(review_data)
     except Exception as e:
@@ -1044,11 +1113,11 @@ def api_project_review(project_id):
 
 
 # API: Approve outputs and trigger merge
-@projects_bp.route('/api/project/<project_id>/approve', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/approve", methods=["POST"])
 @require_admin
 def api_approve_outputs(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
@@ -1056,6 +1125,7 @@ def api_approve_outputs(project_id):
         # Mark outputs as approved
         approval_file = project_dir / "outputs_approved.txt"
         from datetime import datetime
+
         approval_file.write_text(f"Approved at: {datetime.now().isoformat()}")
 
         return jsonify({"status": "approved", "project_id": project_id})
@@ -1064,20 +1134,20 @@ def api_approve_outputs(project_id):
 
 
 # API: Merge project to final project space
-@projects_bp.route('/api/project/<project_id>/merge', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/merge", methods=["POST"])
 @require_admin
 def api_merge_project(project_id):
     try:
         import shutil
         from datetime import datetime
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
         # Create final_project directory
-        final_root = PROJECT_ROOT / 'final_projects'
+        final_root = PROJECT_ROOT / "final_projects"
         final_root.mkdir(parents=True, exist_ok=True)
 
         final_dir = final_root / project_id
@@ -1086,19 +1156,19 @@ def api_merge_project(project_id):
         final_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy outputs
-        outputs_dir = project_dir / 'outputs'
-        final_outputs = final_dir / 'outputs'
+        outputs_dir = project_dir / "outputs"
+        final_outputs = final_dir / "outputs"
         if outputs_dir.exists():
             shutil.copytree(outputs_dir, final_outputs)
 
         # Copy and merge generated files
-        final_artifacts = final_dir / 'artifacts'
+        final_artifacts = final_dir / "artifacts"
         final_artifacts.mkdir(parents=True, exist_ok=True)
 
         if outputs_dir.exists():
             for task_subdir in outputs_dir.iterdir():
                 if task_subdir.is_dir():
-                    generated_dir = task_subdir / 'generated'
+                    generated_dir = task_subdir / "generated"
                     if generated_dir.exists():
                         for f in generated_dir.iterdir():
                             if f.is_file():
@@ -1107,33 +1177,30 @@ def api_merge_project(project_id):
                                 shutil.copy2(f, dest)
 
         # Create manifest.yaml
-        config_file = project_dir / 'project.yaml'
-        manifest = {
-            "project_id": project_id,
-            "created_at": datetime.now().isoformat(),
-            "source": str(project_dir)
-        }
+        config_file = project_dir / "project.yaml"
+        manifest = {"project_id": project_id, "created_at": datetime.now().isoformat(), "source": str(project_dir)}
 
         if config_file.exists():
             import yaml
-            with open(config_file, 'r', encoding='utf-8') as f:
+
+            with open(config_file, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
                 manifest["goal"] = config.get("high_level_goal", "")
                 manifest["tasks"] = config.get("tasks", [])
                 manifest["model"] = config.get("model", "")
 
-        manifest_file = final_dir / 'manifest.yaml'
-        with open(manifest_file, 'w', encoding='utf-8') as f:
+        manifest_file = final_dir / "manifest.yaml"
+        with open(manifest_file, "w", encoding="utf-8") as f:
             yaml.dump(manifest, f)
 
         # Create README.md
         readme_content = f"""# Project: {project_id}
 
-{manifest.get('goal', 'No description')}
+{manifest.get("goal", "No description")}
 
 ## Tasks
 """
-        for task in manifest.get('tasks', []):
+        for task in manifest.get("tasks", []):
             readme_content += f"- **{task.get('id')}**: {task.get('description', '')}\n"
 
         readme_content += """
@@ -1146,136 +1213,127 @@ Generated artifacts are in the `artifacts/` directory.
 Run the generated code from the artifacts folder.
 """
 
-        readme_file = final_dir / 'README.md'
+        readme_file = final_dir / "README.md"
         readme_file.write_text(readme_content)
 
         # Create build_report.json
         build_report = {
             "timestamp": datetime.now().isoformat(),
             "project_id": project_id,
-            "tasks": manifest.get('tasks', []),
-            "model": manifest.get('model', '')
+            "tasks": manifest.get("tasks", []),
+            "model": manifest.get("model", ""),
         }
 
-        report_file = final_dir / 'build_report.json'
+        report_file = final_dir / "build_report.json"
         import json
+
         report_file.write_text(json.dumps(build_report, indent=2))
 
-        return jsonify({
-            "status": "merged",
-            "project_id": project_id,
-            "final_path": str(final_dir)
-        })
+        return jsonify({"status": "merged", "project_id": project_id, "final_path": str(final_dir)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # API: Get task output by project and task ID
-@projects_bp.route('/api/project/<project_id>/task/<task_id>/output')
+@projects_bp.route("/api/project/<project_id>/task/<task_id>/output")
 @require_admin
 def api_task_output(project_id, task_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        output_path = project_dir / 'outputs' / task_id / 'output.txt'
+        output_path = project_dir / "outputs" / task_id / "output.txt"
         output = ""
         if output_path.exists():
-            output = output_path.read_text(encoding='utf-8')
+            output = output_path.read_text(encoding="utf-8")
 
         # Get generated files
-        generated_dir = project_dir / 'outputs' / task_id / 'generated'
+        generated_dir = project_dir / "outputs" / task_id / "generated"
         files = []
         if generated_dir.exists():
             for f in generated_dir.iterdir():
                 if f.is_file():
                     files.append({"name": f.name, "path": str(f)})
 
-        return jsonify({
-            "project_id": project_id,
-            "task_id": task_id,
-            "output": output,
-            "files": files
-        })
+        return jsonify({"project_id": project_id, "task_id": task_id, "output": output, "files": files})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # API: Rename a project
-@projects_bp.route('/api/project/<project_id>/rename', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/rename", methods=["POST"])
 @require_admin
 def api_rename_project(project_id):
     data = request.json
-    new_name = data.get('name', '')
-    new_description = data.get('description', '')
+    new_name = data.get("name", "")
+    new_description = data.get("description", "")
 
-    project_dir = PROJECT_ROOT / 'projects' / project_id
+    project_dir = PROJECT_ROOT / "projects" / project_id
     if not project_dir.exists():
         return jsonify({"error": "Project not found"}), 404
 
-    config_file = project_dir / 'project.yaml'
+    config_file = project_dir / "project.yaml"
     if not config_file.exists():
         return jsonify({"error": "Project config not found"}), 404
 
-    with open(config_file, 'r', encoding='utf-8') as f:
+    with open(config_file, encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
     if new_name:
-        config['project_name'] = new_name
+        config["project_name"] = new_name
     if new_description is not None:
-        config['description'] = new_description
+        config["description"] = new_description
 
-    with open(config_file, 'w', encoding='utf-8') as f:
+    with open(config_file, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
-    return jsonify({
-        "status": "renamed",
-        "project_id": project_id,
-        "project_name": config.get("project_name"),
-        "description": config.get("description")
-    })
+    return jsonify(
+        {
+            "status": "renamed",
+            "project_id": project_id,
+            "project_name": config.get("project_name"),
+            "description": config.get("description"),
+        }
+    )
 
 
 # API: Archive/unarchive a project
-@projects_bp.route('/api/project/<project_id>/archive', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/archive", methods=["POST"])
 @require_admin
 def api_archive_project(project_id):
     data = request.json
-    archive = data.get('archive', True)
+    archive = data.get("archive", True)
 
-    project_dir = PROJECT_ROOT / 'projects' / project_id
+    project_dir = PROJECT_ROOT / "projects" / project_id
     if not project_dir.exists():
         return jsonify({"error": "Project not found"}), 404
 
-    config_file = project_dir / 'project.yaml'
+    config_file = project_dir / "project.yaml"
     if not config_file.exists():
         return jsonify({"error": "Project config not found"}), 404
 
-    with open(config_file, 'r', encoding='utf-8') as f:
+    with open(config_file, encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
-    config['archived'] = archive
-    config['status'] = 'archived' if archive else 'completed'
+    config["archived"] = archive
+    config["status"] = "archived" if archive else "completed"
 
-    with open(config_file, 'w', encoding='utf-8') as f:
+    with open(config_file, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
-    return jsonify({
-        "status": "archived" if archive else "unarchived",
-        "project_id": project_id,
-        "archived": archive
-    })
+    return jsonify({"status": "archived" if archive else "unarchived", "project_id": project_id, "archived": archive})
 
 
 # API: Delete a project
-@projects_bp.route('/api/project/<project_id>', methods=['DELETE'])
+@projects_bp.route("/api/project/<project_id>", methods=["DELETE"])
 @require_admin
 def api_delete_project(project_id):
     try:
         import shutil
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+
+        project_dir = PROJECT_ROOT / "projects" / project_id
 
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
@@ -1291,45 +1349,47 @@ def api_delete_project(project_id):
 
 
 # API: Assemble final deliverable from task outputs
-@projects_bp.route('/api/project/<project_id>/assemble', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/assemble", methods=["POST"])
 @require_admin
 def api_project_assemble(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        final_dir = project_dir / 'final_delivery'
+        final_dir = project_dir / "final_delivery"
         final_dir.mkdir(parents=True, exist_ok=True)
-        final_report_path = final_dir / 'final_report.md'
+        final_report_path = final_dir / "final_report.md"
 
         # Load config and tasks
-        config_file = project_dir / 'project.yaml'
+        config_file = project_dir / "project.yaml"
         if not config_file.exists():
             return jsonify({"error": "Project config not found"}), 404
 
-        with open(config_file, 'r', encoding='utf-8') as f:
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
-        planned_tasks = config.get('tasks', [])
+        planned_tasks = config.get("tasks", [])
 
         task_entries = []
         for t in planned_tasks:
-            tid = t.get('id', '')
-            output_path = project_dir / 'outputs' / tid / 'output.txt'
-            output = output_path.read_text(encoding='utf-8') if output_path.exists() else ''
-            gen_dir = project_dir / 'outputs' / tid / 'generated'
+            tid = t.get("id", "")
+            output_path = project_dir / "outputs" / tid / "output.txt"
+            output = output_path.read_text(encoding="utf-8") if output_path.exists() else ""
+            gen_dir = project_dir / "outputs" / tid / "generated"
             generated = []
             if gen_dir.exists():
                 for x in gen_dir.iterdir():
                     if x.is_file():
                         generated.append(x.name)
-            task_entries.append({
-                'id': tid,
-                'description': t.get('description', ''),
-                'assigned_model': t.get('assigned_model_id', ''),
-                'output': output,
-                'generated': generated
-            })
+            task_entries.append(
+                {
+                    "id": tid,
+                    "description": t.get("description", ""),
+                    "assigned_model": t.get("assigned_model_id", ""),
+                    "output": output,
+                    "generated": generated,
+                }
+            )
 
         lines = []
         lines.append(f"# Final Deliverable for {project_id}")
@@ -1340,82 +1400,81 @@ def api_project_assemble(project_id):
         lines.append("")
         lines.append("## Task Summary")
         for te in task_entries:
-            status = "✓" if te['output'] else "○"
+            status = "✓" if te["output"] else "○"
             lines.append(f"- [{status}] [{te['id']}] {te['description']} (Model: {te['assigned_model']})")
         lines.append("")
         lines.append("## Detailed Outputs by Task")
         for te in task_entries:
-            if te['output']:
+            if te["output"]:
                 lines.append(f"### Task {te['id']}: {te['description']}")
                 lines.append(f"**Model:** {te['assigned_model']}")
                 lines.append("")
                 lines.append("**Output:**")
                 lines.append("```text")
-                content = te['output']
+                content = te["output"]
                 if len(content) > 4000:
                     content = content[:4000] + "\n... [truncated] ..."
                 lines.append(content)
                 lines.append("```")
-                if te['generated']:
+                if te["generated"]:
                     lines.append("")
                     lines.append("**Generated Files:**")
-                    for gf in te['generated']:
+                    for gf in te["generated"]:
                         lines.append(f"- {gf}")
                 lines.append("")
 
         final_content = "\n".join(lines)
-        final_report_path.write_text(final_content, encoding='utf-8')
+        final_report_path.write_text(final_content, encoding="utf-8")
 
         # Update config with final delivery path
-        config['final_delivery_path'] = str(final_report_path)
-        with open(config_file, 'w', encoding='utf-8') as f:
+        config["final_delivery_path"] = str(final_report_path)
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f)
 
-        return jsonify({
-            "project_id": project_id,
-            "final_report_path": str(final_report_path),
-            "status": "assembled",
-            "task_count": len(task_entries)
-        })
+        return jsonify(
+            {
+                "project_id": project_id,
+                "final_report_path": str(final_report_path),
+                "status": "assembled",
+                "task_count": len(task_entries),
+            }
+        )
     except Exception as e:
         import traceback
+
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
 # API: Get build artifacts
-@projects_bp.route('/api/artifacts')
+@projects_bp.route("/api/artifacts")
 @require_admin
 def api_artifacts():
-    build_dir = PROJECT_ROOT / 'build' / 'artifacts'
+    build_dir = PROJECT_ROOT / "build" / "artifacts"
     artifacts = []
     if build_dir.exists():
         for f in build_dir.iterdir():
             if f.is_file():
-                artifacts.append({
-                    "name": f.name,
-                    "size": f.stat().st_size,
-                    "path": str(f)
-                })
+                artifacts.append({"name": f.name, "size": f.stat().st_size, "path": str(f)})
     return jsonify({"artifacts": artifacts})
 
 
 # API: Safe file read for agent (OpenCode-like)
-@projects_bp.route('/api/project/<project_id>/files/read', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/files/read", methods=["POST"])
 @require_admin
 def api_read_file(project_id):
     try:
         data = request.json
-        file_path = data.get('path', '')
+        file_path = data.get("path", "")
 
         if not file_path:
             return jsonify({"error": "path is required"}), 400
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
         # Whitelist: only allow reads within project workspace
-        workspace_dir = project_dir / 'workspace'
+        workspace_dir = project_dir / "workspace"
         allowed_base = workspace_dir.resolve()
 
         # Resolve the target path
@@ -1434,39 +1493,41 @@ def api_read_file(project_id):
             return jsonify({"error": "Not a file"}), 400
 
         # Read the file
-        content = target_path.read_text(encoding='utf-8')
+        content = target_path.read_text(encoding="utf-8")
 
         # Log the IO operation
         logger.debug(f"IO Read: {target_path} (project: {project_id})")
 
-        return jsonify({
-            "status": "ok",
-            "path": str(target_path.relative_to(project_dir)),
-            "content": content,
-            "size": len(content)
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "path": str(target_path.relative_to(project_dir)),
+                "content": content,
+                "size": len(content),
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # API: Safe file write for agent (OpenCode-like)
-@projects_bp.route('/api/project/<project_id>/files/write', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/files/write", methods=["POST"])
 @require_admin
 def api_write_file(project_id):
     try:
         data = request.json
-        file_path = data.get('path', '')
-        content = data.get('content', '')
+        file_path = data.get("path", "")
+        content = data.get("content", "")
 
         if not file_path:
             return jsonify({"error": "path is required"}), 400
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
         # Whitelist: only allow writes within project workspace
-        workspace_dir = project_dir / 'workspace'
+        workspace_dir = project_dir / "workspace"
         workspace_dir.mkdir(parents=True, exist_ok=True)
         allowed_base = workspace_dir.resolve()
 
@@ -1483,52 +1544,46 @@ def api_write_file(project_id):
         target_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the file
-        target_path.write_text(content, encoding='utf-8')
+        target_path.write_text(content, encoding="utf-8")
 
         # Log the IO operation
         logger.debug(f"IO Write: {target_path} (project: {project_id}, size: {len(content)})")
 
-        return jsonify({
-            "status": "ok",
-            "path": str(target_path.relative_to(project_dir)),
-            "size": len(content)
-        })
+        return jsonify({"status": "ok", "path": str(target_path.relative_to(project_dir)), "size": len(content)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # API: List workspace files
-@projects_bp.route('/api/project/<project_id>/files/list')
+@projects_bp.route("/api/project/<project_id>/files/list")
 @require_admin
 def api_list_files(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        workspace_dir = project_dir / 'workspace'
+        workspace_dir = project_dir / "workspace"
         if not workspace_dir.exists():
             return jsonify({"files": []})
 
         files = []
-        for f in workspace_dir.rglob('*'):
+        for f in workspace_dir.rglob("*"):
             if f.is_file():
-                files.append({
-                    "path": str(f.relative_to(workspace_dir)),
-                    "size": f.stat().st_size,
-                    "modified": f.stat().st_mtime
-                })
+                files.append(
+                    {"path": str(f.relative_to(workspace_dir)), "size": f.stat().st_size, "modified": f.stat().st_mtime}
+                )
 
         return jsonify({"files": files})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@projects_bp.route('/api/project/<project_id>/model-search', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/model-search", methods=["POST"])
 @require_admin
 def api_model_search(project_id):
     try:
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
         if not ENABLE_EXTERNAL_DISCOVERY:
@@ -1538,9 +1593,9 @@ def api_model_search(project_id):
         from vetinari.live_model_search import LiveModelSearchAdapter
 
         data = request.json or {}
-        task_description = data.get('task_description', '')
+        task_description = data.get("task_description", "")
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
+        project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
             return jsonify({"error": "Project not found"}), 404
 
@@ -1549,6 +1604,7 @@ def api_model_search(project_id):
         lm_models = []
         try:
             from vetinari.model_pool import ModelPool
+
             model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
             model_pool.discover_models()
             lm_models = model_pool.list_models()
@@ -1557,24 +1613,20 @@ def api_model_search(project_id):
 
         candidates = search_adapter.search(task_description, lm_models)
 
-        return jsonify({
-            "status": "ok",
-            "candidates": [c.to_dict() for c in candidates],
-            "count": len(candidates)
-        })
+        return jsonify({"status": "ok", "candidates": [c.to_dict() for c in candidates], "count": len(candidates)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@projects_bp.route('/api/project/<project_id>/task/<task_id>/override', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/task/<task_id>/override", methods=["POST"])
 @require_admin
 def api_task_override(project_id, task_id):
     try:
         data = request.json or {}
-        model_id = data.get('model_id', '')
+        model_id = data.get("model_id", "")
 
-        project_dir = PROJECT_ROOT / 'projects' / project_id
-        config_file = project_dir / 'project.yaml'
+        project_dir = PROJECT_ROOT / "projects" / project_id
+        config_file = project_dir / "project.yaml"
 
         if not config_file.exists():
             return jsonify({"error": "Project not found"}), 404
@@ -1582,64 +1634,57 @@ def api_task_override(project_id, task_id):
         with open(config_file) as f:
             config = yaml.safe_load(f)
 
-        tasks = config.get('tasks', [])
+        tasks = config.get("tasks", [])
         for task in tasks:
-            if task.get('id') == task_id:
-                task['model_override'] = model_id
+            if task.get("id") == task_id:
+                task["model_override"] = model_id
                 break
 
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
 
-        return jsonify({
-            "status": "ok",
-            "task_id": task_id,
-            "model_override": model_id
-        })
+        return jsonify({"status": "ok", "task_id": task_id, "model_override": model_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@projects_bp.route('/api/project/<project_id>/refresh-models', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/refresh-models", methods=["POST"])
 @require_admin
 def api_refresh_models(project_id):
     try:
-        from vetinari.live_model_search import LiveModelSearchAdapter
-
-        return jsonify({
-            "status": "ok",
-            "message": "Model cache refreshed (live search enabled)"
-        })
+        return jsonify({"status": "ok", "message": "Model cache refreshed (live search enabled)"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@projects_bp.route('/api/project/<project_id>/verify-goal', methods=['POST'])
+@projects_bp.route("/api/project/<project_id>/verify-goal", methods=["POST"])
 @require_admin
 def api_verify_goal(project_id):
     """Verify the final deliverable against the original project goal."""
     try:
         from vetinari.goal_verifier import get_goal_verifier
+
         data = request.json or {}
 
-        goal = data.get('goal', '')
-        final_output = data.get('final_output', '')
-        required_features = data.get('required_features', [])
-        things_to_avoid = data.get('things_to_avoid', [])
-        task_outputs = data.get('task_outputs', [])
-        expected_outputs = data.get('expected_outputs', [])
+        goal = data.get("goal", "")
+        final_output = data.get("final_output", "")
+        required_features = data.get("required_features", [])
+        things_to_avoid = data.get("things_to_avoid", [])
+        task_outputs = data.get("task_outputs", [])
+        expected_outputs = data.get("expected_outputs", [])
 
         if not goal:
             # Try to load from project file
-            proj_dir = PROJECT_ROOT / 'projects' / project_id
-            config_path = proj_dir / 'project.yaml'
+            proj_dir = PROJECT_ROOT / "projects" / project_id
+            config_path = proj_dir / "project.yaml"
             if config_path.exists():
                 import yaml as _yaml
+
                 with open(config_path) as f:
                     proj_config = _yaml.safe_load(f) or {}
-                goal = proj_config.get('goal', proj_config.get('description', ''))
-                required_features = required_features or proj_config.get('required_features', [])
-                things_to_avoid = things_to_avoid or proj_config.get('things_to_avoid', [])
+                goal = proj_config.get("goal", proj_config.get("description", ""))
+                required_features = required_features or proj_config.get("required_features", [])
+                things_to_avoid = things_to_avoid or proj_config.get("things_to_avoid", [])
 
         if not goal:
             return jsonify({"error": "goal is required"}), 400
@@ -1655,9 +1700,11 @@ def api_verify_goal(project_id):
             expected_outputs=expected_outputs,
         )
 
-        return jsonify({
-            "report": report.to_dict(),
-            "corrective_tasks": report.get_corrective_tasks(),
-        })
+        return jsonify(
+            {
+                "report": report.to_dict(),
+                "corrective_tasks": report.get_corrective_tasks(),
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500

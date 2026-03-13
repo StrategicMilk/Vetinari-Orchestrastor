@@ -1,16 +1,16 @@
-"""
-Goal Tracker - Continuous goal adherence verification.
+"""Goal Tracker - Continuous goal adherence verification.
 
 Detects scope creep and goal drift during multi-agent execution by
 comparing task outputs against the original goal using keyword overlap,
 structural checks, and optional LLM-based judgement.
 """
 
+from __future__ import annotations
+
 import logging
 import re
-from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AdherenceResult:
     """Result of a goal adherence check."""
+
     score: float  # 0.0-1.0 (1.0 = perfectly aligned)
     deviation_description: str
     corrective_suggestion: str
     keywords_matched: int
     keywords_total: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "score": self.score,
             "deviation_description": self.deviation_description,
@@ -37,6 +38,7 @@ class AdherenceResult:
 @dataclass
 class ScopeCreepItem:
     """A task flagged as potentially out of scope."""
+
     task_id: str
     task_description: str
     relevance_score: float
@@ -51,25 +53,83 @@ class GoalTracker:
     """
 
     # Stop words excluded from keyword extraction
-    STOP_WORDS: Set[str] = {
-        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will", "would",
-        "could", "should", "may", "might", "shall", "can", "this", "that",
-        "these", "those", "i", "you", "he", "she", "it", "we", "they",
-        "not", "no", "all", "each", "every", "any", "some", "such", "than",
-        "too", "very", "just", "about", "up", "out", "so", "if", "then",
-        "into", "also", "as", "its",
+    STOP_WORDS: set[str] = {
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "not",
+        "no",
+        "all",
+        "each",
+        "every",
+        "any",
+        "some",
+        "such",
+        "than",
+        "too",
+        "very",
+        "just",
+        "about",
+        "up",
+        "out",
+        "so",
+        "if",
+        "then",
+        "into",
+        "also",
+        "as",
+        "its",
     }
 
     def __init__(self, original_goal: str):
         self.original_goal = original_goal
         self._goal_keywords = self._extract_keywords(original_goal)
-        self._deviation_history: List[AdherenceResult] = []
-        logger.debug(
-            f"[GoalTracker] Tracking goal: {original_goal[:80]}... "
-            f"({len(self._goal_keywords)} keywords)"
-        )
+        self._deviation_history: list[AdherenceResult] = []
+        logger.debug(f"[GoalTracker] Tracking goal: {original_goal[:80]}... ({len(self._goal_keywords)} keywords)")
 
     def check_adherence(
         self,
@@ -132,7 +192,7 @@ class GoalTracker:
         self._deviation_history.append(result)
         return result
 
-    def detect_scope_creep(self, tasks: list) -> List[ScopeCreepItem]:
+    def detect_scope_creep(self, tasks: list) -> list[ScopeCreepItem]:
         """Flag tasks that don't seem to contribute to the original goal.
 
         Args:
@@ -154,21 +214,22 @@ class GoalTracker:
             relevance = min(1.0, overlap * 2)  # Scale since individual tasks won't match all keywords
 
             if relevance < 0.3:
-                flagged.append(ScopeCreepItem(
-                    task_id=task_id,
-                    task_description=desc[:100],
-                    relevance_score=round(relevance, 3),
-                    reason=f"Low keyword overlap with goal ({relevance:.0%})",
-                ))
+                flagged.append(
+                    ScopeCreepItem(
+                        task_id=task_id,
+                        task_description=desc[:100],
+                        relevance_score=round(relevance, 3),
+                        reason=f"Low keyword overlap with goal ({relevance:.0%})",
+                    )
+                )
 
         if flagged:
             logger.warning(
-                f"[GoalTracker] Scope creep detected: {len(flagged)} tasks "
-                f"have low relevance to original goal"
+                f"[GoalTracker] Scope creep detected: {len(flagged)} tasks have low relevance to original goal"
             )
         return flagged
 
-    def get_drift_trend(self) -> Dict[str, Any]:
+    def get_drift_trend(self) -> dict[str, Any]:
         """Get the trend of goal adherence over time."""
         if not self._deviation_history:
             return {"trend": "unknown", "avg_score": 0, "samples": 0}
@@ -195,15 +256,12 @@ class GoalTracker:
             "latest_score": round(scores[-1], 3),
         }
 
-    def _extract_keywords(self, text: str) -> Set[str]:
+    def _extract_keywords(self, text: str) -> set[str]:
         """Extract meaningful keywords from text."""
         # Tokenize: split on non-alphanumeric
-        tokens = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', text.lower())
+        tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", text.lower())
         # Filter stop words and very short tokens
-        keywords = {
-            t for t in tokens
-            if t not in self.STOP_WORDS and len(t) > 2
-        }
+        keywords = {t for t in tokens if t not in self.STOP_WORDS and len(t) > 2}
         return keywords
 
 

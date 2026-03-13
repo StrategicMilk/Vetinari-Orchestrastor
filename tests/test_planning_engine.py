@@ -9,9 +9,7 @@ import warnings
 # Suppress the deprecation warning before import
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import pytest
-from vetinari.planning_engine import Model, Task, Plan, PlanningEngine
-
+from vetinari.planning_engine import Model, Plan, PlanningEngine, Task
 
 # ---------------------------------------------------------------------------
 # Helper factories

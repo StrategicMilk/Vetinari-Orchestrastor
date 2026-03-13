@@ -2,10 +2,10 @@
 Unit tests for Researcher Skill Tool
 """
 
-import pytest
 from unittest.mock import Mock
-from vetinari.skills.researcher import ResearcherSkillTool, ResearcherCapability, ThinkingMode
-from vetinari.execution_context import ExecutionMode
+
+from vetinari.skills.researcher import ResearcherCapability, ResearcherSkillTool
+from vetinari.types import ExecutionMode
 
 
 class TestResearcherMetadata:

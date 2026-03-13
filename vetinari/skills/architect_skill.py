@@ -1,5 +1,5 @@
-"""
-Unified Architect Skill Tool
+"""Unified Architect Skill Tool.
+
 ==============================
 Consolidated skill tool for the ARCHITECT agent role.
 
@@ -20,26 +20,32 @@ Standards enforced (from skill_registry):
   - STD-ARC-006: Designs list alternatives considered
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-import logging
-from enum import Enum
+from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ArchitectMode(str, Enum):
     """Modes of the unified architect skill."""
+
     UI_DESIGN = "ui_design"
     DATABASE = "database"
     DEVOPS = "devops"
@@ -51,14 +57,15 @@ class ArchitectMode(str, Enum):
 @dataclass
 class ArchitectRequest:
     """Request structure for architect operations."""
+
     mode: ArchitectMode
     design_request: str
-    domain: Optional[str] = None
-    context: Optional[str] = None
+    domain: str | None = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
-    constraints: List[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "mode": self.mode.value,
             "design_request": self.design_request,
@@ -72,12 +79,13 @@ class ArchitectRequest:
 @dataclass
 class ArchitectComponent:
     """A component in an architecture design."""
+
     name: str
     responsibility: str
-    interfaces: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
+    interfaces: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "responsibility": self.responsibility,
@@ -89,16 +97,17 @@ class ArchitectComponent:
 @dataclass
 class ArchitectResult:
     """Result of an architect operation."""
-    success: bool
-    summary: Optional[str] = None
-    architecture_pattern: Optional[str] = None
-    rationale: Optional[str] = None
-    components: List[ArchitectComponent] = field(default_factory=list)
-    alternatives_considered: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    migration_steps: List[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    success: bool
+    summary: str | None = None
+    architecture_pattern: str | None = None
+    rationale: str | None = None
+    components: list[ArchitectComponent] = field(default_factory=list)
+    alternatives_considered: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    migration_steps: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "design": {
@@ -114,8 +123,7 @@ class ArchitectResult:
 
 
 class ArchitectSkillTool(Tool):
-    """
-    Unified tool for the ARCHITECT consolidated agent.
+    """Unified tool for the ARCHITECT consolidated agent.
 
     Replaces: UIPlannerSkillTool, DataEngineerSkill, DevOpsSkill, VersionControlSkill.
 
@@ -189,8 +197,13 @@ class ArchitectSkillTool(Tool):
             ],
             allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
             tags=[
-                "architecture", "design", "infrastructure",
-                "ui", "database", "devops", "api",
+                "architecture",
+                "design",
+                "infrastructure",
+                "ui",
+                "database",
+                "devops",
+                "api",
             ],
         )
         super().__init__(metadata)
@@ -207,7 +220,8 @@ class ArchitectSkillTool(Tool):
 
             if not design_request:
                 return ToolResult(
-                    success=False, output=None,
+                    success=False,
+                    output=None,
                     error="design_request parameter is required",
                 )
 
@@ -215,7 +229,8 @@ class ArchitectSkillTool(Tool):
                 mode = ArchitectMode(mode_str)
             except ValueError:
                 return ToolResult(
-                    success=False, output=None,
+                    success=False,
+                    output=None,
                     error=f"Invalid mode: {mode_str}. Valid: {[m.value for m in ArchitectMode]}",
                 )
 
@@ -223,7 +238,8 @@ class ArchitectSkillTool(Tool):
                 thinking_mode = ThinkingMode(thinking_mode_str)
             except ValueError:
                 return ToolResult(
-                    success=False, output=None,
+                    success=False,
+                    output=None,
                     error=f"Invalid thinking_mode: {thinking_mode_str}",
                 )
 

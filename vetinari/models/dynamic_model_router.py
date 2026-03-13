@@ -1,5 +1,5 @@
-"""
-Dynamic Model Router for Vetinari
+"""Dynamic Model Router for Vetinari.
+
 ==================================
 
 Provides intelligent model selection based on:
@@ -14,17 +14,20 @@ Provides intelligent model selection based on:
 Supports both local (LM Studio) and cloud models.
 """
 
-import os
-import json
+from __future__ import annotations
+
 import logging
+import os
+import random
 import time
-import yaml
-from typing import List, Dict, Any, Optional, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import random
+from typing import Any
+
+import yaml
 
 from vetinari.types import ModelProvider  # canonical enum from types.py
 
@@ -35,8 +38,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # =====================================================================
 
+
 class TaskType(Enum):
     """Types of tasks the system can handle."""
+
     PLANNING = "planning"
     ANALYSIS = "analysis"
     CODING = "coding"
@@ -61,6 +66,7 @@ class TaskType(Enum):
 
 class ModelStatus(Enum):
     """Model availability status (from ModelRelay)."""
+
     AVAILABLE = "available"
     LOADING = "loading"
     UNAVAILABLE = "unavailable"
@@ -70,9 +76,11 @@ class ModelStatus(Enum):
 # Data classes
 # =====================================================================
 
+
 @dataclass
 class ModelCapabilities:
     """Model capabilities and attributes."""
+
     # Core capabilities
     code_gen: bool = False
     reasoning: bool = False
@@ -90,13 +98,13 @@ class ModelCapabilities:
     supports_json: bool = False
 
     # Preferred for
-    preferred_for: List[str] = field(default_factory=list)
+    preferred_for: list[str] = field(default_factory=list)
 
     # Tags from discovery
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'ModelCapabilities':
+    def from_dict(cls, data: dict) -> ModelCapabilities:
         """Create capabilities from model data."""
         caps = cls()
 
@@ -141,7 +149,10 @@ class ModelCapabilities:
     def matches_task(self, task_type: TaskType) -> float:
         """Return a score (0-1) for how well this model matches a task type."""
         scores = {
-            TaskType.PLANNING: 0.3 * int(self.reasoning) + 0.3 * int(self.code_gen) + 0.2 * int(self.analysis) + 0.2 * int(self.docs),
+            TaskType.PLANNING: 0.3 * int(self.reasoning)
+            + 0.3 * int(self.code_gen)
+            + 0.2 * int(self.analysis)
+            + 0.2 * int(self.docs),
             TaskType.ANALYSIS: 0.4 * int(self.analysis) + 0.3 * int(self.reasoning) + 0.3 * int(self.code_gen),
             TaskType.CODING: 0.8 * int(self.code_gen) + 0.1 * int(self.reasoning) + 0.1 * int(self.chat),
             TaskType.CODE_REVIEW: 0.5 * int(self.code_gen) + 0.3 * int(self.reasoning) + 0.2 * int(self.analysis),
@@ -161,6 +172,7 @@ class ModelCapabilities:
 @dataclass
 class ModelInfo:
     """Complete model information."""
+
     id: str
     name: str
     provider: ModelProvider = ModelProvider.LOCAL
@@ -183,10 +195,10 @@ class ModelInfo:
 
     # Metadata
     version: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'ModelInfo':
+    def from_dict(cls, data: dict) -> ModelInfo:
         """Create ModelInfo from dictionary."""
         info = cls(
             id=data.get("id", data.get("name", "")),
@@ -221,7 +233,7 @@ class ModelInfo:
 
         return info
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -257,10 +269,11 @@ class ModelInfo:
 @dataclass
 class ModelSelection:
     """Result of model selection process."""
+
     model: ModelInfo
     score: float
     reasoning: str
-    alternatives: List[ModelInfo] = field(default_factory=list)
+    alternatives: list[ModelInfo] = field(default_factory=list)
     confidence: float = 1.0
 
 
@@ -268,35 +281,37 @@ class ModelSelection:
 # Routing policy (merged from model_relay.py)
 # =====================================================================
 
+
 @dataclass
 class RoutingPolicy:
     """Configurable routing policy for model selection."""
+
     local_first: bool = True
     privacy_weight: float = 1.0
     latency_weight: float = 0.5
     cost_weight: float = 0.3
     max_cost_per_1k_tokens: float = 0.0
-    preferred_providers: List[str] = field(default_factory=list)
+    preferred_providers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
-            'local_first': self.local_first,
-            'privacy_weight': self.privacy_weight,
-            'latency_weight': self.latency_weight,
-            'cost_weight': self.cost_weight,
-            'max_cost_per_1k_tokens': self.max_cost_per_1k_tokens,
-            'preferred_providers': self.preferred_providers,
+            "local_first": self.local_first,
+            "privacy_weight": self.privacy_weight,
+            "latency_weight": self.latency_weight,
+            "cost_weight": self.cost_weight,
+            "max_cost_per_1k_tokens": self.max_cost_per_1k_tokens,
+            "preferred_providers": self.preferred_providers,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'RoutingPolicy':
+    def from_dict(cls, data: dict) -> RoutingPolicy:
         return cls(
-            local_first=data.get('local_first', True),
-            privacy_weight=data.get('privacy_weight', 1.0),
-            latency_weight=data.get('latency_weight', 0.5),
-            cost_weight=data.get('cost_weight', 0.3),
-            max_cost_per_1k_tokens=data.get('max_cost_per_1k_tokens', 0.0),
-            preferred_providers=data.get('preferred_providers', []),
+            local_first=data.get("local_first", True),
+            privacy_weight=data.get("privacy_weight", 1.0),
+            latency_weight=data.get("latency_weight", 0.5),
+            cost_weight=data.get("cost_weight", 0.3),
+            max_cost_per_1k_tokens=data.get("max_cost_per_1k_tokens", 0.0),
+            preferred_providers=data.get("preferred_providers", []),
         )
 
 
@@ -304,13 +319,15 @@ class RoutingPolicy:
 # ModelEntry (from model_relay.py - used by web_ui catalog endpoints)
 # =====================================================================
 
+
 @dataclass
 class ModelEntry:
     """Catalog entry for a model (previously in model_relay.py)."""
+
     model_id: str
     provider: str
     display_name: str
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     context_window: int = 4096
     latency_hint: str = "medium"
     privacy_level: str = "local"
@@ -322,35 +339,35 @@ class ModelEntry:
 
     def to_dict(self) -> dict:
         return {
-            'model_id': self.model_id,
-            'provider': self.provider,
-            'display_name': self.display_name,
-            'capabilities': self.capabilities,
-            'context_window': self.context_window,
-            'latency_hint': self.latency_hint,
-            'privacy_level': self.privacy_level,
-            'memory_requirements_gb': self.memory_requirements_gb,
-            'cost_per_1k_tokens': self.cost_per_1k_tokens,
-            'status': self.status,
-            'endpoint': self.endpoint,
-            'current_load': self.current_load,
+            "model_id": self.model_id,
+            "provider": self.provider,
+            "display_name": self.display_name,
+            "capabilities": self.capabilities,
+            "context_window": self.context_window,
+            "latency_hint": self.latency_hint,
+            "privacy_level": self.privacy_level,
+            "memory_requirements_gb": self.memory_requirements_gb,
+            "cost_per_1k_tokens": self.cost_per_1k_tokens,
+            "status": self.status,
+            "endpoint": self.endpoint,
+            "current_load": self.current_load,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'ModelEntry':
+    def from_dict(cls, data: dict) -> ModelEntry:
         return cls(
-            model_id=data.get('model_id', ''),
-            provider=data.get('provider', 'local'),
-            display_name=data.get('display_name', data.get('model_id', '')),
-            capabilities=data.get('capabilities', []),
-            context_window=data.get('context_window', 4096),
-            latency_hint=data.get('latency_hint', 'medium'),
-            privacy_level=data.get('privacy_level', 'local'),
-            memory_requirements_gb=data.get('memory_requirements_gb', 0.0),
-            cost_per_1k_tokens=data.get('cost_per_1k_tokens', 0.0),
-            status=data.get('status', ModelStatus.AVAILABLE.value),
-            endpoint=data.get('endpoint', ''),
-            current_load=data.get('current_load', 0.0),
+            model_id=data.get("model_id", ""),
+            provider=data.get("provider", "local"),
+            display_name=data.get("display_name", data.get("model_id", "")),
+            capabilities=data.get("capabilities", []),
+            context_window=data.get("context_window", 4096),
+            latency_hint=data.get("latency_hint", "medium"),
+            privacy_level=data.get("privacy_level", "local"),
+            memory_requirements_gb=data.get("memory_requirements_gb", 0.0),
+            cost_per_1k_tokens=data.get("cost_per_1k_tokens", 0.0),
+            status=data.get("status", ModelStatus.AVAILABLE.value),
+            endpoint=data.get("endpoint", ""),
+            current_load=data.get("current_load", 0.0),
         )
 
 
@@ -358,9 +375,11 @@ class ModelEntry:
 # RelayModelSelection - lightweight selection result (from model_relay)
 # =====================================================================
 
+
 @dataclass
 class RelayModelSelection:
     """Lightweight selection result used by the relay / web_ui catalog API."""
+
     model_id: str
     provider: str
     endpoint: str
@@ -370,12 +389,12 @@ class RelayModelSelection:
 
     def to_dict(self) -> dict:
         return {
-            'model_id': self.model_id,
-            'provider': self.provider,
-            'endpoint': self.endpoint,
-            'reasoning': self.reasoning,
-            'confidence': self.confidence,
-            'latency_estimate': self.latency_estimate,
+            "model_id": self.model_id,
+            "provider": self.provider,
+            "endpoint": self.endpoint,
+            "reasoning": self.reasoning,
+            "confidence": self.confidence,
+            "latency_estimate": self.latency_estimate,
         }
 
 
@@ -383,9 +402,9 @@ class RelayModelSelection:
 # DynamicModelRouter
 # =====================================================================
 
+
 class DynamicModelRouter:
-    """
-    Dynamic model routing based on task requirements and model capabilities.
+    """Dynamic model routing based on task requirements and model capabilities.
 
     Features:
     - Task-type aware model selection
@@ -398,13 +417,14 @@ class DynamicModelRouter:
     - Optional PonderEngine scoring backend (dependency injection)
     """
 
-    def __init__(self,
-                 prefer_local: bool = True,
-                 max_latency_ms: float = 60000,
-                 max_memory_gb: float = 64,
-                 ponder_engine: Optional[Any] = None):
-        """
-        Initialize the model router.
+    def __init__(
+        self,
+        prefer_local: bool = True,
+        max_latency_ms: float = 60000,
+        max_memory_gb: float = 64,
+        ponder_engine: Any | None = None,
+    ):
+        """Initialize the model router.
 
         Args:
             prefer_local: Prefer local models over cloud when possible
@@ -420,16 +440,16 @@ class DynamicModelRouter:
         self._ponder_engine = ponder_engine
 
         # Model registry
-        self.models: Dict[str, ModelInfo] = {}
+        self.models: dict[str, ModelInfo] = {}
 
         # Performance tracking
-        self._performance_cache: Dict[str, Dict[str, Any]] = {}
+        self._performance_cache: dict[str, dict[str, Any]] = {}
 
         # Selection history
-        self._selection_history: List[Dict[str, Any]] = []
+        self._selection_history: list[dict[str, Any]] = []
 
         # Callbacks
-        self._health_check_callback: Optional[Callable] = None
+        self._health_check_callback: Callable | None = None
 
         logger.info(f"DynamicModelRouter initialized (prefer_local={prefer_local})")
 
@@ -441,7 +461,7 @@ class DynamicModelRouter:
         """Inject a PonderEngine instance for scoring."""
         self._ponder_engine = engine
 
-    def _ponder_score(self, model: ModelInfo, task_description: str) -> Optional[float]:
+    def _ponder_score(self, model: ModelInfo, task_description: str) -> float | None:
         """Use PonderEngine (if available) to score a model.
 
         Returns a score in [0, 1] or None if PonderEngine is not configured.
@@ -476,7 +496,7 @@ class DynamicModelRouter:
         self.models[model.id] = model
         logger.debug(f"Registered model: {model.id}")
 
-    def register_models_from_pool(self, models: List[Dict]):
+    def register_models_from_pool(self, models: list[dict]):
         """Register models from a model pool (list of dicts)."""
         for m in models:
             model_info = ModelInfo.from_dict(m)
@@ -487,10 +507,7 @@ class DynamicModelRouter:
         """Set a callback for health checking models."""
         self._health_check_callback = callback
 
-    def update_model_performance(self, model_id: str,
-                                 latency_ms: float,
-                                 success: bool,
-                                 task_type: TaskType = None):
+    def update_model_performance(self, model_id: str, latency_ms: float, success: bool, task_type: TaskType = None):
         """Update performance metrics for a model."""
         if model_id not in self.models:
             return
@@ -499,12 +516,8 @@ class DynamicModelRouter:
 
         # Update metrics
         total = model.total_uses + 1
-        model.avg_latency_ms = (
-            (model.avg_latency_ms * model.total_uses + latency_ms) / total
-        )
-        model.success_rate = (
-            (model.success_rate * model.total_uses + (1 if success else 0)) / total
-        )
+        model.avg_latency_ms = (model.avg_latency_ms * model.total_uses + latency_ms) / total
+        model.success_rate = (model.success_rate * model.total_uses + (1 if success else 0)) / total
         model.total_uses = total
         model.last_checked = datetime.now().isoformat()
 
@@ -520,14 +533,15 @@ class DynamicModelRouter:
     # Model selection
     # ------------------------------------------------------------------
 
-    def select_model(self,
-                     task_type: TaskType,
-                     task_description: str = "",
-                     required_capabilities: List[str] = None,
-                     preferred_models: List[str] = None,
-                     context_length_needed: int = None) -> ModelSelection:
-        """
-        Select the best model for a given task.
+    def select_model(
+        self,
+        task_type: TaskType,
+        task_description: str = "",
+        required_capabilities: list[str] | None = None,
+        preferred_models: list[str] | None = None,
+        context_length_needed: int | None = None,
+    ) -> ModelSelection:
+        """Select the best model for a given task.
 
         Args:
             task_type: Type of task to perform
@@ -542,7 +556,7 @@ class DynamicModelRouter:
         candidates = []
 
         # Filter available models
-        for model_id, model in self.models.items():
+        for _model_id, model in self.models.items():
             if not model.is_available:
                 continue
 
@@ -563,11 +577,11 @@ class DynamicModelRouter:
                 caps = model.capabilities
                 meets_requirements = True
                 for req in required_capabilities:
-                    if req == "code_gen" and not caps.code_gen:
-                        meets_requirements = False
-                    elif req == "reasoning" and not caps.reasoning:
-                        meets_requirements = False
-                    elif req == "docs" and not caps.docs:
+                    if (
+                        (req == "code_gen" and not caps.code_gen)
+                        or (req == "reasoning" and not caps.reasoning)
+                        or (req == "docs" and not caps.docs)
+                    ):
                         meets_requirements = False
                 if not meets_requirements:
                     continue
@@ -582,7 +596,7 @@ class DynamicModelRouter:
                 return None
 
             # Pick random available model as fallback
-            fallback = random.choice(available)
+            fallback = random.choice(available)  # noqa: S311
             return ModelSelection(
                 model=fallback,
                 score=0.0,
@@ -607,12 +621,14 @@ class DynamicModelRouter:
         confidence = self._calculate_confidence(scored)
 
         # Record selection
-        self._selection_history.append({
-            "task_type": task_type.value,
-            "selected_model": best_model.id,
-            "score": best_score,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self._selection_history.append(
+            {
+                "task_type": task_type.value,
+                "selected_model": best_model.id,
+                "score": best_score,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         return ModelSelection(
             model=best_model,
@@ -622,14 +638,10 @@ class DynamicModelRouter:
             confidence=confidence,
         )
 
-    def _score_model(self,
-                     model: ModelInfo,
-                     task_type: TaskType,
-                     task_description: str,
-                     preferred_models: List[str]) -> float:
+    def _score_model(
+        self, model: ModelInfo, task_type: TaskType, task_description: str, preferred_models: list[str]
+    ) -> float:
         """Score a model for a given task."""
-        score = 0.0
-
         # --- PonderEngine override (if available) ---
         ponder_score = self._ponder_score(model, task_description)
         if ponder_score is not None:
@@ -639,11 +651,9 @@ class DynamicModelRouter:
 
         return self._internal_score(model, task_type, task_description, preferred_models)
 
-    def _internal_score(self,
-                        model: ModelInfo,
-                        task_type: TaskType,
-                        task_description: str,
-                        preferred_models: Optional[List[str]]) -> float:
+    def _internal_score(
+        self, model: ModelInfo, task_type: TaskType, task_description: str, preferred_models: list[str] | None
+    ) -> float:
         """Internal scoring logic (original DynamicModelRouter algorithm)."""
         score = 0.0
 
@@ -667,13 +677,14 @@ class DynamicModelRouter:
         # Thompson Sampling bonus (up to +0.10)
         try:
             from vetinari.learning.model_selector import get_thompson_selector
+
             ts = get_thompson_selector()
             task_type_str = task_type.value if hasattr(task_type, "value") else str(task_type)
             arm = ts._arms.get(f"{model.id}:{task_type_str}")
             if arm is not None and (arm.alpha + arm.beta) > 2:
                 ts_bonus = arm.mean * 0.10
                 score += ts_bonus
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         # Provider preference (10%)
@@ -693,7 +704,7 @@ class DynamicModelRouter:
 
         return score
 
-    def _calculate_confidence(self, scored: List[tuple]) -> float:
+    def _calculate_confidence(self, scored: list[tuple]) -> float:
         """Calculate confidence in the selection based on score distribution."""
         if len(scored) < 2:
             return 0.5
@@ -738,26 +749,26 @@ class DynamicModelRouter:
     # Queries
     # ------------------------------------------------------------------
 
-    def get_model_by_id(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model_by_id(self, model_id: str) -> ModelInfo | None:
         """Get a specific model by ID."""
         return self.models.get(model_id)
 
-    def get_available_models(self) -> List[ModelInfo]:
+    def get_available_models(self) -> list[ModelInfo]:
         """Get all available models."""
         return [m for m in self.models.values() if m.is_available]
 
-    def get_models_by_capability(self, capability: str) -> List[ModelInfo]:
+    def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
         """Get all models with a specific capability."""
         results = []
         for model in self.models.values():
             if not model.is_available:
                 continue
             caps = model.capabilities
-            if capability == "code_gen" and caps.code_gen:
-                results.append(model)
-            elif capability == "reasoning" and caps.reasoning:
-                results.append(model)
-            elif capability == "docs" and caps.docs:
+            if (
+                (capability == "code_gen" and caps.code_gen)
+                or (capability == "reasoning" and caps.reasoning)
+                or (capability == "docs" and caps.docs)
+            ):
                 results.append(model)
         return results
 
@@ -777,16 +788,13 @@ class DynamicModelRouter:
         if model.avg_latency_ms > self.max_latency_ms * 2:
             return False
 
-        if model.success_rate < 0.5:
-            return False
+        return not model.success_rate < 0.5
 
-        return True
-
-    def get_routing_stats(self) -> Dict[str, Any]:
+    def get_routing_stats(self) -> dict[str, Any]:
         """Get routing statistics."""
         total_selections = len(self._selection_history)
 
-        model_counts: Dict[str, int] = {}
+        model_counts: dict[str, int] = {}
         for sel in self._selection_history:
             model_id = sel["selected_model"]
             model_counts[model_id] = model_counts.get(model_id, 0) + 1
@@ -803,6 +811,7 @@ class DynamicModelRouter:
 # ModelRelay (config-based catalog + policy scoring, merged here)
 # =====================================================================
 
+
 class ModelRelay:
     """Config-based model catalog with policy-driven selection.
 
@@ -813,12 +822,12 @@ class ModelRelay:
     _instance = None
 
     @classmethod
-    def get_instance(cls, config_path: str = None):
+    def get_instance(cls, config_path: str | None = None):
         if cls._instance is None:
             cls._instance = cls(config_path)
         return cls._instance
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str | None = None):
         if config_path is None:
             env_path = os.environ.get("VETINARI_MODELS_CONFIG", "")
             if env_path:
@@ -828,7 +837,7 @@ class ModelRelay:
                 config_path = pkg_root / "config" / "models.yaml"
 
         self.config_path = Path(config_path)
-        self.models: Dict[str, ModelEntry] = {}
+        self.models: dict[str, ModelEntry] = {}
         self.policy = RoutingPolicy()
         self._load_config()
 
@@ -837,14 +846,14 @@ class ModelRelay:
     def _load_config(self):
         if self.config_path.exists():
             try:
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path) as f:
                     data = yaml.safe_load(f)
                     if data:
-                        for model_data in data.get('models', []):
+                        for model_data in data.get("models", []):
                             model = ModelEntry.from_dict(model_data)
                             self.models[model.model_id] = model
-                        if 'policy' in data:
-                            self.policy = RoutingPolicy.from_dict(data['policy'])
+                        if "policy" in data:
+                            self.policy = RoutingPolicy.from_dict(data["policy"])
             except Exception as e:
                 logger.error(f"Error loading model config: {e}")
 
@@ -907,22 +916,22 @@ class ModelRelay:
 
     def _save_config(self):
         data = {
-            'models': [m.to_dict() for m in self.models.values()],
-            'policy': self.policy.to_dict(),
+            "models": [m.to_dict() for m in self.models.values()],
+            "policy": self.policy.to_dict(),
         }
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             yaml.dump(data, f)
 
     # ----- queries -----
 
-    def get_available_models(self) -> List[ModelEntry]:
+    def get_available_models(self) -> list[ModelEntry]:
         return [m for m in self.models.values() if m.status == ModelStatus.AVAILABLE.value]
 
-    def get_model(self, model_id: str) -> Optional[ModelEntry]:
+    def get_model(self, model_id: str) -> ModelEntry | None:
         return self.models.get(model_id)
 
-    def get_all_models(self) -> List[ModelEntry]:
+    def get_all_models(self) -> list[ModelEntry]:
         return list(self.models.values())
 
     def get_policy(self) -> RoutingPolicy:
@@ -934,17 +943,20 @@ class ModelRelay:
 
     # ----- selection -----
 
-    def pick_model_for_task(self, task_type: str = None, context: dict = None) -> RelayModelSelection:
+    def pick_model_for_task(self, task_type: str | None = None, context: dict | None = None) -> RelayModelSelection:
         available = self.get_available_models()
 
         if not available:
             return RelayModelSelection(
-                model_id="", provider="", endpoint="",
+                model_id="",
+                provider="",
+                endpoint="",
                 reasoning="No available models",
-                confidence=0.0, latency_estimate="unknown",
+                confidence=0.0,
+                latency_estimate="unknown",
             )
 
-        required_caps: List[str] = []
+        required_caps: list[str] = []
         if task_type:
             if task_type == "coding":
                 required_caps = ["coding"]
@@ -968,9 +980,12 @@ class ModelRelay:
         best = scored[0][0] if scored else None
         if not best:
             return RelayModelSelection(
-                model_id="", provider="", endpoint="",
+                model_id="",
+                provider="",
+                endpoint="",
                 reasoning="No suitable model found",
-                confidence=0.0, latency_estimate="unknown",
+                confidence=0.0,
+                latency_estimate="unknown",
             )
 
         return RelayModelSelection(
@@ -994,13 +1009,11 @@ class ModelRelay:
             cost = max(0, 1.0 - (model.cost_per_1k_tokens * 100))
 
         score = (
-            privacy * self.policy.privacy_weight +
-            latency * self.policy.latency_weight +
-            cost * self.policy.cost_weight
+            privacy * self.policy.privacy_weight + latency * self.policy.latency_weight + cost * self.policy.cost_weight
         )
         return score
 
-    def _get_selection_reason(self, model: ModelEntry, task_type: str = None) -> str:
+    def _get_selection_reason(self, model: ModelEntry, task_type: str | None = None) -> str:
         reasons = []
         if model.privacy_level == "local":
             reasons.append("local model selected")
@@ -1032,7 +1045,7 @@ class ModelRelay:
 
 # --- DynamicModelRouter ---
 
-_model_router: Optional[DynamicModelRouter] = None
+_model_router: DynamicModelRouter | None = None
 
 
 def get_model_router() -> DynamicModelRouter:
@@ -1056,13 +1069,15 @@ def init_model_router(prefer_local: bool = True, **kwargs) -> DynamicModelRouter
 
 # --- ModelRelay ---
 
-def get_model_relay() -> "ModelRelay":
+
+def get_model_relay() -> ModelRelay:
     """Lazily return the singleton ModelRelay."""
     return ModelRelay.get_instance()
 
 
 class _LazyModelRelay:
     """Proxy that resolves the ModelRelay singleton on first attribute access."""
+
     def __getattr__(self, name):
         return getattr(ModelRelay.get_instance(), name)
 
@@ -1076,6 +1091,7 @@ model_relay = _LazyModelRelay()
 # =====================================================================
 # Helper: infer task type from description
 # =====================================================================
+
 
 def infer_task_type(description: str) -> TaskType:
     """Infer task type from description using keyword matching.
@@ -1115,7 +1131,9 @@ def infer_task_type(description: str) -> TaskType:
         return TaskType.REASONING
     elif any(kw in desc_lower for kw in ["creative", "write", "article"]):
         return TaskType.CREATIVE
-    elif any(kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl", "database", "schema", "sql"]):
+    elif any(
+        kw in desc_lower for kw in ["data", "process", "extract", "transform", "etl", "database", "schema", "sql"]
+    ):
         return TaskType.DATA_PROCESSING
     elif any(kw in desc_lower for kw in ["search", "find", "look", "query", "web"]):
         return TaskType.WEB_SEARCH

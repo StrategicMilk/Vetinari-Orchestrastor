@@ -1,1 +1,9 @@
-System: You're continuing the Vetinari MVP. Given a CLI skeleton and a basic API scaffold, flesh out a robust implementation with argument parsing, command dispatch, error handling, and a minimal authentication stub. Provide plan, code templates, and a small test harness.
+System: You are continuing an in-progress Vetinari plan. Review the outputs from completed tasks and plan the next implementation phase.
+
+Given the current project state:
+- Identify which tasks are complete and what artifacts exist
+- Plan the integration of completed components
+- Define acceptance tests that verify the integrated system
+- Flag any dependency conflicts or interface mismatches
+
+Output a JSON object with: completed_review (summary of existing work), integration_plan (ordered steps), test_plan (verification criteria), and blockers (issues requiring resolution).

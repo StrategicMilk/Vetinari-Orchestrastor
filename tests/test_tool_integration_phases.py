@@ -6,13 +6,11 @@ Phase 3: Verifies FileOperationsTool and GitOperationsTool are registered.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 
-from vetinari.execution_context import ExecutionMode, get_context_manager
-from vetinari.tool_interface import get_tool_registry, ToolRegistry
-
+from vetinari.execution_context import get_context_manager
+from vetinari.tool_interface import get_tool_registry
+from vetinari.types import ExecutionMode
 
 # ===================================================================
 # Phase 3: Concrete tool registration
@@ -84,16 +82,15 @@ class TestExecutionModeWiring:
         ctx_mgr = get_context_manager()
         original_mode = ctx_mgr.current_mode
 
-        with pytest.raises(ValueError):
-            with ctx_mgr.temporary_mode(ExecutionMode.EXECUTION, task_id="test-err"):
-                assert ctx_mgr.current_mode == ExecutionMode.EXECUTION
-                raise ValueError("intentional")
+        with pytest.raises(ValueError), ctx_mgr.temporary_mode(ExecutionMode.EXECUTION, task_id="test-err"):
+            assert ctx_mgr.current_mode == ExecutionMode.EXECUTION
+            raise ValueError("intentional")
 
         assert ctx_mgr.current_mode == original_mode
 
     def test_execution_mode_allows_execution_tools(self):
         """Tools with allowed_modes=[EXECUTION] should pass permission checks in EXECUTION mode."""
-        from vetinari.tool_interface import Tool, ToolMetadata, ToolCategory, ToolResult
+        from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolResult
 
         class _ExecOnlyTool(Tool):
             def __init__(self):
@@ -118,7 +115,7 @@ class TestExecutionModeWiring:
 
     def test_planning_mode_blocks_execution_only_tools(self):
         """Tools restricted to EXECUTION mode should fail in PLANNING mode."""
-        from vetinari.tool_interface import Tool, ToolMetadata, ToolCategory, ToolResult
+        from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolResult
 
         class _ExecOnlyTool(Tool):
             def __init__(self):

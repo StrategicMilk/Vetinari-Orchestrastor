@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.validation.verification
+"""Backward-compat shim. Canonical: vetinari.validation.verification.
 
 All new code should import from vetinari.validation.verification directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

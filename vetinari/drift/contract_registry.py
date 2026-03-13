@@ -1,5 +1,4 @@
-"""
-Contract Registry — vetinari.drift.contract_registry  (Phase 7)
+"""Contract Registry — vetinari.drift.contract_registry  (Phase 7).
 
 Tracks a content-hash fingerprint for every versioned contract (dataclass,
 schema dict, or plain dict).  When a fingerprint changes between runs the
@@ -17,7 +16,7 @@ Usage
     # Later — detect drift
     changed = reg.check_drift()
     for name, info in changed.items():
-        print(f"{name}: was {info['previous']}, now {info['current']}")
+        logger.debug(f"{name}: was {info['previous']}, now {info['current']}")
 """
 
 from __future__ import annotations
@@ -25,12 +24,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import threading
 import time
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +54,15 @@ def _fingerprint(obj: Any) -> str:
 
 
 class ContractRegistry:
-    """
-    Thread-safe contract fingerprint registry.  Singleton — use
+    """Thread-safe contract fingerprint registry.  Singleton — use.
+
     ``get_contract_registry()``.
     """
 
-    _instance: Optional["ContractRegistry"] = None
+    _instance: ContractRegistry | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "ContractRegistry":
+    def __new__(cls) -> ContractRegistry:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -74,8 +72,8 @@ class ContractRegistry:
 
     def _setup(self) -> None:
         self._lock = threading.RLock()
-        self._current:  Dict[str, str] = {}   # name → hash
-        self._previous: Dict[str, str] = {}   # name → hash (last snapshot)
+        self._current: dict[str, str] = {}  # name → hash
+        self._previous: dict[str, str] = {}  # name → hash (last snapshot)
         self._snapshot_path = Path(_DEFAULT_SNAPSHOT_PATH)
 
     # ------------------------------------------------------------------
@@ -83,8 +81,7 @@ class ContractRegistry:
     # ------------------------------------------------------------------
 
     def register(self, name: str, contract: Any) -> str:
-        """
-        Register and fingerprint a contract object.
+        """Register and fingerprint a contract object.
 
         Args:
             name:     Unique contract name (e.g. ``"Plan"``, ``"AgentTask"``).
@@ -99,7 +96,7 @@ class ContractRegistry:
         logger.debug("Registered contract '%s' → %s", name, h[:12])
         return h
 
-    def register_many(self, contracts: Dict[str, Any]) -> Dict[str, str]:
+    def register_many(self, contracts: dict[str, Any]) -> dict[str, str]:
         """Register multiple contracts at once.  Returns name → hash map."""
         return {name: self.register(name, obj) for name, obj in contracts.items()}
 
@@ -107,7 +104,7 @@ class ContractRegistry:
     # Snapshot (persistence)
     # ------------------------------------------------------------------
 
-    def snapshot(self, path: Optional[str] = None) -> None:
+    def snapshot(self, path: str | None = None) -> None:
         """Persist current fingerprints to disk."""
         p = Path(path) if path else self._snapshot_path
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -117,10 +114,9 @@ class ContractRegistry:
                 "hashes": dict(self._current),
             }
         p.write_text(json.dumps(payload, indent=2))
-        logger.info("Contract snapshot written to %s (%d entries)",
-                    p, len(payload["hashes"]))
+        logger.info("Contract snapshot written to %s (%d entries)", p, len(payload["hashes"]))
 
-    def load_snapshot(self, path: Optional[str] = None) -> bool:
+    def load_snapshot(self, path: str | None = None) -> bool:
         """Load a previously saved snapshot into ``_previous``."""
         p = Path(path) if path else self._snapshot_path
         if not p.exists():
@@ -130,8 +126,7 @@ class ContractRegistry:
             payload = json.loads(p.read_text())
             with self._lock:
                 self._previous = payload.get("hashes", {})
-            logger.info("Loaded snapshot from %s (%d entries)",
-                        p, len(self._previous))
+            logger.info("Loaded snapshot from %s (%d entries)", p, len(self._previous))
             return True
         except Exception as exc:
             logger.error("Failed to load snapshot: %s", exc)
@@ -144,9 +139,8 @@ class ContractRegistry:
     def check_drift(
         self,
         raise_on_drift: bool = False,
-    ) -> Dict[str, Dict[str, str]]:
-        """
-        Compare current fingerprints against the loaded snapshot.
+    ) -> dict[str, dict[str, str]]:
+        """Compare current fingerprints against the loaded snapshot.
 
         Returns a dict of drifted contracts:
             ``{ name: {"previous": "...", "current": "..."} }``
@@ -156,10 +150,10 @@ class ContractRegistry:
                             is found.
         """
         with self._lock:
-            current  = dict(self._current)
+            current = dict(self._current)
             previous = dict(self._previous)
 
-        drifted: Dict[str, Dict[str, str]] = {}
+        drifted: dict[str, dict[str, str]] = {}
 
         # Changed or new contracts
         for name, h in current.items():
@@ -176,9 +170,7 @@ class ContractRegistry:
 
         if drifted and raise_on_drift:
             names = ", ".join(drifted)
-            raise ContractDriftError(
-                f"Contract drift detected in: {names}"
-            )
+            raise ContractDriftError(f"Contract drift detected in: {names}")
         return drifted
 
     def is_stable(self) -> bool:
@@ -189,15 +181,15 @@ class ContractRegistry:
     # Introspection
     # ------------------------------------------------------------------
 
-    def list_contracts(self) -> List[str]:
+    def list_contracts(self) -> list[str]:
         with self._lock:
             return sorted(self._current.keys())
 
-    def get_hash(self, name: str) -> Optional[str]:
+    def get_hash(self, name: str) -> str | None:
         with self._lock:
             return self._current.get(name)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "registered": len(self._current),
@@ -214,6 +206,7 @@ class ContractRegistry:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_contract_registry() -> ContractRegistry:
     """Return the global ContractRegistry singleton."""

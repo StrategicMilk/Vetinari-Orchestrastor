@@ -1,5 +1,7 @@
 """Vetinari package - Comprehensive AI Orchestration System."""
 
+from __future__ import annotations
+
 __version__ = "0.5.0"
 
 import os as _os
@@ -27,7 +29,7 @@ def _load_env_file() -> None:
                     # Don't overwrite values already in the environment
                     if key and key not in _os.environ:
                         _os.environ[key] = value
-            except Exception:
+            except Exception:  # noqa: S110, VET022
                 pass
             return  # Stop after first .env found
 
@@ -35,21 +37,21 @@ def _load_env_file() -> None:
 _load_env_file()
 
 __all__ = [
+    "builder",
     # Core
     "cli",
-    "orchestrator",
-    "lmstudio_adapter",
-    "model_pool",
-    "scheduler",
-    "executor",
-    "validator",
-    "builder",
-    "upgrader",
-    "utils",
+    "code_sandbox",
     # New components
     "dynamic_model_router",
+    "executor",
+    "lmstudio_adapter",
     "model_discovery",
-    "code_sandbox",
-    "tool_interface",
+    "model_pool",
+    "orchestrator",
+    "scheduler",
     "token_optimizer",
+    "tool_interface",
+    "upgrader",
+    "utils",
+    "validator",
 ]

@@ -1,5 +1,4 @@
-"""
-Tool Registry Integration for Vetinari
+"""Tool Registry Integration for Vetinari.
 
 Provides convenience wrappers that register tools in the tool registry:
 - Web Search Tool
@@ -9,26 +8,27 @@ Provides convenience wrappers that register tools in the tool registry:
 - Orchestration Tools
 """
 
-import logging
-from typing import Dict, Any, List, Optional
+from __future__ import annotations
 
+import logging
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
+    ToolCategory,
     ToolMetadata,
     ToolParameter,
     ToolResult,
-    ToolCategory,
     get_tool_registry,
 )
-
-from vetinari.execution_context import ToolPermission, ExecutionMode
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
 
 class WebSearchToolWrapper(Tool):
     """Wrapper for the web search tool."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="web_search",
@@ -62,25 +62,26 @@ class WebSearchToolWrapper(Tool):
             tags=["search", "web", "information", "research"],
         )
         super().__init__(metadata)
-        
+
         # Lazy import
         self._search_tool = None
-    
+
     def _get_search_tool(self):
         if self._search_tool is None:
             from vetinari.tools.web_search_tool import get_search_tool
+
             self._search_tool = get_search_tool()
         return self._search_tool
-    
+
     def execute(self, **kwargs) -> ToolResult:
         query = kwargs.get("query", "")
         max_results = kwargs.get("max_results", 5)
         backend = kwargs.get("backend", "duckduckgo")
-        
+
         try:
             search_tool = self._get_search_tool()
             response = search_tool.search(query, max_results=max_results)
-            
+
             return ToolResult(
                 success=True,
                 output={
@@ -92,7 +93,7 @@ class WebSearchToolWrapper(Tool):
                 metadata={
                     "backend": backend,
                     "execution_time_ms": response.execution_time_ms,
-                }
+                },
             )
         except Exception as e:
             return ToolResult(
@@ -104,7 +105,7 @@ class WebSearchToolWrapper(Tool):
 
 class ResearchTopicToolWrapper(Tool):
     """Wrapper for comprehensive topic research."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="research_topic",
@@ -120,7 +121,7 @@ class ResearchTopicToolWrapper(Tool):
                 ),
                 ToolParameter(
                     name="aspects",
-                    type=List[str],
+                    type=list[str],
                     description="Specific aspects to investigate",
                     required=False,
                     default=None,
@@ -131,23 +132,24 @@ class ResearchTopicToolWrapper(Tool):
             tags=["research", "web", "information"],
         )
         super().__init__(metadata)
-        
+
         self._search_tool = None
-    
+
     def _get_search_tool(self):
         if self._search_tool is None:
             from vetinari.tools.web_search_tool import get_search_tool
+
             self._search_tool = get_search_tool()
         return self._search_tool
-    
+
     def execute(self, **kwargs) -> ToolResult:
         topic = kwargs.get("topic", "")
         aspects = kwargs.get("aspects")
-        
+
         try:
             search_tool = self._get_search_tool()
             result = search_tool.research_topic(topic, aspects)
-            
+
             return ToolResult(
                 success=True,
                 output=result,
@@ -162,7 +164,7 @@ class ResearchTopicToolWrapper(Tool):
 
 class CodeExecutionToolWrapper(Tool):
     """Wrapper for code execution sandbox."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="execute_code",
@@ -196,24 +198,25 @@ class CodeExecutionToolWrapper(Tool):
             tags=["code", "execution", "sandbox"],
         )
         super().__init__(metadata)
-        
+
         self._executor = None
-    
+
     def _get_executor(self):
         if self._executor is None:
             from vetinari.sandbox import get_code_executor
+
             self._executor = get_code_executor()
         return self._executor
-    
+
     def execute(self, **kwargs) -> ToolResult:
         code = kwargs.get("code", "")
         language = kwargs.get("language", "python")
         timeout = kwargs.get("timeout", 60)
-        
+
         try:
             executor = self._get_executor()
             result = executor.run(code, language=language, timeout=timeout)
-            
+
             return ToolResult(
                 success=result.get("success", False),
                 output=result,
@@ -228,7 +231,7 @@ class CodeExecutionToolWrapper(Tool):
 
 class MemoryRecallToolWrapper(Tool):
     """Wrapper for memory recall."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="recall_memory",
@@ -263,24 +266,25 @@ class MemoryRecallToolWrapper(Tool):
             tags=["memory", "recall", "context"],
         )
         super().__init__(metadata)
-        
+
         self._memory = None
-    
+
     def _get_memory(self):
         if self._memory is None:
             from vetinari.memory import get_dual_memory_store
+
             self._memory = get_dual_memory_store()
         return self._memory
 
     def execute(self, **kwargs) -> ToolResult:
         query = kwargs.get("query", "")
-        memory_type = kwargs.get("memory_type")
+        kwargs.get("memory_type")
         limit = kwargs.get("limit", 5)
-        
+
         try:
             memory = self._get_memory()
             results = memory.search(query=query, limit=limit)
-            
+
             return ToolResult(
                 success=True,
                 output={
@@ -298,7 +302,7 @@ class MemoryRecallToolWrapper(Tool):
 
 class MemoryRememberToolWrapper(Tool):
     """Wrapper for storing in memory."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="remember",
@@ -321,7 +325,7 @@ class MemoryRememberToolWrapper(Tool):
                 ),
                 ToolParameter(
                     name="tags",
-                    type=List[str],
+                    type=list[str],
                     description="Tags for the memory",
                     required=False,
                     default=None,
@@ -332,12 +336,13 @@ class MemoryRememberToolWrapper(Tool):
             tags=["memory", "remember", "store"],
         )
         super().__init__(metadata)
-        
+
         self._memory = None
-    
+
     def _get_memory(self):
         if self._memory is None:
             from vetinari.memory import get_dual_memory_store
+
             self._memory = get_dual_memory_store()
         return self._memory
 
@@ -349,8 +354,9 @@ class MemoryRememberToolWrapper(Tool):
         try:
             memory = self._get_memory()
 
-            from vetinari.types import MemoryType
             from vetinari.memory import MemoryEntry
+            from vetinari.types import MemoryType
+
             mem_type = MemoryType(memory_type)
 
             entry = MemoryEntry(
@@ -359,7 +365,7 @@ class MemoryRememberToolWrapper(Tool):
                 metadata={"tags": tags} if tags else None,
             )
             entry_id = memory.remember(entry)
-            
+
             return ToolResult(
                 success=True,
                 output={"entry_id": entry_id},
@@ -374,7 +380,7 @@ class MemoryRememberToolWrapper(Tool):
 
 class ModelSelectToolWrapper(Tool):
     """Wrapper for dynamic model selection."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="select_model",
@@ -401,27 +407,29 @@ class ModelSelectToolWrapper(Tool):
             tags=["model", "selection", "routing"],
         )
         super().__init__(metadata)
-        
+
         self._router = None
-    
+
     def _get_router(self):
         if self._router is None:
-            from vetinari.dynamic_model_router import get_model_router, TaskType
+            from vetinari.dynamic_model_router import get_model_router
+
             self._router = get_model_router()
         return self._router
-    
+
     def execute(self, **kwargs) -> ToolResult:
         task_type = kwargs.get("task_type", "general")
         task_description = kwargs.get("task_description", "")
-        
+
         try:
             router = self._get_router()
-            
+
             from vetinari.dynamic_model_router import TaskType
+
             task_enum = TaskType(task_type)
-            
+
             selection = router.select_model(task_enum, task_description)
-            
+
             if selection:
                 return ToolResult(
                     success=True,
@@ -449,7 +457,7 @@ class ModelSelectToolWrapper(Tool):
 
 class GeneratePlanToolWrapper(Tool):
     """Wrapper for plan generation."""
-    
+
     def __init__(self):
         metadata = ToolMetadata(
             name="generate_plan",
@@ -465,7 +473,7 @@ class GeneratePlanToolWrapper(Tool):
                 ),
                 ToolParameter(
                     name="constraints",
-                    type=Dict,
+                    type=dict,
                     description="Constraints for the plan",
                     required=False,
                     default=None,
@@ -476,23 +484,24 @@ class GeneratePlanToolWrapper(Tool):
             tags=["planning", "plan", "decomposition"],
         )
         super().__init__(metadata)
-        
+
         self._orchestrator = None
-    
+
     def _get_orchestrator(self):
         if self._orchestrator is None:
             from vetinari.orchestration.two_layer import get_two_layer_orchestrator
+
             self._orchestrator = get_two_layer_orchestrator()
         return self._orchestrator
-    
+
     def execute(self, **kwargs) -> ToolResult:
         goal = kwargs.get("goal", "")
         constraints = kwargs.get("constraints", {})
-        
+
         try:
             orchestrator = self._get_orchestrator()
             graph = orchestrator.generate_plan_only(goal, constraints)
-            
+
             return ToolResult(
                 success=True,
                 output=graph.to_dict(),
@@ -505,20 +514,22 @@ class GeneratePlanToolWrapper(Tool):
             )
 
 
-def _make_file_tool() -> Optional[Tool]:
+def _make_file_tool() -> Tool | None:
     """Lazily create a FileOperationsTool instance."""
     try:
         from vetinari.tools.file_tool import FileOperationsTool
+
         return FileOperationsTool()
     except Exception as e:
         logger.debug("FileOperationsTool unavailable: %s", e)
         return None
 
 
-def _make_git_tool() -> Optional[Tool]:
+def _make_git_tool() -> Tool | None:
     """Lazily create a GitOperationsTool instance."""
     try:
         from vetinari.tools.git_tool import GitOperationsTool
+
         return GitOperationsTool()
     except Exception as e:
         logger.debug("GitOperationsTool unavailable: %s", e)
@@ -545,7 +556,7 @@ def register_all_tools():
         tool = factory()
         if tool is not None:
             tools.append(tool)
-    
+
     # Register each tool
     for tool in tools:
         try:
@@ -553,7 +564,7 @@ def register_all_tools():
             logger.info("Registered tool: %s", tool.metadata.name)
         except Exception as e:
             logger.error("Failed to register tool %s: %s", tool.metadata.name, e)
-    
+
     return len(tools)
 
 
@@ -568,15 +579,15 @@ def _auto_register():
 
 
 # Try to auto-register
-try:
+try:  # noqa: SIM105
     _auto_register()
-except Exception:
+except Exception:  # noqa: S110, VET022
     pass  # Auto-registration skipped — tool registry imports not available
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     # Manual registration for testing
     count = register_all_tools()
     logger.info("Registered %d tools", count)

@@ -1,5 +1,4 @@
-"""
-Vetinari RepoMap
+"""Vetinari RepoMap.
 
 Inspired by Aider's repository mapping technique. Instead of sending entire
 codebases to LLMs, generates a concise structural summary:
@@ -24,22 +23,51 @@ import ast
 import json
 import logging
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 # Files/dirs to always skip
 _SKIP_DIRS = {
-    "__pycache__", ".git", ".venv", "venv", "env", "node_modules",
-    "dist", "build", ".pytest_cache", ".mypy_cache", "*.egg-info",
-    "model_cache", "vetinari_checkpoints", "logs", "outputs", "projects",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".mypy_cache",
+    "*.egg-info",
+    "model_cache",
+    "vetinari_checkpoints",
+    "logs",
+    "outputs",
+    "projects",
 }
 _SKIP_EXTENSIONS = {
-    ".pyc", ".pyo", ".pyd", ".so", ".dll", ".exe", ".bin",
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-    ".pdf", ".zip", ".tar", ".gz", ".lock", ".min.js", ".min.css",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".so",
+    ".dll",
+    ".exe",
+    ".bin",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".pdf",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".lock",
+    ".min.js",
+    ".min.css",
 }
 _SKIP_FILES = {"__pycache__", ".DS_Store", "Thumbs.db"}
 
@@ -47,18 +75,18 @@ _SKIP_FILES = {"__pycache__", ".DS_Store", "Thumbs.db"}
 @dataclass
 class ModuleInfo:
     """Structural information about a Python module."""
+
     path: str
     name: str
-    classes: List[str] = field(default_factory=list)
-    functions: List[str] = field(default_factory=list)
-    imports: List[str] = field(default_factory=list)
+    classes: list[str] = field(default_factory=list)
+    functions: list[str] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
     docstring: str = ""
     line_count: int = 0
 
 
 class RepoMap:
-    """
-    Generates compact structural maps of codebases for LLM consumption.
+    """Generates compact structural maps of codebases for LLM consumption.
 
     The output is a text representation showing:
     - Module hierarchy
@@ -71,17 +99,16 @@ class RepoMap:
     """
 
     def __init__(self):
-        self._cache: Dict[str, str] = {}  # path -> cached map
+        self._cache: dict[str, str] = {}  # path -> cached map
 
     def generate(
         self,
         root_path: str,
         max_tokens: int = 2000,
         include_private: bool = False,
-        focus_paths: Optional[List[str]] = None,
+        focus_paths: list[str] | None = None,
     ) -> str:
-        """
-        Generate a repository structure map.
+        """Generate a repository structure map.
 
         Args:
             root_path: Root directory to map.
@@ -104,7 +131,7 @@ class RepoMap:
             return f"[RepoMap] No Python files found in: {root_path}"
 
         lines = [f"# Repository Structure: {root.name}", ""]
-        chars_used = sum(len(l) + 1 for l in lines)
+        chars_used = sum(len(l) + 1 for l in lines)  # noqa: E741
 
         for mod in sorted(modules, key=lambda m: m.path):
             mod_lines = self._format_module(mod, include_private)
@@ -129,8 +156,7 @@ class RepoMap:
         task_description: str,
         max_tokens: int = 1500,
     ) -> str:
-        """
-        Generate a task-focused repo map that emphasises relevant modules.
+        """Generate a task-focused repo map that emphasises relevant modules.
 
         Uses keyword matching to prioritise files likely relevant to the task.
         """
@@ -162,12 +188,12 @@ class RepoMap:
     def _scan_directory(
         self,
         root: Path,
-        focus_paths: Optional[List[str]],
+        focus_paths: list[str] | None,
         include_private: bool,
-    ) -> List[ModuleInfo]:
+    ) -> list[ModuleInfo]:
         """Scan directory and extract module information."""
         modules = []
-        focus_set: Optional[Set[str]] = set(focus_paths) if focus_paths else None
+        focus_set: set[str] | None = set(focus_paths) if focus_paths else None
 
         for py_file in self._iter_python_files(root):
             if focus_set and str(py_file) not in focus_set and py_file.name not in focus_set:
@@ -202,7 +228,7 @@ class RepoMap:
                 continue
             yield item
 
-    def _parse_file(self, path: Path, root: Path) -> Optional[ModuleInfo]:
+    def _parse_file(self, path: Path, root: Path) -> ModuleInfo | None:
         """Parse a Python file and extract structural information."""
         try:
             source = path.read_text(encoding="utf-8", errors="ignore")
@@ -225,9 +251,12 @@ class RepoMap:
         )
 
         # Extract docstring
-        if (isinstance(tree.body, list) and tree.body
-                and isinstance(tree.body[0], ast.Expr)
-                and isinstance(tree.body[0].value, (ast.Constant, ast.Str))):
+        if (
+            isinstance(tree.body, list)
+            and tree.body
+            and isinstance(tree.body[0], ast.Expr)
+            and isinstance(tree.body[0].value, (ast.Constant, ast.Str))
+        ):
             doc = tree.body[0].value
             mod.docstring = (doc.s if isinstance(doc, ast.Str) else doc.value or "")[:80]
 
@@ -236,9 +265,8 @@ class RepoMap:
             if isinstance(node, ast.Import):
                 for alias in node.names[:2]:
                     mod.imports.append(alias.name.split(".")[0])
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    mod.imports.append(node.module.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                mod.imports.append(node.module.split(".")[0])
 
         mod.imports = list(dict.fromkeys(mod.imports))[:8]
 
@@ -268,10 +296,10 @@ class RepoMap:
                 base_names.append(base.attr)
 
         bases = f"({', '.join(base_names)})" if base_names else ""
-        method_str = f" [{', '.join(methods[:6])}{'...' if len(methods)>6 else ''}]" if methods else ""
+        method_str = f" [{', '.join(methods[:6])}{'...' if len(methods) > 6 else ''}]" if methods else ""
         return f"{node.name}{bases}{method_str}"
 
-    def _format_function(self, node) -> Optional[str]:
+    def _format_function(self, node) -> str | None:
         """Format a function signature as a concise string."""
         args = []
         for arg in node.args.args[:4]:
@@ -281,7 +309,7 @@ class RepoMap:
         prefix = "async " if isinstance(node, ast.AsyncFunctionDef) else ""
         return f"{prefix}{node.name}({', '.join(args)})"
 
-    def _format_module(self, mod: ModuleInfo, include_private: bool) -> List[str]:
+    def _format_module(self, mod: ModuleInfo, include_private: bool) -> list[str]:
         """Format module info as a list of lines."""
         lines = [f"## {mod.path}"]
         if mod.docstring:
@@ -304,7 +332,7 @@ class RepoMap:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_repo_map: Optional[RepoMap] = None
+_repo_map: RepoMap | None = None
 
 
 def get_repo_map() -> RepoMap:
@@ -322,6 +350,7 @@ def get_repo_map() -> RepoMap:
 @dataclass
 class SymbolInfo:
     """Information about a code symbol (class, function, variable)."""
+
     name: str
     kind: str  # "class", "function", "method", "variable", "import"
     file_path: str
@@ -329,7 +358,7 @@ class SymbolInfo:
     line_end: int
     docstring: str = ""
     parent: str = ""  # parent class/function name
-    decorators: List[str] = field(default_factory=list)
+    decorators: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -338,10 +367,11 @@ class SymbolInfo:
 @dataclass
 class FileIndex:
     """Index of a single Python file."""
+
     file_path: str
     mtime: float
-    symbols: List[SymbolInfo] = field(default_factory=list)
-    imports: List[str] = field(default_factory=list)
+    symbols: list[SymbolInfo] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -368,8 +398,8 @@ class ASTIndexer:
 
     def __init__(self, root_path: str = "."):
         self._root = Path(root_path)
-        self._index: Dict[str, FileIndex] = {}
-        self._symbol_table: Dict[str, List[SymbolInfo]] = {}  # name -> locations
+        self._index: dict[str, FileIndex] = {}
+        self._symbol_table: dict[str, list[SymbolInfo]] = {}  # name -> locations
         self._loaded = False
 
     def index_project(self, force: bool = False) -> int:
@@ -383,9 +413,8 @@ class ASTIndexer:
             mtime = py_file.stat().st_mtime
 
             # Skip if cached and not modified
-            if not force and rel_path in self._index:
-                if self._index[rel_path].mtime >= mtime:
-                    continue
+            if not force and rel_path in self._index and self._index[rel_path].mtime >= mtime:
+                continue
 
             file_index = self._index_file(py_file, rel_path, mtime)
             if file_index:
@@ -403,8 +432,15 @@ class ASTIndexer:
     def _iter_python_files(self):
         """Iterate over Python files, skipping hidden dirs and venvs."""
         skip_dirs = {
-            ".git", ".venv", "venv", "__pycache__", "node_modules",
-            ".tox", ".eggs", "build", "dist",
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+            "node_modules",
+            ".tox",
+            ".eggs",
+            "build",
+            "dist",
         }
         for py_file in self._root.rglob("*.py"):
             parts = py_file.relative_to(self._root).parts
@@ -412,7 +448,7 @@ class ASTIndexer:
                 continue
             yield py_file
 
-    def _index_file(self, file_path: Path, rel_path: str, mtime: float) -> Optional[FileIndex]:
+    def _index_file(self, file_path: Path, rel_path: str, mtime: float) -> FileIndex | None:
         """Parse a single Python file and extract symbols."""
         try:
             source = file_path.read_text(encoding="utf-8", errors="ignore")
@@ -425,28 +461,32 @@ class ASTIndexer:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                symbols.append(SymbolInfo(
-                    name=node.name,
-                    kind="class",
-                    file_path=rel_path,
-                    line_start=node.lineno,
-                    line_end=node.end_lineno or node.lineno,
-                    docstring=ast.get_docstring(node) or "",
-                    decorators=[self._decorator_name(d) for d in node.decorator_list],
-                ))
+                symbols.append(
+                    SymbolInfo(
+                        name=node.name,
+                        kind="class",
+                        file_path=rel_path,
+                        line_start=node.lineno,
+                        line_end=node.end_lineno or node.lineno,
+                        docstring=ast.get_docstring(node) or "",
+                        decorators=[self._decorator_name(d) for d in node.decorator_list],
+                    )
+                )
                 # Index methods
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        symbols.append(SymbolInfo(
-                            name=item.name,
-                            kind="method",
-                            file_path=rel_path,
-                            line_start=item.lineno,
-                            line_end=item.end_lineno or item.lineno,
-                            docstring=ast.get_docstring(item) or "",
-                            parent=node.name,
-                            decorators=[self._decorator_name(d) for d in item.decorator_list],
-                        ))
+                        symbols.append(
+                            SymbolInfo(
+                                name=item.name,
+                                kind="method",
+                                file_path=rel_path,
+                                line_start=item.lineno,
+                                line_end=item.end_lineno or item.lineno,
+                                docstring=ast.get_docstring(item) or "",
+                                parent=node.name,
+                                decorators=[self._decorator_name(d) for d in item.decorator_list],
+                            )
+                        )
 
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 # Only top-level functions (not methods — those are caught above)
@@ -455,15 +495,17 @@ class ASTIndexer:
                     for parent in ast.walk(tree)
                     if hasattr(parent, "body") and node in getattr(parent, "body", [])
                 ):
-                    symbols.append(SymbolInfo(
-                        name=node.name,
-                        kind="function",
-                        file_path=rel_path,
-                        line_start=node.lineno,
-                        line_end=node.end_lineno or node.lineno,
-                        docstring=ast.get_docstring(node) or "",
-                        decorators=[self._decorator_name(d) for d in node.decorator_list],
-                    ))
+                    symbols.append(
+                        SymbolInfo(
+                            name=node.name,
+                            kind="function",
+                            file_path=rel_path,
+                            line_start=node.lineno,
+                            line_end=node.end_lineno or node.lineno,
+                            docstring=ast.get_docstring(node) or "",
+                            decorators=[self._decorator_name(d) for d in node.decorator_list],
+                        )
+                    )
 
             elif isinstance(node, ast.Import):
                 for alias in node.names:
@@ -496,17 +538,17 @@ class ASTIndexer:
             for symbol in file_index.symbols:
                 self._symbol_table.setdefault(symbol.name, []).append(symbol)
 
-    def find_symbol(self, name: str) -> List[SymbolInfo]:
+    def find_symbol(self, name: str) -> list[SymbolInfo]:
         """Find all definitions of a symbol by name."""
         if not self._loaded and not self._index:
             self.index_project()
         return self._symbol_table.get(name, [])
 
-    def find_usages(self, name: str) -> List[str]:
+    def find_usages(self, name: str) -> list[str]:
         """Find files that import or reference a symbol name."""
         if not self._loaded and not self._index:
             self.index_project()
-        files: Set[str] = set()
+        files: set[str] = set()
         for file_path, file_index in self._index.items():
             # Check imports
             for imp in file_index.imports:
@@ -518,14 +560,14 @@ class ASTIndexer:
                     files.add(file_path)
         return sorted(files)
 
-    def get_file_symbols(self, file_path: str) -> List[SymbolInfo]:
+    def get_file_symbols(self, file_path: str) -> list[SymbolInfo]:
         """Get all symbols in a specific file."""
         if not self._loaded and not self._index:
             self.index_project()
         fi = self._index.get(file_path)
         return fi.symbols if fi else []
 
-    def get_import_graph(self) -> Dict[str, List[str]]:
+    def get_import_graph(self) -> dict[str, list[str]]:
         """Get the import dependency graph."""
         if not self._loaded and not self._index:
             self.index_project()
@@ -534,13 +576,11 @@ class ASTIndexer:
             graph[file_path] = [imp for imp in file_index.imports if imp.startswith("vetinari")]
         return graph
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         return {
             "files_indexed": len(self._index),
             "total_symbols": sum(len(fi.symbols) for fi in self._index.values()),
-            "total_classes": sum(
-                1 for fi in self._index.values() for s in fi.symbols if s.kind == "class"
-            ),
+            "total_classes": sum(1 for fi in self._index.values() for s in fi.symbols if s.kind == "class"),
             "total_functions": sum(
                 1 for fi in self._index.values() for s in fi.symbols if s.kind in ("function", "method")
             ),
@@ -575,7 +615,7 @@ class ASTIndexer:
             logger.debug(f"AST index cache save error: {e}")
 
 
-_indexer: Optional[ASTIndexer] = None
+_indexer: ASTIndexer | None = None
 
 
 def get_ast_indexer(root_path: str = ".") -> ASTIndexer:

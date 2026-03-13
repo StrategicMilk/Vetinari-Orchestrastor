@@ -1,5 +1,4 @@
-"""
-CodingBridge - Bridge to external coding agents (e.g., CodeNomad).
+"""CodingBridge - Bridge to external coding agents (e.g., CodeNomad).
 
 This module provides an interface for Vetinari to delegate coding tasks
 to external coding agents, with support for:
@@ -9,13 +8,15 @@ to external coding agents, with support for:
 - Executing code in sandboxed environments
 """
 
-import os
+from __future__ import annotations
+
 import logging
-import json
-from typing import Dict, List, Optional, Any
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from vetinari.types import CodingTaskType, CodingTaskStatus  # canonical enums
+from typing import Any
+
+from vetinari.types import CodingTaskStatus, CodingTaskType  # canonical enums
 
 logger = logging.getLogger(__name__)
 
@@ -23,57 +24,57 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CodingTask:
     """A coding task to be executed by an external agent."""
+
     task_id: str = field(default_factory=lambda: f"code_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
     task_type: CodingTaskType = CodingTaskType.IMPLEMENT
     description: str = ""
     language: str = ""
     framework: str = ""
-    input_files: List[str] = field(default_factory=list)
+    input_files: list[str] = field(default_factory=list)
     output_path: str = ""
     constraints: str = ""
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     status: CodingTaskStatus = CodingTaskStatus.PENDING
-    result: Optional[str] = None
-    error: Optional[str] = None
+    result: str | None = None
+    error: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    completed_at: Optional[str] = None
+    completed_at: str | None = None
 
 
 @dataclass
 class CodingResult:
     """Result from a coding task."""
+
     success: bool
     task_id: str
-    output_files: List[str] = field(default_factory=list)
+    output_files: list[str] = field(default_factory=list)
     logs: str = ""
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class CodingBridge:
     """Bridge to external coding agents.
-    
+
     This is a skeleton implementation. Actual integration with
     CodeNomad or other coding agents requires implementing
     the specific API calls.
     """
-    
-    def __init__(self, endpoint: str = None, api_key: str = None):
+
+    def __init__(self, endpoint: str | None = None, api_key: str | None = None):
         self.endpoint = endpoint or os.environ.get("CODING_BRIDGE_ENDPOINT", "http://localhost:4096")
         self.api_key = api_key or os.environ.get("CODING_BRIDGE_API_KEY", "")
         self.enabled = os.environ.get("CODING_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
-        
+
         logger.info("CodingBridge initialized (enabled=%s, endpoint=%s)", self.enabled, self.endpoint)
-    
+
     def is_available(self) -> bool:
         """Check if the coding bridge is available."""
-        if not self.enabled:
-            return False
-        return True
-    
+        return self.enabled
+
     def generate_task(self, task: CodingTask) -> CodingResult:
         """Submit a coding task to the external agent.
-        
+
         Submit a coding task to the external agent.
 
         SCAFFOLD tasks produce a real Python package scaffold.
@@ -82,23 +83,21 @@ class CodingBridge:
         """
         if not self.enabled:
             logger.warning("CodingBridge is not enabled")
-            return CodingResult(
-                success=False,
-                task_id=task.task_id,
-                error="CodingBridge is not enabled"
-            )
-        
+            return CodingResult(success=False, task_id=task.task_id, error="CodingBridge is not enabled")
+
         logger.info("Submitting coding task: %s (%s)", task.task_id, task.task_type.value)
         logger.debug("Task description: %s", task.description)
         logger.debug("Output path: %s", task.output_path)
-        
+
         # Handle scaffold generation
         if task.task_type == CodingTaskType.SCAFFOLD:
             return self._generate_scaffold(task)
 
         # Route other task types through CodingEngine
         try:
-            from vetinari.coding_agent.engine import CodeAgentEngine, CodeTask as EngineCodeTask
+            from vetinari.coding_agent.engine import CodeAgentEngine
+            from vetinari.coding_agent.engine import CodeTask as EngineCodeTask
+
             engine = CodeAgentEngine()
             if engine.is_available():
                 code_task = EngineCodeTask(
@@ -126,96 +125,77 @@ class CodingBridge:
             task_id=task.task_id,
             output_files=[task.output_path] if task.output_path else [],
             logs=f"Task {task.task_id} submitted (engine unavailable)",
-            metadata={
-                "task_type": task.task_type.value,
-                "language": task.language,
-                "endpoint": self.endpoint
-            }
+            metadata={"task_type": task.task_type.value, "language": task.language, "endpoint": self.endpoint},
         )
-    
+
     def _generate_scaffold(self, task: CodingTask) -> CodingResult:
         """Generate a Python package scaffold.
-        
+
         This creates a minimal package structure for demonstration.
         """
-        import shutil
         from pathlib import Path
-        
+
         project_name = task.context.get("project_name", "demo_project")
         output_base = task.output_path or f"./scaffolds/{project_name}"
-        
+
         try:
             # Create output directory
             output_path = Path(output_base)
             output_path.mkdir(parents=True, exist_ok=True)
-            
+
             # Create package directory
             pkg_dir = output_path / project_name
             pkg_dir.mkdir(exist_ok=True)
-            
+
             # Create __init__.py
             (pkg_dir / "__init__.py").write_text(
-                f'"""{project_name} - Auto-generated scaffold."""\n'
-                f'__version__ = "0.1.0"\n'
+                f'"""{project_name} - Auto-generated scaffold."""\n__version__ = "0.1.0"\n'
             )
-            
+
             # Create __main__.py
             (pkg_dir / "__main__.py").write_text(
-                f'def main():\n'
-                f'    print("Hello from {project_name}")\n'
-                f'\n'
-                f'if __name__ == "__main__":\n'
-                f'    main()\n'
+                f'def main():\n    print("Hello from {project_name}")\n\nif __name__ == "__main__":\n    main()\n'  # noqa: VET035
             )
-            
+
             # Create setup.py
             (output_path / "setup.py").write_text(
-                f'from setuptools import setup, find_packages\n'
-                f'\n'
-                f'setup(\n'
+                f"from setuptools import setup, find_packages\n"
+                f"\n"
+                f"setup(\n"
                 f'    name="{project_name}",\n'
                 f'    version="0.1.0",\n'
-                f'    packages=find_packages(),\n'
+                f"    packages=find_packages(),\n"
                 f'    python_requires=">=3.8",\n'
-                f')\n'
+                f")\n"
             )
-            
+
             # Create README.md
             (output_path / "README.md").write_text(
-                f'# {project_name}\n\n'
-                f'Auto-generated scaffold by Vetinari CodingBridge.\n'
+                f"# {project_name}\n\nAuto-generated scaffold by Vetinari CodingBridge.\n"
             )
-            
+
             output_files = [
                 str(output_path / "setup.py"),
                 str(output_path / "README.md"),
                 str(pkg_dir / "__init__.py"),
                 str(pkg_dir / "__main__.py"),
             ]
-            
+
             logger.info("Generated scaffold for %s at %s", project_name, output_path)
-            
+
             return CodingResult(
                 success=True,
                 task_id=task.task_id,
                 output_files=output_files,
                 logs=f"Scaffold generated for {project_name}",
-                metadata={
-                    "task_type": "scaffold",
-                    "project_name": project_name,
-                    "output_path": str(output_path)
-                }
+                metadata={"task_type": "scaffold", "project_name": project_name, "output_path": str(output_path)},
             )
-            
+
         except Exception as e:
             logger.error("Failed to generate scaffold: %s", e)
-            return CodingResult(
-                success=False,
-                task_id=task.task_id,
-                error=str(e)
-            )
-    
-    def get_task_status(self, task_id: str) -> Optional[CodingTask]:
+            return CodingResult(success=False, task_id=task.task_id, error=str(e))
+
+    def get_task_status(self, task_id: str) -> CodingTask | None:
         """Get the status of a coding task from the active task registry."""
         logger.debug("Checking status for task: %s", task_id)
         # Check in-memory task registry if available
@@ -223,31 +203,25 @@ class CodingBridge:
             return self._active_tasks[task_id]
         # Check output directory for completion artefacts
         import os
+
         output_base = os.environ.get("VETINARI_OUTPUTS_DIR", "outputs")
         output_path = os.path.join(output_base, task_id)
         if os.path.exists(output_path):
             return CodingTask(
-                task_id=task_id,
-                status=CodingTaskStatus.COMPLETED,
-                result=f"Output available at {output_path}"
+                task_id=task_id, status=CodingTaskStatus.COMPLETED, result=f"Output available at {output_path}"
             )
-        return CodingTask(
-            task_id=task_id,
-            status=CodingTaskStatus.PENDING,
-            result=""
-        )
-    
+        return CodingTask(task_id=task_id, status=CodingTaskStatus.PENDING, result="")
+
     def cancel_task(self, task_id: str) -> bool:
         """Cancel a coding task."""
         logger.info("Cancelling task: %s", task_id)
         return True
-    
-    def list_active_tasks(self) -> List[CodingTask]:
+
+    def list_active_tasks(self) -> list[CodingTask]:
         """List active coding tasks."""
         return []
-    
-    def create_scaffold(self, language: str, framework: str, output_path: str, 
-                       project_name: str) -> CodingResult:
+
+    def create_scaffold(self, language: str, framework: str, output_path: str, project_name: str) -> CodingResult:
         """Create a project scaffold."""
         task = CodingTask(
             task_type=CodingTaskType.SCAFFOLD,
@@ -255,31 +229,29 @@ class CodingBridge:
             language=language,
             framework=framework,
             output_path=output_path,
-            context={"project_name": project_name}
+            context={"project_name": project_name},
         )
         return self.generate_task(task)
-    
+
     def write_tests(self, source_file: str, test_framework: str = "pytest") -> CodingResult:
         """Generate tests for a source file."""
         task = CodingTask(
             task_type=CodingTaskType.TEST,
             description=f"Write tests for {source_file}",
             input_files=[source_file],
-            context={"test_framework": test_framework}
+            context={"test_framework": test_framework},
         )
         return self.generate_task(task)
-    
+
     def review_code(self, file_path: str) -> CodingResult:
         """Request code review."""
         task = CodingTask(
-            task_type=CodingTaskType.REVIEW,
-            description=f"Review code in {file_path}",
-            input_files=[file_path]
+            task_type=CodingTaskType.REVIEW, description=f"Review code in {file_path}", input_files=[file_path]
         )
         return self.generate_task(task)
 
 
-_coding_bridge: Optional[CodingBridge] = None
+_coding_bridge: CodingBridge | None = None
 
 
 def get_coding_bridge() -> CodingBridge:
@@ -290,7 +262,7 @@ def get_coding_bridge() -> CodingBridge:
     return _coding_bridge
 
 
-def init_coding_bridge(endpoint: str = None, api_key: str = None) -> CodingBridge:
+def init_coding_bridge(endpoint: str | None = None, api_key: str | None = None) -> CodingBridge:
     """Initialize a new coding bridge instance."""
     global _coding_bridge
     _coding_bridge = CodingBridge(endpoint=endpoint, api_key=api_key)

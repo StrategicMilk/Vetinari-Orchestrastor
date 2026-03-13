@@ -1,5 +1,5 @@
-"""
-Vetinari Training Pipeline
+"""Vetinari Training Pipeline.
+
 ============================
 Orchestrates the complete fine-tuning workflow for local models:
 
@@ -23,7 +23,7 @@ Usage::
     pipeline = TrainingPipeline()
 
     # Check what's available
-    print(pipeline.check_requirements())
+    logger.debug(pipeline.check_requirements())
 
     # Curate and train on accumulated data
     run = pipeline.run(
@@ -32,7 +32,7 @@ Usage::
         min_score=0.8,
         epochs=3,
     )
-    print(run.output_model_path)
+    logger.debug(run.output_model_path)
 """
 
 from __future__ import annotations
@@ -42,11 +42,10 @@ import logging
 import os
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +60,7 @@ _MODELS_DIR = Path(
 @dataclass
 class TrainingRun:
     """Result of a training pipeline run."""
+
     run_id: str
     timestamp: str
     base_model: str
@@ -80,7 +80,7 @@ class DataCurator:
 
     def curate(
         self,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         min_score: float = 0.8,
         max_examples: int = 5000,
         output_dir: str = ".",
@@ -90,6 +90,7 @@ class DataCurator:
         Returns the path to the curated dataset file.
         """
         from vetinari.learning.training_data import get_training_collector
+
         collector = get_training_collector()
         data = collector.export_sft_dataset(
             min_score=min_score,
@@ -103,11 +104,13 @@ class DataCurator:
         # Format for Alpaca-style fine-tuning
         formatted = []
         for d in data:
-            formatted.append({
-                "instruction": d["prompt"][:1000],
-                "input": "",
-                "output": d["completion"][:2000],
-            })
+            formatted.append(
+                {
+                    "instruction": d["prompt"][:1000],
+                    "input": "",
+                    "output": d["completion"][:2000],
+                }
+            )
 
         out_path = Path(output_dir) / f"sft_{task_type or 'general'}_{datetime.now().strftime('%Y%m%d_%H%M')}.jsonl"
         with open(out_path, "w", encoding="utf-8") as f:
@@ -119,12 +122,13 @@ class DataCurator:
 
     def curate_dpo(
         self,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         min_score_gap: float = 0.2,
         output_dir: str = ".",
     ) -> str:
         """Curate DPO preference pairs and write to a JSONL file."""
         from vetinari.learning.training_data import get_training_collector
+
         collector = get_training_collector()
         pairs = collector.export_dpo_dataset(
             task_type=task_type,
@@ -146,7 +150,7 @@ class DataCurator:
 class LocalTrainer:
     """QLoRA fine-tuning via unsloth (2x faster) or trl fallback."""
 
-    def check_available(self) -> Dict[str, bool]:
+    def check_available(self) -> dict[str, bool]:
         """Check which training libraries are installed."""
         result = {}
         for lib in ["unsloth", "trl", "peft", "transformers", "bitsandbytes"]:
@@ -178,24 +182,19 @@ class LocalTrainer:
         """
         avail = self.check_available()
         if not avail.get("trl") and not avail.get("transformers"):
-            raise RuntimeError(
-                "Training libraries not installed. Run: pip install trl peft bitsandbytes transformers"
-            )
+            raise RuntimeError("Training libraries not installed. Run: pip install trl peft bitsandbytes transformers")
 
         if use_unsloth and avail.get("unsloth"):
             return self._train_with_unsloth(
-                base_model, dataset_path, output_dir, epochs,
-                batch_size, learning_rate, max_seq_length, lora_r
+                base_model, dataset_path, output_dir, epochs, batch_size, learning_rate, max_seq_length, lora_r
             )
         else:
             return self._train_with_trl(
-                base_model, dataset_path, output_dir, epochs,
-                batch_size, learning_rate, max_seq_length, lora_r
+                base_model, dataset_path, output_dir, epochs, batch_size, learning_rate, max_seq_length, lora_r
             )
 
     def _train_with_unsloth(
-        self, base_model, dataset_path, output_dir, epochs,
-        batch_size, lr, max_seq_len, lora_r
+        self, base_model, dataset_path, output_dir, epochs, batch_size, lr, max_seq_len, lora_r
     ) -> str:
         """Train using unsloth for 2x speed."""
         import json as _json
@@ -247,15 +246,16 @@ trainer = SFTTrainer(
 )
 trainer.train()
 model.save_pretrained({_json.dumps(str(output_dir) + "/lora_adapter")})
-print("Training complete:", {_json.dumps(str(output_dir) + "/lora_adapter")})
+logger.debug("Training complete:", {_json.dumps(str(output_dir) + "/lora_adapter")})
 """
         script_path = Path(output_dir) / "train_script.py"
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(script, encoding="utf-8")
 
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, str(script_path)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Training failed:\n{proc.stderr[-2000:]}")
@@ -263,10 +263,7 @@ print("Training complete:", {_json.dumps(str(output_dir) + "/lora_adapter")})
         adapter_path = str(Path(output_dir) / "lora_adapter")
         return adapter_path
 
-    def _train_with_trl(
-        self, base_model, dataset_path, output_dir, epochs,
-        batch_size, lr, max_seq_len, lora_r
-    ) -> str:
+    def _train_with_trl(self, base_model, dataset_path, output_dir, epochs, batch_size, lr, max_seq_len, lora_r) -> str:
         """Train using standard trl (slower than unsloth)."""
         import json as _json
 
@@ -319,15 +316,16 @@ trainer = SFTTrainer(
 )
 trainer.train()
 model.save_pretrained({_json.dumps(str(output_dir) + "/lora_adapter")})
-print("Training complete")
+logger.debug("Training complete")
 """
         script_path = Path(output_dir) / "train_trl_script.py"
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text(script, encoding="utf-8")
 
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, str(script_path)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Training failed:\n{proc.stderr[-2000:]}")
@@ -367,14 +365,15 @@ model = model.merge_and_unload()
 model.save_pretrained("{output_dir}/merged")
 tokenizer = AutoTokenizer.from_pretrained("{base_model}")
 tokenizer.save_pretrained("{output_dir}/merged")
-print("Merge complete: {output_dir}/merged")
+logger.debug("Merge complete: {output_dir}/merged")
 """
         merge_path = Path(output_dir) / "merge_script.py"
         merge_path.write_text(merge_script, encoding="utf-8")
 
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, str(merge_path)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Merge failed:\n{proc.stderr[-2000:]}")
@@ -383,12 +382,16 @@ print("Merge complete: {output_dir}/merged")
         # This requires llama.cpp to be installed
         try:
             convert_cmd = [
-                sys.executable, "-m", "llama_cpp.tools.convert",
+                sys.executable,
+                "-m",
+                "llama_cpp.tools.convert",
                 str(Path(output_dir) / "merged"),
-                "--outfile", str(out_path),
-                "--outtype", quantization.replace("-", "_"),
+                "--outfile",
+                str(out_path),
+                "--outtype",
+                quantization.replace("-", "_"),
             ]
-            proc2 = subprocess.run(convert_cmd, capture_output=True, text=True)
+            proc2 = subprocess.run(convert_cmd, capture_output=True, text=True)  # noqa: S603
             if proc2.returncode == 0:
                 return str(out_path)
         except Exception as e:
@@ -415,6 +418,7 @@ class ModelDeployer:
         dest = dest_dir / src.name
 
         import shutil
+
         shutil.copy2(str(src), str(dest))
 
         logger.info("[ModelDeployer] Deployed %s to %s", src.name, dest)
@@ -425,6 +429,7 @@ class ModelDeployer:
 # Main pipeline
 # ---------------------------------------------------------------------------
 
+
 class TrainingPipeline:
     """Orchestrates the full training lifecycle."""
 
@@ -434,7 +439,7 @@ class TrainingPipeline:
         self._converter = GGUFConverter()
         self._deployer = ModelDeployer()
 
-    def check_requirements(self) -> Dict[str, Any]:
+    def check_requirements(self) -> dict[str, Any]:
         """Check what training capabilities are available."""
         avail = self._trainer.check_available()
         return {
@@ -447,7 +452,7 @@ class TrainingPipeline:
     def run(
         self,
         base_model: str,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         min_score: float = 0.8,
         epochs: int = 3,
         output_base_dir: str = "./training_runs",
@@ -465,6 +470,7 @@ class TrainingPipeline:
             TrainingRun with status and paths.
         """
         import uuid
+
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         run_dir = Path(output_base_dir) / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -531,6 +537,7 @@ class TrainingPipeline:
         # Save run record
         with open(run_dir / "run.json", "w") as f:
             import dataclasses
+
             json.dump(dataclasses.asdict(run), f, indent=2)
 
         return run

@@ -1,5 +1,4 @@
-"""
-UI Planner Skill Tool Wrapper
+"""UI Planner Skill Tool Wrapper.
 
 Migrates the ui-planner skill to the Tool interface, providing frontend design,
 CSS, animations, and visual polish.
@@ -10,14 +9,19 @@ CSS, animations, and visual polish.
    Will be removed in a future release.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-import logging
-from enum import Enum
+from __future__ import annotations
 
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,27 +39,33 @@ class UIPlannerCapability(str, Enum):
 class UIRequest:
     capability: UIPlannerCapability
     element: str
-    context: Optional[str] = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"capability": self.capability.value, "element": self.element, "context": self.context, "thinking_mode": self.thinking_mode.value}
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "capability": self.capability.value,
+            "element": self.element,
+            "context": self.context,
+            "thinking_mode": self.thinking_mode.value,
+        }
 
 
 @dataclass
 class UIResult:
     success: bool
-    css_code: Optional[str] = None
-    summary: Optional[str] = None
-    notes: List[str] = field(default_factory=list)
+    css_code: str | None = None
+    summary: str | None = None
+    notes: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"success": self.success, "css_code": self.css_code, "summary": self.summary, "notes": self.notes}
 
 
 class UIPlannerSkillTool(Tool):
     def __init__(self):
         import warnings
+
         warnings.warn(
             "UIPlannerSkillTool is deprecated since v1.1.0. "
             "Use ArchitectSkillTool (vetinari.skills.architect_skill) instead.",
@@ -69,10 +79,23 @@ class UIPlannerSkillTool(Tool):
             version="1.0.0",
             author="Vetinari",
             parameters=[
-                ToolParameter(name="capability", type=str, description="UI capability", required=True, allowed_values=[c.value for c in UIPlannerCapability]),
+                ToolParameter(
+                    name="capability",
+                    type=str,
+                    description="UI capability",
+                    required=True,
+                    allowed_values=[c.value for c in UIPlannerCapability],
+                ),
                 ToolParameter(name="element", type=str, description="Element to style", required=True),
                 ToolParameter(name="context", type=str, description="Additional context", required=False),
-                ToolParameter(name="thinking_mode", type=str, description="Design depth", required=False, default="medium", allowed_values=[m.value for m in ThinkingMode]),
+                ToolParameter(
+                    name="thinking_mode",
+                    type=str,
+                    description="Design depth",
+                    required=False,
+                    default="medium",
+                    allowed_values=[m.value for m in ThinkingMode],
+                ),
             ],
             required_permissions=[ToolPermission.MODEL_INFERENCE],
             allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
@@ -105,7 +128,12 @@ class UIPlannerSkillTool(Tool):
             exec_mode = ctx.mode
             result = self._execute_capability(req, exec_mode)
 
-            return ToolResult(success=result.success, output=result.to_dict(), error=None if result.success else "UI design failed", metadata={"capability": cap.value, "mode": mode.value, "exec_mode": exec_mode.value})
+            return ToolResult(
+                success=result.success,
+                output=result.to_dict(),
+                error=None if result.success else "UI design failed",
+                metadata={"capability": cap.value, "mode": mode.value, "exec_mode": exec_mode.value},
+            )
         except Exception as e:
             logger.error("UI Planner tool failed: %s", e)
             return ToolResult(success=False, output=None, error=str(e))
@@ -130,7 +158,12 @@ class UIPlannerSkillTool(Tool):
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would design CSS")
         css = f".{req.element} {{\n  display: block;\n  padding: 16px;\n  margin: 8px;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"CSS designed for {req.element}", notes=["Use semantic class names", "Consider responsive breakpoints"])
+        return UIResult(
+            success=True,
+            css_code=css,
+            summary=f"CSS designed for {req.element}",
+            notes=["Use semantic class names", "Consider responsive breakpoints"],
+        )
 
     def _responsive_layout(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
@@ -142,22 +175,42 @@ class UIPlannerSkillTool(Tool):
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would add animations")
         css = f"@keyframes fadeIn {{\n  from {{ opacity: 0; }}\n  to {{ opacity: 1; }}\n}}\n.{req.element} {{\n  animation: fadeIn 0.3s ease-in-out;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Animation added to {req.element}", notes=["Consider prefers-reduced-motion", "Test on various browsers"])
+        return UIResult(
+            success=True,
+            css_code=css,
+            summary=f"Animation added to {req.element}",
+            notes=["Consider prefers-reduced-motion", "Test on various browsers"],
+        )
 
     def _accessibility(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would ensure accessibility")
         css = f".{req.element}:focus-visible {{\n  outline: 2px solid #0066cc;\n  outline-offset: 2px;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Accessibility improvements for {req.element}", notes=["WCAG 2.1 AA compliant", "Test with screen reader"])
+        return UIResult(
+            success=True,
+            css_code=css,
+            summary=f"Accessibility improvements for {req.element}",
+            notes=["WCAG 2.1 AA compliant", "Test with screen reader"],
+        )
 
     def _design_systems(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would create design system")
-        css = f":root {{\n  --primary-color: #0066cc;\n  --spacing-unit: 8px;\n  --border-radius: 4px;\n}}"
-        return UIResult(success=True, css_code=css, summary="Design tokens defined", notes=["Use CSS custom properties", "Maintain consistency"])
+        css = ":root {\n  --primary-color: #0066cc;\n  --spacing-unit: 8px;\n  --border-radius: 4px;\n}"
+        return UIResult(
+            success=True,
+            css_code=css,
+            summary="Design tokens defined",
+            notes=["Use CSS custom properties", "Maintain consistency"],
+        )
 
     def _visual_polish(self, req: UIRequest, exec_mode: ExecutionMode) -> UIResult:
         if exec_mode == ExecutionMode.PLANNING:
             return UIResult(success=True, summary="Planning: Would add visual polish")
         css = f".{req.element} {{\n  box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n  border-radius: 8px;\n  transition: transform 0.2s ease;\n}}"
-        return UIResult(success=True, css_code=css, summary=f"Visual polish applied to {req.element}", notes=["Add subtle shadows", "Consider hover effects"])
+        return UIResult(
+            success=True,
+            css_code=css,
+            summary=f"Visual polish applied to {req.element}",
+            notes=["Add subtle shadows", "Consider hover effects"],
+        )

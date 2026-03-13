@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.planning.assignment_pass
+"""Backward-compat shim. Canonical: vetinari.planning.assignment_pass.
 
 All new code should import from vetinari.planning.assignment_pass directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

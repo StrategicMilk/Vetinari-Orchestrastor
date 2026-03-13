@@ -2,14 +2,14 @@
 Tests for vetinari/web_ui.py — Flask app with 80+ routes.
 Uses Flask test client; all heavy deps stubbed before import.
 """
+import json
 import os
 import sys
-import json
-import types
 import tempfile
+import types
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 # ── 0. Path setup ─────────────────────────────────────────────────────────────
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -268,12 +268,10 @@ _stub("vetinari.safety.guardrails", get_guardrails=MagicMock(return_value=_mock_
 import vetinari.web_ui as _web_ui
 from vetinari.web_ui import app as _flask_app
 
-
 # ── 4. Helper to build a minimal project directory ────────────────────────────
 
-def _make_project(tmp_dir: str, project_id: str = "proj_abc123", config: dict = None) -> Path:
+def _make_project(tmp_dir: str, project_id: str = "proj_abc123", config: dict | None = None) -> Path:
     """Create a minimal project directory structure for testing."""
-    import yaml
     proj_dir = Path(tmp_dir) / "projects" / project_id
     proj_dir.mkdir(parents=True, exist_ok=True)
     cfg = config or {
@@ -339,15 +337,15 @@ class TestWebUiBase(unittest.TestCase):
 class TestStaticAndIndex(TestWebUiBase):
     def test_index_returns_200(self):
         resp = self.get("/")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_index_content_type_html(self):
         resp = self.get("/")
-        self.assertIn("text/html", resp.content_type)
+        assert "text/html" in resp.content_type
 
     def test_static_missing_returns_404(self):
         resp = self.get("/static/does_not_exist_xyz.js")
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
 
 # ============================================================================
@@ -357,31 +355,31 @@ class TestStaticAndIndex(TestWebUiBase):
 class TestApiStatus(TestWebUiBase):
     def _data(self):
         resp = self.get("/api/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         return self.json(resp)
 
     def test_status_200(self):
         resp = self.get("/api/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_status_has_status_key(self):
         data = self._data()
-        self.assertEqual(data["status"], "running")
+        assert data["status"] == "running"
 
     def test_status_has_host(self):
         data = self._data()
-        self.assertIn("host", data)
+        assert "host" in data
 
     def test_status_has_config_path(self):
         data = self._data()
-        self.assertIn("config_path", data)
+        assert "config_path" in data
 
     def test_status_api_token_masked_when_set(self):
         orig = _web_ui.current_config.get("api_token", "")
         _web_ui.current_config["api_token"] = "secret-token"
         try:
             data = self._data()
-            self.assertEqual(data["api_token"], "***")
+            assert data["api_token"] == "***"
         finally:
             _web_ui.current_config["api_token"] = orig
 
@@ -390,22 +388,22 @@ class TestApiStatus(TestWebUiBase):
         _web_ui.current_config["api_token"] = ""
         try:
             data = self._data()
-            self.assertEqual(data["api_token"], "")
+            assert data["api_token"] == ""
         finally:
             _web_ui.current_config["api_token"] = orig
 
     def test_status_has_default_models(self):
         data = self._data()
-        self.assertIn("default_models", data)
-        self.assertIsInstance(data["default_models"], list)
+        assert "default_models" in data
+        assert isinstance(data["default_models"], list)
 
     def test_status_has_memory_budget_gb(self):
         data = self._data()
-        self.assertIn("memory_budget_gb", data)
+        assert "memory_budget_gb" in data
 
     def test_status_has_active_model_id(self):
         data = self._data()
-        self.assertIn("active_model_id", data)
+        assert "active_model_id" in data
 
 
 # ============================================================================
@@ -415,31 +413,31 @@ class TestApiStatus(TestWebUiBase):
 class TestApiModels(TestWebUiBase):
     def test_get_models_returns_200(self):
         resp = self.get("/api/models")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_models_has_models_key(self):
         resp = self.get("/api/models")
         data = self.json(resp)
-        self.assertIn("models", data)
-        self.assertIsInstance(data["models"], list)
+        assert "models" in data
+        assert isinstance(data["models"], list)
 
     def test_get_models_has_count(self):
         resp = self.get("/api/models")
         data = self.json(resp)
-        self.assertIn("count", data)
+        assert "count" in data
 
     def test_get_models_refresh_post_200(self):
         resp = self.post("/api/models/refresh")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_models_refresh_cached_false(self):
         resp = self.post("/api/models/refresh")
         data = self.json(resp)
-        self.assertFalse(data.get("cached", True))
+        assert not data.get("cached", True)
 
     def test_get_models_refresh_get_200(self):
         resp = self.get("/api/models/refresh")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_models_cache_used(self):
         # When cache is warm, models are returned without hitting orchestrator
@@ -447,8 +445,8 @@ class TestApiModels(TestWebUiBase):
         _web_ui._models_cache_ts = __import__("time").time()
         resp = self.get("/api/models")
         data = self.json(resp)
-        self.assertTrue(data["cached"])
-        self.assertEqual(data["models"][0]["id"], "cached")
+        assert data["cached"]
+        assert data["models"][0]["id"] == "cached"
 
 
 # ============================================================================
@@ -458,17 +456,17 @@ class TestApiModels(TestWebUiBase):
 class TestApiScoreModels(TestWebUiBase):
     def test_score_models_returns_200(self):
         resp = self.post("/api/score-models", {"task_description": "write python code"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_score_models_has_models_key(self):
         resp = self.post("/api/score-models", {"task_description": "write python code"})
         data = self.json(resp)
-        self.assertIn("models", data)
+        assert "models" in data
 
     def test_score_models_no_description(self):
         resp = self.post("/api/score-models", {"task_description": ""})
         # With an empty description no capabilities are required — still 200 if models present
-        self.assertIn(resp.status_code, (200, 400))
+        assert resp.status_code in (200, 400)
 
     def test_score_models_code_keyword_scores_code_gen(self):
         _web_ui.orchestrator = _mock_orchestrator
@@ -478,13 +476,13 @@ class TestApiScoreModels(TestWebUiBase):
         resp = self.post("/api/score-models", {"task_description": "implement a python function"})
         data = self.json(resp)
         if data.get("models"):
-            self.assertIn("score", data["models"][0])
+            assert "score" in data["models"][0]
 
     def test_score_models_no_models_returns_400(self):
         _mock_orchestrator.model_pool.models = []
         try:
             resp = self.post("/api/score-models", {"task_description": "build something"})
-            self.assertEqual(resp.status_code, 400)
+            assert resp.status_code == 400
         finally:
             _mock_orchestrator.model_pool.models = [
                 {"id": "test-model", "name": "Test Model", "capabilities": ["code_gen"], "context_len": 4096, "memory_gb": 4, "version": "1.0"}
@@ -499,12 +497,12 @@ class TestApiSearch(TestWebUiBase):
     def test_search_empty_query_returns_empty(self):
         resp = self.get("/api/search")
         data = self.json(resp)
-        self.assertEqual(data["results"], [])
-        self.assertEqual(data["query"], "")
+        assert data["results"] == []
+        assert data["query"] == ""
 
     def test_search_empty_query_200(self):
         resp = self.get("/api/search")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_search_with_query_returns_results_key(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -525,7 +523,7 @@ class TestApiSearch(TestWebUiBase):
             try:
                 resp = self.get("/api/search?q=findme")
                 data = self.json(resp)
-                self.assertIn("results", data)
+                assert "results" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -535,7 +533,7 @@ class TestApiSearch(TestWebUiBase):
             try:
                 resp = self.get("/api/search?q=xyznonexistent999")
                 data = self.json(resp)
-                self.assertEqual(data["results"], [])
+                assert data["results"] == []
             finally:
                 _web_ui.PROJECT_ROOT = Path(_ROOT)
 
@@ -547,27 +545,27 @@ class TestApiSearch(TestWebUiBase):
 class TestApiTokenStats(TestWebUiBase):
     def test_token_stats_200(self):
         resp = self.get("/api/token-stats")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_token_stats_has_total_tokens(self):
         resp = self.get("/api/token-stats")
         data = self.json(resp)
-        self.assertIn("total_tokens_used", data)
+        assert "total_tokens_used" in data
 
     def test_token_stats_has_total_cost(self):
         resp = self.get("/api/token-stats")
         data = self.json(resp)
-        self.assertIn("total_cost_usd", data)
+        assert "total_cost_usd" in data
 
     def test_token_stats_has_by_model(self):
         resp = self.get("/api/token-stats")
         data = self.json(resp)
-        self.assertIn("by_model", data)
+        assert "by_model" in data
 
     def test_token_stats_has_session_requests(self):
         resp = self.get("/api/token-stats")
         data = self.json(resp)
-        self.assertIn("session_requests", data)
+        assert "session_requests" in data
 
 
 # ============================================================================
@@ -578,7 +576,7 @@ class TestApiCancelProject(TestWebUiBase):
     def test_cancel_no_flag_returns_not_found(self):
         resp = self.post("/api/project/no_such_project_xyz/cancel")
         data = self.json(resp)
-        self.assertEqual(data["status"], "not_found")
+        assert data["status"] == "not_found"
 
     def test_cancel_with_flag_returns_cancelled(self):
         import threading
@@ -587,19 +585,19 @@ class TestApiCancelProject(TestWebUiBase):
         try:
             resp = self.post("/api/project/proj_to_cancel/cancel")
             data = self.json(resp)
-            self.assertEqual(data["status"], "cancelled")
-            self.assertTrue(flag.is_set())
+            assert data["status"] == "cancelled"
+            assert flag.is_set()
         finally:
             _web_ui._cancel_flags.pop("proj_to_cancel", None)
 
     def test_cancel_returns_project_id(self):
         resp = self.post("/api/project/some_pid/cancel")
         data = self.json(resp)
-        self.assertEqual(data["project_id"], "some_pid")
+        assert data["project_id"] == "some_pid"
 
     def test_cancel_200(self):
         resp = self.post("/api/project/any_pid/cancel")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
 
 # ============================================================================
@@ -609,17 +607,17 @@ class TestApiCancelProject(TestWebUiBase):
 class TestApiTasks(TestWebUiBase):
     def test_tasks_returns_200(self):
         resp = self.get("/api/tasks")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_tasks_has_tasks_key(self):
         resp = self.get("/api/tasks")
         data = self.json(resp)
-        self.assertIn("tasks", data)
+        assert "tasks" in data
 
     def test_tasks_returns_list(self):
         resp = self.get("/api/tasks")
         data = self.json(resp)
-        self.assertIsInstance(data["tasks"], list)
+        assert isinstance(data["tasks"], list)
 
 
 # ============================================================================
@@ -629,12 +627,12 @@ class TestApiTasks(TestWebUiBase):
 class TestApiRunPrompt(TestWebUiBase):
     def test_run_prompt_missing_prompt_400(self):
         resp = self.post("/api/run-prompt", {"prompt": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_run_prompt_missing_prompt_error_key(self):
         resp = self.post("/api/run-prompt", {"prompt": ""})
         data = self.json(resp)
-        self.assertIn("error", data)
+        assert "error" in data
 
     def test_run_prompt_success(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -645,7 +643,7 @@ class TestApiRunPrompt(TestWebUiBase):
                     "prompt": "hello world",
                     "model": "test-model",
                 })
-                self.assertIn(resp.status_code, (200, 400, 500))
+                assert resp.status_code in (200, 400, 500)
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -660,7 +658,7 @@ class TestApiRunPrompt(TestWebUiBase):
                 })
                 if resp.status_code == 200:
                     data = self.json(resp)
-                    self.assertIn("response", data)
+                    assert "response" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -672,18 +670,18 @@ class TestApiRunPrompt(TestWebUiBase):
 class TestApiCreatePlan(TestWebUiBase):
     def test_create_plan_missing_goal_400(self):
         resp = self.post("/api/plan", {"goal": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_create_plan_missing_goal_error_key(self):
         resp = self.post("/api/plan", {"goal": ""})
         data = self.json(resp)
-        self.assertIn("error", data)
+        assert "error" in data
 
     def test_create_plan_no_models_400(self):
         _mock_orchestrator.model_pool.models = []
         try:
             resp = self.post("/api/plan", {"goal": "build something"})
-            self.assertEqual(resp.status_code, 400)
+            assert resp.status_code == 400
         finally:
             _mock_orchestrator.model_pool.models = [
                 {"id": "test-model", "name": "Test Model", "capabilities": ["code_gen"], "context_len": 4096, "memory_gb": 4, "version": "1.0"}
@@ -691,7 +689,7 @@ class TestApiCreatePlan(TestWebUiBase):
 
     def test_create_plan_with_goal_calls_planner(self):
         resp = self.post("/api/plan", {"goal": "build a web app"})
-        self.assertIn(resp.status_code, (200, 500))
+        assert resp.status_code in (200, 500)
 
 
 # ============================================================================
@@ -701,18 +699,18 @@ class TestApiCreatePlan(TestWebUiBase):
 class TestApiNewProject(TestWebUiBase):
     def test_new_project_missing_goal_400(self):
         resp = self.post("/api/new-project", {"goal": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_new_project_missing_goal_error_key(self):
         resp = self.post("/api/new-project", {"goal": ""})
         data = self.json(resp)
-        self.assertIn("error", data)
+        assert "error" in data
 
     def test_new_project_no_models_400(self):
         _mock_orchestrator.model_pool.models = []
         try:
             resp = self.post("/api/new-project", {"goal": "some goal"})
-            self.assertEqual(resp.status_code, 400)
+            assert resp.status_code == 400
         finally:
             _mock_orchestrator.model_pool.models = [
                 {"id": "test-model", "name": "Test Model", "capabilities": ["code_gen"], "context_len": 4096, "memory_gb": 4, "version": "1.0"}
@@ -729,7 +727,7 @@ class TestApiNewProject(TestWebUiBase):
                 })
                 if resp.status_code == 200:
                     data = self.json(resp)
-                    self.assertIn("project_id", data)
+                    assert "project_id" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -744,7 +742,7 @@ class TestApiNewProject(TestWebUiBase):
                 })
                 if resp.status_code == 200:
                     data = self.json(resp)
-                    self.assertEqual(data["status"], "planned")
+                    assert data["status"] == "planned"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -760,7 +758,7 @@ class TestApiProjects(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/projects")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -771,7 +769,7 @@ class TestApiProjects(TestWebUiBase):
             try:
                 resp = self.get("/api/projects")
                 data = self.json(resp)
-                self.assertIn("projects", data)
+                assert "projects" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -784,7 +782,7 @@ class TestApiProjects(TestWebUiBase):
                 resp = self.get("/api/projects")
                 data = self.json(resp)
                 ids = [p["id"] for p in data["projects"]]
-                self.assertIn("proj_listed", ids)
+                assert "proj_listed" in ids
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -801,7 +799,7 @@ class TestApiProjects(TestWebUiBase):
                 resp = self.get("/api/projects")
                 data = self.json(resp)
                 ids = [p["id"] for p in data["projects"]]
-                self.assertNotIn("proj_archived", ids)
+                assert "proj_archived" not in ids
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -817,7 +815,7 @@ class TestApiProject(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/nonexistent_xyz")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -828,7 +826,7 @@ class TestApiProject(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/proj_found01")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -840,7 +838,7 @@ class TestApiProject(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_idcheck")
                 data = self.json(resp)
-                self.assertEqual(data["id"], "proj_idcheck")
+                assert data["id"] == "proj_idcheck"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -852,7 +850,7 @@ class TestApiProject(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_conv")
                 data = self.json(resp)
-                self.assertIn("conversation", data)
+                assert "conversation" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -864,7 +862,7 @@ class TestApiProject(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_tasks")
                 data = self.json(resp)
-                self.assertIn("tasks", data)
+                assert "tasks" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -880,7 +878,7 @@ class TestApiProjectMessage(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/message", {"message": "hello"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -891,7 +889,7 @@ class TestApiProjectMessage(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_msg01/message", {"message": ""})
-                self.assertEqual(resp.status_code, 400)
+                assert resp.status_code == 400
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -904,7 +902,7 @@ class TestApiProjectMessage(TestWebUiBase):
                 resp = self.post("/api/project/proj_msg02/message", {"message": "what is the status?"})
                 if resp.status_code == 200:
                     data = self.json(resp)
-                    self.assertIn("response", data)
+                    assert "response" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -920,7 +918,7 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/task", {"description": "new task"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -933,9 +931,9 @@ class TestApiProjectTask(TestWebUiBase):
                 resp = self.post("/api/project/proj_add_task/task", {
                     "id": "t_new", "description": "A new task"
                 })
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "added")
+                assert data["status"] == "added"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -948,7 +946,7 @@ class TestApiProjectTask(TestWebUiBase):
                 resp = self.post("/api/project/proj_dup_task/task", {
                     "id": "t1", "description": "Duplicate task"
                 })
-                self.assertEqual(resp.status_code, 400)
+                assert resp.status_code == 400
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -958,7 +956,7 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.put("/api/project/no_proj/task/t1", {"description": "updated"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -969,9 +967,9 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.put("/api/project/proj_upd_task/task/t1", {"description": "Updated desc"})
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "updated")
+                assert data["status"] == "updated"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -982,7 +980,7 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.put("/api/project/proj_upd_miss/task/no_such_task", {"description": "x"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -992,7 +990,7 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.delete("/api/project/no_proj/task/t1")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1003,9 +1001,9 @@ class TestApiProjectTask(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.delete("/api/project/proj_del_task/task/t1")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "deleted")
+                assert data["status"] == "deleted"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1021,7 +1019,7 @@ class TestApiProjectReview(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/no_proj/review")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1032,7 +1030,7 @@ class TestApiProjectReview(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/proj_review01/review")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1044,7 +1042,7 @@ class TestApiProjectReview(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_review02/review")
                 data = self.json(resp)
-                self.assertEqual(data["project_id"], "proj_review02")
+                assert data["project_id"] == "proj_review02"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1056,7 +1054,7 @@ class TestApiProjectReview(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_review03/review")
                 data = self.json(resp)
-                self.assertIn("tasks", data)
+                assert "tasks" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1072,7 +1070,7 @@ class TestApiProjectApprove(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/approve")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1083,9 +1081,9 @@ class TestApiProjectApprove(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_approve01/approve")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "approved")
+                assert data["status"] == "approved"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1101,7 +1099,7 @@ class TestApiSystemPrompts(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/system-prompts")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1112,7 +1110,7 @@ class TestApiSystemPrompts(TestWebUiBase):
             try:
                 resp = self.get("/api/system-prompts")
                 data = self.json(resp)
-                self.assertIn("prompts", data)
+                assert "prompts" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1122,7 +1120,7 @@ class TestApiSystemPrompts(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/system-prompts", {"name": "", "content": "test"})
-                self.assertEqual(resp.status_code, 400)
+                assert resp.status_code == 400
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1132,9 +1130,9 @@ class TestApiSystemPrompts(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/system-prompts", {"name": "my_prompt", "content": "You are helpful."})
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "saved")
+                assert data["status"] == "saved"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1146,9 +1144,9 @@ class TestApiSystemPrompts(TestWebUiBase):
                 # Create then delete
                 self.post("/api/system-prompts", {"name": "del_prompt", "content": "bye"})
                 resp = self.delete("/api/system-prompts/del_prompt")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "deleted")
+                assert data["status"] == "deleted"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1158,7 +1156,7 @@ class TestApiSystemPrompts(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.delete("/api/system-prompts/no_such_prompt")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1174,7 +1172,7 @@ class TestApiAllTasks(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/all-tasks")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1185,7 +1183,7 @@ class TestApiAllTasks(TestWebUiBase):
             try:
                 resp = self.get("/api/all-tasks")
                 data = self.json(resp)
-                self.assertIn("tasks", data)
+                assert "tasks" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1198,7 +1196,7 @@ class TestApiAllTasks(TestWebUiBase):
                 resp = self.get("/api/all-tasks")
                 data = self.json(resp)
                 task_ids = [t["task_id"] for t in data["tasks"]]
-                self.assertIn("t1", task_ids)
+                assert "t1" in task_ids
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1212,26 +1210,26 @@ class TestApiConfig(TestWebUiBase):
         orig_host = _web_ui.current_config.get("host")
         try:
             resp = self.post("/api/config", {"host": "http://newhost:9999"})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(_web_ui.current_config["host"], "http://newhost:9999")
+            assert resp.status_code == 200
+            assert _web_ui.current_config["host"] == "http://newhost:9999"
         finally:
             _web_ui.current_config["host"] = orig_host
 
     def test_config_returns_updated_status(self):
         resp = self.post("/api/config", {"config_path": "new/path.yaml"})
         data = self.json(resp)
-        self.assertEqual(data["status"], "updated")
+        assert data["status"] == "updated"
 
     def test_config_update_resets_orchestrator(self):
         _web_ui.orchestrator = _mock_orchestrator
         self.post("/api/config", {"host": "http://localhost:1234"})
-        self.assertIsNone(_web_ui.orchestrator)
+        assert _web_ui.orchestrator is None
         _web_ui.orchestrator = _mock_orchestrator
 
     def test_config_update_invalidates_model_cache(self):
         _web_ui._models_cache_ts = 9999999.0
         self.post("/api/config", {"host": "http://localhost:1234"})
-        self.assertEqual(_web_ui._models_cache_ts, 0.0)
+        assert _web_ui._models_cache_ts == 0.0
         _web_ui._models_cache_ts = 0.0
 
 
@@ -1242,17 +1240,17 @@ class TestApiConfig(TestWebUiBase):
 class TestApiUpgradeCheck(TestWebUiBase):
     def test_upgrade_check_200(self):
         resp = self.get("/api/upgrade-check")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_upgrade_check_has_upgrades_key(self):
         resp = self.get("/api/upgrade-check")
         data = self.json(resp)
-        self.assertIn("upgrades", data)
+        assert "upgrades" in data
 
     def test_upgrade_check_returns_list(self):
         resp = self.get("/api/upgrade-check")
         data = self.json(resp)
-        self.assertIsInstance(data["upgrades"], list)
+        assert isinstance(data["upgrades"], list)
 
 
 # ============================================================================
@@ -1266,7 +1264,7 @@ class TestApiWorkflow(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/workflow")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1277,7 +1275,7 @@ class TestApiWorkflow(TestWebUiBase):
             try:
                 resp = self.get("/api/workflow")
                 data = self.json(resp)
-                self.assertIn("projects", data)
+                assert "projects" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1294,7 +1292,7 @@ class TestApiWorkflow(TestWebUiBase):
             try:
                 resp = self.get("/api/workflow?search=unique_wf_xyz")
                 data = self.json(resp)
-                self.assertEqual(len(data["projects"]), 1)
+                assert len(data["projects"]) == 1
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1306,24 +1304,24 @@ class TestApiWorkflow(TestWebUiBase):
 class TestApiModelConfig(TestWebUiBase):
     def test_get_model_config_200(self):
         resp = self.get("/api/model-config")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_model_config_has_default_models(self):
         resp = self.get("/api/model-config")
         data = self.json(resp)
-        self.assertIn("default_models", data)
+        assert "default_models" in data
 
     def test_get_model_config_has_memory_budget(self):
         resp = self.get("/api/model-config")
         data = self.json(resp)
-        self.assertIn("memory_budget_gb", data)
+        assert "memory_budget_gb" in data
 
     def test_post_model_config_updates_defaults(self):
         orig = list(_web_ui.current_config.get("default_models", []))
         try:
             resp = self.post("/api/model-config", {"default_models": ["new-model-1"]})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(_web_ui.current_config["default_models"], ["new-model-1"])
+            assert resp.status_code == 200
+            assert _web_ui.current_config["default_models"] == ["new-model-1"]
         finally:
             _web_ui.current_config["default_models"] = orig
 
@@ -1331,8 +1329,8 @@ class TestApiModelConfig(TestWebUiBase):
         orig = _web_ui.current_config.get("memory_budget_gb", 48)
         try:
             resp = self.post("/api/model-config", {"memory_budget_gb": "16"})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(_web_ui.current_config["memory_budget_gb"], 16)
+            assert resp.status_code == 200
+            assert _web_ui.current_config["memory_budget_gb"] == 16
         finally:
             _web_ui.current_config["memory_budget_gb"] = orig
 
@@ -1344,15 +1342,15 @@ class TestApiModelConfig(TestWebUiBase):
 class TestApiSwapModel(TestWebUiBase):
     def test_swap_model_missing_model_id_400(self):
         resp = self.post("/api/swap-model", {"model_id": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_swap_model_global_success(self):
         orig = _web_ui.current_config.get("active_model_id")
         try:
             resp = self.post("/api/swap-model", {"model_id": "new-active-model"})
-            self.assertEqual(resp.status_code, 200)
+            assert resp.status_code == 200
             data = self.json(resp)
-            self.assertEqual(data["active_model_id"], "new-active-model")
+            assert data["active_model_id"] == "new-active-model"
         finally:
             _web_ui.current_config["active_model_id"] = orig
 
@@ -1365,7 +1363,7 @@ class TestApiSwapModel(TestWebUiBase):
                     "model_id": "test-model",
                     "project_id": "no_such_proj"
                 })
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1379,9 +1377,9 @@ class TestApiSwapModel(TestWebUiBase):
                     "model_id": "swapped-model",
                     "project_id": "proj_swap"
                 })
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["active_model_id"], "swapped-model")
+                assert data["active_model_id"] == "swapped-model"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1397,7 +1395,7 @@ class TestApiProjectRename(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/rename", {"name": "New Name"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1408,10 +1406,10 @@ class TestApiProjectRename(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_rename01/rename", {"name": "Renamed Project"})
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "renamed")
-                self.assertEqual(data["project_name"], "Renamed Project")
+                assert data["status"] == "renamed"
+                assert data["project_name"] == "Renamed Project"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1427,7 +1425,7 @@ class TestApiProjectArchive(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/archive", {"archive": True})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1438,10 +1436,10 @@ class TestApiProjectArchive(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_archive01/archive", {"archive": True})
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "archived")
-                self.assertTrue(data["archived"])
+                assert data["status"] == "archived"
+                assert data["archived"]
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1452,9 +1450,9 @@ class TestApiProjectArchive(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_unarchive01/archive", {"archive": False})
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "unarchived")
+                assert data["status"] == "unarchived"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1470,7 +1468,7 @@ class TestApiProjectDelete(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.delete("/api/project/no_such_project")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1481,10 +1479,10 @@ class TestApiProjectDelete(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.delete("/api/project/proj_to_delete")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "deleted")
-                self.assertFalse((Path(tmp) / "projects" / "proj_to_delete").exists())
+                assert data["status"] == "deleted"
+                assert not (Path(tmp) / "projects" / "proj_to_delete").exists()
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -1496,34 +1494,34 @@ class TestApiProjectDelete(TestWebUiBase):
 class TestApiAgents(TestWebUiBase):
     def test_agents_status_200(self):
         resp = self.get("/api/agents/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_agents_status_has_agents_key(self):
         resp = self.get("/api/agents/status")
         data = self.json(resp)
-        self.assertIn("agents", data)
+        assert "agents" in data
 
     def test_agents_initialize_200(self):
         resp = self.post("/api/agents/initialize")
-        self.assertIn(resp.status_code, (200, 500))
+        assert resp.status_code in (200, 500)
 
     def test_agents_active_200(self):
         resp = self.get("/api/agents/active")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_agents_active_has_agents_key(self):
         resp = self.get("/api/agents/active")
         data = self.json(resp)
-        self.assertIn("agents", data)
+        assert "agents" in data
 
     def test_agents_tasks_200(self):
         resp = self.get("/api/agents/tasks")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_agents_tasks_has_tasks_key(self):
         resp = self.get("/api/agents/tasks")
         data = self.json(resp)
-        self.assertIn("tasks", data)
+        assert "tasks" in data
 
     def test_agents_status_none_orchestrator_returns_empty(self):
         _mock_mao_cls = sys.modules["vetinari.multi_agent_orchestrator"].MultiAgentOrchestrator
@@ -1532,7 +1530,7 @@ class TestApiAgents(TestWebUiBase):
         try:
             resp = self.get("/api/agents/status")
             data = self.json(resp)
-            self.assertEqual(data["agents"], [])
+            assert data["agents"] == []
         finally:
             _mock_mao_cls.get_instance.return_value = orig
 
@@ -1544,17 +1542,17 @@ class TestApiAgents(TestWebUiBase):
 class TestApiMemory(TestWebUiBase):
     def test_memory_200(self):
         resp = self.get("/api/memory")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_memory_has_memories_key(self):
         resp = self.get("/api/memory")
         data = self.json(resp)
-        self.assertIn("memories", data)
+        assert "memories" in data
 
     def test_memory_returns_list(self):
         resp = self.get("/api/memory")
         data = self.json(resp)
-        self.assertIsInstance(data["memories"], list)
+        assert isinstance(data["memories"], list)
 
 
 # ============================================================================
@@ -1564,26 +1562,26 @@ class TestApiMemory(TestWebUiBase):
 class TestApiDecisions(TestWebUiBase):
     def test_decisions_pending_200(self):
         resp = self.get("/api/decisions/pending")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_decisions_pending_has_decisions_key(self):
         resp = self.get("/api/decisions/pending")
         data = self.json(resp)
-        self.assertIn("decisions", data)
+        assert "decisions" in data
 
     def test_decisions_submit_200(self):
         resp = self.post("/api/decisions", {"decision_id": "d1", "choice": "yes"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_decisions_submit_has_status(self):
         resp = self.post("/api/decisions", {"decision_id": "d1", "choice": "yes"})
         data = self.json(resp)
-        self.assertEqual(data["status"], "resolved")
+        assert data["status"] == "resolved"
 
     def test_decisions_submit_reflects_choice(self):
         resp = self.post("/api/decisions", {"decision_id": "d1", "choice": "option_b"})
         data = self.json(resp)
-        self.assertEqual(data["choice"], "option_b")
+        assert data["choice"] == "option_b"
 
 
 # ============================================================================
@@ -1593,96 +1591,96 @@ class TestApiDecisions(TestWebUiBase):
 class TestApiPlans(TestWebUiBase):
     def test_plan_create_201(self):
         resp = self.post("/api/plans", {"title": "My Plan", "prompt": "do things"})
-        self.assertEqual(resp.status_code, 201)
+        assert resp.status_code == 201
 
     def test_plan_create_has_plan_id(self):
         resp = self.post("/api/plans", {"title": "My Plan"})
         data = self.json(resp)
-        self.assertIn("plan_id", data)
+        assert "plan_id" in data
 
     def test_plans_list_200(self):
         resp = self.get("/api/plans")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plans_list_has_plans_key(self):
         resp = self.get("/api/plans")
         data = self.json(resp)
-        self.assertIn("plans", data)
+        assert "plans" in data
 
     def test_plan_get_200(self):
         resp = self.get("/api/plans/plan-001")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_get_not_found_404(self):
         _mock_plan_mgr.get_plan.return_value = None
         try:
             resp = self.get("/api/plans/nonexistent_plan")
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_plan_mgr.get_plan.return_value = _mock_plan_obj
 
     def test_plan_update_200(self):
         resp = self.put("/api/plans/plan-001", {"title": "Updated Plan"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_update_not_found_404(self):
         _mock_plan_mgr.update_plan.return_value = None
         try:
             resp = self.put("/api/plans/no_plan", {"title": "x"})
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_plan_mgr.update_plan.return_value = _mock_plan_obj
 
     def test_plan_delete_204(self):
         resp = self.delete("/api/plans/plan-001")
-        self.assertEqual(resp.status_code, 204)
+        assert resp.status_code == 204
 
     def test_plan_delete_not_found_404(self):
         _mock_plan_mgr.delete_plan.return_value = False
         try:
             resp = self.delete("/api/plans/no_plan")
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_plan_mgr.delete_plan.return_value = True
 
     def test_plan_start_200(self):
         resp = self.post("/api/plans/plan-001/start")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_start_not_found_404(self):
         _mock_plan_mgr.start_plan.return_value = None
         try:
             resp = self.post("/api/plans/no_plan/start")
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_plan_mgr.start_plan.return_value = _mock_plan_obj
 
     def test_plan_pause_200(self):
         resp = self.post("/api/plans/plan-001/pause")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_resume_200(self):
         resp = self.post("/api/plans/plan-001/resume")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_cancel_200(self):
         resp = self.post("/api/plans/plan-001/cancel")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_status_200(self):
         resp = self.get("/api/plans/plan-001/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_plan_status_has_plan_id(self):
         resp = self.get("/api/plans/plan-001/status")
         data = self.json(resp)
-        self.assertIn("plan_id", data)
+        assert "plan_id" in data
 
     def test_plan_status_not_found_404(self):
         _mock_plan_mgr.get_plan.return_value = None
         try:
             resp = self.get("/api/plans/no_plan/status")
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_plan_mgr.get_plan.return_value = _mock_plan_obj
 
@@ -1694,50 +1692,50 @@ class TestApiPlans(TestWebUiBase):
 class TestApiModelCatalog(TestWebUiBase):
     def test_model_catalog_200(self):
         resp = self.get("/api/model-catalog")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_model_catalog_has_models(self):
         resp = self.get("/api/model-catalog")
         data = self.json(resp)
-        self.assertIn("models", data)
+        assert "models" in data
 
     def test_model_get_200(self):
         resp = self.get("/api/models/relay-model")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_model_get_not_found_404(self):
         _mock_model_relay.get_model.return_value = None
         try:
             resp = self.get("/api/models/no_model_xyz")
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_model_relay.get_model.return_value = _mock_relay_model
 
     def test_model_select_200(self):
         resp = self.post("/api/models/select", {"task_type": "code_gen"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_model_policy_get_200(self):
         resp = self.get("/api/models/policy")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_model_policy_update_200(self):
         resp = self.put("/api/models/policy", {"strategy": "cost"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_model_policy_update_has_status(self):
         resp = self.put("/api/models/policy", {"strategy": "cost"})
         data = self.json(resp)
-        self.assertEqual(data["status"], "updated")
+        assert data["status"] == "updated"
 
     def test_models_reload_200(self):
         resp = self.post("/api/models/reload")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_models_reload_has_status(self):
         resp = self.post("/api/models/reload")
         data = self.json(resp)
-        self.assertEqual(data["status"], "reloaded")
+        assert data["status"] == "reloaded"
 
 
 # ============================================================================
@@ -1749,25 +1747,25 @@ class TestApiSandbox(TestWebUiBase):
 
     def test_sandbox_execute_200(self):
         resp = self.post("/api/sandbox/execute", {"code": "print('hi')", "sandbox_type": "in_process"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_sandbox_execute_has_status(self):
         resp = self.post("/api/sandbox/execute", {"code": "1+1"})
         data = self.json(resp)
-        self.assertIn("status", data)
+        assert "status" in data
 
     def test_sandbox_status_200(self):
         resp = self.get("/api/sandbox/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_sandbox_audit_200(self):
         resp = self.get("/api/sandbox/audit")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_sandbox_audit_has_audit_entries(self):
         resp = self.get("/api/sandbox/audit")
         data = self.json(resp)
-        self.assertIn("audit_entries", data)
+        assert "audit_entries" in data
 
 
 # ============================================================================
@@ -1777,21 +1775,21 @@ class TestApiSandbox(TestWebUiBase):
 class TestApiCodeSearch(TestWebUiBase):
     def test_code_search_no_query_400(self):
         resp = self.get("/api/code-search")
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_code_search_with_query_200(self):
         resp = self.get("/api/code-search?q=def+main")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_code_search_has_results(self):
         resp = self.get("/api/code-search?q=def+main")
         data = self.json(resp)
-        self.assertIn("results", data)
+        assert "results" in data
 
     def test_code_search_has_query(self):
         resp = self.get("/api/code-search?q=hello")
         data = self.json(resp)
-        self.assertEqual(data["query"], "hello")
+        assert data["query"] == "hello"
 
 
 # ============================================================================
@@ -1801,22 +1799,22 @@ class TestApiCodeSearch(TestWebUiBase):
 class TestApiSearchIndex(TestWebUiBase):
     def test_search_index_missing_path_400(self):
         resp = self.post("/api/search/index", {"project_path": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_search_index_success(self):
         resp = self.post("/api/search/index", {"project_path": "/some/path"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = self.json(resp)
-        self.assertIn("status", data)
+        assert "status" in data
 
     def test_search_status_200(self):
         resp = self.get("/api/search/status")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_search_status_has_backends(self):
         resp = self.get("/api/search/status")
         data = self.json(resp)
-        self.assertIn("backends", data)
+        assert "backends" in data
 
 
 # ============================================================================
@@ -1826,50 +1824,50 @@ class TestApiSearchIndex(TestWebUiBase):
 class TestApiSubtasks(TestWebUiBase):
     def test_get_subtasks_200(self):
         resp = self.get("/api/subtasks/plan-001")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_subtasks_has_subtasks_key(self):
         resp = self.get("/api/subtasks/plan-001")
         data = self.json(resp)
-        self.assertIn("subtasks", data)
+        assert "subtasks" in data
 
     def test_get_subtasks_has_plan_id(self):
         resp = self.get("/api/subtasks/plan-001")
         data = self.json(resp)
-        self.assertEqual(data["plan_id"], "plan-001")
+        assert data["plan_id"] == "plan-001"
 
     def test_create_subtask_200(self):
         resp = self.post("/api/subtasks/plan-001", {
             "description": "A subtask",
             "agent_type": "builder",
         })
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_create_subtask_has_subtask_id(self):
         resp = self.post("/api/subtasks/plan-001", {"description": "subtask"})
         data = self.json(resp)
-        self.assertIn("subtask_id", data)
+        assert "subtask_id" in data
 
     def test_update_subtask_200(self):
         resp = self.put("/api/subtasks/plan-001/sub-001", {"status": "running"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_update_subtask_not_found_404(self):
         _mock_subtask_tree.update_subtask.return_value = None
         try:
             resp = self.put("/api/subtasks/plan-001/no_sub", {"status": "running"})
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_subtask_tree.update_subtask.return_value = _mock_subtask
 
     def test_get_subtask_tree_200(self):
         resp = self.get("/api/subtasks/plan-001/tree")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_subtask_tree_has_depth(self):
         resp = self.get("/api/subtasks/plan-001/tree")
         data = self.json(resp)
-        self.assertIn("depth", data)
+        assert "depth" in data
 
 
 # ============================================================================
@@ -1879,34 +1877,34 @@ class TestApiSubtasks(TestWebUiBase):
 class TestApiAssignments(TestWebUiBase):
     def test_assignment_execute_pass_missing_plan_id_400(self):
         resp = self.post("/api/assignments/execute-pass", {})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_assignment_execute_pass_success(self):
         resp = self.post("/api/assignments/execute-pass", {"plan_id": "plan-001"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_assignments_200(self):
         resp = self.get("/api/assignments/plan-001")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_get_assignments_has_assignments(self):
         resp = self.get("/api/assignments/plan-001")
         data = self.json(resp)
-        self.assertIn("assignments", data)
+        assert "assignments" in data
 
     def test_override_assignment_missing_agent_400(self):
         resp = self.put("/api/assignments/plan-001/sub-001", {})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_override_assignment_success(self):
         resp = self.put("/api/assignments/plan-001/sub-001", {"assigned_agent": "builder-1"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_override_assignment_not_found_404(self):
         _mock_subtask_tree.update_subtask.return_value = None
         try:
             resp = self.put("/api/assignments/plan-001/no_sub", {"assigned_agent": "x"})
-            self.assertEqual(resp.status_code, 404)
+            assert resp.status_code == 404
         finally:
             _mock_subtask_tree.update_subtask.return_value = _mock_subtask
 
@@ -1918,32 +1916,32 @@ class TestApiAssignments(TestWebUiBase):
 class TestApiTemplates(TestWebUiBase):
     def test_template_versions_200(self):
         resp = self.get("/api/templates/versions")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_template_versions_has_versions(self):
         resp = self.get("/api/templates/versions")
         data = self.json(resp)
-        self.assertIn("versions", data)
-        self.assertIsInstance(data["versions"], list)
+        assert "versions" in data
+        assert isinstance(data["versions"], list)
 
     def test_template_versions_has_default(self):
         resp = self.get("/api/templates/versions")
         data = self.json(resp)
-        self.assertIn("default", data)
+        assert "default" in data
 
     def test_templates_200(self):
         resp = self.get("/api/templates")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_templates_has_templates_key(self):
         resp = self.get("/api/templates")
         data = self.json(resp)
-        self.assertIn("templates", data)
+        assert "templates" in data
 
     def test_templates_has_total(self):
         resp = self.get("/api/templates")
         data = self.json(resp)
-        self.assertIn("total", data)
+        assert "total" in data
 
 
 # ============================================================================
@@ -1954,8 +1952,8 @@ class TestApiHelperFunctions(TestWebUiBase):
     def test_register_project_task_creates_event(self):
         import threading
         event = _web_ui._register_project_task("test_proj_reg")
-        self.assertIsInstance(event, threading.Event)
-        self.assertIn("test_proj_reg", _web_ui._cancel_flags)
+        assert isinstance(event, threading.Event)
+        assert "test_proj_reg" in _web_ui._cancel_flags
         del _web_ui._cancel_flags["test_proj_reg"]
 
     def test_cancel_project_task_sets_flag(self):
@@ -1963,31 +1961,31 @@ class TestApiHelperFunctions(TestWebUiBase):
         flag = threading.Event()
         _web_ui._cancel_flags["proj_for_cancel"] = flag
         result = _web_ui._cancel_project_task("proj_for_cancel")
-        self.assertTrue(result)
-        self.assertTrue(flag.is_set())
+        assert result
+        assert flag.is_set()
         del _web_ui._cancel_flags["proj_for_cancel"]
 
     def test_cancel_project_task_missing_returns_false(self):
         result = _web_ui._cancel_project_task("definitely_not_registered_xyz")
-        self.assertFalse(result)
+        assert not result
 
     def test_get_sse_queue_creates_queue(self):
         import queue
         q = _web_ui._get_sse_queue("sse_proj_001")
-        self.assertIsInstance(q, queue.Queue)
+        assert isinstance(q, queue.Queue)
         del _web_ui._sse_streams["sse_proj_001"]
 
     def test_get_sse_queue_returns_same_queue(self):
         q1 = _web_ui._get_sse_queue("sse_proj_002")
         q2 = _web_ui._get_sse_queue("sse_proj_002")
-        self.assertIs(q1, q2)
+        assert q1 is q2
         del _web_ui._sse_streams["sse_proj_002"]
 
     def test_push_sse_event_puts_to_queue(self):
         q = _web_ui._get_sse_queue("sse_proj_003")
         _web_ui._push_sse_event("sse_proj_003", "task_start", {"task_id": "t1"})
         msg = q.get_nowait()
-        self.assertEqual(msg["event"], "task_start")
+        assert msg["event"] == "task_start"
         del _web_ui._sse_streams["sse_proj_003"]
 
     def test_push_sse_event_noop_for_unknown_project(self):
@@ -1998,7 +1996,7 @@ class TestApiHelperFunctions(TestWebUiBase):
         _web_ui._models_cache = [{"id": "cached-m", "name": "C", "capabilities": [], "context_len": 0, "memory_gb": 0, "version": ""}]
         _web_ui._models_cache_ts = __import__("time").time()
         result = _web_ui._get_models_cached(force=False)
-        self.assertEqual(result[0]["id"], "cached-m")
+        assert result[0]["id"] == "cached-m"
 
     def test_get_models_cached_force_bypasses_cache(self):
         _web_ui._models_cache = [{"id": "stale", "name": "S", "capabilities": [], "context_len": 0, "memory_gb": 0, "version": ""}]
@@ -2007,7 +2005,7 @@ class TestApiHelperFunctions(TestWebUiBase):
         result = _web_ui._get_models_cached(force=True)
         # The result reflects what orchestrator returns (test-model)
         ids = [m["id"] for m in result]
-        self.assertIn("test-model", ids)
+        assert "test-model" in ids
 
 
 # ============================================================================
@@ -2018,11 +2016,11 @@ class TestApiSSEStream(TestWebUiBase):
     def test_stream_returns_200(self):
         # Just test that it returns with the right content-type, don't consume stream
         resp = self.client.get("/api/project/stream_test_proj/stream")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_stream_content_type_event_stream(self):
         resp = self.client.get("/api/project/stream_test_proj/stream")
-        self.assertIn("text/event-stream", resp.content_type)
+        assert "text/event-stream" in resp.content_type
 
 
 # ============================================================================
@@ -2032,17 +2030,17 @@ class TestApiSSEStream(TestWebUiBase):
 class TestApiDiscover(TestWebUiBase):
     def test_discover_200(self):
         resp = self.get("/api/discover")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_discover_has_discovered_key(self):
         resp = self.get("/api/discover")
         data = self.json(resp)
-        self.assertIn("discovered", data)
+        assert "discovered" in data
 
     def test_discover_has_models(self):
         resp = self.get("/api/discover")
         data = self.json(resp)
-        self.assertIn("models", data)
+        assert "models" in data
 
 
 # ============================================================================
@@ -2056,7 +2054,7 @@ class TestApiArtifacts(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/artifacts")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2067,7 +2065,7 @@ class TestApiArtifacts(TestWebUiBase):
             try:
                 resp = self.get("/api/artifacts")
                 data = self.json(resp)
-                self.assertIn("artifacts", data)
+                assert "artifacts" in data
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2083,7 +2081,7 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/files/read", {"path": "main.py"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2094,7 +2092,7 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_files01/files/read", {"path": ""})
-                self.assertEqual(resp.status_code, 400)
+                assert resp.status_code == 400
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2105,7 +2103,7 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_files02/files/read", {"path": "../../etc/passwd"})
-                self.assertEqual(resp.status_code, 403)
+                assert resp.status_code == 403
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2115,7 +2113,7 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/files/write", {"path": "hello.py", "content": "x=1"})
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2129,9 +2127,9 @@ class TestApiProjectFiles(TestWebUiBase):
                     "path": "hello.py",
                     "content": "print('hello')"
                 })
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "ok")
+                assert data["status"] == "ok"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2141,7 +2139,7 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/no_proj/files/list")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2152,9 +2150,9 @@ class TestApiProjectFiles(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/proj_list01/files/list")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["files"], [])
+                assert data["files"] == []
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2171,7 +2169,7 @@ class TestApiProjectFiles(TestWebUiBase):
                 resp = self.get("/api/project/proj_list02/files/list")
                 data = self.json(resp)
                 paths = [f["path"] for f in data["files"]]
-                self.assertIn("script.py", paths)
+                assert "script.py" in paths
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2187,7 +2185,7 @@ class TestApiProjectAssemble(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/assemble")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2198,9 +2196,9 @@ class TestApiProjectAssemble(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/proj_assemble01/assemble")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["status"], "assembled")
+                assert data["status"] == "assembled"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2212,7 +2210,7 @@ class TestApiProjectAssemble(TestWebUiBase):
             try:
                 self.post("/api/project/proj_assemble02/assemble")
                 report = Path(tmp) / "projects" / "proj_assemble02" / "final_delivery" / "final_report.md"
-                self.assertTrue(report.exists())
+                assert report.exists()
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2228,7 +2226,7 @@ class TestApiVerifyGoal(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.post("/api/project/no_proj/verify-goal", {})
-                self.assertEqual(resp.status_code, 400)
+                assert resp.status_code == 400
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2237,21 +2235,21 @@ class TestApiVerifyGoal(TestWebUiBase):
             "goal": "build a REST API",
             "final_output": "Here is the API..."
         })
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_verify_goal_has_report(self):
         resp = self.post("/api/project/any_proj/verify-goal", {
             "goal": "build something",
         })
         data = self.json(resp)
-        self.assertIn("report", data)
+        assert "report" in data
 
     def test_verify_goal_has_corrective_tasks(self):
         resp = self.post("/api/project/any_proj/verify-goal", {
             "goal": "build something",
         })
         data = self.json(resp)
-        self.assertIn("corrective_tasks", data)
+        assert "corrective_tasks" in data
 
 
 # ============================================================================
@@ -2265,7 +2263,7 @@ class TestApiTaskOutput(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/no_proj/task/t1/output")
-                self.assertEqual(resp.status_code, 404)
+                assert resp.status_code == 404
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2276,9 +2274,9 @@ class TestApiTaskOutput(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/project/proj_taskout01/task/t1/output")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["output"], "")
+                assert data["output"] == ""
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2293,7 +2291,7 @@ class TestApiTaskOutput(TestWebUiBase):
             try:
                 resp = self.get("/api/project/proj_taskout02/task/t1/output")
                 data = self.json(resp)
-                self.assertEqual(data["output"], "task output content")
+                assert data["output"] == "task output content"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2309,9 +2307,9 @@ class TestApiOutput(TestWebUiBase):
             _web_ui.PROJECT_ROOT = Path(tmp)
             try:
                 resp = self.get("/api/output/no_such_task_xyz")
-                self.assertEqual(resp.status_code, 200)
+                assert resp.status_code == 200
                 data = self.json(resp)
-                self.assertEqual(data["output"], "")
+                assert data["output"] == ""
             finally:
                 _web_ui.PROJECT_ROOT = orig
 
@@ -2326,7 +2324,7 @@ class TestApiOutput(TestWebUiBase):
             try:
                 resp = self.get("/api/output/task_abc")
                 data = self.json(resp)
-                self.assertEqual(data["output"], "found output")
+                assert data["output"] == "found output"
             finally:
                 _web_ui.PROJECT_ROOT = orig
 

@@ -16,13 +16,9 @@ Covers:
 """
 
 import json
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # vetinari.types
@@ -77,23 +73,19 @@ class TestConstants:
         assert "localhost" in DEFAULT_LM_STUDIO_HOST or "1234" in DEFAULT_LM_STUDIO_HOST
 
     def test_timeouts_positive(self):
-        from vetinari.constants import (
-            TIMEOUT_SHORT, TIMEOUT_MEDIUM, TIMEOUT_LONG, TIMEOUT_VERY_LONG
-        )
+        from vetinari.constants import TIMEOUT_LONG, TIMEOUT_MEDIUM, TIMEOUT_SHORT, TIMEOUT_VERY_LONG
         assert TIMEOUT_SHORT > 0
         assert TIMEOUT_MEDIUM > TIMEOUT_SHORT
         assert TIMEOUT_LONG > TIMEOUT_MEDIUM
         assert TIMEOUT_VERY_LONG > TIMEOUT_LONG
 
     def test_quality_thresholds_range(self):
-        from vetinari.constants import (
-            DEFAULT_QUALITY_THRESHOLD, HIGH_QUALITY_THRESHOLD, CRITICAL_QUALITY_THRESHOLD
-        )
+        from vetinari.constants import CRITICAL_QUALITY_THRESHOLD, DEFAULT_QUALITY_THRESHOLD, HIGH_QUALITY_THRESHOLD
         for t in (DEFAULT_QUALITY_THRESHOLD, HIGH_QUALITY_THRESHOLD, CRITICAL_QUALITY_THRESHOLD):
             assert 0.0 < t < 1.0
 
     def test_sd_defaults(self):
-        from vetinari.constants import SD_DEFAULT_WIDTH, SD_DEFAULT_HEIGHT, SD_DEFAULT_STEPS
+        from vetinari.constants import SD_DEFAULT_HEIGHT, SD_DEFAULT_STEPS, SD_DEFAULT_WIDTH
         assert SD_DEFAULT_WIDTH > 0
         assert SD_DEFAULT_HEIGHT > 0
         assert SD_DEFAULT_STEPS > 0
@@ -336,7 +328,7 @@ class TestDecompositionEngine:
 
     def test_keyword_decompose_fallback(self, engine):
         # Without LLM, should fall back to keyword decomposition
-        with patch.object(engine, '_keyword_decompose', wraps=engine._keyword_decompose) as mock_kw:
+        with patch.object(engine, '_keyword_decompose', wraps=engine._keyword_decompose):
             # Force failure of LLM path
             with patch('vetinari.decomposition.DecompositionEngine.decompose_task') as mock_decomp:
                 mock_decomp.return_value = engine._keyword_decompose(
@@ -477,7 +469,7 @@ class TestImageGeneratorAgent:
 
         # Mock the LLM inference to return SVG
         svg_code = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#000"/></svg>'
-        from vetinari.agents.contracts import AgentType as AT
+        from vetinari.types import AgentType as AT
         with patch.object(agent, '_infer_json', return_value={
             "sd_prompt": "test logo",
             "negative_prompt": "bad quality",
@@ -574,8 +566,6 @@ class TestTwoLayerOrchestrationFixes:
     def test_max_concurrent_enforced(self):
         """max_concurrent should cap thread pool size."""
         from vetinari.orchestration.durable_execution import DurableExecutionEngine
-        from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
-        from vetinari.types import TaskStatus
         engine = DurableExecutionEngine(max_concurrent=2)
         assert engine.max_concurrent == 2
 
@@ -633,6 +623,7 @@ class TestModelSearchCacheFix:
     def test_cache_key_is_deterministic(self, tmp_path):
         """Cache keys must be deterministic (not Python's random hash)."""
         import hashlib
+
         from vetinari.model_discovery import ModelSearchEngine
 
         engine = ModelSearchEngine(cache_dir=str(tmp_path))
@@ -643,7 +634,7 @@ class TestModelSearchCacheFix:
 
         # Verify cache files use deterministic names
         query = "python REST API"
-        expected_key = hashlib.md5(query.encode("utf-8")).hexdigest()
+        hashlib.md5(query.encode("utf-8")).hexdigest()
 
         # Check that cache files have MD5-style names (not hash() output)
         cache_files = list(tmp_path.glob("*.json"))

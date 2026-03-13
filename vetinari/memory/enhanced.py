@@ -1,5 +1,4 @@
-"""
-Enhanced Memory System for Vetinari
+"""Enhanced Memory System for Vetinari.
 
 Provides long-term memory with semantic search capabilities using:
 - SQLite for structured data
@@ -13,24 +12,25 @@ Supports:
 - Semantic search with embeddings
 """
 
-import os
+from __future__ import annotations
+
+import hashlib
 import json
 import logging
+import os
 import sqlite3
-import hashlib
+import threading
 import time
-from typing import List, Dict, Any, Optional, Set
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
-import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class MemoryType(Enum):
     """Types of memory entries."""
+
     PLAN = "plan"
     TASK = "task"
     DECISION = "decision"
@@ -44,15 +44,17 @@ class MemoryType(Enum):
 class MemoryEntry:
     """A single memory entry with metadata."""
 
-    def __init__(self,
-                 entry_id: str = None,
-                 content: str = "",
-                 memory_type: MemoryType = MemoryType.CONTEXT,
-                 metadata: Dict[str, Any] = None,
-                 tags: List[str] = None,
-                 provenance: str = "",
-                 embedding: List[float] = None):
-        self.entry_id = entry_id or hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
+    def __init__(
+        self,
+        entry_id: str | None = None,
+        content: str = "",
+        memory_type: MemoryType = MemoryType.CONTEXT,
+        metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        provenance: str = "",
+        embedding: list[float] | None = None,
+    ):
+        self.entry_id = entry_id or hashlib.md5(str(time.time()).encode()).hexdigest()[:12]  # noqa: S324
         self.content = content
         self.memory_type = memory_type
         self.metadata = metadata or {}
@@ -65,7 +67,7 @@ class MemoryEntry:
         self.access_count = 0
         self.last_accessed = self.created_at
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "entry_id": self.entry_id,
             "content": self.content,
@@ -81,7 +83,7 @@ class MemoryEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'MemoryEntry':
+    def from_dict(cls, data: dict) -> MemoryEntry:
         entry = cls(
             entry_id=data.get("entry_id"),
             content=data.get("content", ""),
@@ -104,8 +106,7 @@ class MemoryEntry:
 
 
 class SemanticMemoryStore:
-    """
-    Enhanced memory store with semantic search capabilities.
+    """Enhanced memory store with semantic search capabilities.
 
     Features:
     - SQLite-backed persistent storage
@@ -116,12 +117,8 @@ class SemanticMemoryStore:
     - Provenance tracking
     """
 
-    def __init__(self,
-                 db_path: str = None,
-                 enable_embeddings: bool = False,
-                 embedding_model: str = "simple"):
-        """
-        Initialize the semantic memory store.
+    def __init__(self, db_path: str | None = None, enable_embeddings: bool = False, embedding_model: str = "simple"):
+        """Initialize the semantic memory store.
 
         Args:
             db_path: Path to SQLite database
@@ -215,20 +212,22 @@ class SemanticMemoryStore:
         """Initialize the embedding provider."""
         try:
             # Try to use sentence-transformers if available
-            from sentence_transformers import SentenceTransformer
+            from sentence_transformers import SentenceTransformer  # noqa: F401
+
             self._embedding_provider = "sentence_transformers"
             logger.info("Using sentence-transformers for embeddings")
         except ImportError:
             try:
                 # Try OpenAI embeddings
-                import openai
+                import openai  # noqa: F401
+
                 self._embedding_provider = "openai"
                 logger.info("Using OpenAI for embeddings")
             except ImportError:
                 logger.warning("No embedding provider available, using simple hashing")
                 self._embedding_provider = "simple"
 
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding(self, text: str) -> list[float]:
         """Get embedding for text."""
         if self._embedding_provider == "sentence_transformers":
             # This would require loading the model - simplified here
@@ -239,7 +238,7 @@ class SemanticMemoryStore:
         else:
             return self._simple_embedding(text)
 
-    def _simple_embedding(self, text: str) -> List[float]:
+    def _simple_embedding(self, text: str) -> list[float]:
         """Simple hash-based embedding for fallback."""
         # Simple deterministic hash-based vector
         hash_val = hashlib.sha256(text.encode()).digest()
@@ -259,24 +258,27 @@ class SemanticMemoryStore:
                     embedding_blob = json.dumps(entry.embedding)
 
                 cursor = self._conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO memory_entries
                     (entry_id, content, memory_type, metadata_json, tags_json, provenance,
                      embedding_blob, created_at, updated_at, access_count, last_accessed)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    entry.entry_id,
-                    entry.content,
-                    entry.memory_type.value,
-                    json.dumps(entry.metadata),
-                    json.dumps(entry.tags),
-                    entry.provenance,
-                    embedding_blob,
-                    entry.created_at,
-                    entry.updated_at,
-                    entry.access_count,
-                    entry.last_accessed
-                ))
+                """,
+                    (
+                        entry.entry_id,
+                        entry.content,
+                        entry.memory_type.value,
+                        json.dumps(entry.metadata),
+                        json.dumps(entry.tags),
+                        entry.provenance,
+                        embedding_blob,
+                        entry.created_at,
+                        entry.updated_at,
+                        entry.access_count,
+                        entry.last_accessed,
+                    ),
+                )
 
                 self._conn.commit()
                 return True
@@ -285,24 +287,30 @@ class SemanticMemoryStore:
                 logger.error(f"Failed to store memory entry: {e}")
                 return False
 
-    def retrieve(self, entry_id: str) -> Optional[MemoryEntry]:
+    def retrieve(self, entry_id: str) -> MemoryEntry | None:
         """Retrieve a memory entry by ID."""
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM memory_entries WHERE entry_id = ?
-            """, (entry_id,))
+            """,
+                (entry_id,),
+            )
 
             row = cursor.fetchone()
             if not row:
                 return None
 
             # Update access count
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE memory_entries
                 SET access_count = access_count + 1, last_accessed = ?
                 WHERE entry_id = ?
-            """, (datetime.now().isoformat(), entry_id))
+            """,
+                (datetime.now().isoformat(), entry_id),
+            )
             self._conn.commit()
 
             return self._row_to_entry(row)
@@ -323,14 +331,15 @@ class SemanticMemoryStore:
             embedding=embedding,
         )
 
-    def search(self,
-              query: str = None,
-              memory_type: MemoryType = None,
-              tags: List[str] = None,
-              limit: int = 10,
-              use_semantic: bool = False) -> List[MemoryEntry]:
-        """
-        Search memory entries.
+    def search(
+        self,
+        query: str | None = None,
+        memory_type: MemoryType = None,
+        tags: list[str] | None = None,
+        limit: int = 10,
+        use_semantic: bool = False,
+    ) -> list[MemoryEntry]:
+        """Search memory entries.
 
         Args:
             query: Text query for search
@@ -394,7 +403,7 @@ class SemanticMemoryStore:
 
             return [self._row_to_entry(row) for row in cursor.fetchall()]
 
-    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
+    def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
         """Calculate cosine similarity between two vectors."""
         if len(a) != len(b):
             return 0.0
@@ -408,10 +417,9 @@ class SemanticMemoryStore:
 
         return dot / (norm_a * norm_b)
 
-    def get_recent(self,
-                  memory_type: MemoryType = None,
-                  since: datetime = None,
-                  limit: int = 20) -> List[MemoryEntry]:
+    def get_recent(
+        self, memory_type: MemoryType = None, since: datetime | None = None, limit: int = 20
+    ) -> list[MemoryEntry]:
         """Get recent memory entries."""
         with self._lock:
             cursor = self._conn.cursor()
@@ -448,7 +456,7 @@ class SemanticMemoryStore:
                 logger.error(f"Failed to delete memory entry: {e}")
                 return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get memory statistics."""
         with self._lock:
             cursor = self._conn.cursor()
@@ -480,10 +488,13 @@ class SemanticMemoryStore:
             cutoff = datetime.now() - timedelta(days=retention_days)
 
             cursor = self._conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM memory_entries
                 WHERE created_at < ? AND access_count < 3
-            """, (cutoff.isoformat(),))
+            """,
+                (cutoff.isoformat(),),
+            )
 
             deleted = cursor.rowcount
             self._conn.commit()
@@ -512,8 +523,7 @@ class SemanticMemoryStore:
 
 
 class ContextMemory:
-    """
-    Short-term memory for current task context.
+    """Short-term memory for current task context.
 
     Provides:
     - Task-scoped context
@@ -522,29 +532,24 @@ class ContextMemory:
     """
 
     def __init__(self):
-        self._context: Dict[str, Any] = {}
-        self._history: List[Dict[str, Any]] = []
+        self._context: dict[str, Any] = {}
+        self._history: list[dict[str, Any]] = []
         self._max_history = 100
 
     def set(self, key: str, value: Any):
         """Set a context variable."""
         self._context[key] = value
-        self._history.append({
-            "action": "set",
-            "key": key,
-            "value": value,
-            "timestamp": datetime.now().isoformat()
-        })
+        self._history.append({"action": "set", "key": key, "value": value, "timestamp": datetime.now().isoformat()})
 
         # Trim history
         if len(self._history) > self._max_history:
-            self._history = self._history[-self._max_history:]
+            self._history = self._history[-self._max_history :]
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a context variable."""
         return self._context.get(key, default)
 
-    def get_all(self) -> Dict[str, Any]:
+    def get_all(self) -> dict[str, Any]:
         """Get all context variables."""
         return self._context.copy()
 
@@ -552,55 +557,48 @@ class ContextMemory:
         """Delete a context variable."""
         if key in self._context:
             del self._context[key]
-            self._history.append({
-                "action": "delete",
-                "key": key,
-                "timestamp": datetime.now().isoformat()
-            })
+            self._history.append({"action": "delete", "key": key, "timestamp": datetime.now().isoformat()})
 
     def clear(self):
         """Clear all context."""
         self._context.clear()
-        self._history.append({
-            "action": "clear",
-            "timestamp": datetime.now().isoformat()
-        })
+        self._history.append({"action": "clear", "timestamp": datetime.now().isoformat()})
 
-    def get_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_history(self, limit: int = 20) -> list[dict[str, Any]]:
         """Get context history."""
         return self._history[-limit:]
 
 
 class MemoryManager:
-    """
-    Unified memory management combining:
+    """Unified memory management combining:.
+
     - Semantic memory (long-term with search)
     - Context memory (short-term)
     - Session memory (per-session)
     """
 
-    def __init__(self,
-                 db_path: str = None,
-                 enable_semantic: bool = False):
+    def __init__(self, db_path: str | None = None, enable_semantic: bool = False):
         self.semantic = SemanticMemoryStore(db_path, enable_embeddings=enable_semantic)
         self.context = ContextMemory()
 
         # Session ID
-        self.session_id = hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
+        self.session_id = hashlib.md5(str(time.time()).encode()).hexdigest()[:12]  # noqa: S324
 
-    def remember(self,
-                content: str,
-                memory_type: MemoryType = MemoryType.CONTEXT,
-                metadata: Dict[str, Any] = None,
-                tags: List[str] = None,
-                provenance: str = "") -> str:
+    def remember(
+        self,
+        content: str,
+        memory_type: MemoryType = MemoryType.CONTEXT,
+        metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        provenance: str = "",
+    ) -> str:
         """Store something in memory."""
         entry = MemoryEntry(
             content=content,
             memory_type=memory_type,
             metadata=metadata or {},
             tags=tags or [],
-            provenance=provenance or f"session:{self.session_id}"
+            provenance=provenance or f"session:{self.session_id}",
         )
 
         self.semantic.store(entry)
@@ -611,24 +609,13 @@ class MemoryManager:
 
         return entry.entry_id
 
-    def recall(self,
-              query: str = None,
-              memory_type: MemoryType = None,
-              tags: List[str] = None,
-              limit: int = 5) -> List[MemoryEntry]:
+    def recall(
+        self, query: str | None = None, memory_type: MemoryType = None, tags: list[str] | None = None, limit: int = 5
+    ) -> list[MemoryEntry]:
         """Recall information from memory."""
-        return self.semantic.search(
-            query=query,
-            memory_type=memory_type,
-            tags=tags,
-            limit=limit
-        )
+        return self.semantic.search(query=query, memory_type=memory_type, tags=tags, limit=limit)
 
-    def remember_decision(self,
-                         decision: str,
-                         rationale: str,
-                         context: str = "",
-                         tags: List[str] = None) -> str:
+    def remember_decision(self, decision: str, rationale: str, context: str = "", tags: list[str] | None = None) -> str:
         """Remember a decision made by the system."""
         content = f"Decision: {decision}\nRationale: {rationale}"
         if context:
@@ -638,14 +625,12 @@ class MemoryManager:
             content=content,
             memory_type=MemoryType.DECISION,
             metadata={"decision": decision, "rationale": rationale},
-            tags=tags or ["decision"]
+            tags=tags or ["decision"],
         )
 
-    def remember_task_result(self,
-                           task_id: str,
-                           result: Any,
-                           model_used: str = "",
-                           tags: List[str] = None) -> str:
+    def remember_task_result(
+        self, task_id: str, result: Any, model_used: str = "", tags: list[str] | None = None
+    ) -> str:
         """Remember a task result."""
         content = f"Task {task_id} completed"
         if isinstance(result, dict):
@@ -657,23 +642,19 @@ class MemoryManager:
             content=content,
             memory_type=MemoryType.RESULT,
             metadata={"task_id": task_id, "model_used": model_used},
-            tags=tags or ["task", "result"]
+            tags=tags or ["task", "result"],
         )
 
-    def remember_knowledge(self,
-                         topic: str,
-                         content: str,
-                         source: str = "",
-                         tags: List[str] = None) -> str:
+    def remember_knowledge(self, topic: str, content: str, source: str = "", tags: list[str] | None = None) -> str:
         """Remember knowledge for future reference."""
         return self.remember(
             content=f"Topic: {topic}\n{content}",
             memory_type=MemoryType.KNOWLEDGE,
             metadata={"topic": topic, "source": source},
-            tags=tags or ["knowledge", topic]
+            tags=tags or ["knowledge", topic],
         )
 
-    def get_context(self, key: str = None) -> Any:
+    def get_context(self, key: str | None = None) -> Any:
         """Get context variable."""
         if key:
             return self.context.get(key)
@@ -684,11 +665,11 @@ class MemoryManager:
         for key, value in kwargs.items():
             self.context.set(key, value)
 
-    def get_recent_context(self, limit: int = 10) -> List[Dict]:
+    def get_recent_context(self, limit: int = 10) -> list[dict]:
         """Get recent context history."""
         return self.context.get_history(limit)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get memory statistics."""
         return self.semantic.get_stats()
 
@@ -697,7 +678,7 @@ class MemoryManager:
 EnhancedMemoryManager = MemoryManager
 
 # Global memory manager
-_memory_manager: Optional[MemoryManager] = None
+_memory_manager: MemoryManager | None = None
 
 
 def get_memory_manager() -> MemoryManager:
@@ -710,7 +691,7 @@ def get_memory_manager() -> MemoryManager:
     return _memory_manager
 
 
-def init_memory_manager(db_path: str = None, **kwargs) -> MemoryManager:
+def init_memory_manager(db_path: str | None = None, **kwargs) -> MemoryManager:
     """Initialize a new memory manager."""
     global _memory_manager
     _memory_manager = MemoryManager(db_path=db_path, **kwargs)
@@ -725,23 +706,16 @@ if __name__ == "__main__":
 
     # Store some memories
     logger.info("=== Storing memories ===")
-    mm.remember(
-        "Python 3.12 was released",
-        memory_type=MemoryType.KNOWLEDGE,
-        tags=["python", "release"]
-    )
+    mm.remember("Python 3.12 was released", memory_type=MemoryType.KNOWLEDGE, tags=["python", "release"])
 
     mm.remember_decision(
         "Use Llama 3 for coding tasks",
         "It has excellent code generation capabilities and runs locally",
-        tags=["model", "selection"]
+        tags=["model", "selection"],
     )
 
     mm.remember_task_result(
-        "task-1",
-        {"status": "completed", "output": "Test passed"},
-        model_used="llama-3-8b",
-        tags=["task", "result"]
+        "task-1", {"status": "completed", "output": "Test passed"}, model_used="llama-3-8b", tags=["task", "result"]
     )
 
     # Set context

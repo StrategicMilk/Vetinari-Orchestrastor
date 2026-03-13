@@ -12,8 +12,6 @@ Covers:
 - Singleton helpers: _get_engine, module-level decomposition_engine
 """
 
-import importlib
-import uuid
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -32,7 +30,6 @@ from vetinari.decomposition import (
     _get_engine,
 )
 
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -48,10 +45,10 @@ class TestConstants:
         assert MAX_MAX_DEPTH == 16
 
     def test_seed_rate_value(self):
-        assert SEED_RATE == pytest.approx(0.3)
+        assert pytest.approx(0.3) == SEED_RATE
 
     def test_seed_mix_value(self):
-        assert SEED_MIX == pytest.approx(0.5)
+        assert pytest.approx(0.5) == SEED_MIX
 
     def test_min_less_than_default(self):
         assert MIN_MAX_DEPTH < DEFAULT_MAX_DEPTH
@@ -432,18 +429,16 @@ class TestDecomposeTaskWithPlanner:
         mock_planner.execute.return_value = self._make_planner_result(task_data)
 
         with patch("vetinari.decomposition.DecompositionEngine.decompose_task",
-                   wraps=engine.decompose_task):
-            with patch(
-                "vetinari.agents.planner_agent.get_planner_agent",
-                return_value=mock_planner,
-            ):
-                with patch(
-                    "vetinari.agents.contracts.AgentTask",
-                    return_value=MagicMock(),
-                ):
-                    subtasks = engine.decompose_task(
-                        "Build a database service", plan_id="plan_1"
-                    )
+                   wraps=engine.decompose_task), patch(
+            "vetinari.agents.planner_agent.get_planner_agent",
+            return_value=mock_planner,
+        ), patch(
+            "vetinari.agents.contracts.AgentTask",
+            return_value=MagicMock(),
+        ):
+            subtasks = engine.decompose_task(
+                "Build a database service", plan_id="plan_1"
+            )
 
         assert isinstance(subtasks, list)
 
@@ -462,9 +457,8 @@ class TestDecomposeTaskWithPlanner:
         mock_planner = MagicMock()
         mock_planner.execute.return_value = self._make_planner_result(task_data)
         with patch("vetinari.agents.planner_agent.get_planner_agent",
-                   return_value=mock_planner):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                subtasks = engine.decompose_task("Build something")
+                   return_value=mock_planner), patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+            subtasks = engine.decompose_task("Build something")
 
         if subtasks:
             st = subtasks[0]
@@ -480,9 +474,8 @@ class TestDecomposeTaskWithPlanner:
         mock_planner = MagicMock()
         mock_planner.execute.return_value = self._make_planner_result(task_data)
         with patch("vetinari.agents.planner_agent.get_planner_agent",
-                   return_value=mock_planner):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                engine.decompose_task("task", plan_id="plan_x")
+                   return_value=mock_planner), patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+            engine.decompose_task("task", plan_id="plan_x")
 
         history = engine.get_decomposition_history("plan_x")
         assert len(history) >= 1
@@ -525,9 +518,8 @@ class TestDecomposeTaskWithPlanner:
         mock_planner = MagicMock()
         mock_planner.execute.return_value = MagicMock(success=False, output=None)
         with patch("vetinari.agents.planner_agent.get_planner_agent",
-                   return_value=mock_planner):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                subtasks = engine.decompose_task("do something")
+                   return_value=mock_planner), patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+            subtasks = engine.decompose_task("do something")
         # Falls back to keyword decompose
         assert isinstance(subtasks, list)
         assert len(subtasks) >= 1
@@ -536,9 +528,8 @@ class TestDecomposeTaskWithPlanner:
         mock_planner = MagicMock()
         mock_planner.execute.return_value = MagicMock(success=True, output="just a string")
         with patch("vetinari.agents.planner_agent.get_planner_agent",
-                   return_value=mock_planner):
-            with patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
-                subtasks = engine.decompose_task("do something")
+                   return_value=mock_planner), patch("vetinari.agents.contracts.AgentTask", return_value=MagicMock()):
+            subtasks = engine.decompose_task("do something")
         assert isinstance(subtasks, list)
         assert len(subtasks) >= 1
 
@@ -708,7 +699,7 @@ class TestSingleton:
         assert isinstance(decomp_module.decomposition_engine, DecompositionEngine)
 
     def test_singleton_reset_creates_new(self):
-        e1 = _get_engine()
+        _get_engine()
         decomp_module._decomposition_engine = None
         e2 = _get_engine()
         # Both are valid instances; after reset a new one is created

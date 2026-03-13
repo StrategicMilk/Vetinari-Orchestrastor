@@ -1,5 +1,5 @@
-"""
-Vetinari Training Data Collector
+"""Vetinari Training Data Collector.
+
 ==================================
 Records every agent execution to a JSONL file, enabling:
 
@@ -45,12 +45,11 @@ import logging
 import os
 import queue
 import threading
-import time
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -64,32 +63,34 @@ _DEFAULT_PATH = os.environ.get(
 # Data model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TrainingRecord:
     """A single execution record for training data collection."""
+
     record_id: str
     timestamp: str
-    task: str                      # Task description / user prompt
-    prompt: str                    # Full prompt sent to LLM (system + user)
-    response: str                  # LLM output
-    score: float                   # Quality score (0.0-1.0)
-    model_id: str                  # Model that produced the response
-    task_type: str                 # coding / research / analysis / etc.
-    prompt_variant_id: str = ""    # For A/B tracking
-    agent_type: str = ""           # Agent that executed this task
+    task: str  # Task description / user prompt
+    prompt: str  # Full prompt sent to LLM (system + user)
+    response: str  # LLM output
+    score: float  # Quality score (0.0-1.0)
+    model_id: str  # Model that produced the response
+    task_type: str  # coding / research / analysis / etc.
+    prompt_variant_id: str = ""  # For A/B tracking
+    agent_type: str = ""  # Agent that executed this task
     latency_ms: int = 0
     tokens_used: int = 0
     success: bool = True
     vram_used_gb: float = 0.0
-    benchmark_suite: str = ""             # Benchmark suite name (e.g. "toolbench", "swe-bench")
-    benchmark_pass: bool = False          # Whether the output passed benchmark validation
-    benchmark_score: float = 0.0          # Benchmark score 0.0-1.0 (pass_rate or avg_score)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    benchmark_suite: str = ""  # Benchmark suite name (e.g. "toolbench", "swe-bench")
+    benchmark_pass: bool = False  # Whether the output passed benchmark validation
+    benchmark_score: float = 0.0  # Benchmark score 0.0-1.0 (pass_rate or avg_score)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    def to_sft_pair(self) -> Dict[str, str]:
+    def to_sft_pair(self) -> dict[str, str]:
         """Convert to a (prompt, completion) pair for SFT training."""
         return {
             "prompt": self.prompt,
@@ -103,10 +104,11 @@ class TrainingRecord:
 # Collector
 # ---------------------------------------------------------------------------
 
+
 class TrainingDataCollector:
     """Thread-safe training data recorder with background I/O."""
 
-    _instance: Optional["TrainingDataCollector"] = None
+    _instance: TrainingDataCollector | None = None
     _cls_lock = threading.Lock()
 
     def __init__(self, output_path: str = _DEFAULT_PATH):
@@ -127,7 +129,7 @@ class TrainingDataCollector:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls, output_path: str = _DEFAULT_PATH) -> "TrainingDataCollector":
+    def get_instance(cls, output_path: str = _DEFAULT_PATH) -> TrainingDataCollector:
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls(output_path=output_path)
@@ -137,7 +139,7 @@ class TrainingDataCollector:
     # Recording
     # ------------------------------------------------------------------
 
-    def record(
+    def record(  # noqa: D417
         self,
         task: str,
         prompt: str,
@@ -150,7 +152,7 @@ class TrainingDataCollector:
         latency_ms: int = 0,
         tokens_used: int = 0,
         success: bool = True,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         benchmark_suite: str = "",
         benchmark_pass: bool = False,
         benchmark_score: float = 0.0,
@@ -166,11 +168,13 @@ class TrainingDataCollector:
         vram_used = 0.0
         try:
             from vetinari.vram_manager import get_vram_manager
+
             vram_used = get_vram_manager().get_used_vram_gb()
         except Exception:
             logger.debug("Failed to snapshot VRAM usage for training record", exc_info=True)
 
         import uuid
+
         rec = TrainingRecord(
             record_id=f"tr_{uuid.uuid4().hex[:8]}",
             timestamp=datetime.now().isoformat(),
@@ -236,26 +240,26 @@ class TrainingDataCollector:
     # Export methods
     # ------------------------------------------------------------------
 
-    def _load_all(self) -> List[TrainingRecord]:
+    def _load_all(self) -> list[TrainingRecord]:
         """Load all records from the JSONL file."""
         if not self._output_path.exists():
             return []
-        records: List[TrainingRecord] = []
+        records: list[TrainingRecord] = []
         with open(self._output_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     d = json.loads(line.strip())
                     records.append(TrainingRecord(**d))
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
         return records
 
     def export_sft_dataset(
         self,
         min_score: float = 0.8,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         max_records: int = 10000,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Export high-quality completions for supervised fine-tuning.
 
         Returns list of ``{"prompt": ..., "completion": ..., "score": ...}`` dicts.
@@ -263,10 +267,9 @@ class TrainingDataCollector:
         self.flush()
         all_records = self._load_all()
         filtered = [
-            r for r in all_records
-            if r.score >= min_score
-            and r.success
-            and (task_type is None or r.task_type == task_type)
+            r
+            for r in all_records
+            if r.score >= min_score and r.success and (task_type is None or r.task_type == task_type)
         ]
         # Sort by score descending, take top N
         filtered.sort(key=lambda r: -r.score)
@@ -274,9 +277,9 @@ class TrainingDataCollector:
 
     def export_dpo_dataset(
         self,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         min_score_gap: float = 0.2,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Export preference pairs for DPO alignment training.
 
         Groups records by task text; pairs highest-scoring with lowest-scoring
@@ -290,30 +293,32 @@ class TrainingDataCollector:
             all_records = [r for r in all_records if r.task_type == task_type]
 
         # Group by task text (normalized)
-        by_task: Dict[str, List[TrainingRecord]] = defaultdict(list)
+        by_task: dict[str, list[TrainingRecord]] = defaultdict(list)
         for r in all_records:
             key = r.task[:200].strip().lower()
             by_task[key].append(r)
 
-        pairs: List[Dict[str, Any]] = []
-        for task_key, group in by_task.items():
+        pairs: list[dict[str, Any]] = []
+        for _task_key, group in by_task.items():
             if len(group) < 2:
                 continue
             group.sort(key=lambda r: r.score)
             worst = group[0]
             best = group[-1]
             if (best.score - worst.score) >= min_score_gap:
-                pairs.append({
-                    "prompt": best.task,
-                    "chosen": best.response,
-                    "rejected": worst.response,
-                    "chosen_score": best.score,
-                    "rejected_score": worst.score,
-                    "task_type": best.task_type,
-                })
+                pairs.append(
+                    {
+                        "prompt": best.task,
+                        "chosen": best.response,
+                        "rejected": worst.response,
+                        "chosen_score": best.score,
+                        "rejected_score": worst.score,
+                        "task_type": best.task_type,
+                    }
+                )
         return pairs
 
-    def export_prompt_dataset(self) -> List[Dict[str, Any]]:
+    def export_prompt_dataset(self) -> list[dict[str, Any]]:
         """Export prompt variant performance for DSPy/A-B analysis."""
         self.flush()
         all_records = self._load_all()
@@ -333,8 +338,8 @@ class TrainingDataCollector:
     def export_hf_dataset(
         self,
         min_score: float = 0.8,
-        task_type: Optional[str] = None,
-    ) -> List[Dict[str, str]]:
+        task_type: str | None = None,
+    ) -> list[dict[str, str]]:
         """Export records in HuggingFace Datasets / Alpaca format.
 
         Returns list of ``{"instruction": ..., "input": ..., "output": ...}`` dicts.
@@ -343,10 +348,9 @@ class TrainingDataCollector:
         self.flush()
         all_records = self._load_all()
         filtered = [
-            r for r in all_records
-            if r.score >= min_score
-            and r.success
-            and (task_type is None or r.task_type == task_type)
+            r
+            for r in all_records
+            if r.score >= min_score and r.success and (task_type is None or r.task_type == task_type)
         ]
         filtered.sort(key=lambda r: -r.score)
         return [
@@ -362,7 +366,7 @@ class TrainingDataCollector:
         self,
         task_type: str,
         k: int = 5,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """Return top-k highest-scoring examples for a specific task type.
 
         Returns list of ``{"input": ..., "output": ...}`` pairs suitable for
@@ -372,12 +376,9 @@ class TrainingDataCollector:
         all_records = self._load_all()
         filtered = [r for r in all_records if r.task_type == task_type and r.success]
         filtered.sort(key=lambda r: -r.score)
-        return [
-            {"input": r.task, "output": r.response}
-            for r in filtered[:k]
-        ]
+        return [{"input": r.task, "output": r.response} for r in filtered[:k]]
 
-    def export_ranking_dataset(self) -> List[Dict[str, Any]]:
+    def export_ranking_dataset(self) -> list[dict[str, Any]]:
         """Export grouped, ranked responses for reward-model training.
 
         Groups records by task text, ranks all responses best→worst by score.
@@ -387,33 +388,32 @@ class TrainingDataCollector:
         self.flush()
         all_records = self._load_all()
 
-        by_task: Dict[str, List[TrainingRecord]] = defaultdict(list)
+        by_task: dict[str, list[TrainingRecord]] = defaultdict(list)
         for r in all_records:
             key = r.task[:200].strip().lower()
             by_task[key].append(r)
 
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         for group in by_task.values():
             if len(group) < 2:
                 continue
             group.sort(key=lambda r: -r.score)
-            result.append({
-                "prompt": group[0].task,
-                "responses": [
-                    {"response": r.response, "score": r.score}
-                    for r in group
-                ],
-            })
+            result.append(
+                {
+                    "prompt": group[0].task,
+                    "responses": [{"response": r.response, "score": r.score} for r in group],
+                }
+            )
         return result
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return a summary of collected training data."""
         self.flush()
         all_records = self._load_all()
         if not all_records:
             return {"total": 0, "queued": self._queue.qsize()}
 
-        by_type: Dict[str, List[float]] = defaultdict(list)
+        by_type: dict[str, list[float]] = defaultdict(list)
         for r in all_records:
             by_type[r.task_type].append(r.score)
 
@@ -437,7 +437,7 @@ class TrainingDataCollector:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_collector: Optional[TrainingDataCollector] = None
+_collector: TrainingDataCollector | None = None
 _collector_lock = threading.Lock()
 
 

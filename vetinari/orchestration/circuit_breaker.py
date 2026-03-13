@@ -1,5 +1,5 @@
-"""
-Circuit Breaker and Stagnation Detection for Agent Orchestration
+"""Circuit Breaker and Stagnation Detection for Agent Orchestration.
+
 =================================================================
 
 Provides two resilience primitives for the orchestration layer:
@@ -159,10 +159,7 @@ class CircuitBreaker:
         if self._state is CircuitState.HALF_OPEN:
             # Probe failed — reopen immediately.
             self._state = CircuitState.OPEN
-        elif (
-            self._state is CircuitState.CLOSED
-            and self._failure_count >= self.failure_threshold
-        ):
+        elif self._state is CircuitState.CLOSED and self._failure_count >= self.failure_threshold:
             self._state = CircuitState.OPEN
 
     def record_success(self) -> None:
@@ -284,9 +281,7 @@ class StagnationDetector:
             return True
         if self._error_count >= self.error_threshold:
             return True
-        if self.time_budget is not None and self.elapsed >= self.time_budget:
-            return True
-        return False
+        return bool(self.time_budget is not None and self.elapsed >= self.time_budget)
 
     def stagnation_reasons(self) -> list[str]:
         """Return human-readable descriptions of all active stagnation triggers.
@@ -301,15 +296,9 @@ class StagnationDetector:
                 f"{self._repeat_count} times (threshold: {self.max_repeated_outputs})"
             )
         if self._error_count >= self.error_threshold:
-            reasons.append(
-                f"Error threshold exceeded: {self._error_count} errors "
-                f"(threshold: {self.error_threshold})"
-            )
+            reasons.append(f"Error threshold exceeded: {self._error_count} errors (threshold: {self.error_threshold})")
         if self.time_budget is not None and self.elapsed >= self.time_budget:
-            reasons.append(
-                f"Time budget exceeded: {self.elapsed:.1f}s elapsed "
-                f"(budget: {self.time_budget:.1f}s)"
-            )
+            reasons.append(f"Time budget exceeded: {self.elapsed:.1f}s elapsed (budget: {self.time_budget:.1f}s)")
         return reasons
 
     def reset(self) -> None:

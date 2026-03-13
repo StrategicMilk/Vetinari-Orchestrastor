@@ -1,5 +1,4 @@
-"""
-Alert System for Vetinari Dashboard
+"""Alert System for Vetinari Dashboard.
 
 Provides threshold-based alerting on top of the MetricsSnapshot produced by DashboardAPI.
 
@@ -33,15 +32,18 @@ Usage:
     engine.evaluate_all()
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import smtplib
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from email.mime.text import MIMEText
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -53,6 +55,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------
+
 
 class AlertSeverity(Enum):
     LOW = "low"
@@ -70,20 +73,21 @@ class AlertCondition(Enum):
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AlertThreshold:
     """Defines a rule to evaluate against a MetricsSnapshot value."""
 
     name: str
-    metric_key: str          # dot-notation path into MetricsSnapshot.to_dict()
+    metric_key: str  # dot-notation path into MetricsSnapshot.to_dict()
     condition: AlertCondition
     threshold_value: float
     severity: AlertSeverity = AlertSeverity.MEDIUM
-    channels: List[str] = field(default_factory=lambda: ["log"])
+    channels: list[str] = field(default_factory=lambda: ["log"])
     # duration_seconds > 0 means the condition must persist that long before firing
     duration_seconds: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "metric_key": self.metric_key,
@@ -103,7 +107,7 @@ class AlertRecord:
     current_value: float
     trigger_time: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "threshold": self.threshold.to_dict(),
             "current_value": self.current_value,
@@ -115,9 +119,9 @@ class AlertRecord:
 # Metric resolution
 # ---------------------------------------------------------------------------
 
-def _resolve_metric(snapshot_dict: Dict[str, Any], key: str) -> Optional[float]:
-    """
-    Walk a dot-notation key into the snapshot dictionary and return a float.
+
+def _resolve_metric(snapshot_dict: dict[str, Any], key: str) -> float | None:
+    """Walk a dot-notation key into the snapshot dictionary and return a float.
 
     Returns None when the key path does not exist or the value is not numeric.
     """
@@ -137,6 +141,7 @@ def _resolve_metric(snapshot_dict: Dict[str, Any], key: str) -> Optional[float]:
 # ---------------------------------------------------------------------------
 # Dispatchers
 # ---------------------------------------------------------------------------
+
 
 def _dispatch_log(alert: AlertRecord) -> None:
     level = logging.ERROR if alert.threshold.severity == AlertSeverity.HIGH else logging.WARNING
@@ -168,10 +173,7 @@ def _dispatch_email(alert: AlertRecord) -> None:
         )
         return
 
-    subject = (
-        f"[Vetinari Alert] [{alert.threshold.severity.value.upper()}] "
-        f"{alert.threshold.name}"
-    )
+    subject = f"[Vetinari Alert] [{alert.threshold.severity.value.upper()}] {alert.threshold.name}"
     body = (
         f"Alert: {alert.threshold.name}\n"
         f"Severity: {alert.threshold.severity.value.upper()}\n"
@@ -238,7 +240,7 @@ def _dispatch_webhook(alert: AlertRecord) -> None:
         )
 
 
-DISPATCHERS: Dict[str, Callable[[AlertRecord], None]] = {
+DISPATCHERS: dict[str, Callable[[AlertRecord], None]] = {
     "log": _dispatch_log,
     "email": _dispatch_email,
     "webhook": _dispatch_webhook,
@@ -249,17 +251,17 @@ DISPATCHERS: Dict[str, Callable[[AlertRecord], None]] = {
 # Alert engine
 # ---------------------------------------------------------------------------
 
+
 class AlertEngine:
-    """
-    Evaluates registered AlertThreshold rules against live metrics.
+    """Evaluates registered AlertThreshold rules against live metrics.
 
     Thread-safe singleton — obtain via get_alert_engine().
     """
 
-    _instance: Optional["AlertEngine"] = None
+    _instance: AlertEngine | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "AlertEngine":
+    def __new__(cls) -> AlertEngine:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -273,11 +275,11 @@ class AlertEngine:
 
     def _setup(self) -> None:
         self._lock = threading.RLock()
-        self._thresholds: Dict[str, AlertThreshold] = {}   # keyed by name
-        self._active: Dict[str, AlertRecord] = {}          # currently firing
-        self._history: List[AlertRecord] = []              # all past firings
+        self._thresholds: dict[str, AlertThreshold] = {}  # keyed by name
+        self._active: dict[str, AlertRecord] = {}  # currently firing
+        self._history: list[AlertRecord] = []  # all past firings
         # duration tracking: name -> (first_trigger_time,)
-        self._duration_start: Dict[str, float] = {}
+        self._duration_start: dict[str, float] = {}
 
     # ------------------------------------------------------------------
     # Threshold management
@@ -306,7 +308,7 @@ class AlertEngine:
             self._duration_start.clear()
             logger.debug("Cleared all alert thresholds")
 
-    def list_thresholds(self) -> List[AlertThreshold]:
+    def list_thresholds(self) -> list[AlertThreshold]:
         with self._lock:
             return list(self._thresholds.values())
 
@@ -314,9 +316,8 @@ class AlertEngine:
     # Evaluation
     # ------------------------------------------------------------------
 
-    def evaluate_all(self, api: Optional[DashboardAPI] = None) -> List[AlertRecord]:
-        """
-        Evaluate all registered thresholds against the current metrics snapshot.
+    def evaluate_all(self, api: DashboardAPI | None = None) -> list[AlertRecord]:
+        """Evaluate all registered thresholds against the current metrics snapshot.
 
         Args:
             api: DashboardAPI instance to use (defaults to the global singleton).
@@ -329,7 +330,7 @@ class AlertEngine:
 
         snapshot: MetricsSnapshot = api.get_latest_metrics()
         snapshot_dict = snapshot.to_dict()
-        fired: List[AlertRecord] = []
+        fired: list[AlertRecord] = []
 
         with self._lock:
             for name, threshold in list(self._thresholds.items()):
@@ -370,11 +371,8 @@ class AlertEngine:
             return value == threshold.threshold_value
         return False
 
-    def _handle_triggered(
-        self, threshold: AlertThreshold, name: str, value: float
-    ) -> Optional[AlertRecord]:
-        """
-        Handle a triggered condition, respecting duration requirements.
+    def _handle_triggered(self, threshold: AlertThreshold, name: str, value: float) -> AlertRecord | None:
+        """Handle a triggered condition, respecting duration requirements.
 
         Returns an AlertRecord if the alert should fire now, otherwise None.
         """
@@ -427,17 +425,17 @@ class AlertEngine:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_active_alerts(self) -> List[AlertRecord]:
+    def get_active_alerts(self) -> list[AlertRecord]:
         """Return currently active (firing) alerts."""
         with self._lock:
             return list(self._active.values())
 
-    def get_history(self) -> List[AlertRecord]:
+    def get_history(self) -> list[AlertRecord]:
         """Return all alerts that have ever fired in this session."""
         with self._lock:
             return list(self._history)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "registered_thresholds": len(self._thresholds),
@@ -449,6 +447,7 @@ class AlertEngine:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_alert_engine() -> AlertEngine:
     """Return the global AlertEngine singleton."""

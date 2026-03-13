@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import logging
 import os
 import re
 import threading
 from pathlib import Path
-from typing import Any, Dict, Type, TypeVar
+from typing import Any, TypeVar
 
 import yaml
 
@@ -32,7 +34,7 @@ class SingletonMeta(type):
         MyService.reset_instance()
     """
 
-    _instances: Dict[type, Any] = {}
+    _instances: dict[type, Any] = {}
     _lock = threading.Lock()
 
     def __call__(cls, *args, **kwargs):
@@ -78,7 +80,7 @@ def _expand_env_vars(obj: Any) -> Any:
 
 def load_yaml(path: str) -> Any:
     """Load a YAML file and expand ${ENV_VAR} placeholders in string values."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return _expand_env_vars(data)
 
@@ -130,8 +132,8 @@ def estimate_model_memory_gb(model_id: str) -> int:
 def error_response(
     message: str,
     status: int = 400,
-    detail: str = None,
-    instance: str = None,
+    detail: str | None = None,
+    instance: str | None = None,
 ) -> tuple:
     """Create an RFC 9457-compliant error response for Flask.
 

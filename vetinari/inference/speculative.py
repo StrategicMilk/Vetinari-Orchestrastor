@@ -1,5 +1,5 @@
-"""
-Speculative Decoding Support (C16)
+"""Speculative Decoding Support (C16).
+
 ====================================
 Draft-verify pattern: small model drafts, large model verifies.
 
@@ -15,8 +15,8 @@ from __future__ import annotations
 import logging
 import os
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +24,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SpeculativeConfig:
     """Configuration for speculative decoding."""
+
     enabled: bool = False
-    draft_model: str = ""        # e.g. "qwen2.5-coder-7b"
-    verify_model: str = ""       # e.g. "qwen2.5-coder-32b"
-    draft_tokens: int = 5        # tokens to draft before verification
+    draft_model: str = ""  # e.g. "qwen2.5-coder-7b"
+    verify_model: str = ""  # e.g. "qwen2.5-coder-32b"
+    draft_tokens: int = 5  # tokens to draft before verification
     acceptance_threshold: float = 0.8  # min acceptance rate to keep using speculative
-    fallback_after_failures: int = 3   # switch to sequential after N failures
-    max_draft_attempts: int = 10       # max draft rounds per request
+    fallback_after_failures: int = 3  # switch to sequential after N failures
+    max_draft_attempts: int = 10  # max draft rounds per request
 
 
 @dataclass
 class SpeculativeResult:
     """Result of a speculative decoding run."""
+
     output: str
     total_tokens: int = 0
     draft_tokens_generated: int = 0
@@ -53,7 +55,7 @@ class SpeculativeDecoder:
     to verify them, achieving faster overall generation.
     """
 
-    def __init__(self, config: Optional[SpeculativeConfig] = None):
+    def __init__(self, config: SpeculativeConfig | None = None):
         self._config = config or SpeculativeConfig()
         self._consecutive_failures = 0
         self._total_requests = 0
@@ -88,7 +90,10 @@ class SpeculativeDecoder:
             # Standard sequential generation
             output = self._sequential_generate(
                 self._config.verify_model or self._config.draft_model,
-                prompt, system_prompt, max_tokens, temperature,
+                prompt,
+                system_prompt,
+                max_tokens,
+                temperature,
             )
             duration = (time.monotonic() - start) * 1000
             return SpeculativeResult(
@@ -102,14 +107,16 @@ class SpeculativeDecoder:
         self._speculative_requests += 1
         try:
             result = self._speculative_generate(
-                prompt, system_prompt, max_tokens, temperature,
+                prompt,
+                system_prompt,
+                max_tokens,
+                temperature,
             )
             result.duration_ms = (time.monotonic() - start) * 1000
             if result.acceptance_rate < self._config.acceptance_threshold:
                 self._consecutive_failures += 1
                 logger.info(
-                    "Speculative acceptance rate %.1f%% below threshold — "
-                    "failures=%d/%d",
+                    "Speculative acceptance rate %.1f%% below threshold — failures=%d/%d",
                     result.acceptance_rate * 100,
                     self._consecutive_failures,
                     self._config.fallback_after_failures,
@@ -122,7 +129,10 @@ class SpeculativeDecoder:
             self._consecutive_failures += 1
             output = self._sequential_generate(
                 self._config.verify_model,
-                prompt, system_prompt, max_tokens, temperature,
+                prompt,
+                system_prompt,
+                max_tokens,
+                temperature,
             )
             duration = (time.monotonic() - start) * 1000
             return SpeculativeResult(
@@ -192,7 +202,7 @@ class SpeculativeDecoder:
                 else:
                     break
             accepted_total += accepted
-            generated += " ".join(draft_words[:max(accepted, 1)]) + " "
+            generated += " ".join(draft_words[: max(accepted, 1)]) + " "
 
             # Early stop if nothing accepted
             if accepted == 0:
@@ -220,6 +230,7 @@ class SpeculativeDecoder:
         try:
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
             import requests
+
             resp = requests.post(
                 f"{host}/v1/chat/completions",
                 json={
@@ -239,7 +250,7 @@ class SpeculativeDecoder:
             logger.warning("Sequential generation failed: %s", e)
             return ""
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "total_requests": self._total_requests,
@@ -255,10 +266,10 @@ class SpeculativeDecoder:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_decoder: Optional[SpeculativeDecoder] = None
+_decoder: SpeculativeDecoder | None = None
 
 
-def get_speculative_decoder(config: Optional[SpeculativeConfig] = None) -> SpeculativeDecoder:
+def get_speculative_decoder(config: SpeculativeConfig | None = None) -> SpeculativeDecoder:
     global _decoder
     if _decoder is None:
         _decoder = SpeculativeDecoder(config)

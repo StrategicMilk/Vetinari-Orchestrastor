@@ -1,5 +1,4 @@
-"""
-Agent Interface Contracts
+"""Agent Interface Contracts.
 
 This module defines formal interface contracts for agents, ensuring consistent
 communication protocols and standardized capabilities across all agents.
@@ -8,35 +7,37 @@ communication protocols and standardized capabilities across all agents.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
 from enum import Enum
+from typing import Any
 
 
 class CapabilityType(Enum):
     """Types of agent capabilities."""
-    DISCOVERY = "discovery"           # Explorer, Librarian
-    ANALYSIS = "analysis"             # Researcher, Evaluator, Oracle
-    SYNTHESIS = "synthesis"           # Synthesizer
-    GENERATION = "generation"         # Builder, UI Planner
-    VERIFICATION = "verification"     # Evaluator, Security Auditor
-    DOCUMENTATION = "documentation"   # Documentation Agent
-    OPTIMIZATION = "optimization"     # Cost Planner
-    TESTING = "testing"               # Test Automation
-    GOVERNANCE = "governance"         # Security Auditor
+
+    DISCOVERY = "discovery"  # Explorer, Librarian
+    ANALYSIS = "analysis"  # Researcher, Evaluator, Oracle
+    SYNTHESIS = "synthesis"  # Synthesizer
+    GENERATION = "generation"  # Builder, UI Planner
+    VERIFICATION = "verification"  # Evaluator, Security Auditor
+    DOCUMENTATION = "documentation"  # Documentation Agent
+    OPTIMIZATION = "optimization"  # Cost Planner
+    TESTING = "testing"  # Test Automation
+    GOVERNANCE = "governance"  # Security Auditor
 
 
 @dataclass
 class Capability:
     """Definition of an agent capability."""
+
     name: str
     type: CapabilityType
     description: str
-    input_schema: Dict[str, Any]      # JSON schema for inputs
-    output_schema: Dict[str, Any]     # JSON schema for outputs
+    input_schema: dict[str, Any]  # JSON schema for inputs
+    output_schema: dict[str, Any]  # JSON schema for outputs
     version: str = "1.0.0"
     deprecated: bool = False
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "type": self.type.value,
@@ -44,36 +45,37 @@ class Capability:
             "input_schema": self.input_schema,
             "output_schema": self.output_schema,
             "version": self.version,
-            "deprecated": self.deprecated
+            "deprecated": self.deprecated,
         }
 
 
 @dataclass
 class AgentInterface:
     """Formal interface contract for an agent."""
+
     agent_name: str
     agent_type: str
     version: str
-    capabilities: List[Capability] = field(default_factory=list)
-    required_context: List[str] = field(default_factory=list)
-    error_codes: Dict[str, str] = field(default_factory=dict)
-    
-    def get_capability(self, capability_name: str) -> Optional[Capability]:
+    capabilities: list[Capability] = field(default_factory=list)
+    required_context: list[str] = field(default_factory=list)
+    error_codes: dict[str, str] = field(default_factory=dict)
+
+    def get_capability(self, capability_name: str) -> Capability | None:
         """Get a capability by name."""
         return next((c for c in self.capabilities if c.name == capability_name), None)
-    
+
     def has_capability(self, capability_name: str) -> bool:
         """Check if agent has a capability."""
         return self.get_capability(capability_name) is not None
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "agent_name": self.agent_name,
             "agent_type": self.agent_type,
             "version": self.version,
             "capabilities": [c.to_dict() for c in self.capabilities],
             "required_context": self.required_context,
-            "error_codes": self.error_codes
+            "error_codes": self.error_codes,
         }
 
 
@@ -92,20 +94,17 @@ EXPLORER_INTERFACE = AgentInterface(
                 "properties": {
                     "query": {"type": "string"},
                     "scope": {"type": "string", "enum": ["code", "docs", "apis"]},
-                    "max_results": {"type": "integer"}
+                    "max_results": {"type": "integer"},
                 },
-                "required": ["query"]
+                "required": ["query"],
             },
             output_schema={
                 "type": "object",
-                "properties": {
-                    "findings": {"type": "array"},
-                    "references": {"type": "array"}
-                }
-            }
+                "properties": {"findings": {"type": "array"}, "references": {"type": "array"}},
+            },
         )
     ],
-    required_context=["codebase_path", "search_tools"]
+    required_context=["codebase_path", "search_tools"],
 )
 
 
@@ -124,18 +123,18 @@ LIBRARIAN_INTERFACE = AgentInterface(
                 "properties": {
                     "topic": {"type": "string"},
                     "sources": {"type": "array", "items": {"type": "string"}},
-                    "depth": {"type": "string", "enum": ["summary", "detailed"]}
+                    "depth": {"type": "string", "enum": ["summary", "detailed"]},
                 },
-                "required": ["topic"]
+                "required": ["topic"],
             },
             output_schema={
                 "type": "object",
                 "properties": {
                     "summary": {"type": "string"},
                     "sources": {"type": "array"},
-                    "fit_assessment": {"type": "string"}
-                }
-            }
+                    "fit_assessment": {"type": "string"},
+                },
+            },
         ),
         Capability(
             name="analyze_libraries",
@@ -143,22 +142,16 @@ LIBRARIAN_INTERFACE = AgentInterface(
             description="Analyze available libraries and frameworks",
             input_schema={
                 "type": "object",
-                "properties": {
-                    "domain": {"type": "string"},
-                    "criteria": {"type": "array"}
-                },
-                "required": ["domain"]
+                "properties": {"domain": {"type": "string"}, "criteria": {"type": "array"}},
+                "required": ["domain"],
             },
             output_schema={
                 "type": "object",
-                "properties": {
-                    "libraries": {"type": "array"},
-                    "recommendations": {"type": "array"}
-                }
-            }
-        )
+                "properties": {"libraries": {"type": "array"}, "recommendations": {"type": "array"}},
+            },
+        ),
     ],
-    required_context=["api_keys", "documentation_sources"]
+    required_context=["api_keys", "documentation_sources"],
 )
 
 
@@ -176,18 +169,18 @@ RESEARCHER_INTERFACE = AgentInterface(
                 "type": "object",
                 "properties": {
                     "domain": {"type": "string"},
-                    "questions": {"type": "array", "items": {"type": "string"}}
+                    "questions": {"type": "array", "items": {"type": "string"}},
                 },
-                "required": ["domain"]
+                "required": ["domain"],
             },
             output_schema={
                 "type": "object",
                 "properties": {
                     "findings": {"type": "array"},
                     "feasibility_score": {"type": "number"},
-                    "recommendations": {"type": "array"}
-                }
-            }
+                    "recommendations": {"type": "array"},
+                },
+            },
         ),
         Capability(
             name="competitive_analysis",
@@ -195,22 +188,16 @@ RESEARCHER_INTERFACE = AgentInterface(
             description="Analyze competitors and market landscape",
             input_schema={
                 "type": "object",
-                "properties": {
-                    "market": {"type": "string"},
-                    "competitors": {"type": "array"}
-                },
-                "required": ["market"]
+                "properties": {"market": {"type": "string"}, "competitors": {"type": "array"}},
+                "required": ["market"],
             },
             output_schema={
                 "type": "object",
-                "properties": {
-                    "competitor_analysis": {"type": "array"},
-                    "market_positioning": {"type": "string"}
-                }
-            }
-        )
+                "properties": {"competitor_analysis": {"type": "array"}, "market_positioning": {"type": "string"}},
+            },
+        ),
     ],
-    required_context=["research_tools", "market_data"]
+    required_context=["research_tools", "market_data"],
 )
 
 
@@ -229,21 +216,21 @@ BUILDER_INTERFACE = AgentInterface(
                 "properties": {
                     "spec": {"type": "string"},
                     "language": {"type": "string"},
-                    "framework": {"type": "string"}
+                    "framework": {"type": "string"},
                 },
-                "required": ["spec"]
+                "required": ["spec"],
             },
             output_schema={
                 "type": "object",
                 "properties": {
                     "scaffold_code": {"type": "string"},
                     "tests": {"type": "array"},
-                    "artifacts": {"type": "array"}
-                }
-            }
+                    "artifacts": {"type": "array"},
+                },
+            },
         )
     ],
-    required_context=["code_generation_models", "template_library"]
+    required_context=["code_generation_models", "template_library"],
 )
 
 
@@ -259,23 +246,20 @@ EVALUATOR_INTERFACE = AgentInterface(
             description="Evaluate code quality and design",
             input_schema={
                 "type": "object",
-                "properties": {
-                    "artifacts": {"type": "array"},
-                    "criteria": {"type": "array"}
-                },
-                "required": ["artifacts"]
+                "properties": {"artifacts": {"type": "array"}, "criteria": {"type": "array"}},
+                "required": ["artifacts"],
             },
             output_schema={
                 "type": "object",
                 "properties": {
                     "verdict": {"type": "string"},
                     "quality_score": {"type": "number"},
-                    "improvements": {"type": "array"}
-                }
-            }
+                    "improvements": {"type": "array"},
+                },
+            },
         )
     ],
-    required_context=["quality_standards", "analysis_tools"]
+    required_context=["quality_standards", "analysis_tools"],
 )
 
 
@@ -294,21 +278,21 @@ UI_PLANNER_INTERFACE = AgentInterface(
                 "properties": {
                     "requirements": {"type": "string"},
                     "framework": {"type": "string"},
-                    "accessibility_level": {"type": "string"}
+                    "accessibility_level": {"type": "string"},
                 },
-                "required": ["requirements"]
+                "required": ["requirements"],
             },
             output_schema={
                 "type": "object",
                 "properties": {
                     "ui_spec": {"type": "object"},
                     "components": {"type": "array"},
-                    "design_tokens": {"type": "object"}
-                }
-            }
+                    "design_tokens": {"type": "object"},
+                },
+            },
         )
     ],
-    required_context=["design_systems", "accessibility_standards"]
+    required_context=["design_systems", "accessibility_standards"],
 )
 
 
@@ -1019,7 +1003,7 @@ OPERATIONS_INTERFACE = AgentInterface(
 
 
 # Interface registry
-AGENT_INTERFACES: Dict[str, AgentInterface] = {
+AGENT_INTERFACES: dict[str, AgentInterface] = {
     "EXPLORER": EXPLORER_INTERFACE,
     "LIBRARIAN": LIBRARIAN_INTERFACE,
     "RESEARCHER": RESEARCHER_INTERFACE,
@@ -1035,6 +1019,6 @@ AGENT_INTERFACES: Dict[str, AgentInterface] = {
 }
 
 
-def get_agent_interface(agent_type: str) -> Optional[AgentInterface]:
+def get_agent_interface(agent_type: str) -> AgentInterface | None:
     """Get interface contract for an agent type."""
     return AGENT_INTERFACES.get(agent_type)

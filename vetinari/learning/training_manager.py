@@ -1,5 +1,5 @@
-"""
-Vetinari Training Manager
+"""Vetinari Training Manager.
+
 =========================
 
 Unified interface for managing fine-tuning workflows:
@@ -19,9 +19,9 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,44 +30,49 @@ logger = logging.getLogger(__name__)
 # Data models
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TrainingDataset:
     """Prepared dataset ready for a training run."""
-    records: List[Dict[str, Any]]
-    format: str                   # "sft", "dpo", "hf", "ranking"
-    stats: Dict[str, Any]         # count, avg_score, task_type_breakdown
+
+    records: list[dict[str, Any]]
+    format: str  # "sft", "dpo", "hf", "ranking"
+    stats: dict[str, Any]  # count, avg_score, task_type_breakdown
 
 
 @dataclass
 class TrainingResult:
     """Result of a completed (or failed) training run."""
+
     success: bool
-    model_path: Optional[str]
-    metrics: Dict[str, Any]       # loss, eval_loss, etc.
+    model_path: str | None
+    metrics: dict[str, Any]  # loss, eval_loss, etc.
     duration_seconds: float
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
 class TrainingJob:
     """A tracked training job (local or cloud)."""
+
     job_id: str
-    status: str                   # "pending", "running", "completed", "failed"
+    status: str  # "pending", "running", "completed", "failed"
     provider: str
     model_id: str
     created_at: str
     progress: float = 0.0
-    result: Optional[TrainingResult] = None
+    result: TrainingResult | None = None
 
 
 @dataclass
 class RetrainingRecommendation:
     """Whether a model/task combination warrants retraining."""
+
     model_id: str
     task_type: str
     current_avg_quality: float
     baseline_quality: float
-    degradation: float            # fractional — 0.15 means 15 %
+    degradation: float  # fractional — 0.15 means 15 %
     recommended: bool
     reason: str
     recommended_method: str = "qlora"
@@ -87,16 +92,15 @@ _MIN_QLORA_RECORDS = 100
 
 
 class TrainingManager:
-    """
-    Unified training workflow coordinator.
+    """Unified training workflow coordinator.
 
     Uses :func:`get_training_collector` internally to access accumulated
     execution records without requiring a path argument on every call.
     """
 
-    def __init__(self, data_path: Optional[str] = None):
+    def __init__(self, data_path: str | None = None):
         self._data_path = data_path
-        self._jobs: Dict[str, TrainingJob] = {}
+        self._jobs: dict[str, TrainingJob] = {}
 
     # ------------------------------------------------------------------
     # Internal helper
@@ -104,6 +108,7 @@ class TrainingManager:
 
     def _get_collector(self):
         from vetinari.learning.training_data import TrainingDataCollector, get_training_collector
+
         if self._data_path:
             # Use a dedicated instance so different data_paths don't share state
             if not hasattr(self, "_collector_instance"):
@@ -119,7 +124,7 @@ class TrainingManager:
         self,
         min_score: float = 0.8,
         format: str = "sft",
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
     ) -> TrainingDataset:
         """Prepare a training dataset using the requested format.
 
@@ -132,7 +137,7 @@ class TrainingManager:
         task_type:
             Optional filter by task type (e.g. ``"coding"``).
 
-        Returns
+        Returns:
         -------
         TrainingDataset
             Populated with records, format tag, and summary statistics.
@@ -152,7 +157,7 @@ class TrainingManager:
         # Build stats
         count = len(records)
         avg_score = 0.0
-        task_type_breakdown: Dict[str, int] = {}
+        task_type_breakdown: dict[str, int] = {}
 
         if format == "sft":
             scores = [r.get("score", 0.0) for r in records if isinstance(r.get("score"), (int, float))]
@@ -165,10 +170,10 @@ class TrainingManager:
             try:
                 raw_stats = collector.get_stats()
                 avg_score = raw_stats.get("avg_score", 0.0)
-            except Exception:
+            except Exception:  # noqa: S110, VET022
                 pass
 
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "count": count,
             "avg_score": avg_score,
             "task_type_breakdown": task_type_breakdown,
@@ -179,7 +184,7 @@ class TrainingManager:
     # Configuration
     # ------------------------------------------------------------------
 
-    def get_training_config(self, method: str = "qlora") -> Dict[str, Any]:
+    def get_training_config(self, method: str = "qlora") -> dict[str, Any]:
         """Return recommended hyperparameters for a training method.
 
         Parameters
@@ -187,7 +192,7 @@ class TrainingManager:
         method:
             ``"qlora"`` for QLoRA/Unsloth or ``"full"`` for full fine-tuning.
 
-        Returns
+        Returns:
         -------
         dict
             Hyperparameter dictionary ready to pass to a training framework.
@@ -225,7 +230,7 @@ class TrainingManager:
         model_id: str,
         dataset: TrainingDataset,
         method: str = "qlora",
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> TrainingResult:
         """Attempt a local fine-tuning run using Unsloth/LoRA.
 
@@ -302,7 +307,7 @@ class TrainingManager:
         model_id: str,
         dataset: TrainingDataset,
         provider: str = "huggingface",
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> TrainingJob:
         """Submit a cloud fine-tuning job.
 
@@ -335,6 +340,7 @@ class TrainingManager:
         if provider == "huggingface":
             try:
                 from huggingface_hub import HfApi  # noqa: F401
+
                 logger.info(f"[TrainingManager] Cloud job {job_id} submitted to HuggingFace")
             except ImportError:
                 logger.warning(
@@ -351,11 +357,11 @@ class TrainingManager:
     # Job registry
     # ------------------------------------------------------------------
 
-    def get_training_status(self, job_id: str) -> Optional[TrainingJob]:
+    def get_training_status(self, job_id: str) -> TrainingJob | None:
         """Look up a training job by its ID."""
         return self._jobs.get(job_id)
 
-    def list_jobs(self) -> List[TrainingJob]:
+    def list_jobs(self) -> list[TrainingJob]:
         """Return all tracked training jobs."""
         return list(self._jobs.values())
 
@@ -384,10 +390,7 @@ class TrainingManager:
             all_records = []
 
         # Filter to this model + task
-        relevant = [
-            r for r in all_records
-            if r.model_id == model_id and r.task_type == task_type
-        ]
+        relevant = [r for r in all_records if r.model_id == model_id and r.task_type == task_type]
 
         if not relevant:
             return RetrainingRecommendation(
@@ -432,10 +435,10 @@ class TrainingManager:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_manager: Optional[TrainingManager] = None
+_manager: TrainingManager | None = None
 
 
-def get_training_manager(data_path: Optional[str] = None) -> TrainingManager:
+def get_training_manager(data_path: str | None = None) -> TrainingManager:
     """Return the global TrainingManager singleton."""
     global _manager
     if _manager is None:

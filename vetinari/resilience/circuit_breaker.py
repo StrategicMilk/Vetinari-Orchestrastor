@@ -1,5 +1,5 @@
-"""
-Circuit Breaker (C1)
+"""Circuit Breaker (C1).
+
 ====================
 Per-agent circuit breakers that prevent cascading failures when LLM
 backends or downstream services become unreliable.
@@ -22,9 +22,10 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ T = TypeVar("T")
 
 class CircuitState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -41,18 +43,20 @@ class CircuitState(Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for a single circuit breaker."""
+
     failure_threshold: int = 3
     recovery_timeout: float = 60.0  # seconds
     half_open_max_calls: int = 1
     # Exponential backoff for retries before tripping
-    backoff_base: float = 1.0       # seconds
-    backoff_max: float = 30.0       # seconds
+    backoff_base: float = 1.0  # seconds
+    backoff_max: float = 30.0  # seconds
     backoff_factor: float = 2.0
 
 
 @dataclass
 class CircuitBreakerStats:
     """Runtime statistics for a circuit breaker."""
+
     total_calls: int = 0
     total_successes: int = 0
     total_failures: int = 0
@@ -64,7 +68,7 @@ class CircuitBreakerStats:
     last_state_change: float = 0.0
     trips: int = 0  # total times breaker has tripped
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_calls": self.total_calls,
             "total_successes": self.total_successes,
@@ -82,10 +86,7 @@ class CircuitBreakerOpen(Exception):
     def __init__(self, breaker_name: str, remaining: float):
         self.breaker_name = breaker_name
         self.remaining = remaining
-        super().__init__(
-            f"Circuit breaker '{breaker_name}' is OPEN — "
-            f"retry in {remaining:.1f}s"
-        )
+        super().__init__(f"Circuit breaker '{breaker_name}' is OPEN — retry in {remaining:.1f}s")
 
 
 class CircuitBreaker:
@@ -111,7 +112,7 @@ class CircuitBreaker:
     def __init__(
         self,
         name: str,
-        config: Optional[CircuitBreakerConfig] = None,
+        config: CircuitBreakerConfig | None = None,
     ):
         self.name = name
         self.config = config or CircuitBreakerConfig()
@@ -173,9 +174,7 @@ class CircuitBreaker:
             if self._state == CircuitState.HALF_OPEN:
                 # Probe succeeded → close the circuit
                 self._transition(CircuitState.CLOSED)
-                logger.info(
-                    "Circuit breaker '%s' recovered → CLOSED", self.name
-                )
+                logger.info("Circuit breaker '%s' recovered → CLOSED", self.name)
 
     def record_failure(self) -> None:
         """Record a failed call."""
@@ -189,15 +188,14 @@ class CircuitBreaker:
             if self._state == CircuitState.HALF_OPEN:
                 # Probe failed → re-open
                 self._trip()
-                logger.warning(
-                    "Circuit breaker '%s' probe failed → re-OPEN", self.name
-                )
+                logger.warning("Circuit breaker '%s' probe failed → re-OPEN", self.name)
             elif self._state == CircuitState.CLOSED:
                 if self._stats.consecutive_failures >= self.config.failure_threshold:
                     self._trip()
                     logger.warning(
                         "Circuit breaker '%s' tripped after %d consecutive failures → OPEN",
-                        self.name, self._stats.consecutive_failures,
+                        self.name,
+                        self._stats.consecutive_failures,
                     )
 
     def call(self, fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
@@ -269,7 +267,7 @@ class CircuitBreaker:
         elapsed = time.monotonic() - self._opened_at
         return max(0.0, self.config.recovery_timeout - elapsed)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize state for dashboards."""
         return {
             "name": self.name,
@@ -286,13 +284,13 @@ class CircuitBreaker:
 
 # ── Per-agent defaults ────────────────────────────────────────────────
 
-_AGENT_BREAKER_CONFIGS: Dict[str, CircuitBreakerConfig] = {
-    "PLANNER":                  CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
-    "CONSOLIDATED_RESEARCHER":  CircuitBreakerConfig(failure_threshold=3, recovery_timeout=90),
-    "CONSOLIDATED_ORACLE":      CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
-    "BUILDER":                  CircuitBreakerConfig(failure_threshold=5, recovery_timeout=120),
-    "QUALITY":                  CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
-    "OPERATIONS":               CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
+_AGENT_BREAKER_CONFIGS: dict[str, CircuitBreakerConfig] = {
+    "PLANNER": CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
+    "CONSOLIDATED_RESEARCHER": CircuitBreakerConfig(failure_threshold=3, recovery_timeout=90),
+    "CONSOLIDATED_ORACLE": CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
+    "BUILDER": CircuitBreakerConfig(failure_threshold=5, recovery_timeout=120),
+    "QUALITY": CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
+    "OPERATIONS": CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60),
 }
 
 
@@ -300,31 +298,26 @@ class CircuitBreakerRegistry:
     """Singleton registry of per-agent circuit breakers."""
 
     def __init__(self) -> None:
-        self._breakers: Dict[str, CircuitBreaker] = {}
+        self._breakers: dict[str, CircuitBreaker] = {}
         self._lock = threading.Lock()
 
     def get(self, agent_type: str) -> CircuitBreaker:
         """Get or create the circuit breaker for an agent type."""
         with self._lock:
             if agent_type not in self._breakers:
-                config = _AGENT_BREAKER_CONFIGS.get(
-                    agent_type, CircuitBreakerConfig()
-                )
+                config = _AGENT_BREAKER_CONFIGS.get(agent_type, CircuitBreakerConfig())
                 self._breakers[agent_type] = CircuitBreaker(agent_type, config)
             return self._breakers[agent_type]
 
-    def get_all(self) -> Dict[str, CircuitBreaker]:
+    def get_all(self) -> dict[str, CircuitBreaker]:
         """Return all registered breakers."""
         with self._lock:
             return dict(self._breakers)
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Return a dashboard-friendly summary of all breakers."""
         with self._lock:
-            return {
-                name: cb.to_dict()
-                for name, cb in self._breakers.items()
-            }
+            return {name: cb.to_dict() for name, cb in self._breakers.items()}
 
     def reset_all(self) -> None:
         """Reset all breakers to CLOSED."""
@@ -335,7 +328,7 @@ class CircuitBreakerRegistry:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_registry: Optional[CircuitBreakerRegistry] = None
+_registry: CircuitBreakerRegistry | None = None
 
 
 def get_circuit_breaker_registry() -> CircuitBreakerRegistry:

@@ -1,2 +1,5 @@
 """Backward-compatible shim. Use vetinari.validation.validator directly."""
-from vetinari.validation.validator import *  # noqa: F401,F403
+
+from __future__ import annotations
+
+from vetinari.validation.validator import *  # noqa: F403, VET006

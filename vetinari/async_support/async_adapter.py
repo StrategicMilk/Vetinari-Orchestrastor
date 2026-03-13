@@ -71,8 +71,4 @@ class AsyncProviderAdapter(ABC):
         """
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"provider={self.provider_type.value}, "
-            f"endpoint={self.endpoint})"
-        )
+        return f"{self.__class__.__name__}(provider={self.provider_type.value}, endpoint={self.endpoint})"

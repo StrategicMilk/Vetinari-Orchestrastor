@@ -1,5 +1,5 @@
-"""
-File Operations Tool
+"""File Operations Tool.
+
 ====================
 Provides safe, sandboxed file operations for Vetinari agents.
 
@@ -13,12 +13,12 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import stat
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
     ToolCategory,
@@ -26,7 +26,6 @@ from vetinari.tool_interface import (
     ToolParameter,
     ToolResult,
 )
-from vetinari.execution_context import ToolPermission
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _safe_resolve(path: str, root: Path) -> Path:
     """Resolve *path* and ensure it stays inside *root*.
@@ -43,9 +43,7 @@ def _safe_resolve(path: str, root: Path) -> Path:
     resolved = (root / path).resolve()
     root_resolved = root.resolve()
     if not str(resolved).startswith(str(root_resolved)):
-        raise PermissionError(
-            f"Path traversal blocked: {path!r} resolves outside project root"
-        )
+        raise PermissionError(f"Path traversal blocked: {path!r} resolves outside project root")
     return resolved
 
 
@@ -61,7 +59,7 @@ class FileInfo:
     modified: str = ""
     created: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
             "name": self.name,
@@ -76,6 +74,7 @@ class FileInfo:
 # ---------------------------------------------------------------------------
 # Core operations (stateless, testable)
 # ---------------------------------------------------------------------------
+
 
 class FileOperations:
     """Low-level file operations scoped to a project root."""
@@ -111,24 +110,26 @@ class FileOperations:
             created=datetime.fromtimestamp(st.st_ctime).isoformat(),
         )
 
-    def list_directory(self, path: str = ".") -> List[FileInfo]:
+    def list_directory(self, path: str = ".") -> list[FileInfo]:
         target = _safe_resolve(path, self.root)
         if not target.is_dir():
             raise NotADirectoryError(f"Not a directory: {path}")
-        entries: List[FileInfo] = []
+        entries: list[FileInfo] = []
         for child in sorted(target.iterdir()):
             try:
                 st = child.stat()
-                entries.append(FileInfo(
-                    path=str(child.relative_to(self.root)),
-                    name=child.name,
-                    is_file=child.is_file(),
-                    is_dir=child.is_dir(),
-                    size_bytes=st.st_size,
-                    modified=datetime.fromtimestamp(st.st_mtime).isoformat(),
-                    created=datetime.fromtimestamp(st.st_ctime).isoformat(),
-                ))
-            except OSError:
+                entries.append(
+                    FileInfo(
+                        path=str(child.relative_to(self.root)),
+                        name=child.name,
+                        is_file=child.is_file(),
+                        is_dir=child.is_dir(),
+                        size_bytes=st.st_size,
+                        modified=datetime.fromtimestamp(st.st_mtime).isoformat(),
+                        created=datetime.fromtimestamp(st.st_ctime).isoformat(),
+                    )
+                )
+            except OSError:  # noqa: VET022
                 pass  # skip inaccessible entries
         return entries
 
@@ -173,6 +174,7 @@ class FileOperations:
 # Tool wrapper (for ToolRegistry integration)
 # ---------------------------------------------------------------------------
 
+
 class FileOperationsTool(Tool):
     """Vetinari Tool wrapper around :class:`FileOperations`."""
 
@@ -185,18 +187,22 @@ class FileOperationsTool(Tool):
             category=ToolCategory.FILE_OPERATIONS,
             required_permissions=[ToolPermission.FILE_WRITE],
             parameters=[
-                ToolParameter(name="operation", type=str,
-                              description="Operation: read, write, list, info, exists, mkdir, move, delete",
-                              required=True),
-                ToolParameter(name="path", type=str, description="Target path (relative to project root)",
-                              required=True),
+                ToolParameter(
+                    name="operation",
+                    type=str,
+                    description="Operation: read, write, list, info, exists, mkdir, move, delete",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="path", type=str, description="Target path (relative to project root)", required=True
+                ),
                 ToolParameter(name="content", type=str, description="File content (for write)", required=False),
                 ToolParameter(name="destination", type=str, description="Destination path (for move)", required=False),
             ],
         )
         super().__init__(metadata)
 
-    def execute(self, **kwargs) -> ToolResult:  # noqa: C901
+    def execute(self, **kwargs) -> ToolResult:
         op = kwargs.get("operation", "")
         path = kwargs.get("path", ".")
 

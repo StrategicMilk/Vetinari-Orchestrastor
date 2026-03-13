@@ -1,17 +1,16 @@
 """Provider adapter registry and factory for managing multiple LLM providers."""
 
+from __future__ import annotations
+
 import logging
 import threading
-from typing import Dict, Optional, Type, List, Tuple, Any
-from .base import (
-    ProviderAdapter, ProviderConfig, ProviderType, ModelInfo,
-    InferenceRequest, InferenceResponse
-)
+
+from .anthropic_adapter import AnthropicProviderAdapter
+from .base import ModelInfo, ProviderAdapter, ProviderConfig, ProviderType
+from .cohere_adapter import CohereProviderAdapter
+from .gemini_adapter import GeminiProviderAdapter
 from .lmstudio_adapter import LMStudioProviderAdapter
 from .openai_adapter import OpenAIProviderAdapter
-from .cohere_adapter import CohereProviderAdapter
-from .anthropic_adapter import AnthropicProviderAdapter
-from .gemini_adapter import GeminiProviderAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +19,7 @@ _registry_lock = threading.Lock()
 
 
 class AdapterRegistry:
-    """
-    Registry for managing all provider adapters.
+    """Registry for managing all provider adapters.
 
     Supports:
     - Registration of adapter classes (class-level, shared)
@@ -35,7 +33,7 @@ class AdapterRegistry:
     """
 
     # Class-level shared state (thread-safe via _registry_lock)
-    _adapter_classes: Dict[ProviderType, Type[ProviderAdapter]] = {
+    _adapter_classes: dict[ProviderType, type[ProviderAdapter]] = {
         ProviderType.LM_STUDIO: LMStudioProviderAdapter,
         ProviderType.OPENAI: OpenAIProviderAdapter,
         ProviderType.COHERE: CohereProviderAdapter,
@@ -43,19 +41,18 @@ class AdapterRegistry:
         ProviderType.GEMINI: GeminiProviderAdapter,
     }
 
-    _instances: Dict[str, ProviderAdapter] = {}
+    _instances: dict[str, ProviderAdapter] = {}
 
     @classmethod
-    def register_adapter(cls, provider_type: ProviderType, adapter_class: Type[ProviderAdapter]) -> None:
+    def register_adapter(cls, provider_type: ProviderType, adapter_class: type[ProviderAdapter]) -> None:
         """Register a new adapter class for a provider type."""
         with _registry_lock:
             cls._adapter_classes[provider_type] = adapter_class
         logger.info("[AdapterRegistry] Registered %s for %s", adapter_class.__name__, provider_type.value)
 
     @classmethod
-    def create_adapter(cls, config: ProviderConfig, instance_name: Optional[str] = None) -> ProviderAdapter:
-        """
-        Create an adapter instance from configuration.
+    def create_adapter(cls, config: ProviderConfig, instance_name: str | None = None) -> ProviderAdapter:
+        """Create an adapter instance from configuration.
 
         Args:
             config: ProviderConfig with provider_type, endpoint, api_key, etc.
@@ -82,23 +79,23 @@ class AdapterRegistry:
         return instance
 
     @classmethod
-    def get_adapter(cls, instance_name: str) -> Optional[ProviderAdapter]:
+    def get_adapter(cls, instance_name: str) -> ProviderAdapter | None:
         """Get a cached adapter instance by name."""
         return cls._instances.get(instance_name)
 
     @classmethod
-    def list_adapters(cls) -> Dict[str, ProviderAdapter]:
+    def list_adapters(cls) -> dict[str, ProviderAdapter]:
         """Get all cached adapter instances."""
         with _registry_lock:
             return dict(cls._instances)
 
     @classmethod
-    def list_supported_providers(cls) -> List[ProviderType]:
+    def list_supported_providers(cls) -> list[ProviderType]:
         """Get list of all supported provider types."""
         return list(cls._adapter_classes.keys())
 
     @classmethod
-    def discover_all_models(cls) -> Dict[str, List[ModelInfo]]:
+    def discover_all_models(cls) -> dict[str, list[ModelInfo]]:
         """Discover models from all active adapter instances."""
         results = {}
         with _registry_lock:
@@ -114,7 +111,7 @@ class AdapterRegistry:
         return results
 
     @classmethod
-    def health_check_all(cls) -> Dict[str, Dict]:
+    def health_check_all(cls) -> dict[str, dict]:
         """Run health check on all active adapter instances."""
         results = {}
         with _registry_lock:
@@ -131,7 +128,7 @@ class AdapterRegistry:
         return results
 
     @classmethod
-    def find_best_model(cls, task_requirements: Dict) -> Tuple[Optional[ProviderAdapter], Optional[ModelInfo]]:
+    def find_best_model(cls, task_requirements: dict) -> tuple[ProviderAdapter | None, ModelInfo | None]:
         """Find the best model across all adapters for a given task."""
         best_adapter = None
         best_model = None
@@ -157,6 +154,6 @@ class AdapterRegistry:
 
     @classmethod
     def __repr__(cls) -> str:
-        providers = ", ".join([p.value for p in cls._adapter_classes.keys()])
+        providers = ", ".join([p.value for p in cls._adapter_classes])
         instances = ", ".join(cls._instances.keys())
         return f"AdapterRegistry(providers=[{providers}], instances=[{instances}])"

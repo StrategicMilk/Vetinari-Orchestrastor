@@ -11,8 +11,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ _DEFAULT_TTL_SECONDS: int = 86400  # 24 hours
 _DEFAULT_MAX_ENTRIES: int = 500
 _DEFAULT_SIMILARITY_THRESHOLD: float = 0.85
 
-_instance: Optional[SemanticCache] = None
+_instance: SemanticCache | None = None
 _instance_lock: threading.Lock = threading.Lock()
 
 
@@ -81,7 +80,7 @@ class SemanticCache:
         self,
         query: str,
         similarity_threshold: float = 0.0,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Return a cached response if a similar query exists.
 
         Scans all non-expired cache entries and returns the response from the
@@ -89,7 +88,7 @@ class SemanticCache:
 
         Args:
             query: The new query text to look up.
-            similarity_threshold: Minimum Jaccard similarity score (0–1) for a
+            similarity_threshold: Minimum Jaccard similarity score (0-1) for a
                                   hit.  Defaults to the instance-level threshold
                                   when 0.0 is supplied.
 
@@ -102,7 +101,7 @@ class SemanticCache:
         with self._lock:
             self._evict_expired()
             best_score = 0.0
-            best_key: Optional[str] = None
+            best_key: str | None = None
 
             for key, entry in self._store.items():
                 score = _jaccard(query_embedding, entry.embedding)
@@ -243,7 +242,7 @@ def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
         b: Second set.
 
     Returns:
-        |a ∩ b| / |a ∪ b|, or 1.0 if both sets are empty.
+        |a n b| / |a U b|, or 1.0 if both sets are empty.
     """
     if not a and not b:
         return 1.0

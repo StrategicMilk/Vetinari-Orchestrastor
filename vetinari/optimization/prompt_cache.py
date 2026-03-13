@@ -11,15 +11,14 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 _DEFAULT_MAX_ENTRIES: int = 1000
 
-_instance: Optional[PromptCache] = None
+_instance: PromptCache | None = None
 _instance_lock: threading.Lock = threading.Lock()
 
 

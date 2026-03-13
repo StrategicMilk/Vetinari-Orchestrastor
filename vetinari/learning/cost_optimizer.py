@@ -1,13 +1,14 @@
-"""
-Cost Optimizer - Vetinari Self-Improvement Subsystem
+"""Cost Optimizer - Vetinari Self-Improvement Subsystem.
 
 Analyzes cost data to automatically route tasks to the cheapest
 adequate model, respecting quality thresholds.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CostEfficiency:
     """Quality-per-dollar metric for a model+task_type pair."""
+
     model_id: str
     task_type: str
     avg_quality: float
@@ -24,15 +26,14 @@ class CostEfficiency:
 
 
 class CostOptimizer:
-    """
-    Selects the cheapest model that meets a quality threshold.
+    """Selects the cheapest model that meets a quality threshold.
 
     Integrates with the CostTracker analytics module to make
     evidence-based routing decisions.
     """
 
-    DEFAULT_MIN_QUALITY = 0.65   # Minimum acceptable quality
-    LOCAL_COST = 0.0              # Local models are free
+    DEFAULT_MIN_QUALITY = 0.65  # Minimum acceptable quality
+    LOCAL_COST = 0.0  # Local models are free
 
     def __init__(self):
         self._cost_tracker = None
@@ -41,6 +42,7 @@ class CostOptimizer:
         if self._cost_tracker is None:
             try:
                 from vetinari.analytics.cost import get_cost_tracker
+
                 self._cost_tracker = get_cost_tracker()
             except Exception:
                 logger.debug("Failed to initialize cost tracker", exc_info=True)
@@ -49,12 +51,11 @@ class CostOptimizer:
     def select_cheapest_adequate(
         self,
         task_type: str,
-        candidate_models: List[str],
-        min_quality: float = None,
-        max_cost_usd: float = None,
+        candidate_models: list[str],
+        min_quality: float | None = None,
+        max_cost_usd: float | None = None,
     ) -> str:
-        """
-        Select the cheapest model that meets the quality threshold.
+        """Select the cheapest model that meets the quality threshold.
 
         Args:
             task_type: The task type.
@@ -89,10 +90,10 @@ class CostOptimizer:
         )
         return cheapest.model_id
 
-    def _get_efficiencies(self, task_type: str, models: List[str]) -> List[CostEfficiency]:
+    def _get_efficiencies(self, task_type: str, models: list[str]) -> list[CostEfficiency]:
         """Compute quality-per-dollar for each model."""
         tracker = self._get_cost_tracker()
-        efficiencies: List[CostEfficiency] = []
+        efficiencies: list[CostEfficiency] = []
 
         for model_id in models:
             cost = 0.0
@@ -112,38 +113,40 @@ class CostOptimizer:
             # Get quality from Thompson Sampling selector
             try:
                 from vetinari.learning.model_selector import get_thompson_selector
+
                 arm_state = get_thompson_selector().get_arm_state(model_id, task_type)
                 quality = arm_state.get("mean", 0.7)
             except Exception:
                 logger.debug("Failed to get Thompson Sampling quality for model %s", model_id, exc_info=True)
 
             qpd = quality / max(cost, 0.001)  # Avoid division by zero
-            efficiencies.append(CostEfficiency(
-                model_id=model_id,
-                task_type=task_type,
-                avg_quality=quality,
-                avg_cost_usd=cost,
-                quality_per_dollar=qpd,
-                total_uses=0,
-            ))
+            efficiencies.append(
+                CostEfficiency(
+                    model_id=model_id,
+                    task_type=task_type,
+                    avg_quality=quality,
+                    avg_cost_usd=cost,
+                    quality_per_dollar=qpd,
+                    total_uses=0,
+                )
+            )
 
         return efficiencies
 
     def get_budget_forecast(
         self,
         planned_tasks: int,
-        task_types: List[str],
-        models: List[str],
-    ) -> Dict[str, Any]:
-        """
-        Estimate total cost for a planned set of tasks.
+        task_types: list[str],
+        models: list[str],
+    ) -> dict[str, Any]:
+        """Estimate total cost for a planned set of tasks.
 
         Returns:
             Dict with estimated_cost_usd, breakdown_by_type, warnings.
         """
         total_cost = 0.0
-        breakdown: Dict[str, float] = {}
-        tracker = self._get_cost_tracker()
+        breakdown: dict[str, float] = {}
+        self._get_cost_tracker()
 
         for i, task_type in enumerate(task_types):
             if i >= planned_tasks:
@@ -156,7 +159,7 @@ class CostOptimizer:
             breakdown[task_type] = avg
             total_cost += avg
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         if total_cost > 1.0:
             warnings.append(f"Estimated cost ${total_cost:.2f} exceeds $1.00 threshold")
 
@@ -167,7 +170,7 @@ class CostOptimizer:
         }
 
 
-_cost_optimizer: Optional[CostOptimizer] = None
+_cost_optimizer: CostOptimizer | None = None
 
 
 def get_cost_optimizer() -> CostOptimizer:

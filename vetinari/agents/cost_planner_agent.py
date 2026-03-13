@@ -1,5 +1,9 @@
 """Legacy redirect — use PlannerAgent directly."""
-from vetinari.agents.planner_agent import PlannerAgent as CostPlannerAgent, get_planner_agent as get_cost_planner_agent  # noqa: F401
+
+from __future__ import annotations
+
+from vetinari.agents.planner_agent import PlannerAgent as CostPlannerAgent
+from vetinari.agents.planner_agent import get_planner_agent as get_cost_planner_agent
 
 # Legacy flat pricing dict (cost per 1K tokens).  Kept for backward compat.
 MODEL_PRICING = {
@@ -25,4 +29,4 @@ MODEL_PRICING = {
     "command-r-plus": 0.015,
 }
 
-__all__ = ["CostPlannerAgent", "get_cost_planner_agent", "MODEL_PRICING"]
+__all__ = ["MODEL_PRICING", "CostPlannerAgent", "get_cost_planner_agent"]

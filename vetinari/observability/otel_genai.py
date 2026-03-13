@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 _OTEL_AVAILABLE = False
 try:
-    from opentelemetry import trace as _otel_trace  # type: ignore[import]
+    from opentelemetry import trace as _otel_trace  # type: ignore[import]  # noqa: F401
 
     _OTEL_AVAILABLE = True
     logger.debug("opentelemetry available — GenAI tracer will emit real spans")

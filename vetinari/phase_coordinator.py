@@ -1,6 +1,8 @@
 """Rule-based phase routing for task execution. No LLM calls."""
+
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -9,8 +11,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PhaseRoute:
     phase: str
-    primary_agents: List[str]
-    fallback_agents: List[str]
+    primary_agents: list[str]
+    fallback_agents: list[str]
     parallel: bool = True
 
 
@@ -21,7 +23,7 @@ class PhaseCoordinator:
     For complex plans (>5 tasks): group tasks by phase, execute phases with appropriate agents.
     """
 
-    PHASES: Dict[str, PhaseRoute] = {
+    PHASES: dict[str, PhaseRoute] = {
         "analysis": PhaseRoute("analysis", ["RESEARCHER", "ARCHITECT"], ["PLANNER"], parallel=True),
         "planning": PhaseRoute("planning", ["PLANNER"], ["ARCHITECT"], parallel=False),
         "implementation": PhaseRoute("implementation", ["BUILDER"], ["RESILIENCE"], parallel=True),
@@ -62,21 +64,21 @@ class PhaseCoordinator:
     def get_route(self, phase: str) -> PhaseRoute:
         return self.PHASES.get(phase, self.PHASES["implementation"])
 
-    def group_tasks_by_phase(self, tasks: list) -> Dict[str, list]:
+    def group_tasks_by_phase(self, tasks: list) -> dict[str, list]:
         """Group tasks by their classified phase."""
-        groups: Dict[str, list] = {}
+        groups: dict[str, list] = {}
         for task in tasks:
             desc = getattr(task, "description", str(task))
             phase = self.classify_task(desc)
             groups.setdefault(phase, []).append(task)
         return groups
 
-    def get_execution_order(self) -> List[str]:
+    def get_execution_order(self) -> list[str]:
         """Return recommended phase execution order."""
         return ["analysis", "planning", "implementation", "quality", "documentation", "meta"]
 
 
-_coordinator: Optional[PhaseCoordinator] = None
+_coordinator: PhaseCoordinator | None = None
 
 
 def get_phase_coordinator() -> PhaseCoordinator:

@@ -1,5 +1,5 @@
-"""
-Vetinari Agent-Model Affinity Mapping
+"""Vetinari Agent-Model Affinity Mapping.
+
 ======================================
 Maps agent types to model capability requirements so the routing layer
 can select the best available model for each agent's task type.
@@ -22,19 +22,20 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from vetinari.agents.contracts import AgentType
+from vetinari.types import AgentType
 
 
 @dataclass
 class AffinityProfile:
     """Capability requirements and preferences for an agent type."""
+
     agent_type: AgentType
     # Capabilities the chosen model MUST have (hard filter)
-    required_capabilities: List[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
     # Capabilities preferred (soft bonus in scoring)
-    preferred_capabilities: List[str] = field(default_factory=list)
+    preferred_capabilities: list[str] = field(default_factory=list)
     # Minimum context window needed for typical tasks
     min_context_window: int = 8192
     # Whether vision capability is essential (True = reject non-VL models)
@@ -44,14 +45,14 @@ class AffinityProfile:
     # Whether this agent benefits from uncensored / thinking models
     prefers_uncensored: bool = False
     # Fallback agent types if preferred not available
-    fallback_agents: List[AgentType] = field(default_factory=list)
+    fallback_agents: list[AgentType] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Affinity table — one entry per AgentType
 # ---------------------------------------------------------------------------
 
-_AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
+_AFFINITY_TABLE: dict[AgentType, AffinityProfile] = {
     # ── Planner: needs strong reasoning + large context for complex decomposition
     AgentType.PLANNER: AffinityProfile(
         agent_type=AgentType.PLANNER,
@@ -61,7 +62,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,  # uncensored thinking helps thorough analysis
     ),
-
     # ── Explorer: fast search, codebase scanning
     AgentType.EXPLORER: AffinityProfile(
         agent_type=AgentType.EXPLORER,
@@ -70,7 +70,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="fast",
     ),
-
     # ── Oracle: architecture decisions, deep reasoning
     AgentType.ORACLE: AffinityProfile(
         agent_type=AgentType.ORACLE,
@@ -80,7 +79,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,
     ),
-
     # ── Librarian: documentation lookup, library research
     AgentType.LIBRARIAN: AffinityProfile(
         agent_type=AgentType.LIBRARIAN,
@@ -89,7 +87,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="medium",
     ),
-
     # ── Researcher: multi-source synthesis, long outputs
     AgentType.RESEARCHER: AffinityProfile(
         agent_type=AgentType.RESEARCHER,
@@ -99,7 +96,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="any",
         prefers_uncensored=True,
     ),
-
     # ── Evaluator: code review and quality scoring
     AgentType.EVALUATOR: AffinityProfile(
         agent_type=AgentType.EVALUATOR,
@@ -108,7 +104,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=16384,
         latency_preference="medium",
     ),
-
     # ── Synthesizer: combines multiple agent outputs
     AgentType.SYNTHESIZER: AffinityProfile(
         agent_type=AgentType.SYNTHESIZER,
@@ -117,7 +112,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=16384,
         latency_preference="medium",
     ),
-
     # ── Builder: code generation, scaffolding
     AgentType.BUILDER: AffinityProfile(
         agent_type=AgentType.BUILDER,
@@ -126,7 +120,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="medium",
     ),
-
     # ── UI Planner: UI/UX design — REQUIRES vision capability
     AgentType.UI_PLANNER: AffinityProfile(
         agent_type=AgentType.UI_PLANNER,
@@ -137,7 +130,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         fallback_agents=[AgentType.BUILDER],
     ),
-
     # ── Security Auditor: security analysis, must handle sensitive content
     AgentType.SECURITY_AUDITOR: AffinityProfile(
         agent_type=AgentType.SECURITY_AUDITOR,
@@ -147,7 +139,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,  # needs to discuss attack vectors openly
     ),
-
     # ── Data Engineer: schema/migration design
     AgentType.DATA_ENGINEER: AffinityProfile(
         agent_type=AgentType.DATA_ENGINEER,
@@ -156,7 +147,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="medium",
     ),
-
     # ── Documentation Agent: large output, writing quality
     AgentType.DOCUMENTATION_AGENT: AffinityProfile(
         agent_type=AgentType.DOCUMENTATION_AGENT,
@@ -165,7 +155,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=16384,
         latency_preference="any",
     ),
-
     # ── Cost Planner: reasoning about costs/models
     AgentType.COST_PLANNER: AffinityProfile(
         agent_type=AgentType.COST_PLANNER,
@@ -174,7 +163,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=4096,
         latency_preference="fast",
     ),
-
     # ── Test Automation: code generation for tests
     AgentType.TEST_AUTOMATION: AffinityProfile(
         agent_type=AgentType.TEST_AUTOMATION,
@@ -183,7 +171,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="medium",
     ),
-
     # ── Experimentation Manager: analytics / reporting
     AgentType.EXPERIMENTATION_MANAGER: AffinityProfile(
         agent_type=AgentType.EXPERIMENTATION_MANAGER,
@@ -192,7 +179,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="any",
     ),
-
     # ── Improvement Agent: meta-reasoning about the system
     AgentType.IMPROVEMENT: AffinityProfile(
         agent_type=AgentType.IMPROVEMENT,
@@ -202,7 +188,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="any",
         prefers_uncensored=True,
     ),
-
     # ── User Interaction: conversational, fast responses
     AgentType.USER_INTERACTION: AffinityProfile(
         agent_type=AgentType.USER_INTERACTION,
@@ -211,7 +196,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=4096,
         latency_preference="fast",
     ),
-
     # ── DevOps: CI/CD, Docker, IaC knowledge
     AgentType.DEVOPS: AffinityProfile(
         agent_type=AgentType.DEVOPS,
@@ -220,7 +204,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="medium",
     ),
-
     # ── Version Control: git operations
     AgentType.VERSION_CONTROL: AffinityProfile(
         agent_type=AgentType.VERSION_CONTROL,
@@ -229,7 +212,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=8192,
         latency_preference="fast",
     ),
-
     # ── Error Recovery: analyse failures, resilience
     AgentType.ERROR_RECOVERY: AffinityProfile(
         agent_type=AgentType.ERROR_RECOVERY,
@@ -239,7 +221,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,
     ),
-
     # ── Context Manager: memory consolidation, summarisation
     AgentType.CONTEXT_MANAGER: AffinityProfile(
         agent_type=AgentType.CONTEXT_MANAGER,
@@ -248,7 +229,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=32768,  # needs large context to consolidate memories
         latency_preference="any",
     ),
-
     # ── Image Generator: vision output, image synthesis
     AgentType.IMAGE_GENERATOR: AffinityProfile(
         agent_type=AgentType.IMAGE_GENERATOR,
@@ -259,7 +239,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="any",
         fallback_agents=[AgentType.UI_PLANNER],
     ),
-
     # ── Ponder: deep reflective reasoning, self-evaluation
     AgentType.PONDER: AffinityProfile(
         agent_type=AgentType.PONDER,
@@ -269,7 +248,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="any",
         prefers_uncensored=True,
     ),
-
     # ── Orchestrator (consolidated): top-level coordination, task routing
     AgentType.ORCHESTRATOR: AffinityProfile(
         agent_type=AgentType.ORCHESTRATOR,
@@ -279,7 +257,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,
     ),
-
     # ── Consolidated Researcher: deep multi-source research with synthesis
     AgentType.CONSOLIDATED_RESEARCHER: AffinityProfile(
         agent_type=AgentType.CONSOLIDATED_RESEARCHER,
@@ -289,7 +266,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="any",
         prefers_uncensored=True,
     ),
-
     # ── Consolidated Oracle: architecture + system design decisions
     AgentType.CONSOLIDATED_ORACLE: AffinityProfile(
         agent_type=AgentType.CONSOLIDATED_ORACLE,
@@ -299,7 +275,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,
     ),
-
     # ── Architect (consolidated): system boundaries, interface design
     AgentType.ARCHITECT: AffinityProfile(
         agent_type=AgentType.ARCHITECT,
@@ -309,7 +284,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         latency_preference="medium",
         prefers_uncensored=True,
     ),
-
     # ── Quality (consolidated): review, test, security — low temperature for precision
     AgentType.QUALITY: AffinityProfile(
         agent_type=AgentType.QUALITY,
@@ -318,7 +292,6 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
         min_context_window=16384,
         latency_preference="medium",
     ),
-
     # ── Operations (consolidated): devops, scheduling, monitoring
     AgentType.OPERATIONS: AffinityProfile(
         agent_type=AgentType.OPERATIONS,
@@ -334,6 +307,7 @@ _AFFINITY_TABLE: Dict[AgentType, AffinityProfile] = {
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def get_affinity(agent_type: AgentType) -> AffinityProfile:
     """Return the AffinityProfile for an agent type."""
     return _AFFINITY_TABLE.get(
@@ -348,9 +322,9 @@ def get_affinity(agent_type: AgentType) -> AffinityProfile:
 
 def pick_model_for_agent(
     agent_type: AgentType,
-    available_models: List[Dict[str, Any]],
-    default: Optional[str] = None,
-) -> Optional[str]:
+    available_models: list[dict[str, Any]],
+    default: str | None = None,
+) -> str | None:
     """Select the best available model for an agent based on its affinity profile.
 
     Args:
@@ -374,9 +348,8 @@ def pick_model_for_agent(
         if affinity.requires_vision and "vision" not in caps:
             continue
         # Required capabilities — all must be present
-        if affinity.required_capabilities:
-            if not all(rc in caps for rc in affinity.required_capabilities):
-                continue
+        if affinity.required_capabilities and not all(rc in caps for rc in affinity.required_capabilities):
+            continue
 
         # Score: count preferred capabilities present
         score = sum(1 for pc in affinity.preferred_capabilities if pc in caps)
@@ -404,6 +377,6 @@ def pick_model_for_agent(
     return candidates[0][1] or default
 
 
-def get_all_affinities() -> Dict[AgentType, AffinityProfile]:
+def get_all_affinities() -> dict[AgentType, AffinityProfile]:
     """Return the complete affinity table."""
     return dict(_AFFINITY_TABLE)

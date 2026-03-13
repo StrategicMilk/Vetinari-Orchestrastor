@@ -11,6 +11,8 @@ Endpoints
     GET /api/v1/learning/training-stats — Training data statistics
 """
 
+from __future__ import annotations
+
 import logging
 
 from flask import Blueprint, jsonify
@@ -25,6 +27,7 @@ def get_thompson_arms():
     """Return Thompson Sampling arm states."""
     try:
         from vetinari.learning.model_selector import get_thompson_selector
+
         selector = get_thompson_selector()
         # Build a serialisable dict of all arm states
         arms = {}
@@ -49,6 +52,7 @@ def get_quality_history():
     """Return quality score time series."""
     try:
         from vetinari.learning.quality_scorer import get_quality_scorer
+
         scorer = get_quality_scorer()
         history = scorer.get_history()
         serialised = [
@@ -73,6 +77,7 @@ def get_training_stats():
     """Return training data statistics."""
     try:
         from vetinari.learning.training_data import get_training_collector
+
         collector = get_training_collector()
         stats = collector.get_stats()
         return jsonify({"stats": stats})

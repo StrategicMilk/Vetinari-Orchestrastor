@@ -16,7 +16,8 @@ from unittest.mock import MagicMock, patch
 # ---- Minimal real enum we need from vetinari.types ----
 # We import vetinari.types directly (no heavy deps) so PlanStatus is genuine.
 # ---------------------------------------------------------------------------
-import vetinari.types as _vt  # noqa – tiny file, no side effects
+import vetinari.types as _vt
+
 
 # ---------------------------------------------------------------------------
 # Build enum stubs used throughout the stubs
@@ -146,7 +147,7 @@ _stub("vetinari.coding_agent",
 # ---------------------------------------------------------------------------
 # NOW import the real vetinari.memory package (needs stubs above already in place)
 # ---------------------------------------------------------------------------
-import vetinari.memory as _mem_pkg  # noqa
+import vetinari.memory as _mem_pkg
 
 # Patch package-level names that plan_api.py pulls from it at import time
 _mem_pkg.PLAN_ADMIN_TOKEN       = ""
@@ -161,12 +162,12 @@ _mem_pkg.get_dual_memory_store  = MagicMock(return_value=_mock_dual_store)
 # ---------------------------------------------------------------------------
 import vetinari.plan_api as plan_api_module  # noqa
 
-from flask import Flask  # noqa
+from flask import Flask
 
 # ---------------------------------------------------------------------------
 # Test-level constants
 # ---------------------------------------------------------------------------
-VALID_TOKEN = "secret-admin-token"
+VALID_TOKEN = "secret-admin-token"  # noqa: VET040
 AUTH_HEADER = {"Authorization": f"Bearer {VALID_TOKEN}"}
 JSON_CT     = {"Content-Type": "application/json"}
 AUTH_JSON   = {**AUTH_HEADER, **JSON_CT}
@@ -285,33 +286,33 @@ class TestRequireAdminToken(unittest.TestCase):
 
     def test_no_header_with_token_set_returns_401(self):
         resp = self._call(headers={}, token_value=VALID_TOKEN)
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_wrong_bearer_token_returns_401(self):
         resp = self._call(headers={"Authorization": "Bearer wrong"})
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_non_bearer_wrong_token_returns_401(self):
         resp = self._call(headers={"Authorization": "wrong"})
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_correct_bearer_token_passes(self):
         resp = self._call(headers=AUTH_HEADER)
-        self.assertNotEqual(resp.status_code, 401)
+        assert resp.status_code != 401
 
     def test_no_plan_admin_token_set_bypasses_check(self):
         resp = self._call(headers={}, token_value="")
-        self.assertNotEqual(resp.status_code, 401)
+        assert resp.status_code != 401
 
     def test_non_bearer_correct_token_passes(self):
         resp = self._call(headers={"Authorization": VALID_TOKEN})
-        self.assertNotEqual(resp.status_code, 401)
+        assert resp.status_code != 401
 
     def test_401_response_has_error_and_message_fields(self):
         resp = self._call(headers={}, token_value=VALID_TOKEN)
         data = resp.get_json()
-        self.assertIn("error",   data)
-        self.assertIn("message", data)
+        assert "error" in data
+        assert "message" in data
 
 
 # ---------------------------------------------------------------------------
@@ -323,14 +324,14 @@ class TestCheckPlanModeEnabled(unittest.TestCase):
     def test_enabled_returns_true_none(self):
         with patch("vetinari.plan_api.PLAN_MODE_ENABLE", True):
             ok, err = plan_api_module.check_plan_mode_enabled()
-        self.assertTrue(ok)
-        self.assertIsNone(err)
+        assert ok
+        assert err is None
 
     def test_disabled_returns_false_message(self):
         with patch("vetinari.plan_api.PLAN_MODE_ENABLE", False):
             ok, err = plan_api_module.check_plan_mode_enabled()
-        self.assertFalse(ok)
-        self.assertIn("disabled", err.lower())
+        assert not ok
+        assert "disabled" in err.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -359,16 +360,16 @@ class TestGeneratePlan(unittest.TestCase):
 
     def test_missing_goal_returns_400(self):
         resp = self._post({})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("goal", resp.get_json()["error"].lower())
+        assert resp.status_code == 400
+        assert "goal" in resp.get_json()["error"].lower()
 
     def test_empty_goal_returns_400(self):
         resp = self._post({"goal": ""})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._post({"goal": "build"}, plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
@@ -377,15 +378,15 @@ class TestGeneratePlan(unittest.TestCase):
                 data=json.dumps({"goal": "build"}),
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_success_returns_200_with_plan_metadata(self):
         plan = _mock_plan()
         resp = self._post({"goal": "build a feature"}, engine=_make_engine(plan=plan))
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertEqual(data["plan_id"], plan.plan_id)
+        assert data["success"]
+        assert data["plan_id"] == plan.plan_id
 
     def test_success_response_includes_all_required_fields(self):
         plan = _mock_plan()
@@ -394,19 +395,19 @@ class TestGeneratePlan(unittest.TestCase):
         for f in ["plan_id", "version", "goal", "status", "risk_score",
                   "risk_level", "subtask_count", "dry_run", "auto_approved",
                   "plan_candidates", "chosen_plan_id", "plan_justification", "created_at"]:
-            self.assertIn(f, data, f"Missing field: {f}")
+            assert f in data, f"Missing field: {f}"
 
     def test_engine_exception_returns_500(self):
         e = _make_engine()
         e.generate_plan.side_effect = RuntimeError("engine failure")
         resp = self._post({"goal": "broken"}, engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_invalid_domain_hint_value_error_returns_500(self):
         e = _make_engine()
         e.generate_plan.side_effect = ValueError("bad domain")
         resp = self._post({"goal": "test", "domain_hint": "not_a_domain"}, engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_optional_fields_accepted_without_error(self):
         resp = self._post({
@@ -417,11 +418,11 @@ class TestGeneratePlan(unittest.TestCase):
             "dry_run": True,
             "risk_threshold": 0.3,
         })
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_valid_domain_hint_coding(self):
         resp = self._post({"goal": "build api", "domain_hint": "coding"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_engine_generate_plan_called_once(self):
         e = _make_engine(plan=_mock_plan())
@@ -451,31 +452,31 @@ class TestGetPlan(unittest.TestCase):
     def test_found_returns_200_with_plan(self):
         plan = _mock_plan()
         resp = self._get(plan=plan)
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertEqual(data["plan"]["plan_id"], plan.plan_id)
+        assert data["success"]
+        assert data["plan"]["plan_id"] == plan.plan_id
 
     def test_not_found_returns_404(self):
         resp = self._get(plan=None)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/plan/plan_abc123")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_response_plan_contains_subtasks_and_candidates(self):
         plan = _mock_plan()
         resp = self._get(plan=plan)
         plan_data = resp.get_json()["plan"]
-        self.assertIn("subtasks",       plan_data)
-        self.assertIn("plan_candidates", plan_data)
-        self.assertIn("dependencies",   plan_data)
+        assert "subtasks" in plan_data
+        assert "plan_candidates" in plan_data
+        assert "dependencies" in plan_data
 
     def test_engine_exception_returns_500(self):
         e = _make_engine()
@@ -486,7 +487,7 @@ class TestGetPlan(unittest.TestCase):
             patch("vetinari.plan_api.get_plan_engine",   return_value=e),
         ):
             resp = self.client.get("/api/plan/bad", headers=AUTH_HEADER)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
 
 # ---------------------------------------------------------------------------
@@ -519,26 +520,26 @@ class TestApprovePlan(unittest.TestCase):
 
     def test_missing_approved_field_returns_400(self):
         resp = self._post(body={"approver": "admin"})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("approved", resp.get_json()["error"])
+        assert resp.status_code == 400
+        assert "approved" in resp.get_json()["error"]
 
     def test_missing_approver_field_returns_400(self):
         resp = self._post(body={"approved": True})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("approver", resp.get_json()["error"])
+        assert resp.status_code == 400
+        assert "approver" in resp.get_json()["error"]
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._post(body={"approved": True, "approver": "admin"}, plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_successful_approval_returns_200(self):
         plan = _mock_plan(status="approved")
         resp = self._post(body={"approved": True, "approver": "admin"}, plan=plan)
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIn("plan_id", data)
-        self.assertIn("status",  data)
+        assert data["success"]
+        assert "plan_id" in data
+        assert "status" in data
 
     def test_successful_rejection_returns_200(self):
         plan = _mock_plan(status="rejected")
@@ -546,20 +547,20 @@ class TestApprovePlan(unittest.TestCase):
             body={"approved": False, "approver": "admin", "reason": "risky"},
             plan=plan,
         )
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.get_json()["success"])
+        assert resp.status_code == 200
+        assert resp.get_json()["success"]
 
     def test_plan_not_found_value_error_returns_404(self):
         e = _make_engine()
         e.approve_plan.side_effect = ValueError("Plan not found: plan_xyz")
         resp = self._post(body={"approved": True, "approver": "admin"}, engine=e)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_general_exception_returns_500(self):
         e = _make_engine()
         e.approve_plan.side_effect = RuntimeError("unexpected")
         resp = self._post(body={"approved": True, "approver": "admin"}, engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
@@ -568,7 +569,7 @@ class TestApprovePlan(unittest.TestCase):
                 data=json.dumps({"approved": True, "approver": "admin"}),
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_optional_audit_id_returned(self):
         plan = _mock_plan(status="approved")
@@ -576,7 +577,7 @@ class TestApprovePlan(unittest.TestCase):
             body={"approved": True, "approver": "admin", "audit_id": "audit-001"},
             plan=plan,
         )
-        self.assertEqual(resp.get_json()["audit_id"], "audit-001")
+        assert resp.get_json()["audit_id"] == "audit-001"
 
     def test_memory_logging_failure_does_not_cause_500(self):
         """Memory logging failure inside approve_plan is swallowed; 200 still returned."""
@@ -595,7 +596,7 @@ class TestApprovePlan(unittest.TestCase):
                 headers=AUTH_JSON,
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_dual_memory_logging_called_when_available(self):
         plan = _mock_plan(status="approved")
@@ -613,7 +614,7 @@ class TestApprovePlan(unittest.TestCase):
                 headers=AUTH_JSON,
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -643,32 +644,32 @@ class TestApproveSubtask(unittest.TestCase):
 
     def test_success_returns_200(self):
         resp = self._post(body={"approved": True, "approver": "admin"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
+        assert data["success"]
 
     def test_missing_approved_field_returns_400(self):
         resp = self._post(body={"approver": "admin"})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_missing_approver_field_returns_400(self):
         resp = self._post(body={"approved": True})
-        self.assertEqual(resp.status_code, 400)
+        assert resp.status_code == 400
 
     def test_plan_not_found_returns_404(self):
         e = _make_engine(plan=None)
         resp = self._post(body={"approved": True, "approver": "admin"}, engine=e)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_subtask_not_found_returns_404(self):
         e = _make_engine(plan=_mock_plan())
         e.check_subtask_approval_required.return_value = {"error": "Subtask not found"}
         resp = self._post(body={"approved": True, "approver": "admin"}, engine=e)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._post(body={"approved": True, "approver": "admin"}, plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
@@ -677,25 +678,25 @@ class TestApproveSubtask(unittest.TestCase):
                 data=json.dumps({"approved": True, "approver": "admin"}),
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_engine_exception_returns_500(self):
         e = _make_engine(plan=_mock_plan())
         e.log_approval_decision.side_effect = RuntimeError("boom")
         resp = self._post(body={"approved": True, "approver": "admin"}, engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_response_includes_all_expected_fields(self):
         resp = self._post(body={"approved": True, "approver": "admin"})
         data = resp.get_json()
         for f in ["success", "plan_id", "subtask_id", "approved", "approver"]:
-            self.assertIn(f, data)
+            assert f in data
 
     def test_rejection_also_returns_200(self):
         resp = self._post(body={"approved": False, "approver": "admin", "reason": "not ready"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertFalse(data["approved"])
+        assert not data["approved"]
 
 
 # ---------------------------------------------------------------------------
@@ -720,36 +721,36 @@ class TestGetPlanHistory(unittest.TestCase):
 
     def test_success_returns_200(self):
         resp = self._get(plan=_mock_plan())
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIn("plan_id",  data)
-        self.assertIn("subtasks", data)
+        assert data["success"]
+        assert "plan_id" in data
+        assert "subtasks" in data
 
     def test_not_found_returns_404(self):
         resp = self._get(plan=None)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/plan/plan_abc123/history")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_response_includes_risk_and_timestamps(self):
         resp = self._get(plan=_mock_plan())
         data = resp.get_json()
         for f in ["risk_score", "risk_level", "created_at", "updated_at"]:
-            self.assertIn(f, data)
+            assert f in data
 
     def test_engine_exception_returns_500(self):
         e = _make_engine(plan=_mock_plan())
         e.get_subtasks.side_effect = RuntimeError("subtask fail")
         resp = self._get(engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
 
 # ---------------------------------------------------------------------------
@@ -773,11 +774,11 @@ class TestGetAllPlanHistory(unittest.TestCase):
 
     def test_success_default_limit_returns_200(self):
         resp = self._get(plans=[{"plan_id": "p1", "goal": "build"}])
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIn("plans", data)
-        self.assertIn("count", data)
+        assert data["success"]
+        assert "plans" in data
+        assert "count" in data
 
     def test_goal_contains_filter_forwarded_to_engine(self):
         e = _make_engine(plans_history=[])
@@ -796,23 +797,23 @@ class TestGetAllPlanHistory(unittest.TestCase):
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/plan/history")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_engine_exception_returns_500(self):
         e = _make_engine()
         e.get_plan_history.side_effect = RuntimeError("history fail")
         resp = self._get(engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_empty_result_returns_count_zero(self):
         resp = self._get(plans=[])
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["count"], 0)
+        assert resp.status_code == 200
+        assert resp.get_json()["count"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -838,38 +839,38 @@ class TestGetPlanSubtasks(unittest.TestCase):
     def test_success_returns_200_with_subtask_list(self):
         st = _mock_subtask()
         resp = self._get(plan=_mock_plan(), subtasks=[st])
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertEqual(data["count"], 1)
+        assert data["success"]
+        assert data["count"] == 1
 
     def test_plan_not_found_returns_404(self):
         resp = self._get(plan=None)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/plan/plan_abc123/subtasks")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_empty_subtasks_count_zero(self):
         resp = self._get(plan=_mock_plan(), subtasks=[])
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["count"], 0)
+        assert resp.status_code == 200
+        assert resp.get_json()["count"] == 0
 
     def test_engine_exception_returns_500(self):
         e = _make_engine(plan=_mock_plan())
         e.get_subtasks.side_effect = RuntimeError("subtask err")
         resp = self._get(engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_response_includes_plan_id_field(self):
         resp = self._get(plan=_mock_plan())
-        self.assertIn("plan_id", resp.get_json())
+        assert "plan_id" in resp.get_json()
 
 
 # ---------------------------------------------------------------------------
@@ -898,38 +899,38 @@ class TestGetPlanModeStatus(unittest.TestCase):
 
     def test_no_auth_required_returns_200(self):
         resp = self._get()
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_response_contains_plan_mode_enabled(self):
         resp = self._get(plan_mode=True)
         data = resp.get_json()
-        self.assertIn("plan_mode_enabled", data)
-        self.assertTrue(data["plan_mode_enabled"])
+        assert "plan_mode_enabled" in data
+        assert data["plan_mode_enabled"]
 
     def test_response_contains_config_block(self):
         resp = self._get()
         data = resp.get_json()
-        self.assertIn("config", data)
+        assert "config" in data
         cfg = data["config"]
-        self.assertIn("PLAN_MODE_ENABLE",     cfg)
-        self.assertIn("PLAN_ADMIN_TOKEN_SET", cfg)
+        assert "PLAN_MODE_ENABLE" in cfg
+        assert "PLAN_ADMIN_TOKEN_SET" in cfg
 
     def test_memory_error_handled_gracefully(self):
         resp = self._get(memory_raises=True)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json().get("memory_stats", {}), {})
+        assert resp.status_code == 200
+        assert resp.get_json().get("memory_stats", {}) == {}
 
     def test_plan_admin_token_set_flag_true(self):
         resp = self._get(token_set=True)
-        self.assertTrue(resp.get_json()["config"]["PLAN_ADMIN_TOKEN_SET"])
+        assert resp.get_json()["config"]["PLAN_ADMIN_TOKEN_SET"]
 
     def test_plan_admin_token_set_flag_false(self):
         resp = self._get(token_set=False)
-        self.assertFalse(resp.get_json()["config"]["PLAN_ADMIN_TOKEN_SET"])
+        assert not resp.get_json()["config"]["PLAN_ADMIN_TOKEN_SET"]
 
     def test_success_field_true(self):
         resp = self._get()
-        self.assertTrue(resp.get_json()["success"])
+        assert resp.get_json()["success"]
 
 
 # ---------------------------------------------------------------------------
@@ -943,7 +944,7 @@ class TestGetPlanTemplates(unittest.TestCase):
         self.client = self.app.test_client()
 
     def _make_template_engine(self):
-        from vetinari.plan_types import TaskDomain, DefinitionOfDone, DefinitionOfReady
+        from vetinari.plan_types import DefinitionOfDone, DefinitionOfReady, TaskDomain
         e = MagicMock()
         e._domain_templates = {
             TaskDomain.CODING: [
@@ -959,21 +960,21 @@ class TestGetPlanTemplates(unittest.TestCase):
     def test_no_auth_required_returns_200(self):
         with patch("vetinari.plan_api.get_plan_engine", return_value=self._make_template_engine()):
             resp = self.client.get("/api/plan/templates")
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_response_contains_templates_and_domains(self):
         with patch("vetinari.plan_api.get_plan_engine", return_value=self._make_template_engine()):
             resp = self.client.get("/api/plan/templates")
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIn("templates", data)
-        self.assertIn("domains",   data)
+        assert data["success"]
+        assert "templates" in data
+        assert "domains" in data
 
     def test_exception_returns_500(self):
         # Make get_plan_engine raise so the outer try/except catches it
         with patch("vetinari.plan_api.get_plan_engine", side_effect=RuntimeError("boom")):
             resp = self.client.get("/api/plan/templates")
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
 
 # ---------------------------------------------------------------------------
@@ -1001,30 +1002,30 @@ class TestGetPlanExplanations(unittest.TestCase):
 
     def test_plan_not_found_returns_404(self):
         resp = self._get(plan=None)
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/plan/plan_abc123/explanations")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_plan_with_no_explanation_returns_null(self):
         plan = _mock_plan()
         plan.plan_explanation_json = ""
         resp = self._get(plan=plan)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.get_json()["explanation"])
+        assert resp.status_code == 200
+        assert resp.get_json()["explanation"] is None
 
     def test_plan_with_valid_explanation_returns_dict(self):
         plan = _mock_plan()
         plan.plan_explanation_json = json.dumps({"summary": "hello", "blocks": []})
         resp = self._get(plan=plan)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNotNone(resp.get_json()["explanation"])
+        assert resp.status_code == 200
+        assert resp.get_json()["explanation"] is not None
 
     def test_sanitized_true_invokes_explain_agent(self):
         plan = _mock_plan()
@@ -1044,21 +1045,21 @@ class TestGetPlanExplanations(unittest.TestCase):
                 "/api/plan/plan_abc123/explanations?sanitized=true",
                 headers=AUTH_HEADER,
             )
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_sanitized_false_does_not_invoke_explain_agent(self):
         plan = _mock_plan()
         plan.plan_explanation_json = json.dumps({"summary": "x", "blocks": []})
         resp = self._get(plan=plan, params="?sanitized=false")
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("explanation", resp.get_json())
+        assert resp.status_code == 200
+        assert "explanation" in resp.get_json()
 
     def test_malformed_explanation_json_returns_null(self):
         plan = _mock_plan()
         plan.plan_explanation_json = "not-valid-json{"
         resp = self._get(plan=plan)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.get_json()["explanation"])
+        assert resp.status_code == 200
+        assert resp.get_json()["explanation"] is None
 
     def test_sanitized_param_accepts_1_as_true(self):
         plan = _mock_plan()
@@ -1075,7 +1076,7 @@ class TestGetPlanExplanations(unittest.TestCase):
                 "/api/plan/plan_abc123/explanations?sanitized=1",
                 headers=AUTH_HEADER,
             )
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -1105,52 +1106,52 @@ class TestGetSubtaskExplanation(unittest.TestCase):
         st = _mock_subtask()
         st.subtask_explanation_json = json.dumps({"summary": "subtask exp"})
         resp = self._get(subtasks=[st])
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIsNotNone(data["explanation"])
+        assert data["success"]
+        assert data["explanation"] is not None
 
     def test_subtask_not_found_returns_404(self):
         resp = self._get(subtasks=[], subtask_id="nonexistent_subtask")
-        self.assertEqual(resp.status_code, 404)
+        assert resp.status_code == 404
 
     def test_plan_mode_disabled_returns_403(self):
         resp = self._get(plan_mode=False)
-        self.assertEqual(resp.status_code, 403)
+        assert resp.status_code == 403
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get(
                 "/api/plan/plan_abc123/subtasks/subtask_001/explanation"
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_subtask_with_no_explanation_returns_null(self):
         st = _mock_subtask()
         st.subtask_explanation_json = ""
         resp = self._get(subtasks=[st])
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.get_json()["explanation"])
+        assert resp.status_code == 200
+        assert resp.get_json()["explanation"] is None
 
     def test_malformed_subtask_explanation_json_returns_null(self):
         st = _mock_subtask()
         st.subtask_explanation_json = "bad-json{"
         resp = self._get(subtasks=[st])
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.get_json()["explanation"])
+        assert resp.status_code == 200
+        assert resp.get_json()["explanation"] is None
 
     def test_engine_exception_returns_500(self):
         e = _make_engine()
         e.get_subtasks.side_effect = RuntimeError("fail")
         resp = self._get(engine=e)
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_response_includes_plan_id_and_subtask_id(self):
         st = _mock_subtask()
         resp = self._get(subtasks=[st])
         data = resp.get_json()
-        self.assertIn("plan_id",    data)
-        self.assertIn("subtask_id", data)
+        assert "plan_id" in data
+        assert "subtask_id" in data
 
 
 # ---------------------------------------------------------------------------
@@ -1189,20 +1190,20 @@ class TestCreateCodingTask(unittest.TestCase):
 
     def test_success_returns_200(self):
         resp = self._post(body={"type": "implement", "description": "build thing"})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertIn("task_id",  data)
-        self.assertIn("artifact", data)
+        assert data["success"]
+        assert "task_id" in data
+        assert "artifact" in data
 
     def test_invalid_task_type_returns_400(self):
         resp = self._post(body={"type": "nonexistent_type"})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("Invalid task type", resp.get_json()["error"])
+        assert resp.status_code == 400
+        assert "Invalid task type" in resp.get_json()["error"]
 
     def test_agent_unavailable_returns_503(self):
         resp = self._post(body={"type": "implement"}, agent_available=False)
-        self.assertEqual(resp.status_code, 503)
+        assert resp.status_code == 503
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
@@ -1211,24 +1212,24 @@ class TestCreateCodingTask(unittest.TestCase):
                 data=json.dumps({"type": "implement"}),
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_scaffold_type_valid(self):
-        self.assertEqual(self._post(body={"type": "scaffold"}).status_code, 200)
+        assert self._post(body={"type": "scaffold"}).status_code == 200
 
     def test_test_type_valid(self):
-        self.assertEqual(self._post(body={"type": "test"}).status_code, 200)
+        assert self._post(body={"type": "test"}).status_code == 200
 
     def test_review_type_valid(self):
-        self.assertEqual(self._post(body={"type": "review"}).status_code, 200)
+        assert self._post(body={"type": "review"}).status_code == 200
 
     def test_run_task_exception_returns_500(self):
         resp = self._post(body={"type": "implement"}, run_raises=RuntimeError("exec fail"))
-        self.assertEqual(resp.status_code, 500)
+        assert resp.status_code == 500
 
     def test_default_type_implement_when_missing(self):
         resp = self._post(body={})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
     def test_extra_optional_fields_accepted(self):
         resp = self._post(body={
@@ -1239,7 +1240,7 @@ class TestCreateCodingTask(unittest.TestCase):
             "target_files": ["file.py"],
             "constraints": "no globals",
         })
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -1263,23 +1264,23 @@ class TestGetCodingTask(unittest.TestCase):
 
     def test_success_returns_200_with_status_completed(self):
         resp = self._get()
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertEqual(data["status"], "completed")
+        assert data["success"]
+        assert data["status"] == "completed"
 
     def test_agent_unavailable_returns_503(self):
         resp = self._get(agent_available=False)
-        self.assertEqual(resp.status_code, 503)
+        assert resp.status_code == 503
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
             resp = self.client.get("/api/coding/task/task_0001")
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_task_id_echoed_in_response(self):
         resp = self._get(task_id="task_custom_99")
-        self.assertEqual(resp.get_json()["task_id"], "task_custom_99")
+        assert resp.get_json()["task_id"] == "task_custom_99"
 
 
 # ---------------------------------------------------------------------------
@@ -1332,11 +1333,11 @@ class TestCreateMultiStepCoding(unittest.TestCase):
             ],
         }
         resp = self._post(body=body)
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         data = resp.get_json()
-        self.assertTrue(data["success"])
-        self.assertEqual(len(data["results"]), 3)
-        self.assertTrue(all(r["success"] for r in data["results"]))
+        assert data["success"]
+        assert len(data["results"]) == 3
+        assert all(r["success"] for r in data["results"])
 
     def test_partial_failure_still_returns_200(self):
         body = {
@@ -1347,15 +1348,15 @@ class TestCreateMultiStepCoding(unittest.TestCase):
             ],
         }
         resp = self._post(body=body, fail_on_calls={2})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         results = resp.get_json()["results"]
-        self.assertTrue(results[0]["success"])
-        self.assertFalse(results[1]["success"])
-        self.assertIn("error", results[1])
+        assert results[0]["success"]
+        assert not results[1]["success"]
+        assert "error" in results[1]
 
     def test_agent_unavailable_returns_503(self):
         resp = self._post(agent_available=False)
-        self.assertEqual(resp.status_code, 503)
+        assert resp.status_code == 503
 
     def test_no_auth_returns_401(self):
         with patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", VALID_TOKEN):
@@ -1364,13 +1365,13 @@ class TestCreateMultiStepCoding(unittest.TestCase):
                 data=json.dumps({"plan_id": "p1", "subtasks": []}),
                 content_type="application/json",
             )
-        self.assertEqual(resp.status_code, 401)
+        assert resp.status_code == 401
 
     def test_empty_subtasks_returns_empty_results(self):
         body = {"plan_id": "plan_abc", "subtasks": []}
         resp = self._post(body=body)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()["results"], [])
+        assert resp.status_code == 200
+        assert resp.get_json()["results"] == []
 
     def test_invalid_task_type_falls_back_to_implement(self):
         body = {
@@ -1378,13 +1379,13 @@ class TestCreateMultiStepCoding(unittest.TestCase):
             "subtasks": [{"subtask_id": "s1", "type": "unknown_type"}],
         }
         resp = self._post(body=body)
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.get_json()["results"][0]["success"])
+        assert resp.status_code == 200
+        assert resp.get_json()["results"][0]["success"]
 
     def test_plan_id_echoed_in_response(self):
         body = {"plan_id": "plan_xyz", "subtasks": []}
         resp = self._post(body=body)
-        self.assertEqual(resp.get_json()["plan_id"], "plan_xyz")
+        assert resp.get_json()["plan_id"] == "plan_xyz"
 
     def test_all_fail_returns_200_with_all_failed_results(self):
         body = {
@@ -1395,9 +1396,9 @@ class TestCreateMultiStepCoding(unittest.TestCase):
             ],
         }
         resp = self._post(body=body, fail_on_calls={1, 2})
-        self.assertEqual(resp.status_code, 200)
+        assert resp.status_code == 200
         results = resp.get_json()["results"]
-        self.assertTrue(all(not r["success"] for r in results))
+        assert all(not r["success"] for r in results)
 
 
 # ---------------------------------------------------------------------------
@@ -1411,9 +1412,9 @@ class TestRegisterPlanApi(unittest.TestCase):
         app.testing = True
         plan_api_module.register_plan_api(app)
         rules = [r.rule for r in app.url_map.iter_rules()]
-        self.assertTrue(any("/api/plan/status"  in r for r in rules))
-        self.assertTrue(any("/api/plan/history" in r for r in rules))
-        self.assertTrue(any("/api/coding/task"  in r for r in rules))
+        assert any("/api/plan/status" in r for r in rules)
+        assert any("/api/plan/history" in r for r in rules)
+        assert any("/api/coding/task" in r for r in rules)
 
     def test_separate_apps_both_get_routes(self):
         app1 = Flask("app_alpha")
@@ -1422,20 +1423,20 @@ class TestRegisterPlanApi(unittest.TestCase):
         plan_api_module.register_plan_api(app2)
         rules1 = [r.rule for r in app1.url_map.iter_rules()]
         rules2 = [r.rule for r in app2.url_map.iter_rules()]
-        self.assertTrue(any("/api/plan/status" in r for r in rules1))
-        self.assertTrue(any("/api/plan/status" in r for r in rules2))
+        assert any("/api/plan/status" in r for r in rules1)
+        assert any("/api/plan/status" in r for r in rules2)
 
     def test_generate_route_exists(self):
         app = Flask("app_gen")
         plan_api_module.register_plan_api(app)
         rules = [r.rule for r in app.url_map.iter_rules()]
-        self.assertTrue(any("/api/plan/generate" in r for r in rules))
+        assert any("/api/plan/generate" in r for r in rules)
 
     def test_templates_route_exists(self):
         app = Flask("app_tmpl")
         plan_api_module.register_plan_api(app)
         rules = [r.rule for r in app.url_map.iter_rules()]
-        self.assertTrue(any("/api/plan/templates" in r for r in rules))
+        assert any("/api/plan/templates" in r for r in rules)
 
 
 if __name__ == "__main__":

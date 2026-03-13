@@ -12,24 +12,24 @@ Tests cover:
 - Error cases
 """
 
-import pytest
 from unittest.mock import Mock
 
-from vetinari.skills.operations_skill import (
-    OperationsSkillTool,
-    OperationsMode,
-    OutputFormat,
-    ThinkingMode,
-    OperationsRequest,
-    Section,
-    OperationsResult,
-)
+import pytest
+
 from vetinari.execution_context import (
-    ToolPermission,
-    ExecutionMode,
     ExecutionContext,
+    ExecutionMode,
+    ToolPermission,
 )
-from vetinari.tool_interface import ToolResult
+from vetinari.skills.operations_skill import (
+    OperationsMode,
+    OperationsRequest,
+    OperationsResult,
+    OperationsSkillTool,
+    OutputFormat,
+    Section,
+    ThinkingMode,
+)
 
 
 class TestOperationsSkillToolMetadata:
@@ -491,7 +491,7 @@ class TestOperationsSkillToolParameterValidation:
         """Test invalid mode value is caught."""
         tool = OperationsSkillTool()
 
-        is_valid, error = tool.validate_inputs({
+        is_valid, _error = tool.validate_inputs({
             "mode": "nonexistent",
             "content": "test",
         })
@@ -502,7 +502,7 @@ class TestOperationsSkillToolParameterValidation:
         """Test optional parameters can be omitted."""
         tool = OperationsSkillTool()
 
-        is_valid, error = tool.validate_inputs({
+        is_valid, _error = tool.validate_inputs({
             "mode": "synthesis",
             "content": "Synthesize data",
         })

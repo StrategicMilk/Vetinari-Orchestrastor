@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.models.model_registry
+"""Backward-compat shim. Canonical: vetinari.models.model_registry.
 
 All new code should import from vetinari.models.model_registry directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

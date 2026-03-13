@@ -1,5 +1,5 @@
-"""
-Vetinari VRAM Manager
+"""Vetinari VRAM Manager.
+
 ======================
 Tracks GPU memory budget for a local LM Studio setup and advises on model
 load/unload decisions.
@@ -22,12 +22,12 @@ Usage::
     manager.refresh()
 
     if manager.can_load("qwen3-vl-32b"):
-        print("Fits in VRAM")
+        logger.debug("Fits in VRAM")
     else:
         evict = manager.recommend_eviction("qwen3-vl-32b")
-        print(f"Unload {evict} first")
+        logger.debug(f"Unload {evict} first")
 
-    print(manager.status_summary())
+    logger.debug(manager.status_summary())
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import pynvml  # type: ignore
+
     pynvml.nvmlInit()
     _PYNVML_AVAILABLE = True
 except Exception:
@@ -56,9 +57,11 @@ except Exception:
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class VRAMSnapshot:
     """Point-in-time GPU memory reading."""
+
     gpu_index: int
     total_gb: float
     used_gb: float
@@ -69,34 +72,32 @@ class VRAMSnapshot:
 @dataclass
 class ModelVRAMEstimate:
     """VRAM + RAM usage estimate for a loaded model."""
+
     model_id: str
-    gpu_gb: float          # VRAM used by this model
-    cpu_gb: float          # System RAM used (CPU offload)
-    last_used: float       # epoch timestamp
-    priority: int = 5      # 1 = highest (keep), 10 = lowest (evict first)
+    gpu_gb: float  # VRAM used by this model
+    cpu_gb: float  # System RAM used (CPU offload)
+    last_used: float  # epoch timestamp
+    priority: int = 5  # 1 = highest (keep), 10 = lowest (evict first)
 
 
 # ---------------------------------------------------------------------------
 # Manager
 # ---------------------------------------------------------------------------
 
+
 class VRAMManager:
     """GPU memory budget manager for local LM Studio models."""
 
-    _instance: Optional["VRAMManager"] = None
+    _instance: VRAMManager | None = None
     _lock = threading.Lock()
 
     def __init__(self):
-        self._gpu_total_gb: float = float(
-            os.environ.get("VETINARI_GPU_VRAM_GB", "32")
-        )
-        self._cpu_offload_gb: float = float(
-            os.environ.get("VETINARI_CPU_OFFLOAD_GB", "30")
-        )
-        self._overhead_gb: float = 2.0     # OS + CUDA context overhead
-        self._estimates: Dict[str, ModelVRAMEstimate] = {}
+        self._gpu_total_gb: float = float(os.environ.get("VETINARI_GPU_VRAM_GB", "32"))
+        self._cpu_offload_gb: float = float(os.environ.get("VETINARI_CPU_OFFLOAD_GB", "30"))
+        self._overhead_gb: float = 2.0  # OS + CUDA context overhead
+        self._estimates: dict[str, ModelVRAMEstimate] = {}
         self._lock_rw = threading.RLock()
-        self._last_snapshot: Optional[VRAMSnapshot] = None
+        self._last_snapshot: VRAMSnapshot | None = None
 
         # Try to load hardware config from models.yaml
         self._load_hardware_config()
@@ -106,7 +107,7 @@ class VRAMManager:
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls) -> "VRAMManager":
+    def get_instance(cls) -> VRAMManager:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -119,7 +120,9 @@ class VRAMManager:
     def _load_hardware_config(self) -> None:
         try:
             from pathlib import Path
+
             from vetinari.utils import load_yaml
+
             cfg_path = Path(__file__).parent.parent / "config" / "models.yaml"
             if cfg_path.exists():
                 cfg = load_yaml(str(cfg_path))
@@ -135,7 +138,7 @@ class VRAMManager:
     # Real-time VRAM reading
     # ------------------------------------------------------------------
 
-    def get_gpu_snapshot(self, gpu_index: int = 0) -> Optional[VRAMSnapshot]:
+    def get_gpu_snapshot(self, gpu_index: int = 0) -> VRAMSnapshot | None:
         """Return live GPU memory snapshot via pynvml if available."""
         if not _PYNVML_AVAILABLE:
             return None
@@ -180,6 +183,7 @@ class VRAMManager:
         """Sync tracked model state with the ModelRegistry."""
         try:
             from vetinari.models.model_registry import get_model_registry
+
             registry = get_model_registry()
             loaded = registry.get_loaded_local_models()
             with self._lock_rw:
@@ -229,12 +233,14 @@ class VRAMManager:
         """Return estimated VRAM requirement for a model in GB."""
         try:
             from vetinari.models.model_registry import get_model_registry
+
             info = get_model_registry().get_model_info(model_id)
             if info:
                 return float(info.memory_requirements_gb)
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
         from vetinari.utils import estimate_model_memory_gb
+
         return float(estimate_model_memory_gb(model_id))
 
     def can_load(self, model_id: str) -> bool:
@@ -254,14 +260,13 @@ class VRAMManager:
 
         if cpu_portion <= cpu_free:
             logger.debug(
-                f"[VRAMManager] {model_id} needs CPU offload: "
-                f"{gpu_portion:.1f} GB GPU + {cpu_portion:.1f} GB RAM"
+                f"[VRAMManager] {model_id} needs CPU offload: {gpu_portion:.1f} GB GPU + {cpu_portion:.1f} GB RAM"
             )
             return True
 
         return False
 
-    def recommend_eviction(self, model_id: str) -> Optional[str]:
+    def recommend_eviction(self, model_id: str) -> str | None:
         """Return the model_id that should be evicted to make room for ``model_id``.
 
         Prioritises: lowest priority first, then least-recently-used.
@@ -293,7 +298,7 @@ class VRAMManager:
     # Status
     # ------------------------------------------------------------------
 
-    def status_summary(self) -> Dict[str, Any]:
+    def status_summary(self) -> dict[str, Any]:
         """Return a summary dict for dashboard / logging."""
         self.refresh()
         snap = self.get_gpu_snapshot()
@@ -307,10 +312,7 @@ class VRAMManager:
             "cpu_offload_budget_gb": self._cpu_offload_gb,
             "cpu_offload_used_gb": sum(e.cpu_gb for e in self._estimates.values()),
             "pynvml_available": _PYNVML_AVAILABLE,
-            "loaded_models": {
-                mid: {"gpu_gb": e.gpu_gb, "cpu_gb": e.cpu_gb}
-                for mid, e in self._estimates.items()
-            },
+            "loaded_models": {mid: {"gpu_gb": e.gpu_gb, "cpu_gb": e.cpu_gb} for mid, e in self._estimates.items()},
         }
 
 
@@ -318,7 +320,7 @@ class VRAMManager:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_vram_manager: Optional[VRAMManager] = None
+_vram_manager: VRAMManager | None = None
 _vram_lock = threading.Lock()
 
 

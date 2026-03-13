@@ -1,28 +1,32 @@
-"""
-Vetinari Canonical Type Definitions
+"""Vetinari Canonical Type Definitions.
+
 ====================================
 Single source of truth for all shared enums and base types.
 All modules should import from here rather than defining their own.
 """
+
+from __future__ import annotations
 
 from enum import Enum
 
 
 class TaskStatus(Enum):
     """Canonical task execution status."""
+
     PENDING = "pending"
-    BLOCKED = "blocked"       # Waiting for dependencies
-    READY = "ready"           # Dependencies met, awaiting execution
-    ASSIGNED = "assigned"     # Assigned to a model/agent
+    BLOCKED = "blocked"  # Waiting for dependencies
+    READY = "ready"  # Dependencies met, awaiting execution
+    ASSIGNED = "assigned"  # Assigned to a model/agent
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-    WAITING = "waiting"       # Waiting for human input
+    WAITING = "waiting"  # Waiting for human input
 
 
 class PlanStatus(Enum):
     """Canonical plan lifecycle status."""
+
     DRAFT = "draft"
     PENDING = "pending"
     APPROVED = "approved"
@@ -114,13 +118,15 @@ def resolve_agent_type(agent_type: AgentType) -> AgentType:
 
 class ExecutionMode(Enum):
     """Execution modes available in Vetinari."""
-    PLANNING = "planning"     # Read-only mode for analysis and planning
-    EXECUTION = "execution"   # Full read/write mode for implementation
-    SANDBOX = "sandbox"       # Restricted mode for untrusted code
+
+    PLANNING = "planning"  # Read-only mode for analysis and planning
+    EXECUTION = "execution"  # Full read/write mode for implementation
+    SANDBOX = "sandbox"  # Restricted mode for untrusted code
 
 
 class ModelProvider(Enum):
     """All recognized model provider types."""
+
     LOCAL = "local"
     LMSTUDIO = "lmstudio"
     OLLAMA = "ollama"
@@ -140,16 +146,17 @@ class GoalCategory(Enum):
     deep, quick, ultrabrain).  Each category maps to an agent + mode + model
     tier combination in the TwoLayerOrchestrator.
     """
-    CODE = "code"              # implement, build, develop, fix, refactor
-    RESEARCH = "research"      # research, analyze, investigate, study
-    DOCS = "docs"              # document, readme, api docs, manual
-    CREATIVE = "creative"      # write, story, campaign, fiction, narrative
-    SECURITY = "security"      # security, audit, vulnerability, pentest
-    DATA = "data"              # database, schema, migration, ETL, SQL
-    DEVOPS = "devops"          # deploy, CI/CD, docker, kubernetes, pipeline
-    UI = "ui"                  # UI, UX, frontend, design, wireframe
-    IMAGE = "image"            # logo, icon, mockup, diagram, image
-    GENERAL = "general"        # fallback — routes to PLANNER for decomposition
+
+    CODE = "code"  # implement, build, develop, fix, refactor
+    RESEARCH = "research"  # research, analyze, investigate, study
+    DOCS = "docs"  # document, readme, api docs, manual
+    CREATIVE = "creative"  # write, story, campaign, fiction, narrative
+    SECURITY = "security"  # security, audit, vulnerability, pentest
+    DATA = "data"  # database, schema, migration, ETL, SQL
+    DEVOPS = "devops"  # deploy, CI/CD, docker, kubernetes, pipeline
+    UI = "ui"  # UI, UX, frontend, design, wireframe
+    IMAGE = "image"  # logo, icon, mockup, diagram, image
+    GENERAL = "general"  # fallback — routes to PLANNER for decomposition
 
 
 class FailureType(Enum):
@@ -158,11 +165,12 @@ class FailureType(Enum):
     Classifying failures enables the orchestrator to choose the correct
     recovery strategy rather than blindly retrying or giving up.
     """
-    TRANSIENT = "transient"           # Timeout, temp error -> retry same agent
-    DECOMPOSITION = "decomposition"   # Too complex -> post to PLANNER for subtask split
-    DELEGATION = "delegation"         # Wrong agent -> post to Blackboard for reassignment
-    UNSOLVABLE = "unsolvable"         # Genuine failure -> ErrorRecoveryAgent -> user escalation
-    POLICY_VIOLATION = "policy"       # Security/constraint violation -> block + report
+
+    TRANSIENT = "transient"  # Timeout, temp error -> retry same agent
+    DECOMPOSITION = "decomposition"  # Too complex -> post to PLANNER for subtask split
+    DELEGATION = "delegation"  # Wrong agent -> post to Blackboard for reassignment
+    UNSOLVABLE = "unsolvable"  # Genuine failure -> ErrorRecoveryAgent -> user escalation
+    POLICY_VIOLATION = "policy"  # Security/constraint violation -> block + report
 
 
 class SubtaskStatus(str, Enum):
@@ -170,6 +178,7 @@ class SubtaskStatus(str, Enum):
 
     Superset of plan_types.py and subtask_tree.py variants.
     """
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     ASSIGNED = "assigned"
@@ -187,6 +196,7 @@ class ThinkingMode(str, Enum):
     All skill tools should import this from types.py rather than
     defining their own copy.
     """
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -199,6 +209,7 @@ class MemoryType(Enum):
     Superset of all memory types used across the system:
     shared_memory.py, enhanced_memory.py, and core pipeline.
     """
+
     # Core types
     INTENT = "intent"
     DISCOVERY = "discovery"
@@ -240,6 +251,7 @@ class CodingTaskType(str, Enum):
     - vetinari.coding_agent.engine
     - vetinari.coding_agent.bridge (as BridgeTaskType)
     """
+
     SCAFFOLD = "scaffold"
     IMPLEMENT = "implement"
     TEST = "test"
@@ -257,6 +269,7 @@ class CodingTaskStatus(str, Enum):
     - vetinari.coding_agent.engine
     - vetinari.coding_agent.bridge (as BridgeTaskStatus)
     """
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     RUNNING = "running"
@@ -272,6 +285,7 @@ class SeverityLevel(str, Enum):
     - vetinari.skills.quality_skill
     - vetinari.skills.evaluator
     """
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -286,6 +300,7 @@ class QualityGrade(str, Enum):
     - vetinari.skills.quality_skill (as QualityGrade)
     - vetinari.skills.evaluator (as QualityScore)
     """
+
     A = "A"
     B = "B"
     C = "C"

@@ -1,1 +1,11 @@
-System: Implement core CLI command plumbing and API endpoints. Provide cli.py and api.py, plus requirements.txt. Ensure endpoints: /health, /predict. Include minimal unit tests in tests/ to demonstrate usage.
+System: Execute the integration phase. Wire together the components from completed tasks into a working system.
+
+Requirements:
+- Connect modules through well-defined interfaces (ABCs or Protocols)
+- Add error handling at integration boundaries
+- Write integration tests that verify end-to-end flows
+- Ensure all Flask routes are registered and return proper JSON responses
+- API endpoints must include: /health (GET), /api/v1/* (versioned routes)
+- Use dependency injection for testability
+
+Output complete, working files with clear module boundaries.

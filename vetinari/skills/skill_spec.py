@@ -1,5 +1,5 @@
-"""
-Skill Specification Contract
+"""Skill Specification Contract.
+
 =============================
 Defines the ``SkillSpec`` dataclass — the canonical contract for all Vetinari
 skills, parallel to ``AgentSpec`` for agents.
@@ -16,12 +16,12 @@ The spec enforces three pillars:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Supporting types
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SkillStandard:
@@ -30,13 +30,14 @@ class SkillStandard:
     Standards are *mandatory* — a skill execution that violates any standard
     is considered non-conformant and should be flagged by the verifier.
     """
-    id: str                     # e.g. "STD-BLD-001"
-    category: str               # "code_quality", "security", "testing", "documentation", "performance"
-    rule: str                   # Human-readable rule statement
-    severity: str = "error"     # "error" (must fix) | "warning" (should fix)
-    check_hint: str = ""        # Machine-actionable hint for automated validation
 
-    def to_dict(self) -> Dict[str, Any]:
+    id: str  # e.g. "STD-BLD-001"
+    category: str  # "code_quality", "security", "testing", "documentation", "performance"
+    rule: str  # Human-readable rule statement
+    severity: str = "error"  # "error" (must fix) | "warning" (should fix)
+    check_hint: str = ""  # Machine-actionable hint for automated validation
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "category": self.category,
@@ -46,7 +47,7 @@ class SkillStandard:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillStandard":
+    def from_dict(cls, data: dict[str, Any]) -> SkillStandard:
         return cls(
             id=data.get("id", ""),
             category=data.get("category", ""),
@@ -63,12 +64,13 @@ class SkillGuideline:
     Guidelines are *advisory* — they improve quality but are not enforced
     as hard failures.
     """
-    id: str                     # e.g. "GDL-BLD-001"
-    category: str               # "usage", "integration", "performance", "output_format"
-    recommendation: str         # What to do
-    rationale: str = ""         # Why it matters
 
-    def to_dict(self) -> Dict[str, Any]:
+    id: str  # e.g. "GDL-BLD-001"
+    category: str  # "usage", "integration", "performance", "output_format"
+    recommendation: str  # What to do
+    rationale: str = ""  # Why it matters
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "category": self.category,
@@ -77,7 +79,7 @@ class SkillGuideline:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillGuideline":
+    def from_dict(cls, data: dict[str, Any]) -> SkillGuideline:
         return cls(
             id=data.get("id", ""),
             category=data.get("category", ""),
@@ -93,13 +95,14 @@ class SkillConstraint:
     Constraints are *immutable limits* — they cannot be overridden by the
     caller and are enforced at the framework level.
     """
-    id: str                     # e.g. "CON-BLD-001"
-    category: str               # "resource", "scope", "safety", "concurrency"
-    description: str            # What is constrained
-    limit: str                  # The actual limit value (human-readable)
-    enforcement: str = "hard"   # "hard" (runtime enforced) | "soft" (logged warning)
 
-    def to_dict(self) -> Dict[str, Any]:
+    id: str  # e.g. "CON-BLD-001"
+    category: str  # "resource", "scope", "safety", "concurrency"
+    description: str  # What is constrained
+    limit: str  # The actual limit value (human-readable)
+    enforcement: str = "hard"  # "hard" (runtime enforced) | "soft" (logged warning)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "category": self.category,
@@ -109,7 +112,7 @@ class SkillConstraint:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillConstraint":
+    def from_dict(cls, data: dict[str, Any]) -> SkillConstraint:
         return cls(
             id=data.get("id", ""),
             category=data.get("category", ""),
@@ -123,6 +126,7 @@ class SkillConstraint:
 # Main SkillSpec
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SkillSpec:
     """Specification contract for all Vetinari skills — parallel to AgentSpec for agents.
@@ -134,38 +138,38 @@ class SkillSpec:
     """
 
     # ── Identity ──────────────────────────────────────────────────────────
-    skill_id: str                          # Unique kebab-case identifier
-    name: str                              # Human-readable name
-    description: str                       # One-line purpose
-    version: str = "1.0.0"                 # Semantic version
-    agent_type: Optional[str] = None       # Owning agent type (AgentType.value)
-    modes: List[str] = field(default_factory=list)  # Compatible agent modes
+    skill_id: str  # Unique kebab-case identifier
+    name: str  # Human-readable name
+    description: str  # One-line purpose
+    version: str = "1.0.0"  # Semantic version
+    agent_type: str | None = None  # Owning agent type (AgentType.value)
+    modes: list[str] = field(default_factory=list)  # Compatible agent modes
 
     # ── Capability declaration ────────────────────────────────────────────
-    capabilities: List[str] = field(default_factory=list)
-    input_schema: Dict[str, Any] = field(default_factory=dict)   # JSON schema for inputs
-    output_schema: Dict[str, Any] = field(default_factory=dict)  # JSON schema for outputs
+    capabilities: list[str] = field(default_factory=list)
+    input_schema: dict[str, Any] = field(default_factory=dict)  # JSON schema for inputs
+    output_schema: dict[str, Any] = field(default_factory=dict)  # JSON schema for outputs
 
     # ── Resource constraints (aligned with Phase 8 ResourceConstraint) ───
     max_tokens: int = 4096
     max_retries: int = 3
     timeout_seconds: int = 120
     max_cost_usd: float = 0.50
-    requires_tools: List[str] = field(default_factory=list)  # Tool dependencies
+    requires_tools: list[str] = field(default_factory=list)  # Tool dependencies
 
     # ── Quality standards ─────────────────────────────────────────────────
     min_verification_score: float = 0.5
     require_schema_validation: bool = True
-    forbidden_patterns: List[str] = field(default_factory=list)
+    forbidden_patterns: list[str] = field(default_factory=list)
 
     # ── Standards / Guidelines / Constraints (the three pillars) ──────────
-    standards: List[SkillStandard] = field(default_factory=list)
-    guidelines: List[SkillGuideline] = field(default_factory=list)
-    constraints: List[SkillConstraint] = field(default_factory=list)
+    standards: list[SkillStandard] = field(default_factory=list)
+    guidelines: list[SkillGuideline] = field(default_factory=list)
+    constraints: list[SkillConstraint] = field(default_factory=list)
 
     # ── Metadata ──────────────────────────────────────────────────────────
     author: str = "vetinari"
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     enabled: bool = True
     deprecated: bool = False
     deprecated_by: str = ""  # Replacement skill_id if deprecated
@@ -174,7 +178,7 @@ class SkillSpec:
     # Validation
     # ------------------------------------------------------------------
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate this spec meets contract requirements. Returns list of errors."""
         errors = []
         if not self.skill_id:
@@ -209,19 +213,19 @@ class SkillSpec:
             errors.append(f"Skill '{self.skill_id}' has duplicate constraint IDs")
         return errors
 
-    def get_standards_by_category(self, category: str) -> List[SkillStandard]:
+    def get_standards_by_category(self, category: str) -> list[SkillStandard]:
         """Return all standards in a given category."""
         return [s for s in self.standards if s.category == category]
 
-    def get_error_standards(self) -> List[SkillStandard]:
+    def get_error_standards(self) -> list[SkillStandard]:
         """Return all mandatory (severity=error) standards."""
         return [s for s in self.standards if s.severity == "error"]
 
-    def get_constraints_by_category(self, category: str) -> List[SkillConstraint]:
+    def get_constraints_by_category(self, category: str) -> list[SkillConstraint]:
         """Return all constraints in a given category."""
         return [c for c in self.constraints if c.category == category]
 
-    def get_hard_constraints(self) -> List[SkillConstraint]:
+    def get_hard_constraints(self) -> list[SkillConstraint]:
         """Return all hard-enforced constraints."""
         return [c for c in self.constraints if c.enforcement == "hard"]
 
@@ -229,10 +233,10 @@ class SkillSpec:
     # Serialization
     # ------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary for JSON export."""
         return {
-            "id": self.skill_id,          # Backward compat with disk-based registry
+            "id": self.skill_id,  # Backward compat with disk-based registry
             "skill_id": self.skill_id,
             "name": self.name,
             "description": self.description,
@@ -261,7 +265,7 @@ class SkillSpec:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillSpec":
+    def from_dict(cls, data: dict[str, Any]) -> SkillSpec:
         """Deserialize from dictionary."""
         return cls(
             skill_id=data.get("skill_id", ""),
@@ -281,15 +285,9 @@ class SkillSpec:
             min_verification_score=data.get("min_verification_score", 0.5),
             require_schema_validation=data.get("require_schema_validation", True),
             forbidden_patterns=data.get("forbidden_patterns", []),
-            standards=[
-                SkillStandard.from_dict(s) for s in data.get("standards", [])
-            ],
-            guidelines=[
-                SkillGuideline.from_dict(g) for g in data.get("guidelines", [])
-            ],
-            constraints=[
-                SkillConstraint.from_dict(c) for c in data.get("constraints", [])
-            ],
+            standards=[SkillStandard.from_dict(s) for s in data.get("standards", [])],
+            guidelines=[SkillGuideline.from_dict(g) for g in data.get("guidelines", [])],
+            constraints=[SkillConstraint.from_dict(c) for c in data.get("constraints", [])],
             author=data.get("author", "vetinari"),
             tags=data.get("tags", []),
             enabled=data.get("enabled", True),

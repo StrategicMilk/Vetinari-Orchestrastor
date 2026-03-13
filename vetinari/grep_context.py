@@ -1,9 +1,10 @@
-"""
-Grep-based context extraction for token-efficient agent prompts.
+"""Grep-based context extraction for token-efficient agent prompts.
 
 Provides surgical code extraction via ripgrep (with Python re fallback)
 to reduce token usage by 40-60% compared to reading whole files.
 """
+
+from __future__ import annotations
 
 import logging
 import re
@@ -11,7 +12,6 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +19,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GrepMatch:
     """A single grep match with surrounding context."""
+
     file_path: str
     line_number: int
     line_content: str
-    context_before: List[str] = field(default_factory=list)
-    context_after: List[str] = field(default_factory=list)
+    context_before: list[str] = field(default_factory=list)
+    context_after: list[str] = field(default_factory=list)
 
 
 class GrepContext:
@@ -42,11 +43,11 @@ class GrepContext:
 
     def extract_patterns(
         self,
-        file_paths: List[str],
-        patterns: List[str],
+        file_paths: list[str],
+        patterns: list[str],
         context_lines: int = 3,
         max_matches: int = 20,
-    ) -> List[GrepMatch]:
+    ) -> list[GrepMatch]:
         """Extract lines matching any pattern with N lines of surrounding context.
 
         Args:
@@ -71,7 +72,7 @@ class GrepContext:
     def extract_definitions(
         self,
         file_path: str,
-        names: List[str],
+        names: list[str],
         max_lines: int = 30,
     ) -> str:
         """Extract function/class definitions by name with body (up to max_lines).
@@ -97,12 +98,12 @@ class GrepContext:
                     base_indent = len(line) - len(line.lstrip())
                     for j in range(i + 1, end):
                         stripped = lines[j].strip()
-                        if stripped and (len(lines[j]) - len(lines[j].lstrip())) <= base_indent:
+                        if stripped and (len(lines[j]) - len(lines[j].lstrip())) <= base_indent:  # noqa: SIM102
                             if not stripped.startswith(("#", '"""', "'''", "@")):
                                 end = j
                                 break
                     block = "\n".join(lines[i:end])
-                    results.append(f"# {file_path}:{i+1}\n{block}")
+                    results.append(f"# {file_path}:{i + 1}\n{block}")
                     break
         return "\n\n".join(results)
 
@@ -111,10 +112,10 @@ class GrepContext:
         if not Path(file_path).is_file():
             return ""
         lines = Path(file_path).read_text(errors="replace").splitlines()
-        imports = [l for l in lines if l.strip().startswith(("import ", "from "))]
+        imports = [l for l in lines if l.strip().startswith(("import ", "from "))]  # noqa: E741
         return "\n".join(imports)
 
-    def extract_security_patterns(self, file_paths: List[str]) -> List[GrepMatch]:
+    def extract_security_patterns(self, file_paths: list[str]) -> list[GrepMatch]:
         """Extract only security-relevant lines."""
         SECURITY_PATTERNS = [
             r"password\s*=|api_key\s*=|secret\s*=|token\s*=",
@@ -130,7 +131,7 @@ class GrepContext:
     def extract_relevant_context(
         self,
         file_path: str,
-        keywords: List[str],
+        keywords: list[str],
         budget_chars: int = 2000,
     ) -> str:
         """Smart context extraction: find keyword matches, expand to enclosing scope.
@@ -177,7 +178,7 @@ class GrepContext:
         prev = -2
         for idx in sorted_lines:
             if idx > prev + 1:
-                marker = f"\n--- {file_path}:{idx+1} ---\n"
+                marker = f"\n--- {file_path}:{idx + 1} ---\n"
                 if total + len(marker) > budget_chars:
                     break
                 parts.append(marker)
@@ -193,7 +194,7 @@ class GrepContext:
 
     def format_for_prompt(
         self,
-        matches: List[GrepMatch],
+        matches: list[GrepMatch],
         max_chars: int = 3000,
     ) -> str:
         """Format grep matches into a compact prompt-ready string."""
@@ -216,7 +217,7 @@ class GrepContext:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _find_enclosing_scope(self, lines: List[str], line_idx: int) -> int:
+    def _find_enclosing_scope(self, lines: list[str], line_idx: int) -> int:
         """Scan backwards to find the enclosing def/class."""
         for i in range(line_idx, -1, -1):
             stripped = lines[i].lstrip()
@@ -224,39 +225,51 @@ class GrepContext:
                 return i
         return max(0, line_idx - 3)
 
-    def _find_scope_end(self, lines: List[str], scope_start: int) -> int:
+    def _find_scope_end(self, lines: list[str], scope_start: int) -> int:
         """Find end of a scope block by indentation."""
         if scope_start >= len(lines):
             return scope_start
         base_indent = len(lines[scope_start]) - len(lines[scope_start].lstrip())
         for i in range(scope_start + 1, min(scope_start + 60, len(lines))):
             stripped = lines[i].strip()
-            if stripped and (len(lines[i]) - len(lines[i].lstrip())) <= base_indent:
+            if stripped and (len(lines[i]) - len(lines[i].lstrip())) <= base_indent:  # noqa: SIM102
                 if not stripped.startswith(("#", '"""', "'''", "@", ")")):
                     return i - 1
         return min(scope_start + 30, len(lines) - 1)
 
     def _rg_extract(
-        self, file_paths: List[str], patterns: List[str],
-        context_lines: int, max_matches: int,
-    ) -> List[GrepMatch]:
+        self,
+        file_paths: list[str],
+        patterns: list[str],
+        context_lines: int,
+        max_matches: int,
+    ) -> list[GrepMatch]:
         """Ripgrep-based extraction."""
         pattern = "|".join(patterns)
         cmd = [
-            self._rg_path, "-n", f"-C{context_lines}",
-            "-m", str(max_matches), "--no-heading",
-            "-e", pattern,
-        ] + file_paths
+            self._rg_path,
+            "-n",
+            f"-C{context_lines}",
+            "-m",
+            str(max_matches),
+            "--no-heading",
+            "-e",
+            pattern,
+            *file_paths,
+        ]
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=10,
+            result = subprocess.run(  # noqa: S603
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             return self._parse_rg_output(result.stdout, context_lines)
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             logger.debug(f"Ripgrep failed, falling back to Python: {e}")
             return self._python_extract(file_paths, patterns, context_lines, max_matches)
 
-    def _parse_rg_output(self, output: str, context_lines: int) -> List[GrepMatch]:
+    def _parse_rg_output(self, output: str, context_lines: int) -> list[GrepMatch]:
         """Parse ripgrep output into GrepMatch objects."""
         matches = []
         if not output:
@@ -264,15 +277,15 @@ class GrepContext:
         current_match = None
         for line in output.splitlines():
             # Match lines: file:line:content or file-line-content (context)
-            m = re.match(r'^(.+?):(\d+)[:|-](.*)$', line)
+            m = re.match(r"^(.+?):(\d+)[:|-](.*)$", line)
             if not m:
-                if line == "--":  # separator between match groups
+                if line == "--":  # separator between match groups  # noqa: SIM102
                     if current_match:
                         matches.append(current_match)
                         current_match = None
                 continue
             filepath, lineno, content = m.group(1), int(m.group(2)), m.group(3)
-            is_match = ":" in line[len(filepath):][:3]  # rough heuristic for : vs -
+            is_match = ":" in line[len(filepath) :][:3]  # rough heuristic for : vs -
             if is_match and (current_match is None or current_match.line_number != lineno):
                 if current_match:
                     matches.append(current_match)
@@ -291,9 +304,12 @@ class GrepContext:
         return matches
 
     def _python_extract(
-        self, file_paths: List[str], patterns: List[str],
-        context_lines: int, max_matches: int,
-    ) -> List[GrepMatch]:
+        self,
+        file_paths: list[str],
+        patterns: list[str],
+        context_lines: int,
+        max_matches: int,
+    ) -> list[GrepMatch]:
         """Fallback for systems without ripgrep."""
         combined = re.compile("|".join(patterns))
         matches = []
@@ -304,20 +320,22 @@ class GrepContext:
                 continue
             for i, line in enumerate(lines):
                 if combined.search(line):
-                    matches.append(GrepMatch(
-                        file_path=fp,
-                        line_number=i + 1,
-                        line_content=line,
-                        context_before=lines[max(0, i - context_lines):i],
-                        context_after=lines[i + 1:i + 1 + context_lines],
-                    ))
+                    matches.append(
+                        GrepMatch(
+                            file_path=fp,
+                            line_number=i + 1,
+                            line_content=line,
+                            context_before=lines[max(0, i - context_lines) : i],
+                            context_after=lines[i + 1 : i + 1 + context_lines],
+                        )
+                    )
                     if len(matches) >= max_matches:
                         return matches
         return matches
 
 
 # Convenience singleton
-_grep_context: Optional[GrepContext] = None
+_grep_context: GrepContext | None = None
 
 
 def get_grep_context() -> GrepContext:

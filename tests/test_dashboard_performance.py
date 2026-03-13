@@ -34,7 +34,6 @@ import tempfile
 import time
 import unittest
 from datetime import datetime, timezone
-from unittest.mock import patch
 
 from vetinari.dashboard.alerts import (
     AlertCondition,
@@ -53,7 +52,6 @@ from vetinari.dashboard.log_aggregator import (
     get_log_aggregator,
     reset_log_aggregator,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -118,8 +116,7 @@ class TestDashboardAPIPerformance(unittest.TestCase):
     def test_latest_metrics_under_budget(self):
         _, ms = _elapsed_ms(self.api.get_latest_metrics)
         print(f"\n  get_latest_metrics: {ms:.2f} ms  (budget {self.BUDGET_LATEST_MS} ms)")
-        self.assertLess(ms, self.BUDGET_LATEST_MS,
-                        f"get_latest_metrics took {ms:.2f} ms; expected < {self.BUDGET_LATEST_MS} ms")
+        assert ms < self.BUDGET_LATEST_MS, f"get_latest_metrics took {ms:.2f} ms; expected < {self.BUDGET_LATEST_MS} ms"
 
     def test_latest_metrics_repeated_10_times(self):
         times = []
@@ -128,29 +125,27 @@ class TestDashboardAPIPerformance(unittest.TestCase):
             times.append(ms)
         avg = sum(times) / len(times)
         print(f"\n  get_latest_metrics × 10: avg {avg:.2f} ms  max {max(times):.2f} ms")
-        self.assertLess(avg, self.BUDGET_LATEST_MS,
-                        f"avg {avg:.2f} ms over budget")
+        assert avg < self.BUDGET_LATEST_MS, f"avg {avg:.2f} ms over budget"
 
     # ── get_timeseries_data ─────────────────────────────────────────────
 
     def test_timeseries_latency_under_budget(self):
         _, ms = _elapsed_ms(self.api.get_timeseries_data, "latency")
         print(f"\n  get_timeseries_data(latency): {ms:.2f} ms  (budget {self.BUDGET_TIMESERIES_MS} ms)")
-        self.assertLess(ms, self.BUDGET_TIMESERIES_MS)
+        assert ms < self.BUDGET_TIMESERIES_MS
 
     def test_timeseries_all_metrics(self):
         for metric in ("latency", "success_rate", "token_usage", "memory_latency"):
             _, ms = _elapsed_ms(self.api.get_timeseries_data, metric)
             print(f"\n  get_timeseries_data({metric}): {ms:.2f} ms")
-            self.assertLess(ms, self.BUDGET_TIMESERIES_MS,
-                            f"timeseries '{metric}' took {ms:.2f} ms; expected < {self.BUDGET_TIMESERIES_MS} ms")
+            assert ms < self.BUDGET_TIMESERIES_MS, f"timeseries '{metric}' took {ms:.2f} ms; expected < {self.BUDGET_TIMESERIES_MS} ms"
 
     # ── search_traces ───────────────────────────────────────────────────
 
     def test_search_traces_empty_under_budget(self):
         _, ms = _elapsed_ms(self.api.search_traces)
         print(f"\n  search_traces (empty): {ms:.2f} ms  (budget {self.BUDGET_SEARCH_MS} ms)")
-        self.assertLess(ms, self.BUDGET_SEARCH_MS)
+        assert ms < self.BUDGET_SEARCH_MS
 
     def test_add_1000_traces_under_budget(self):
         t0 = time.perf_counter()
@@ -158,8 +153,7 @@ class TestDashboardAPIPerformance(unittest.TestCase):
             self.api.add_trace(_make_trace(i))
         total_ms = (time.perf_counter() - t0) * 1000
         print(f"\n  add_trace × 1 000: {total_ms:.1f} ms  (budget {self.BUDGET_1K_TRACES_MS} ms)")
-        self.assertLess(total_ms, self.BUDGET_1K_TRACES_MS,
-                        f"add_trace × 1000 took {total_ms:.1f} ms; expected < {self.BUDGET_1K_TRACES_MS} ms")
+        assert total_ms < self.BUDGET_1K_TRACES_MS, f"add_trace × 1000 took {total_ms:.1f} ms; expected < {self.BUDGET_1K_TRACES_MS} ms"
 
     def test_search_traces_populated_under_budget(self):
         # Populate if not already
@@ -168,14 +162,14 @@ class TestDashboardAPIPerformance(unittest.TestCase):
                 self.api.add_trace(_make_trace(i))
         _, ms = _elapsed_ms(self.api.search_traces, limit=50)
         print(f"\n  search_traces (populated, limit=50): {ms:.2f} ms  (budget {self.BUDGET_SEARCH_MS} ms)")
-        self.assertLess(ms, self.BUDGET_SEARCH_MS)
+        assert ms < self.BUDGET_SEARCH_MS
 
     # ── get_stats ───────────────────────────────────────────────────────
 
     def test_get_stats_under_budget(self):
         _, ms = _elapsed_ms(self.api.get_stats)
         print(f"\n  get_stats: {ms:.2f} ms  (budget {self.BUDGET_STATS_MS} ms)")
-        self.assertLess(ms, self.BUDGET_STATS_MS)
+        assert ms < self.BUDGET_STATS_MS
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +215,7 @@ class TestAlertEnginePerformance(unittest.TestCase):
             ))
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  register_threshold × 100: {ms:.1f} ms  (budget {self.BUDGET_100_REGISTER_MS} ms)")
-        self.assertLess(ms, self.BUDGET_100_REGISTER_MS)
+        assert ms < self.BUDGET_100_REGISTER_MS
 
     def test_evaluate_10_thresholds_under_budget(self):
         self.engine.clear_thresholds()
@@ -236,7 +230,7 @@ class TestAlertEnginePerformance(unittest.TestCase):
         api = self._make_mock_api(latency=300.0)
         _, ms = _elapsed_ms(self.engine.evaluate_all, api=api)
         print(f"\n  evaluate_all (10 thresholds): {ms:.2f} ms  (budget {self.BUDGET_EVALUATE_MS} ms)")
-        self.assertLess(ms, self.BUDGET_EVALUATE_MS)
+        assert ms < self.BUDGET_EVALUATE_MS
 
     def test_evaluate_repeated_50_times(self):
         self.engine.clear_thresholds()
@@ -262,7 +256,7 @@ class TestAlertEnginePerformance(unittest.TestCase):
             times.append(ms)
         avg = sum(times) / len(times)
         print(f"\n  evaluate_all × 50: avg {avg:.2f} ms  max {max(times):.2f} ms")
-        self.assertLess(avg, self.BUDGET_EVALUATE_MS)
+        assert avg < self.BUDGET_EVALUATE_MS
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +289,7 @@ class TestLogAggregatorPerformance(unittest.TestCase):
             agg.ingest(_make_log_record(i))
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  ingest × 10 000: {ms:.1f} ms  (budget {self.BUDGET_10K_INGEST_MS} ms)")
-        self.assertLess(ms, self.BUDGET_10K_INGEST_MS)
+        assert ms < self.BUDGET_10K_INGEST_MS
 
     def test_ingest_many_1k_under_budget(self):
         reset_log_aggregator()
@@ -305,12 +299,12 @@ class TestLogAggregatorPerformance(unittest.TestCase):
         agg.ingest_many(records)
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  ingest_many × 1 000: {ms:.1f} ms  (budget {self.BUDGET_1K_INGEST_MS} ms)")
-        self.assertLess(ms, self.BUDGET_1K_INGEST_MS)
+        assert ms < self.BUDGET_1K_INGEST_MS
 
     def test_search_by_trace_id_under_budget(self):
         _, ms = _elapsed_ms(self.agg.search, trace_id="t-42")
         print(f"\n  search(trace_id='t-42') in 1k buffer: {ms:.2f} ms  (budget {self.BUDGET_SEARCH_MS} ms)")
-        self.assertLess(ms, self.BUDGET_SEARCH_MS)
+        assert ms < self.BUDGET_SEARCH_MS
 
     def test_search_with_all_filters_under_budget(self):
         _, ms = _elapsed_ms(
@@ -322,7 +316,7 @@ class TestLogAggregatorPerformance(unittest.TestCase):
             limit=50,
         )
         print(f"\n  search (all filters): {ms:.2f} ms  (budget {self.BUDGET_SEARCH_MS} ms)")
-        self.assertLess(ms, self.BUDGET_SEARCH_MS)
+        assert ms < self.BUDGET_SEARCH_MS
 
     def test_file_backend_flush_500_records_under_budget(self):
         with tempfile.TemporaryDirectory() as d:
@@ -337,11 +331,11 @@ class TestLogAggregatorPerformance(unittest.TestCase):
             agg.flush()
             ms = (time.perf_counter() - t0) * 1000
             print(f"\n  flush 500 records to file: {ms:.1f} ms  (budget {self.BUDGET_FILE_FLUSH_MS} ms)")
-            self.assertLess(ms, self.BUDGET_FILE_FLUSH_MS)
+            assert ms < self.BUDGET_FILE_FLUSH_MS
 
             with open(path) as f:
                 lines = f.readlines()
-            self.assertEqual(len(lines), 500)
+            assert len(lines) == 500
 
 
 # ---------------------------------------------------------------------------
@@ -371,16 +365,16 @@ class TestRestAPIPerformance(unittest.TestCase):
         r = self.client.get("/api/v1/health")
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  GET /api/v1/health: {ms:.2f} ms  (budget {self.BUDGET_HEALTH_MS} ms)")
-        self.assertEqual(r.status_code, 200)
-        self.assertLess(ms, self.BUDGET_HEALTH_MS)
+        assert r.status_code == 200
+        assert ms < self.BUDGET_HEALTH_MS
 
     def test_metrics_latest_under_budget(self):
         t0 = time.perf_counter()
         r = self.client.get("/api/v1/metrics/latest")
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  GET /api/v1/metrics/latest: {ms:.2f} ms  (budget {self.BUDGET_METRICS_MS} ms)")
-        self.assertEqual(r.status_code, 200)
-        self.assertLess(ms, self.BUDGET_METRICS_MS)
+        assert r.status_code == 200
+        assert ms < self.BUDGET_METRICS_MS
 
     def test_metrics_latest_10_calls(self):
         times = []
@@ -390,23 +384,23 @@ class TestRestAPIPerformance(unittest.TestCase):
             times.append((time.perf_counter() - t0) * 1000)
         avg = sum(times) / len(times)
         print(f"\n  GET /api/v1/metrics/latest × 10: avg {avg:.2f} ms  max {max(times):.2f} ms")
-        self.assertLess(avg, self.BUDGET_METRICS_MS)
+        assert avg < self.BUDGET_METRICS_MS
 
     def test_traces_endpoint_under_budget(self):
         t0 = time.perf_counter()
         r = self.client.get("/api/v1/traces?limit=50")
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  GET /api/v1/traces?limit=50: {ms:.2f} ms  (budget {self.BUDGET_TRACES_MS} ms)")
-        self.assertEqual(r.status_code, 200)
-        self.assertLess(ms, self.BUDGET_TRACES_MS)
+        assert r.status_code == 200
+        assert ms < self.BUDGET_TRACES_MS
 
     def test_timeseries_endpoint_under_budget(self):
         t0 = time.perf_counter()
         r = self.client.get("/api/v1/metrics/timeseries?metric=latency")
         ms = (time.perf_counter() - t0) * 1000
         print(f"\n  GET /api/v1/metrics/timeseries?metric=latency: {ms:.2f} ms  (budget {self.BUDGET_METRICS_MS} ms)")
-        self.assertEqual(r.status_code, 200)
-        self.assertLess(ms, self.BUDGET_METRICS_MS)
+        assert r.status_code == 200
+        assert ms < self.BUDGET_METRICS_MS
 
 
 if __name__ == "__main__":

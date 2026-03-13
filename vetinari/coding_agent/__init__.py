@@ -1,5 +1,4 @@
-"""
-Vetinari Coding Agent Package.
+"""Vetinari Coding Agent Package.
 
 This package provides:
 - CodeAgentEngine: In-process coding agent
@@ -7,24 +6,26 @@ This package provides:
 - Integration with memory and plan mode
 """
 
+from __future__ import annotations
+
 from .engine import (
-    CodeAgentEngine,
-    CodeTask,
-    CodeArtifact,
-    CodingTaskType,
-    CodingTaskStatus,
     ArtifactType,
+    CodeAgentEngine,
+    CodeArtifact,
+    CodeTask,
+    CodingTaskStatus,
+    CodingTaskType,
     get_coding_agent,
-    init_coding_agent
+    init_coding_agent,
 )
 
 __all__ = [
-    "CodeAgentEngine",
-    "CodeTask",
-    "CodeArtifact",
-    "CodingTaskType",
-    "CodingTaskStatus",
     "ArtifactType",
+    "CodeAgentEngine",
+    "CodeArtifact",
+    "CodeTask",
+    "CodingTaskStatus",
+    "CodingTaskType",
     "get_coding_agent",
-    "init_coding_agent"
+    "init_coding_agent",
 ]

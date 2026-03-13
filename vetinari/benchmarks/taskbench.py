@@ -18,7 +18,7 @@ Metrics: decomposition score, dependency accuracy, granularity score.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
@@ -28,10 +28,9 @@ from vetinari.benchmarks.runner import (
     BenchmarkTier,
 )
 
-
 # -- Sample TaskBench cases --
 
-_SAMPLE_CASES: List[Dict[str, Any]] = [
+_SAMPLE_CASES: list[dict[str, Any]] = [
     {
         "task_id": "tb-decomp-001",
         "goal": "Build a user authentication system with JWT tokens",
@@ -47,11 +46,10 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         ],
         "expected_dependencies": {
             "implement_password_hashing": ["design_user_schema"],
-            "create_user_registration_endpoint": [
-                "design_user_schema", "implement_password_hashing"
-            ],
+            "create_user_registration_endpoint": ["design_user_schema", "implement_password_hashing"],
             "create_login_endpoint": [
-                "design_user_schema", "implement_password_hashing",
+                "design_user_schema",
+                "implement_password_hashing",
                 "implement_jwt_token_generation",
             ],
             "implement_jwt_token_validation": ["implement_jwt_token_generation"],
@@ -83,14 +81,10 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         ],
         "expected_dependencies": {
             "implement_csv_parser": ["setup_file_watcher"],
-            "implement_data_validation": [
-                "implement_csv_parser", "define_validation_schema"
-            ],
+            "implement_data_validation": ["implement_csv_parser", "define_validation_schema"],
             "implement_data_transformation": ["implement_data_validation"],
             "create_database_schema": ["setup_database_connection"],
-            "implement_data_loader": [
-                "implement_data_transformation", "create_database_schema"
-            ],
+            "implement_data_loader": ["implement_data_transformation", "create_database_schema"],
             "implement_error_handling": ["implement_data_loader"],
             "write_tests": ["implement_data_loader", "implement_error_handling"],
         },
@@ -116,9 +110,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "setup_ci_pipeline": ["write_dockerfile"],
             "configure_monitoring": ["implement_health_endpoint"],
             "setup_alerting": ["configure_monitoring"],
-            "write_deployment_script": [
-                "create_docker_compose", "setup_ci_pipeline"
-            ],
+            "write_deployment_script": ["create_docker_compose", "setup_ci_pipeline"],
             "configure_load_balancer": ["write_deployment_script"],
         },
         "min_subtasks": 5,
@@ -141,20 +133,12 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         ],
         "expected_dependencies": {
             "implement_connection_manager": ["setup_websocket_server"],
-            "implement_message_broadcasting": [
-                "implement_connection_manager", "design_message_schema"
-            ],
+            "implement_message_broadcasting": ["implement_connection_manager", "design_message_schema"],
             "implement_room_system": ["implement_connection_manager"],
             "add_user_presence": ["implement_connection_manager"],
-            "implement_message_persistence": [
-                "design_message_schema", "implement_message_broadcasting"
-            ],
-            "write_client_library": [
-                "setup_websocket_server", "implement_message_broadcasting"
-            ],
-            "write_tests": [
-                "implement_message_broadcasting", "implement_room_system"
-            ],
+            "implement_message_persistence": ["design_message_schema", "implement_message_broadcasting"],
+            "write_client_library": ["setup_websocket_server", "implement_message_broadcasting"],
+            "write_tests": ["implement_message_broadcasting", "implement_room_system"],
         },
         "min_subtasks": 5,
         "max_subtasks": 15,
@@ -180,12 +164,15 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "implement_response_caching": ["implement_base_endpoints"],
             "add_error_handling": ["implement_base_endpoints"],
             "write_api_documentation": [
-                "implement_pagination", "implement_rate_limiter",
+                "implement_pagination",
+                "implement_rate_limiter",
                 "implement_response_caching",
             ],
             "write_tests": [
-                "implement_pagination", "implement_rate_limiter",
-                "implement_response_caching", "add_error_handling",
+                "implement_pagination",
+                "implement_rate_limiter",
+                "implement_response_caching",
+                "add_error_handling",
             ],
         },
         "min_subtasks": 5,
@@ -202,23 +189,25 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
     layer = BenchmarkLayer.AGENT
     tier = BenchmarkTier.FAST
 
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
-            cases.append(BenchmarkCase(
-                case_id=item["task_id"],
-                suite_name=self.name,
-                description=item["goal"],
-                input_data={"goal": item["goal"]},
-                expected={
-                    "expected_subtasks": item["expected_subtasks"],
-                    "expected_dependencies": item["expected_dependencies"],
-                    "min_subtasks": item["min_subtasks"],
-                    "max_subtasks": item["max_subtasks"],
-                },
-                tags=item.get("tags", []),
-            ))
+            cases.append(
+                BenchmarkCase(
+                    case_id=item["task_id"],
+                    suite_name=self.name,
+                    description=item["goal"],
+                    input_data={"goal": item["goal"]},
+                    expected={
+                        "expected_subtasks": item["expected_subtasks"],
+                        "expected_dependencies": item["expected_dependencies"],
+                        "min_subtasks": item["min_subtasks"],
+                        "max_subtasks": item["max_subtasks"],
+                    },
+                    tags=item.get("tags", []),
+                )
+            )
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
@@ -267,7 +256,7 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
 
         subtasks = result.output.get("subtasks", [])
         dependencies = result.output.get("dependencies", {})
-        subtask_names: Set[str] = set(subtasks)
+        subtask_names: set[str] = set(subtasks)
 
         score = 0.0
 
@@ -310,9 +299,7 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
 
         return round(min(score, 1.0), 4)
 
-    def _check_dag(
-        self, subtask_names: Set[str], dependencies: Dict[str, List[str]]
-    ) -> bool:
+    def _check_dag(self, subtask_names: set[str], dependencies: dict[str, list[str]]) -> bool:
         """Check if the dependency graph is a valid DAG."""
         # All referenced deps must exist in subtask set
         for task, deps in dependencies.items():
@@ -323,7 +310,7 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
                     return False
 
         # Cycle detection via topological sort (Kahn's algorithm)
-        in_degree: Dict[str, int] = {s: 0 for s in subtask_names}
+        in_degree: dict[str, int] = dict.fromkeys(subtask_names, 0)
         for task, deps in dependencies.items():
             in_degree.setdefault(task, 0)
             in_degree[task] += len(deps)
@@ -342,7 +329,7 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
 
         return visited == len(subtask_names)
 
-    def _run_via_planner(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _run_via_planner(self, case: BenchmarkCase) -> dict[str, Any]:
         """Attempt decomposition via Vetinari planner."""
         from vetinari.planning_engine import PlanningEngine
 
@@ -350,12 +337,10 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
         plan = engine.decompose(case.input_data["goal"])
         return {
             "subtasks": [t.task_id for t in plan.tasks],
-            "dependencies": {
-                t.task_id: t.dependencies for t in plan.tasks
-            },
+            "dependencies": {t.task_id: t.dependencies for t in plan.tasks},
         }
 
-    def _mock_run(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _mock_run(self, case: BenchmarkCase) -> dict[str, Any]:
         """Mock decomposition returning expected structure."""
         expected = case.expected or {}
         return {

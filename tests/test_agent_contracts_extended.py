@@ -1,11 +1,18 @@
 """Extended tests for vetinari/agents/contracts.py — Phase 7C"""
 import unittest
+
 from vetinari.agents.contracts import (
-    AgentType, TaskStatus, ExecutionMode,
-    AgentSpec, AgentTask, AgentResult, VerificationResult,
-    Plan, Task,
-    get_agent_spec, get_enabled_agents,
+    AgentResult,
+    AgentSpec,
+    AgentTask,
+    Plan,
+    Task,
+    TaskStatus,
+    VerificationResult,
+    get_agent_spec,
+    get_enabled_agents,
 )
+from vetinari.types import AgentType, ExecutionMode
 
 
 class TestAgentType(unittest.TestCase):
@@ -13,22 +20,22 @@ class TestAgentType(unittest.TestCase):
         for at in [AgentType.PLANNER, AgentType.EXPLORER, AgentType.BUILDER,
                    AgentType.EVALUATOR, AgentType.LIBRARIAN, AgentType.ORACLE,
                    AgentType.RESEARCHER, AgentType.SYNTHESIZER]:
-            self.assertIsInstance(at.value, str)
+            assert isinstance(at.value, str)
 
     def test_security_auditor(self):
-        self.assertEqual(AgentType.SECURITY_AUDITOR.value, "SECURITY_AUDITOR")
+        assert AgentType.SECURITY_AUDITOR.value == "SECURITY_AUDITOR"
 
 
 class TestTaskStatus(unittest.TestCase):
     def test_values(self):
-        self.assertEqual(TaskStatus.PENDING.value, "pending")
-        self.assertEqual(TaskStatus.COMPLETED.value, "completed")
+        assert TaskStatus.PENDING.value == "pending"
+        assert TaskStatus.COMPLETED.value == "completed"
 
 
 class TestExecutionMode(unittest.TestCase):
     def test_values(self):
-        self.assertIn(ExecutionMode.PLANNING, list(ExecutionMode))
-        self.assertIn(ExecutionMode.EXECUTION, list(ExecutionMode))
+        assert ExecutionMode.PLANNING in list(ExecutionMode)
+        assert ExecutionMode.EXECUTION in list(ExecutionMode)
 
 
 class TestAgentSpec(unittest.TestCase):
@@ -39,9 +46,9 @@ class TestAgentSpec(unittest.TestCase):
             description="Builds code",
             default_model="llama-3",
         )
-        self.assertEqual(spec.name, "Builder")
-        self.assertTrue(spec.enabled)
-        self.assertEqual(spec.thinking_variant, "medium")
+        assert spec.name == "Builder"
+        assert spec.enabled
+        assert spec.thinking_variant == "medium"
 
     def test_to_dict(self):
         spec = AgentSpec(
@@ -51,9 +58,9 @@ class TestAgentSpec(unittest.TestCase):
             default_model="llama",
         )
         d = spec.to_dict()
-        self.assertEqual(d["agent_type"], "EXPLORER")
-        self.assertIn("name", d)
-        self.assertIn("enabled", d)
+        assert d["agent_type"] == "EXPLORER"
+        assert "name" in d
+        assert "enabled" in d
 
     def test_from_dict(self):
         spec = AgentSpec(
@@ -64,8 +71,8 @@ class TestAgentSpec(unittest.TestCase):
         )
         d = spec.to_dict()
         spec2 = AgentSpec.from_dict(d)
-        self.assertEqual(spec2.agent_type, AgentType.ORACLE)
-        self.assertEqual(spec2.name, "Oracle")
+        assert spec2.agent_type == AgentType.ORACLE
+        assert spec2.name == "Oracle"
 
 
 class TestAgentTask(unittest.TestCase):
@@ -78,8 +85,8 @@ class TestAgentTask(unittest.TestCase):
             description="Build a thing",
             prompt="Create a REST API",
         )
-        self.assertEqual(task.task_id, "t1")
-        self.assertEqual(task.status, TaskStatus.PENDING)
+        assert task.task_id == "t1"
+        assert task.status == TaskStatus.PENDING
 
     def test_to_dict(self):
         task = AgentTask(
@@ -89,9 +96,9 @@ class TestAgentTask(unittest.TestCase):
             prompt="Check quality",
         )
         d = task.to_dict()
-        self.assertIn("task_id", d)
-        self.assertIn("agent_type", d)
-        self.assertIn("description", d)
+        assert "task_id" in d
+        assert "agent_type" in d
+        assert "description" in d
 
 
 class TestAgentResult(unittest.TestCase):
@@ -99,84 +106,84 @@ class TestAgentResult(unittest.TestCase):
 
     def test_success_result(self):
         r = AgentResult(success=True, output="done")
-        self.assertTrue(r.success)
-        self.assertEqual(r.errors, [])
+        assert r.success
+        assert r.errors == []
 
     def test_failure_result(self):
         r = AgentResult(success=False, output=None, errors=["timeout"])
-        self.assertFalse(r.success)
-        self.assertIn("timeout", r.errors)
+        assert not r.success
+        assert "timeout" in r.errors
 
     def test_to_dict(self):
         r = AgentResult(success=True, output="ok")
         d = r.to_dict()
-        self.assertIn("success", d)
-        self.assertIn("output", d)
+        assert "success" in d
+        assert "output" in d
 
 
 class TestVerificationResult(unittest.TestCase):
     def test_passed(self):
         vr = VerificationResult(passed=True, score=0.95)
-        self.assertTrue(vr.passed)
+        assert vr.passed
         self.assertAlmostEqual(vr.score, 0.95)
 
     def test_failed(self):
         vr = VerificationResult(passed=False, score=0.3,
                                 issues=["missing tests", "no docs"])
-        self.assertFalse(vr.passed)
-        self.assertEqual(len(vr.issues), 2)
+        assert not vr.passed
+        assert len(vr.issues) == 2
 
     def test_to_dict(self):
         vr = VerificationResult(passed=True, score=1.0)
         d = vr.to_dict()
-        self.assertIn("passed", d)
-        self.assertIn("score", d)
+        assert "passed" in d
+        assert "score" in d
 
 
 class TestPlanAndTask(unittest.TestCase):
     def test_plan_creation(self):
         # Plan fields: plan_id, version, goal, phase, tasks, ...
         p = Plan(plan_id="plan_001", goal="Build a feature")
-        self.assertEqual(p.plan_id, "plan_001")
-        self.assertEqual(p.goal, "Build a feature")
-        self.assertEqual(p.tasks, [])
+        assert p.plan_id == "plan_001"
+        assert p.goal == "Build a feature"
+        assert p.tasks == []
 
     def test_task_creation(self):
         # Task fields: id, description, inputs, outputs, dependencies, ...
         t = Task(id="task_1", description="Write tests")
-        self.assertEqual(t.id, "task_1")
-        self.assertEqual(t.status, TaskStatus.PENDING)
+        assert t.id == "task_1"
+        assert t.status == TaskStatus.PENDING
 
     def test_plan_to_dict(self):
         p = Plan(plan_id="p1", goal="test")
         d = p.to_dict()
-        self.assertIn("plan_id", d)
-        self.assertIn("goal", d)
+        assert "plan_id" in d
+        assert "goal" in d
 
 
 class TestGetAgentSpec(unittest.TestCase):
     def test_returns_spec_for_known_type(self):
         spec = get_agent_spec(AgentType.BUILDER)
         if spec is not None:
-            self.assertIsInstance(spec, AgentSpec)
-            self.assertEqual(spec.agent_type, AgentType.BUILDER)
+            assert isinstance(spec, AgentSpec)
+            assert spec.agent_type == AgentType.BUILDER
 
     def test_returns_none_or_spec(self):
         for at in AgentType:
             result = get_agent_spec(at)
-            self.assertIn(type(result), [AgentSpec, type(None)])
+            assert type(result) in [AgentSpec, type(None)]
 
 
 class TestGetEnabledAgents(unittest.TestCase):
     def test_returns_list(self):
         agents = get_enabled_agents()
-        self.assertIsInstance(agents, list)
+        assert isinstance(agents, list)
 
     def test_all_enabled_are_agent_specs(self):
         agents = get_enabled_agents()
         for a in agents:
-            self.assertIsInstance(a, AgentSpec)
-            self.assertTrue(a.enabled)
+            assert isinstance(a, AgentSpec)
+            assert a.enabled
 
 
 if __name__ == "__main__":

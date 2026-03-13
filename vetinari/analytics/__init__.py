@@ -1,5 +1,4 @@
-"""
-Vetinari Analytics Package — Phase 5: Advanced Analytics & Cost Optimization
+"""Vetinari Analytics Package — Phase 5: Advanced Analytics & Cost Optimization.
 
 Modules
 -------
@@ -18,6 +17,8 @@ Quick start
     )
 """
 
+from __future__ import annotations
+
 from .anomaly import (
     AnomalyConfig,
     AnomalyDetector,
@@ -25,7 +26,6 @@ from .anomaly import (
     get_anomaly_detector,
     reset_anomaly_detector,
 )
-
 from .cost import (
     CostEntry,
     CostReport,
@@ -34,7 +34,13 @@ from .cost import (
     get_cost_tracker,
     reset_cost_tracker,
 )
-
+from .forecasting import (
+    Forecaster,
+    ForecastRequest,
+    ForecastResult,
+    get_forecaster,
+    reset_forecaster,
+)
 from .sla import (
     SLABreach,
     SLAReport,
@@ -45,27 +51,34 @@ from .sla import (
     reset_sla_tracker,
 )
 
-from .forecasting import (
-    ForecastRequest,
-    ForecastResult,
-    Forecaster,
-    get_forecaster,
-    reset_forecaster,
-)
-
 __all__ = [
     # anomaly
-    "AnomalyConfig", "AnomalyDetector", "AnomalyResult",
-    "get_anomaly_detector", "reset_anomaly_detector",
+    "AnomalyConfig",
+    "AnomalyDetector",
+    "AnomalyResult",
     # cost
-    "CostEntry", "CostReport", "CostTracker", "ModelPricing",
-    "get_cost_tracker", "reset_cost_tracker",
-    # sla
-    "SLABreach", "SLAReport", "SLATracker", "SLOTarget", "SLOType",
-    "get_sla_tracker", "reset_sla_tracker",
+    "CostEntry",
+    "CostReport",
+    "CostTracker",
     # forecasting
-    "ForecastRequest", "ForecastResult", "Forecaster",
-    "get_forecaster", "reset_forecaster",
+    "ForecastRequest",
+    "ForecastResult",
+    "Forecaster",
+    "ModelPricing",
+    # sla
+    "SLABreach",
+    "SLAReport",
+    "SLATracker",
+    "SLOTarget",
+    "SLOType",
+    "get_anomaly_detector",
+    "get_cost_tracker",
+    "get_forecaster",
+    "get_sla_tracker",
+    "reset_anomaly_detector",
+    "reset_cost_tracker",
+    "reset_forecaster",
+    "reset_sla_tracker",
 ]
 
 __version__ = "5.0.0"

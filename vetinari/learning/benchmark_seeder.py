@@ -1,52 +1,77 @@
-"""
-Benchmark Seeder - Seeds Thompson Sampling priors from capability data.
+"""Benchmark Seeder - Seeds Thompson Sampling priors from capability data.
 
 Provides informed cold-start priors instead of uninformed Beta(1,1)
 by mapping model capabilities to task-type affinities.
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import os
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Capability-to-task-type affinity mapping (research-validated defaults)
 # Scores represent expected performance 0.0-1.0 for each task type
-CAPABILITY_TASK_AFFINITY: Dict[str, Dict[str, float]] = {
+CAPABILITY_TASK_AFFINITY: dict[str, dict[str, float]] = {
     "code": {
-        "coding": 0.85, "reasoning": 0.6, "data_processing": 0.7,
-        "planning": 0.5, "documentation": 0.5, "creative": 0.3,
-        "analysis": 0.6, "general": 0.5,
+        "coding": 0.85,
+        "reasoning": 0.6,
+        "data_processing": 0.7,
+        "planning": 0.5,
+        "documentation": 0.5,
+        "creative": 0.3,
+        "analysis": 0.6,
+        "general": 0.5,
     },
     "reasoning": {
-        "coding": 0.5, "reasoning": 0.85, "data_processing": 0.7,
-        "planning": 0.75, "documentation": 0.6, "creative": 0.5,
-        "analysis": 0.8, "general": 0.7,
+        "coding": 0.5,
+        "reasoning": 0.85,
+        "data_processing": 0.7,
+        "planning": 0.75,
+        "documentation": 0.6,
+        "creative": 0.5,
+        "analysis": 0.8,
+        "general": 0.7,
     },
     "chat": {
-        "coding": 0.4, "reasoning": 0.5, "data_processing": 0.4,
-        "planning": 0.5, "documentation": 0.7, "creative": 0.75,
-        "analysis": 0.5, "general": 0.8,
+        "coding": 0.4,
+        "reasoning": 0.5,
+        "data_processing": 0.4,
+        "planning": 0.5,
+        "documentation": 0.7,
+        "creative": 0.75,
+        "analysis": 0.5,
+        "general": 0.8,
     },
     "vision": {
-        "coding": 0.3, "reasoning": 0.4, "data_processing": 0.5,
-        "planning": 0.3, "documentation": 0.4, "creative": 0.6,
-        "analysis": 0.6, "general": 0.5,
+        "coding": 0.3,
+        "reasoning": 0.4,
+        "data_processing": 0.5,
+        "planning": 0.3,
+        "documentation": 0.4,
+        "creative": 0.6,
+        "analysis": 0.6,
+        "general": 0.5,
     },
     "math": {
-        "coding": 0.6, "reasoning": 0.8, "data_processing": 0.85,
-        "planning": 0.5, "documentation": 0.3, "creative": 0.2,
-        "analysis": 0.75, "general": 0.4,
+        "coding": 0.6,
+        "reasoning": 0.8,
+        "data_processing": 0.85,
+        "planning": 0.5,
+        "documentation": 0.3,
+        "creative": 0.2,
+        "analysis": 0.75,
+        "general": 0.4,
     },
 }
 
 # Model name pattern → capability hints
-MODEL_CAPABILITY_PATTERNS: List[Tuple[str, List[str]]] = [
+MODEL_CAPABILITY_PATTERNS: list[tuple[str, list[str]]] = [
     ("coder", ["code"]),
     ("code", ["code"]),
     ("deepseek-coder", ["code", "reasoning"]),
@@ -65,11 +90,11 @@ MODEL_CAPABILITY_PATTERNS: List[Tuple[str, List[str]]] = [
 ]
 
 # Size-based quality scaling (smaller models → lower baseline)
-SIZE_SCALING: Dict[str, float] = {
-    "tiny": 0.5,     # < 1B
-    "small": 0.65,   # 1-3B
+SIZE_SCALING: dict[str, float] = {
+    "tiny": 0.5,  # < 1B
+    "small": 0.65,  # 1-3B
     "medium": 0.75,  # 3-8B
-    "large": 0.85,   # 8-30B
+    "large": 0.85,  # 8-30B
     "xlarge": 0.92,  # 30B+
 }
 
@@ -77,6 +102,7 @@ SIZE_SCALING: Dict[str, float] = {
 @dataclass
 class BenchmarkPrior:
     """Prior parameters for a model+task_type Thompson arm."""
+
     model_id: str
     task_type: str
     alpha: float
@@ -88,7 +114,8 @@ class BenchmarkPrior:
 @dataclass
 class BenchmarkCache:
     """Cached benchmark/capability data."""
-    priors: Dict[str, BenchmarkPrior] = field(default_factory=dict)
+
+    priors: dict[str, BenchmarkPrior] = field(default_factory=dict)
     last_updated: float = 0.0
     ttl_seconds: float = 7 * 24 * 3600  # 7 days
 
@@ -101,7 +128,7 @@ class BenchmarkSeeder:
         self._state_dir = self._get_state_dir()
         self._load_cache()
 
-    def get_prior(self, model_id: str, task_type: str) -> Tuple[float, float]:
+    def get_prior(self, model_id: str, task_type: str) -> tuple[float, float]:
         """Get informed prior (alpha, beta) for a model+task_type pair.
 
         Returns:
@@ -120,7 +147,7 @@ class BenchmarkSeeder:
         self._save_cache()
         return prior.alpha, prior.beta
 
-    def seed_model(self, model_id: str, model_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Tuple[float, float]]:
+    def seed_model(self, model_id: str, model_metadata: dict[str, Any] | None = None) -> dict[str, tuple[float, float]]:
         """Seed all task-type priors for a model.
 
         Args:
@@ -130,8 +157,16 @@ class BenchmarkSeeder:
         Returns:
             Dict mapping task_type → (alpha, beta) priors.
         """
-        task_types = ["coding", "reasoning", "data_processing", "planning",
-                      "documentation", "creative", "analysis", "general"]
+        task_types = [
+            "coding",
+            "reasoning",
+            "data_processing",
+            "planning",
+            "documentation",
+            "creative",
+            "analysis",
+            "general",
+        ]
         priors = {}
         for tt in task_types:
             priors[tt] = self.get_prior(model_id, tt)
@@ -182,8 +217,9 @@ class BenchmarkSeeder:
     def _estimate_size_scale(self, model_lower: str) -> float:
         """Estimate quality scaling from model name size hints."""
         import re
+
         # Try to extract parameter count from model name
-        size_match = re.search(r'(\d+\.?\d*)[bB]', model_lower)
+        size_match = re.search(r"(\d+\.?\d*)[bB]", model_lower)
         if size_match:
             params_b = float(size_match.group(1))
             if params_b < 1:
@@ -210,7 +246,7 @@ class BenchmarkSeeder:
         try:
             cache_file = os.path.join(self._state_dir, "benchmark_cache.json")
             if os.path.exists(cache_file):
-                with open(cache_file, "r") as f:
+                with open(cache_file) as f:
                     data = json.load(f)
                 self._cache.last_updated = data.get("last_updated", 0.0)
                 for key, p in data.get("priors", {}).items():
@@ -224,6 +260,7 @@ class BenchmarkSeeder:
             os.makedirs(self._state_dir, exist_ok=True)
             cache_file = os.path.join(self._state_dir, "benchmark_cache.json")
             from dataclasses import asdict
+
             data = {
                 "last_updated": time.time(),
                 "priors": {k: asdict(v) for k, v in self._cache.priors.items()},
@@ -235,7 +272,7 @@ class BenchmarkSeeder:
 
 
 # Singleton
-_benchmark_seeder: Optional[BenchmarkSeeder] = None
+_benchmark_seeder: BenchmarkSeeder | None = None
 
 
 def get_benchmark_seeder() -> BenchmarkSeeder:

@@ -1,5 +1,5 @@
-"""
-Consolidated Operations Agent (v0.4.0)
+"""Consolidated Operations Agent (v0.4.0).
+
 ========================================
 Replaces: SYNTHESIZER + DOCUMENTATION_AGENT + COST_PLANNER +
           EXPERIMENTATION_MANAGER + IMPROVEMENT + ERROR_RECOVERY
@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult
 from vetinari.agents.multi_mode_agent import MultiModeAgent
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -31,61 +32,71 @@ logger = logging.getLogger(__name__)
 # Error pattern registry (preserved from ErrorRecoveryAgent)
 # ---------------------------------------------------------------------------
 
-_ERROR_PATTERNS: Dict[str, Dict[str, Any]] = {
+_ERROR_PATTERNS: dict[str, dict[str, Any]] = {
     "connection_refused": {
         "patterns": [r"ConnectionRefusedError", r"Connection refused", r"ECONNREFUSED"],
-        "category": "network", "severity": "high",
+        "category": "network",
+        "severity": "high",
         "quick_fix": "Check if the target service is running and accessible",
     },
     "timeout": {
         "patterns": [r"TimeoutError", r"timed? ?out", r"deadline exceeded"],
-        "category": "network", "severity": "medium",
+        "category": "network",
+        "severity": "medium",
         "quick_fix": "Increase timeout or check network connectivity",
     },
     "rate_limit": {
         "patterns": [r"429", r"rate.?limit", r"too many requests", r"quota exceeded"],
-        "category": "api", "severity": "medium",
+        "category": "api",
+        "severity": "medium",
         "quick_fix": "Implement exponential backoff or request queuing",
     },
     "out_of_memory": {
         "patterns": [r"MemoryError", r"OOM", r"out of memory", r"ENOMEM"],
-        "category": "resource", "severity": "critical",
+        "category": "resource",
+        "severity": "critical",
         "quick_fix": "Reduce batch size, use streaming, or increase memory allocation",
     },
     "import_error": {
         "patterns": [r"ImportError", r"ModuleNotFoundError", r"No module named"],
-        "category": "dependency", "severity": "high",
+        "category": "dependency",
+        "severity": "high",
         "quick_fix": "Install missing package or check virtual environment",
     },
     "permission_denied": {
         "patterns": [r"PermissionError", r"Permission denied", r"EACCES"],
-        "category": "filesystem", "severity": "high",
+        "category": "filesystem",
+        "severity": "high",
         "quick_fix": "Check file/directory permissions and ownership",
     },
     "file_not_found": {
         "patterns": [r"FileNotFoundError", r"No such file", r"ENOENT"],
-        "category": "filesystem", "severity": "medium",
+        "category": "filesystem",
+        "severity": "medium",
         "quick_fix": "Verify file path and ensure parent directories exist",
     },
     "json_decode": {
         "patterns": [r"JSONDecodeError", r"json\.decoder", r"Expecting value"],
-        "category": "parsing", "severity": "medium",
+        "category": "parsing",
+        "severity": "medium",
         "quick_fix": "Validate JSON input, check for empty responses or HTML errors",
     },
     "key_error": {
         "patterns": [r"KeyError", r"key not found"],
-        "category": "data", "severity": "medium",
+        "category": "data",
+        "severity": "medium",
         "quick_fix": "Use .get() with default values or validate dict keys before access",
     },
     "type_error": {
         "patterns": [r"TypeError", r"not callable", r"expected .* got"],
-        "category": "logic", "severity": "medium",
+        "category": "logic",
+        "severity": "medium",
         "quick_fix": "Check argument types and function signatures",
     },
 }
 
 # Model pricing (preserved from CostPlannerAgent)
-_MODEL_PRICING: Dict[str, Dict[str, float]] = {
+_MODEL_PRICING: dict[str, dict[str, float]] = {
     "qwen2.5-coder-7b": {"input_per_1k": 0.0001, "output_per_1k": 0.0002, "tier": "small"},
     "qwen2.5-72b": {"input_per_1k": 0.001, "output_per_1k": 0.002, "tier": "large"},
     "qwen3-30b-a3b": {"input_per_1k": 0.0005, "output_per_1k": 0.001, "tier": "medium"},
@@ -97,8 +108,10 @@ _MODEL_PRICING: Dict[str, Dict[str, float]] = {
 
 
 class OperationsAgent(MultiModeAgent):
-    """Unified operations agent for docs, cost analysis, experiments,
-    error recovery, synthesis, system improvement, and monitoring."""
+    """Unified operations agent for docs, cost analysis, experiments,.
+
+    error recovery, synthesis, system improvement, and monitoring.
+    """
 
     MODES = {
         "documentation": "_execute_documentation",
@@ -132,7 +145,7 @@ class OperationsAgent(MultiModeAgent):
         "ERROR_RECOVERY": "error_recovery",
     }
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.OPERATIONS, config)
 
     def _get_base_system_prompt(self) -> str:
@@ -236,7 +249,7 @@ class OperationsAgent(MultiModeAgent):
                 "## Core Responsibilities\n"
                 "- Design controlled experiments with proper baselines and control groups\n"
                 "- Define clear hypotheses, primary/secondary metrics, and success criteria\n"
-                "- Calculate required sample sizes for statistical power (target: 80% power, α=0.05)\n"
+                "- Calculate required sample sizes for statistical power (target: 80% power, α=0.05)\n"  # noqa: RUF001
                 "- Analyse results with appropriate statistical tests (t-test, chi-squared, Mann-Whitney)\n"
                 "- Recommend go/no-go decisions based on evidence, not intuition\n\n"
                 "## Experiment Design Principles\n"
@@ -458,12 +471,15 @@ class OperationsAgent(MultiModeAgent):
                 )
                 input_cost = (estimated_tokens / 1000) * pricing["input_per_1k"]
                 output_cost = (estimated_tokens / 1000) * pricing["output_per_1k"]
-                comparisons.append({
-                    "model": model_id, "tier": pricing["tier"],
-                    "input_cost": round(input_cost, 4),
-                    "output_cost": round(output_cost, 4),
-                    "total_cost": round(input_cost + output_cost, 4),
-                })
+                comparisons.append(
+                    {
+                        "model": model_id,
+                        "tier": pricing["tier"],
+                        "input_cost": round(input_cost, 4),
+                        "output_cost": round(output_cost, 4),
+                        "total_cost": round(input_cost + output_cost, 4),
+                    }
+                )
             comparisons.sort(key=lambda c: c["total_cost"])
 
             return AgentResult(
@@ -485,21 +501,27 @@ class OperationsAgent(MultiModeAgent):
         recommendations = []
         for model_id, pricing in sorted(_MODEL_PRICING.items(), key=lambda x: x[1].get("input_per_1k", 0)):
             cost = (estimated_tokens / 1000) * (pricing["input_per_1k"] + pricing["output_per_1k"])
-            recommendations.append({
-                "model": model_id, "tier": pricing["tier"],
-                "estimated_cost": round(cost, 6),
-            })
+            recommendations.append(
+                {
+                    "model": model_id,
+                    "tier": pricing["tier"],
+                    "estimated_cost": round(cost, 6),
+                }
+            )
 
         prompt = (
             f"Perform cost analysis for:\n{description[:4000]}\n\n"
             "Respond as JSON:\n"
             '{"analysis": "...", "recommendations": [...], "estimated_savings": "..."}'
         )
-        result = self._infer_json(prompt, fallback={
-            "analysis": f"Estimated {estimated_tokens} tokens based on {word_count} words",
-            "recommendations": recommendations[:3],
-            "estimated_savings": "Use local models for 10-100x cost reduction vs cloud APIs",
-        })
+        result = self._infer_json(
+            prompt,
+            fallback={
+                "analysis": f"Estimated {estimated_tokens} tokens based on {word_count} words",
+                "recommendations": recommendations[:3],
+                "estimated_savings": "Use local models for 10-100x cost reduction vs cloud APIs",
+            },
+        )
         return AgentResult(success=True, output=result, metadata={"mode": "cost_analysis"})
 
     # ------------------------------------------------------------------
@@ -536,14 +558,16 @@ class OperationsAgent(MultiModeAgent):
             for regex in info["patterns"]:
                 try:
                     if re.search(regex, error_text, re.IGNORECASE):
-                        matched_patterns.append({
-                            "pattern": pattern_name,
-                            "category": info["category"],
-                            "severity": info["severity"],
-                            "quick_fix": info["quick_fix"],
-                        })
+                        matched_patterns.append(
+                            {
+                                "pattern": pattern_name,
+                                "category": info["category"],
+                                "severity": info["severity"],
+                                "quick_fix": info["quick_fix"],
+                            }
+                        )
                         break
-                except re.error:
+                except re.error:  # noqa: VET022
                     pass
 
         # LLM analysis
@@ -562,17 +586,23 @@ class OperationsAgent(MultiModeAgent):
             '"max_retries": 3, "base_delay_ms": 1000}, "fallback": "..."}, '
             '"prevention": [...], "post_mortem": "..."}'
         )
-        result = self._infer_json(prompt, fallback={
-            "root_cause": "Analysis unavailable",
-            "matched_patterns": matched_patterns,
-            "recovery_strategy": {
-                "immediate": matched_patterns[0]["quick_fix"] if matched_patterns else "Manual investigation required",
+        result = self._infer_json(
+            prompt,
+            fallback={
+                "root_cause": "Analysis unavailable",
+                "matched_patterns": matched_patterns,
+                "recovery_strategy": {
+                    "immediate": matched_patterns[0]["quick_fix"]
+                    if matched_patterns
+                    else "Manual investigation required",
+                },
             },
-        })
+        )
         if result and isinstance(result, dict):
             result["matched_patterns"] = matched_patterns
         return AgentResult(
-            success=True, output=result,
+            success=True,
+            output=result,
             metadata={"mode": "error_recovery", "patterns_matched": len(matched_patterns)},
         )
 
@@ -622,12 +652,11 @@ class OperationsAgent(MultiModeAgent):
 
     def _execute_monitor(self, task: AgentTask) -> AgentResult:
         """Track system health and performance metrics."""
-        context = task.context or {}
-
         # Try to gather real metrics from telemetry
         metrics = {"status": "healthy"}
         try:
             from vetinari.telemetry import get_telemetry_collector
+
             telemetry = get_telemetry_collector()
             if hasattr(telemetry, "get_summary"):
                 metrics.update(telemetry.get_summary())
@@ -647,7 +676,8 @@ class OperationsAgent(MultiModeAgent):
                 return AgentResult(success=True, output=result, metadata={"operation": "monitor"})
 
         return AgentResult(
-            success=True, output=metrics,
+            success=True,
+            output=metrics,
             metadata={"operation": "monitor"},
         )
 
@@ -668,33 +698,52 @@ class OperationsAgent(MultiModeAgent):
             '"description": "..."}], "scripts": [], '
             '"risks": [{"description": "...", "mitigation": "..."}]}'
         )
-        result = self._infer_json(prompt, fallback={
-            "analysis": "DevOps analysis pending",
-            "recommendations": [],
-            "scripts": [],
-            "risks": [],
-        })
+        result = self._infer_json(
+            prompt,
+            fallback={
+                "analysis": "DevOps analysis pending",
+                "recommendations": [],
+                "scripts": [],
+                "risks": [],
+            },
+        )
         return AgentResult(success=True, output=result, metadata={"mode": "devops_ops", "focus": focus})
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "documentation", "api_docs", "user_guides", "changelog",
-            "creative_writing", "narrative_generation",
-            "cost_analysis", "model_comparison", "roi_analysis",
-            "experiment_design", "ab_testing", "metrics_tracking",
-            "error_recovery", "failure_analysis", "retry_strategy",
-            "multi_source_synthesis", "conflict_resolution",
-            "performance_analysis", "system_improvement",
-            "system_monitoring", "health_check",
-            "devops", "ci_cd", "deployment", "infrastructure",
+            "documentation",
+            "api_docs",
+            "user_guides",
+            "changelog",
+            "creative_writing",
+            "narrative_generation",
+            "cost_analysis",
+            "model_comparison",
+            "roi_analysis",
+            "experiment_design",
+            "ab_testing",
+            "metrics_tracking",
+            "error_recovery",
+            "failure_analysis",
+            "retry_strategy",
+            "multi_source_synthesis",
+            "conflict_resolution",
+            "performance_analysis",
+            "system_improvement",
+            "system_monitoring",
+            "health_check",
+            "devops",
+            "ci_cd",
+            "deployment",
+            "infrastructure",
         ]
 
 
 # Singleton
-_operations_agent: Optional[OperationsAgent] = None
+_operations_agent: OperationsAgent | None = None
 
 
-def get_operations_agent(config: Optional[Dict[str, Any]] = None) -> OperationsAgent:
+def get_operations_agent(config: dict[str, Any] | None = None) -> OperationsAgent:
     global _operations_agent
     if _operations_agent is None:
         _operations_agent = OperationsAgent(config)
