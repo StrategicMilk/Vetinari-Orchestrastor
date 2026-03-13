@@ -9,6 +9,38 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Removed `.env`, `vault/.key`, and generated `outputs/`/`projects/`/`logs/` from git tracking
+- Extracted `api_key` literal in DSPy optimizer to env-var-backed constant
+
+### Added
+
+- LLM Guard safety scanner integration (`vetinari/safety/llm_guard_scanner.py`) with ML-based input/output scanning; graceful degradation when llm-guard not installed
+- LLM Guard configuration (`config/llm_guard.yaml`) with context-based scanning rules
+- Pydantic Settings configuration layer (`vetinari/config/settings.py`) with env-var support (`VETINARI_` prefix) and validated inference profile loading
+- `pydantic-settings>=2.0` dependency for typed configuration management
+- 35 Architecture Decision Records (ADR-0001 through ADR-0035)
+- OpenTelemetry GenAI semantic convention attributes in `otel_genai.py`
+- Cross-reference docstrings between orchestration and resilience circuit breakers
+
+### Changed
+
+- Modernized typing across codebase: `Dict`/`List`/`Optional` to `dict`/`list`/`X | None`
+- Added `from __future__ import annotations` to all `vetinari/` files
+- Fixed 60+ f-string logger calls to %-style formatting
+- Added `encoding="utf-8"` to all `open()` calls missing it
+- Migrated `os.path` usage to `pathlib.Path` in `inference_config.py` and `dspy_optimizer.py`
+- Canonical imports enforced: enums from `vetinari.types`, not re-exported from `contracts`
+- Removed outdated `docs/ARCHITECTURE.md` and `docs/DEVELOPER_GUIDE.md`
+- Consolidated 3 memory docs into single `docs/memory.md`
+
+### Fixed
+
+- Bare `except` clauses replaced with specific exception types
+- Inline `import re` moved to module level in `inference_config.py`
+- Ruff compliance: removed unused imports, fixed docstring formats
+
 ---
 
 ## [0.5.0] — 2026-03-11
