@@ -1,0 +1,226 @@
+# Document Profiles — per-type quality evaluation settings.
+#
+# Each profile defines which quality dimensions matter most for that
+# document type, the minimum score threshold, and any type-specific
+# evaluation rules.
+#
+# Dimensions (12 total, see vetinari/validation/document_quality.py):
+#   accuracy, clarity, completeness, conciseness, consistency,
+#   correctness, organization, readability, relevance, specificity,
+#   style, technical_depth
+
+default:
+  min_score: 0.60
+  dimension_weights:
+    accuracy: 1.0
+    clarity: 1.0
+    completeness: 1.0
+    conciseness: 0.8
+    consistency: 0.8
+    correctness: 1.0
+    organization: 0.8
+    readability: 0.9
+    relevance: 0.9
+    specificity: 0.7
+    style: 0.5
+    technical_depth: 0.6
+
+profiles:
+  adr:
+    description: "Architecture Decision Record"
+    min_score: 0.70
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.7
+      consistency: 0.9
+      correctness: 1.0
+      organization: 1.0
+      readability: 0.8
+      relevance: 1.0
+      specificity: 1.0
+      style: 0.4
+      technical_depth: 1.0
+    rules:
+      - "Must include Status, Context, Decision, and Consequences sections"
+      - "Decision must state a single clear choice"
+      - "Consequences must list both positive and negative outcomes"
+
+  api_reference:
+    description: "API endpoint or module reference documentation"
+    min_score: 0.75
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.6
+      consistency: 1.0
+      correctness: 1.0
+      organization: 1.0
+      readability: 0.9
+      relevance: 0.8
+      specificity: 1.0
+      style: 0.3
+      technical_depth: 1.0
+    rules:
+      - "Every endpoint must have method, path, request/response schemas"
+      - "All parameters must document type, required/optional, and default"
+
+  changelog:
+    description: "Version changelog entry"
+    min_score: 0.65
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 0.9
+      conciseness: 1.0
+      consistency: 1.0
+      correctness: 0.8
+      organization: 1.0
+      readability: 0.9
+      relevance: 0.8
+      specificity: 0.8
+      style: 0.5
+      technical_depth: 0.4
+    rules:
+      - "Must follow Keep a Changelog format"
+      - "Each entry is a single clear sentence"
+
+  code_comment:
+    description: "Inline code comment or docstring"
+    min_score: 0.60
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 0.7
+      conciseness: 1.0
+      consistency: 0.6
+      correctness: 1.0
+      organization: 0.5
+      readability: 1.0
+      relevance: 1.0
+      specificity: 0.8
+      style: 0.3
+      technical_depth: 0.7
+    rules:
+      - "Comments explain WHY, not WHAT"
+      - "Docstrings follow Google style"
+
+  commit_message:
+    description: "Git commit message"
+    min_score: 0.65
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 0.8
+      conciseness: 1.0
+      consistency: 1.0
+      correctness: 0.7
+      organization: 0.8
+      readability: 0.9
+      relevance: 0.9
+      specificity: 0.9
+      style: 0.6
+      technical_depth: 0.3
+    rules:
+      - "Must follow Conventional Commits format"
+      - "Subject line under 72 characters"
+
+  developer_guide:
+    description: "Developer-facing guide or tutorial"
+    min_score: 0.70
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.6
+      consistency: 0.8
+      correctness: 1.0
+      organization: 1.0
+      readability: 1.0
+      relevance: 0.9
+      specificity: 0.9
+      style: 0.7
+      technical_depth: 0.9
+    rules:
+      - "Must include working code examples"
+      - "Prerequisites and setup steps must be explicit"
+
+  error_message:
+    description: "User-facing error or log message"
+    min_score: 0.70
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 0.9
+      conciseness: 1.0
+      consistency: 0.7
+      correctness: 1.0
+      organization: 0.5
+      readability: 1.0
+      relevance: 1.0
+      specificity: 1.0
+      style: 0.3
+      technical_depth: 0.4
+    rules:
+      - "Must say what happened, what was expected, and what to do"
+
+  plan:
+    description: "Execution plan or task decomposition"
+    min_score: 0.65
+    dimension_weights:
+      accuracy: 0.9
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.7
+      consistency: 0.8
+      correctness: 0.8
+      organization: 1.0
+      readability: 0.9
+      relevance: 1.0
+      specificity: 1.0
+      style: 0.3
+      technical_depth: 0.7
+    rules:
+      - "Each task must have a clear deliverable"
+      - "Dependencies between tasks must be explicit"
+
+  readme:
+    description: "Project or module README"
+    min_score: 0.70
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.7
+      consistency: 0.7
+      correctness: 0.9
+      organization: 1.0
+      readability: 1.0
+      relevance: 0.8
+      specificity: 0.8
+      style: 0.8
+      technical_depth: 0.7
+    rules:
+      - "Must include purpose, installation, and usage sections"
+
+  research_report:
+    description: "Research findings or investigation report"
+    min_score: 0.70
+    dimension_weights:
+      accuracy: 1.0
+      clarity: 1.0
+      completeness: 1.0
+      conciseness: 0.5
+      consistency: 0.8
+      correctness: 1.0
+      organization: 1.0
+      readability: 0.9
+      relevance: 1.0
+      specificity: 1.0
+      style: 0.5
+      technical_depth: 1.0
+    rules:
+      - "Claims must cite sources or evidence"
+      - "Must distinguish facts from opinions"

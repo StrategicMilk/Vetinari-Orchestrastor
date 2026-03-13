@@ -1,0 +1,102 @@
+# Writing Style Configuration — anti-AI-tells and voice enforcement.
+#
+# Used by the document quality evaluator and Operations agent to
+# enforce natural, professional writing that avoids common LLM tells.
+
+voice:
+  tone: "professional"
+  person: "third"  # prefer third person in docs; first in guides
+  active_voice_ratio: 0.75  # at least 75% active voice sentences
+  max_sentence_length: 40  # words; flag sentences longer than this
+  max_paragraph_length: 6  # sentences; break up longer paragraphs
+
+# Anti-AI-tell patterns — phrases that signal LLM-generated text.
+# Each pattern has a severity (error, warning, info) and a suggestion.
+anti_ai_tells:
+  - pattern: "\\bdelve\\b"
+    severity: "warning"
+    suggestion: "Use 'explore', 'examine', or 'investigate'"
+
+  - pattern: "\\btapestry\\b"
+    severity: "warning"
+    suggestion: "Use a more specific description"
+
+  - pattern: "\\blandscape\\b"
+    severity: "info"
+    suggestion: "Consider a more precise term unless discussing actual landscapes"
+
+  - pattern: "\\beverchanging\\b"
+    severity: "warning"
+    suggestion: "Use 'evolving', 'shifting', or be specific about what changes"
+
+  - pattern: "\\brealm\\b"
+    severity: "warning"
+    suggestion: "Use 'area', 'domain', or 'field'"
+
+  - pattern: "\\bunlock\\b"
+    severity: "info"
+    suggestion: "Use 'enable', 'allow', or 'provide' unless discussing actual locks"
+
+  - pattern: "\\bseamless(ly)?\\b"
+    severity: "warning"
+    suggestion: "Describe the actual integration mechanism instead"
+
+  - pattern: "\\bleverage\\b"
+    severity: "warning"
+    suggestion: "Use 'use', 'employ', or 'apply'"
+
+  - pattern: "\\brobust\\b"
+    severity: "info"
+    suggestion: "Describe specific reliability characteristics instead"
+
+  - pattern: "\\bholistic\\b"
+    severity: "warning"
+    suggestion: "Use 'comprehensive', 'complete', or be specific"
+
+  - pattern: "\\bsynerg"
+    severity: "warning"
+    suggestion: "Describe the specific benefit of combination"
+
+  - pattern: "\\bempower\\b"
+    severity: "warning"
+    suggestion: "Use 'enable', 'allow', or 'help'"
+
+  - pattern: "\\bgame.?changer\\b"
+    severity: "error"
+    suggestion: "Describe the specific improvement with evidence"
+
+  - pattern: "\\bcutting.?edge\\b"
+    severity: "warning"
+    suggestion: "Name the specific technology or approach"
+
+  - pattern: "\\bin today's .+ world\\b"
+    severity: "error"
+    suggestion: "Remove the filler phrase; state the point directly"
+
+  - pattern: "\\bit's worth noting\\b"
+    severity: "warning"
+    suggestion: "Just state the fact directly"
+
+  - pattern: "\\bIt is important to note\\b"
+    severity: "warning"
+    suggestion: "Remove and state the point directly"
+
+# Structural rules for different content types.
+structure_rules:
+  headings:
+    style: "atx"  # use # not underlines
+    max_depth: 4  # don't go deeper than ####
+    require_content: true  # no empty sections
+
+  lists:
+    unordered_marker: "-"  # not * or +
+    ordered_style: "1."  # always 1. for ordered
+    max_nesting: 3
+
+  code_blocks:
+    require_language: true  # ```python not just ```
+    max_lines: 50  # flag very long code blocks
+
+  tables:
+    require_header: true
+    require_separator: true

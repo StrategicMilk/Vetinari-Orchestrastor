@@ -16,6 +16,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- 12-dimension document quality evaluation framework (`vetinari/validation/document_quality.py`) with heuristic scorers for accuracy, correctness, completeness, relevance, clarity, conciseness, organization, readability, consistency, specificity, style, and technical depth
+- LLM-as-judge evaluator (`vetinari/validation/document_judge.py`) with heuristic fallback for hybrid document scoring
+- Document type system (`vetinari/validation/document_types.py`) with 10 canonical types and YAML-driven profiles
+- Document profile configuration (`config/document_profiles.yaml`) with per-type dimension weights and quality thresholds for ADR, API reference, changelog, code comment, commit message, developer guide, error message, plan, readme, and research report
+- Anti-AI-tell writing style configuration (`config/writing_style.yaml`) with 17 pattern-based detections
 - LLM Guard safety scanner integration (`vetinari/safety/llm_guard_scanner.py`) with ML-based input/output scanning; graceful degradation when llm-guard not installed
 - LLM Guard configuration (`config/llm_guard.yaml`) with context-based scanning rules
 - Pydantic Settings configuration layer (`vetinari/config/settings.py`) with env-var support (`VETINARI_` prefix) and validated inference profile loading
