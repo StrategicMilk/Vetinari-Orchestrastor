@@ -1,6 +1,5 @@
-"""
-Consolidated Quality Agent (Phase 3)
-======================================
+"""Consolidated Quality Agent (Phase 3).
+
 Replaces: EVALUATOR + SECURITY_AUDITOR + TEST_AUTOMATION
 
 Modes:
