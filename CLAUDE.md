@@ -2,6 +2,10 @@
 
 This is the authoritative development guide for the Vetinari codebase. All contributors and AI agents MUST follow these conventions. Rules use consistent severity: **NEVER** (forbidden, enforced by automation), **MUST** (required for Definition of Done), **Prefer** (best practice), **MAY** (allowed in context).
 
+> **Core Principle — Do Not Cheat**
+>
+> Always do things correctly, even when it's harder or slower. No placeholder implementations, no superficial patches, no skipping steps that feel tedious. If a task touches ten files, touch all ten. If a fix requires updating every caller, update every caller. Fix root causes — never delete or weaken a test to make code pass. Correctness is not negotiable.
+
 ---
 
 ## 1. Quick Reference
