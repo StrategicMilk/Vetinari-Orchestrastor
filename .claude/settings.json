@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '\\.py$'; then python -m ruff check --fix --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; python -m ruff format --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_BASH_COMMAND\" | grep -qE '(git commit|git push)'; then cd \"$CLAUDE_WORKING_DIRECTORY\" && python -m pytest tests/ -x -q --timeout=30 2>&1 | tail -5 && python -m ruff check vetinari/ tests/ 2>&1 | tail -10 && python scripts/check_vetinari_rules.py --errors-only 2>&1 | tail -10; fi",
+            "timeout": 300000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_WORKING_DIRECTORY\" && echo '=== Ruff Lint ===' && python -m ruff check vetinari/ tests/ 2>&1 | tail -20 && echo '=== Ruff Format ===' && python -m ruff format --check vetinari/ tests/ 2>&1 | tail -10 && echo '=== Vetinari Rules ===' && python scripts/check_vetinari_rules.py 2>&1 | tail -30 && echo '=== Quick Test ===' && python -m pytest tests/ -x -q --timeout=30 2>&1 | tail -10",
+            "timeout": 300000
+          }
+        ]
+      }
+    ]
+  }
+}

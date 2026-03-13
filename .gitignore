@@ -62,6 +62,8 @@ dry_run_demo_pkg/
 # Claude Code / OMC working directories
 .claude/*
 !.claude/agents/
+!.claude/docs/
+!.claude/settings.json
 .omc/
 
 # Junk artifacts
