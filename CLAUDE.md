@@ -370,6 +370,7 @@ These files are high-impact shared modules. Changes require extra care:
 | `vetinari/agents/contracts.py` | Agent registry, shared dataclasses | Adding fields: use defaults. NEVER remove fields. |
 | `vetinari/agents/interfaces.py` | ABC used by all agents | Adding methods: MUST have default impl or be optional. |
 | `vetinari/exceptions.py` | Caught throughout codebase | NEVER rename exception classes. Only add new ones. |
+| `vetinari/adr.py` | ADR system used by Oracle and web UI | NEVER remove fields from `ADR` dataclass. NEVER change `ADRStatus`/`ADRCategory` enum values. Only add new ones. |
 | `conftest.py` | All tests depend on fixtures | Test all fixture changes with full test suite. |
 | `pyproject.toml` | Build system + tool config | NEVER remove dependencies. Adding deps: also add to appropriate optional group. |
 
@@ -403,10 +404,65 @@ A task is NOT complete until ALL of the following are true:
 **Documentation**
 16. If agent behavior changed → AGENTS.md is updated
 17. No hardcoded mock/fake data returned from production functions
+18. If a significant architectural, security, or design decision was made → an ADR exists (see 5.3)
 
 If ANY item fails, the task is NOT done.
 
-### 5.3 Common AI Pitfalls
+### 5.3 Architecture Decision Records (ADRs)
+
+Significant decisions MUST be documented as ADRs using the project's ADR system (`vetinari/adr.py`, stored as JSON in `adr/`). ADRs capture **why** a choice was made so future contributors don't re-litigate settled decisions.
+
+**When to create an ADR:**
+
+| Trigger | Category | Example |
+|---------|----------|---------|
+| New module or subsystem added | `architecture` | Adding a caching layer, new agent type |
+| Data model or schema change | `data_flow` | Changing how plans are persisted |
+| Security-relevant choice | `security` | Auth mechanism, token storage strategy |
+| Public API contract change | `api_design` | New REST endpoint, changing response format |
+| Agent behavior or pipeline change | `agent_design` | Changing agent routing, adding a new mode |
+| Technology or library adoption | `architecture` | Choosing a new dependency over alternatives |
+| Performance trade-off | `performance` | Choosing O(n) scan over index for simplicity |
+| Integration pattern choice | `integration` | How Vetinari connects to LM Studio |
+
+**When NOT to create an ADR:**
+- Bug fixes, refactors, or style changes that don't alter behavior
+- Adding tests or documentation
+- Minor config tweaks
+
+**ADR lifecycle:**
+1. **Proposed** — created when the decision is being evaluated (Oracle agent's `architecture` mode)
+2. **Accepted** — approved and in effect; referenced by implementation code
+3. **Deprecated** / **Superseded** — replaced by a newer ADR (link via `related_adrs`)
+
+**Who creates ADRs:**
+- The **Oracle agent** is the primary ADR author (via `architecture` and `risk_assessment` modes)
+- Human developers MAY create ADRs directly via `ADRSystem.create_adr()`
+- The **Planner agent** MUST check existing ADRs before proposing work that contradicts accepted decisions
+
+**ADR quality requirements:**
+- `context` MUST explain the problem and constraints that led to the decision
+- `decision` MUST state the chosen option explicitly
+- `consequences` MUST list both positive and negative trade-offs
+- High-stakes categories (`architecture`, `security`, `data_flow`) require at least 3 evaluated alternatives documented in the ADR context before acceptance
+
+**Referencing ADRs in code:**
+```python
+# Decision: use polling over webhooks for LM Studio health checks (ADR-0012)
+```
+
+**Querying ADRs:**
+```python
+from vetinari.adr import adr_system
+
+# List all accepted architecture decisions
+accepted = adr_system.list_adrs(status="accepted", category="architecture")
+
+# Check if a category is high-stakes (requires deeper review)
+adr_system.is_high_stakes("security")  # True
+```
+
+### 5.4 Common AI Pitfalls
 
 **Import and Dependency Errors**
 1. **Redefining enums**: Creating `class AgentType(Enum)` instead of importing from `vetinari.types`
