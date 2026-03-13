@@ -4,7 +4,7 @@ This is the authoritative development guide for the Vetinari codebase. All contr
 
 > **Core Principle — Do Not Cheat**
 >
-> Always do things correctly, even when it's harder or slower. No placeholder implementations, no superficial patches, no skipping steps that feel tedious. If a task touches ten files, touch all ten. If a fix requires updating every caller, update every caller. Fix root causes — never delete or weaken a test to make code pass. Correctness is not negotiable.
+> Always do things correctly, even when it's harder or slower. No shortcuts, no workarounds, no placeholder implementations, no superficial patches, no skipping steps that feel tedious. If a task touches ten files, touch all ten. If a fix requires updating every caller, update every caller. Fix root causes — never delete or weaken a test to make code pass. Correctness is not negotiable.
 
 ---
 
