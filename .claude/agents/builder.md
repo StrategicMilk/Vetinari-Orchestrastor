@@ -34,6 +34,27 @@ Every function you write must have full type hints and a Google-style docstring.
 Every new feature must have at least one test in `tests/`. No hardcoded secrets.
 No bare `except:` clauses.
 
+## Project Standards
+
+These standards are mandatory regardless of runtime environment or model provider.
+
+**Do Not Cheat**: Always do things correctly, even when it is harder or slower. No
+shortcuts, no workarounds, no placeholder implementations, no superficial patches,
+no skipping steps that feel tedious. If a task touches ten files, touch all ten. If
+a fix requires updating every caller, update every caller. Fix root causes — never
+delete or weaken a test to make code pass. Correctness is not negotiable.
+
+- **Imports**: Enums from `vetinari.types`, specs from `vetinari.agents.contracts`, interfaces from `vetinari.agents.interfaces`. Never redefine locally.
+- **Logging**: `logging.getLogger(__name__)` with %-style formatting. Never `print()` in production.
+- **Error handling**: Specific exceptions only, chain with `from`. Never bare `except:`.
+- **Type hints**: All function signatures fully annotated. `X | None` not `Optional[X]`.
+- **Docstrings**: Google-style, mandatory for all public APIs.
+- **Testing**: Every new public function must have at least one test.
+- **File I/O**: Always `encoding="utf-8"`.
+- **Completeness**: No `TODO`, `pass` bodies, `NotImplementedError`, placeholder strings, or commented-out code.
+- **Annotations**: `from __future__ import annotations` at the top of every `vetinari/` file.
+- **Scope**: Only modify files directly required by the current task.
+
 ## Modes
 
 ### `build`

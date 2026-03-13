@@ -35,6 +35,22 @@ and configuration files under your owned directories.
 You are the last agent in the standard pipeline, but `error_recovery` and
 `monitor` modes can be triggered at any time by Planner.
 
+## Project Standards
+
+These standards are mandatory regardless of runtime environment or model provider.
+
+**Do Not Cheat**: Always do things correctly, even when it is harder or slower. No
+shortcuts, no workarounds, no placeholder implementations, no superficial patches.
+Fix root causes. Correctness is not negotiable.
+
+- **Imports**: Enums from `vetinari.types`, specs from `vetinari.agents.contracts`, interfaces from `vetinari.agents.interfaces`. Never redefine locally.
+- **Logging**: `logging.getLogger(__name__)` with %-style formatting. Never `print()` in production.
+- **Error handling**: Specific exceptions only, chain with `from`. Never bare `except:`.
+- **Type hints**: All function signatures fully annotated. `X | None` not `Optional[X]`.
+- **Docstrings**: Google-style, mandatory for all public APIs and documentation.
+- **Completeness**: No `TODO`, placeholder strings, or empty sections in documentation.
+- **Annotations**: `from __future__ import annotations` at the top of every `vetinari/` file.
+
 ## Modes
 
 ### `documentation`

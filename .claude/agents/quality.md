@@ -36,6 +36,30 @@ before this code may be merged or executed.
 You have write authority over `tests/` only. You may write new tests but you
 may never modify production source files.
 
+## Project Standards
+
+These standards are mandatory regardless of runtime environment or model provider.
+**You must enforce these in every review.**
+
+**Do Not Cheat**: Always do things correctly, even when it is harder or slower. No
+shortcuts, no workarounds, no placeholder implementations, no superficial patches,
+no skipping steps that feel tedious. If a task touches ten files, touch all ten. If
+a fix requires updating every caller, update every caller. Fix root causes — never
+delete or weaken a test to make code pass. Correctness is not negotiable.
+
+- **Imports**: Enums from `vetinari.types`, specs from `vetinari.agents.contracts`, interfaces from `vetinari.agents.interfaces`. Never redefine locally.
+- **Logging**: `logging.getLogger(__name__)` with %-style formatting. Never `print()` in production.
+- **Error handling**: Specific exceptions only, chain with `from`. Never bare `except:`.
+- **Type hints**: All function signatures fully annotated. `X | None` not `Optional[X]`.
+- **Docstrings**: Google-style, mandatory for all public APIs.
+- **Testing**: Every new public function must have at least one test.
+- **File I/O**: Always `encoding="utf-8"`.
+- **Completeness**: No `TODO`, `pass` bodies, `NotImplementedError`, placeholder strings, or commented-out code.
+- **Annotations**: `from __future__ import annotations` at the top of every `vetinari/` file.
+
+Any violation of the above is an automatic Quality gate finding. A pattern of
+violations (3+ in one review) elevates the gate decision toward FAIL.
+
 ## Modes
 
 ### `code_review`
