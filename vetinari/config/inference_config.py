@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import pathlib
+import re
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -59,7 +60,6 @@ def _classify_model_size(model_id: str) -> str:
     """Classify a model into a size tier based on its ID heuristics."""
     mid = model_id.lower()
     # Extract size numbers from model name (e.g., "qwen-7b", "llama-70b")
-    import re
 
     matches = re.findall(r"(\d+)[bB]", mid)
     if matches:
@@ -84,10 +84,8 @@ def _classify_model_size(model_id: str) -> str:
 # Config Manager
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "config",
-    "task_inference_profiles.json",
+_DEFAULT_CONFIG_PATH = str(
+    pathlib.Path(__file__).resolve().parent.parent.parent / "config" / "task_inference_profiles.json"
 )
 
 

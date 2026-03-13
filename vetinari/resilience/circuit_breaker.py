@@ -1,13 +1,13 @@
-"""Circuit Breaker (C1).
+"""Circuit Breaker — production-grade, thread-safe, per-agent breakers.
 
-====================
 Per-agent circuit breakers that prevent cascading failures when LLM
-backends or downstream services become unreliable.
+backends or downstream services become unreliable.  Includes a singleton
+registry, exponential backoff, and dashboard-friendly stats.
 
 Three states:
-  CLOSED   — normal operation; failures are counted
-  OPEN     — tripped; calls are rejected immediately
-  HALF_OPEN — recovery probe; one call allowed through
+  CLOSED   -- normal operation; failures are counted
+  OPEN     -- tripped; calls are rejected immediately
+  HALF_OPEN -- recovery probe; one call allowed through
 
 Config per agent:
   failure_threshold  = 3     (consecutive failures to trip)
@@ -15,6 +15,9 @@ Config per agent:
   half_open_max_calls = 1    (probe calls allowed in HALF_OPEN)
 
 Exponential backoff is applied to retries before the breaker trips.
+
+For the lightweight, non-threaded breaker used inside the orchestration
+graph layer, see :mod:`vetinari.orchestration.circuit_breaker`.
 """
 
 from __future__ import annotations

@@ -1,13 +1,15 @@
 """Circuit Breaker and Stagnation Detection for Agent Orchestration.
 
-=================================================================
+Provides two resilience primitives for the orchestration graph layer:
 
-Provides two resilience primitives for the orchestration layer:
-
-- **CircuitBreaker**: Prevents cascading failures by tracking consecutive
-  errors and temporarily halting calls to a failing subsystem.
+- **CircuitBreaker**: Lightweight, non-threaded breaker for graph execution.
+  Tracks consecutive failures and temporarily halts calls to a failing subsystem.
 - **StagnationDetector**: Monitors task execution progress and flags runs
   that are stuck (repeated outputs, excessive errors, or blown time budgets).
+
+For the production-grade, thread-safe, per-agent circuit breaker with a
+singleton registry, exponential backoff, and dashboard stats, see
+:mod:`vetinari.resilience.circuit_breaker`.
 
 Usage::
 
