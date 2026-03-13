@@ -17,6 +17,7 @@ Coverage:
     - reset_alert_engine
 """
 
+import os
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -28,6 +29,9 @@ from vetinari.dashboard.alerts import (
     AlertSeverity,
     AlertThreshold,
     DISPATCHERS,
+    _dispatch_email,
+    _dispatch_log,
+    _dispatch_webhook,
     _resolve_metric,
     get_alert_engine,
     reset_alert_engine,
@@ -518,6 +522,176 @@ class TestDispatchers(unittest.TestCase):
             self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
             mock_log.assert_called_once()
             mock_email.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _dispatch_log
+# ---------------------------------------------------------------------------
+
+class TestDispatchLog(unittest.TestCase):
+
+    def _make_alert(self, severity=AlertSeverity.HIGH):
+        t = _make_threshold(severity=severity)
+        return AlertRecord(threshold=t, current_value=999.0, trigger_time=1700000000.0)
+
+    def test_dispatch_log_high_severity(self):
+        alert = self._make_alert(AlertSeverity.HIGH)
+        # Should not raise
+        _dispatch_log(alert)
+
+    def test_dispatch_log_medium_severity(self):
+        alert = self._make_alert(AlertSeverity.MEDIUM)
+        _dispatch_log(alert)
+
+
+# ---------------------------------------------------------------------------
+# _dispatch_email
+# ---------------------------------------------------------------------------
+
+class TestDispatchEmail(unittest.TestCase):
+
+    def _make_alert(self):
+        t = _make_threshold(severity=AlertSeverity.HIGH)
+        return AlertRecord(threshold=t, current_value=600.0, trigger_time=1700000000.0)
+
+    def test_email_skipped_without_env_vars(self):
+        env = {"VETINARI_SMTP_HOST": "", "VETINARI_ALERT_FROM": "", "VETINARI_ALERT_TO": ""}
+        with patch.dict(os.environ, env, clear=False):
+            os.environ.pop("VETINARI_SMTP_HOST", None)
+            os.environ.pop("VETINARI_ALERT_FROM", None)
+            os.environ.pop("VETINARI_ALERT_TO", None)
+            # Should not raise, just log and return
+            _dispatch_email(self._make_alert())
+
+    def test_email_sent_successfully(self):
+        env = {
+            "VETINARI_SMTP_HOST": "smtp.test.com",
+            "VETINARI_SMTP_PORT": "587",
+            "VETINARI_ALERT_FROM": "from@test.com",
+            "VETINARI_ALERT_TO": "to@test.com",
+            "VETINARI_SMTP_USER": "user",
+            "VETINARI_SMTP_PASS": "pass",
+        }
+        mock_smtp = MagicMock()
+        with patch.dict(os.environ, env, clear=False):
+            with patch("smtplib.SMTP", return_value=mock_smtp):
+                mock_smtp.__enter__ = MagicMock(return_value=mock_smtp)
+                mock_smtp.__exit__ = MagicMock(return_value=False)
+                _dispatch_email(self._make_alert())
+                mock_smtp.sendmail.assert_called_once()
+
+    def test_email_smtp_exception_caught(self):
+        env = {
+            "VETINARI_SMTP_HOST": "smtp.test.com",
+            "VETINARI_SMTP_PORT": "587",
+            "VETINARI_ALERT_FROM": "from@test.com",
+            "VETINARI_ALERT_TO": "to@test.com",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with patch("smtplib.SMTP", side_effect=ConnectionError("refused")):
+                # Should not raise
+                _dispatch_email(self._make_alert())
+
+    def test_email_without_credentials(self):
+        env = {
+            "VETINARI_SMTP_HOST": "smtp.test.com",
+            "VETINARI_SMTP_PORT": "587",
+            "VETINARI_ALERT_FROM": "from@test.com",
+            "VETINARI_ALERT_TO": "to@test.com",
+        }
+        mock_smtp = MagicMock()
+        with patch.dict(os.environ, env, clear=False):
+            os.environ.pop("VETINARI_SMTP_USER", None)
+            os.environ.pop("VETINARI_SMTP_PASS", None)
+            with patch("smtplib.SMTP", return_value=mock_smtp):
+                mock_smtp.__enter__ = MagicMock(return_value=mock_smtp)
+                mock_smtp.__exit__ = MagicMock(return_value=False)
+                _dispatch_email(self._make_alert())
+                mock_smtp.login.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _dispatch_webhook
+# ---------------------------------------------------------------------------
+
+class TestDispatchWebhook(unittest.TestCase):
+
+    def _make_alert(self):
+        t = _make_threshold(severity=AlertSeverity.MEDIUM)
+        return AlertRecord(threshold=t, current_value=600.0, trigger_time=1700000000.0)
+
+    def test_webhook_skipped_without_url(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("VETINARI_WEBHOOK_URL", None)
+            # Should not raise
+            _dispatch_webhook(self._make_alert())
+
+    def test_webhook_posted_successfully(self):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.raise_for_status = MagicMock()
+        with patch.dict(os.environ, {"VETINARI_WEBHOOK_URL": "http://hook.test/alert"}):
+            with patch("vetinari.dashboard.alerts.requests.post", return_value=mock_resp) as mock_post:
+                _dispatch_webhook(self._make_alert())
+                mock_post.assert_called_once()
+
+    def test_webhook_exception_caught(self):
+        with patch.dict(os.environ, {"VETINARI_WEBHOOK_URL": "http://hook.test/alert"}):
+            with patch("vetinari.dashboard.alerts.requests.post", side_effect=ConnectionError("down")):
+                # Should not raise
+                _dispatch_webhook(self._make_alert())
+
+
+# ---------------------------------------------------------------------------
+# AlertEngine — _check_condition edge case
+# ---------------------------------------------------------------------------
+
+class TestCheckConditionEdge(unittest.TestCase):
+
+    def setUp(self):
+        reset_alert_engine()
+        self.engine = get_alert_engine()
+
+    def tearDown(self):
+        reset_alert_engine()
+
+    def test_unknown_condition_returns_false(self):
+        """A condition value not in the enum should return False."""
+        t = _make_threshold()
+        # Monkey-patch a bogus condition
+        t.condition = "bogus"
+        result = self.engine._check_condition(t, 100.0)
+        self.assertFalse(result)
+
+
+# ---------------------------------------------------------------------------
+# Duration — elapsed not yet satisfied intermediate path
+# ---------------------------------------------------------------------------
+
+class TestDurationIntermediate(unittest.TestCase):
+
+    def setUp(self):
+        reset_alert_engine()
+        self.engine = get_alert_engine()
+
+    def tearDown(self):
+        reset_alert_engine()
+
+    def test_duration_intermediate_not_satisfied(self):
+        """Second evaluation with duration not yet elapsed returns no alerts."""
+        self.engine.register_threshold(_make_threshold(
+            name="dur-mid",
+            metric_key="adapters.average_latency_ms",
+            condition=AlertCondition.GREATER_THAN,
+            threshold_value=50.0,
+            duration_seconds=120,
+        ))
+        api = _make_mock_api(latency=100.0)
+
+        # First eval starts timer
+        self.engine.evaluate_all(api=api)
+        # Second eval — timer started but not enough time passed
+        fired = self.engine.evaluate_all(api=api)
+        self.assertEqual(len(fired), 0)
 
 
 if __name__ == "__main__":
