@@ -1,5 +1,25 @@
+"""Architecture Decision Record (ADR) management system.
+
+Provides a structured approach to documenting and tracking architecture
+decisions across the Vetinari project.  Each ADR is stored as a JSON file
+in the configured storage directory and loaded into memory at startup.
+
+Usage::
+
+    from vetinari.adr import ADRSystem
+
+    system = ADRSystem.get_instance()
+    adr = system.create_adr(
+        title="Use six-agent pipeline",
+        category="architecture",
+        context="Need a structured agent hierarchy ...",
+        decision="Adopt a six-agent pipeline: Planner -> Researcher -> ...",
+    )
+"""
+
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -12,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 class ADRStatus(Enum):
+    """Lifecycle status of an Architecture Decision Record."""
+
     PROPOSED = "proposed"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
@@ -20,6 +42,8 @@ class ADRStatus(Enum):
 
 
 class ADRCategory(Enum):
+    """Classification categories for ADRs."""
+
     ARCHITECTURE = "architecture"
     SECURITY = "security"
     DATA_FLOW = "data_flow"
@@ -30,11 +54,32 @@ class ADRCategory(Enum):
     INTEGRATION = "integration"
 
 
-HIGH_STAKES_CATEGORIES = {ADRCategory.ARCHITECTURE, ADRCategory.SECURITY, ADRCategory.DATA_FLOW}
+HIGH_STAKES_CATEGORIES = {
+    ADRCategory.ARCHITECTURE,
+    ADRCategory.SECURITY,
+    ADRCategory.DATA_FLOW,
+}
 
 
 @dataclass
 class ADR:
+    """A single Architecture Decision Record.
+
+    Args:
+        adr_id: Unique identifier (e.g. ``ADR-0001``).
+        title: Short descriptive title for the decision.
+        category: One of :class:`ADRCategory` values.
+        context: Problem statement or background motivating the decision.
+        decision: The decision that was made.
+        status: Lifecycle status (default ``proposed``).
+        consequences: Known positive and negative consequences.
+        related_adrs: IDs of related ADRs.
+        created_at: ISO-8601 creation timestamp.
+        updated_at: ISO-8601 last-update timestamp.
+        created_by: Author identifier.
+        notes: Free-form notes or discussion points.
+    """
+
     adr_id: str
     title: str
     category: str
@@ -48,7 +93,8 @@ class ADR:
     created_by: str = "system"
     notes: str = ""
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the ADR to a JSON-compatible dictionary."""
         return {
             "adr_id": self.adr_id,
             "title": self.title,
@@ -65,7 +111,15 @@ class ADR:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> ADR:
+    def from_dict(cls, data: dict[str, Any]) -> ADR:
+        """Deserialize an ADR from a dictionary.
+
+        Args:
+            data: Dictionary with ADR fields.
+
+        Returns:
+            Populated ADR instance with defaults for missing fields.
+        """
         return cls(
             adr_id=data.get("adr_id", ""),
             title=data.get("title", ""),
@@ -84,6 +138,15 @@ class ADR:
 
 @dataclass
 class ADRProposal:
+    """A proposal for an architecture decision with multiple options.
+
+    Args:
+        question: The question or problem being addressed.
+        options: List of option dicts with ``id``, ``description``, ``pros``, ``cons``.
+        recommended: Zero-based index of the recommended option.
+        rationale: Explanation for the recommendation.
+    """
+
     question: str
     options: list[dict[str, Any]]
     recommended: int = 0
@@ -91,42 +154,114 @@ class ADRProposal:
 
 
 class ADRSystem:
-    _instance = None
+    """Manages Architecture Decision Records with JSON file persistence.
+
+    ADRs are stored as individual JSON files in ``storage_path`` and loaded
+    into memory at initialization.  Provides CRUD operations, filtering,
+    statistics, and a proposal workflow.
+
+    Args:
+        storage_path: Directory for ADR JSON files.  Defaults to
+            ``~/.lmstudio/projects/Vetinari/adr``.
+    """
+
+    _instance: ADRSystem | None = None
 
     @classmethod
     def get_instance(cls, storage_path: str | None = None) -> ADRSystem:
+        """Return the singleton ADRSystem, creating it on first call.
+
+        Args:
+            storage_path: Override the default storage directory (only used on
+                first call).
+
+        Returns:
+            The shared ADRSystem instance.
+        """
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
 
-    def __init__(self, storage_path: str | None = None):
+    def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is None:
-            storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "adr"
+            storage_path = str(
+                Path.home() / ".lmstudio" / "projects" / "Vetinari" / "adr"
+            )
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self.adrs: dict[str, ADR] = {}
         self._load_adrs()
 
-    def _load_adrs(self):
+    def _load_adrs(self) -> None:
+        """Load all ADR JSON files from the storage directory."""
         for file in self.storage_path.glob("*.json"):
             try:
-                with open(file) as f:
+                with open(file, encoding="utf-8") as f:
                     data = json.load(f)
                     adr = ADR.from_dict(data)
                     self.adrs[adr.adr_id] = adr
-            except Exception as e:
-                logger.error("Error loading ADR %s: %s", file, e)
+            except Exception:
+                logger.exception("Error loading ADR from %s", file)
 
-    def _save_adr(self, adr: ADR):
+    def _save_adr(self, adr: ADR) -> None:
+        """Persist a single ADR to its JSON file.
+
+        Args:
+            adr: The ADR to save.
+        """
         file_path = self.storage_path / f"{adr.adr_id}.json"
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(adr.to_dict(), f, indent=2)
 
+    def _next_adr_id(self) -> str:
+        """Generate the next sequential ADR ID.
+
+        Returns:
+            An ID like ``ADR-0001`` that does not collide with existing IDs.
+        """
+        existing_nums: list[int] = []
+        for adr_id in self.adrs:
+            # Parse "ADR-NNNN" format
+            parts = adr_id.split("-", 1)
+            if len(parts) == 2:
+                with contextlib.suppress(ValueError):
+                    existing_nums.append(int(parts[1]))
+        next_num = max(existing_nums, default=0) + 1
+        return f"ADR-{next_num:04d}"
+
     def create_adr(
-        self, title: str, category: str, context: str, decision: str, consequences: str = "", created_by: str = "user"
+        self,
+        title: str,
+        category: str,
+        context: str,
+        decision: str,
+        consequences: str = "",
+        created_by: str = "user",
+        adr_id: str | None = None,
+        status: str = ADRStatus.PROPOSED.value,
+        related_adrs: list[str] | None = None,
+        notes: str = "",
     ) -> ADR:
-        adr_id = f"ADR-{len(self.adrs) + 1:04d}"
+        """Create and persist a new ADR.
+
+        Args:
+            title: Short descriptive title.
+            category: One of :class:`ADRCategory` values.
+            context: Problem statement or background.
+            decision: The decision made.
+            consequences: Known consequences of the decision.
+            created_by: Author identifier.
+            adr_id: Explicit ID; auto-generated if ``None``.
+            status: Initial status (default ``accepted``).
+            related_adrs: IDs of related ADRs.
+            notes: Free-form notes.
+
+        Returns:
+            The newly created ADR.
+        """
+        if adr_id is None:
+            adr_id = self._next_adr_id()
         now = datetime.now().isoformat()
 
         adr = ADR(
@@ -139,16 +274,43 @@ class ADRSystem:
             created_at=now,
             updated_at=now,
             created_by=created_by,
+            status=status,
+            related_adrs=related_adrs or [],
+            notes=notes,
         )
 
         self.adrs[adr_id] = adr
         self._save_adr(adr)
+        logger.info("Created ADR %s: %s", adr_id, title)
         return adr
 
     def get_adr(self, adr_id: str) -> ADR | None:
+        """Retrieve an ADR by ID.
+
+        Args:
+            adr_id: The ADR identifier (e.g. ``ADR-0001``).
+
+        Returns:
+            The ADR if found, otherwise ``None``.
+        """
         return self.adrs.get(adr_id)
 
-    def list_adrs(self, status: str | None = None, category: str | None = None, limit: int = 50) -> list[ADR]:
+    def list_adrs(
+        self,
+        status: str | None = None,
+        category: str | None = None,
+        limit: int = 50,
+    ) -> list[ADR]:
+        """List ADRs with optional filtering.
+
+        Args:
+            status: Filter by status value (e.g. ``accepted``).
+            category: Filter by category value.
+            limit: Maximum number of results.
+
+        Returns:
+            List of matching ADRs sorted by creation date (newest first).
+        """
         results = list(self.adrs.values())
 
         if status:
@@ -159,7 +321,16 @@ class ADRSystem:
         results.sort(key=lambda a: a.created_at, reverse=True)
         return results[:limit]
 
-    def update_adr(self, adr_id: str, updates: dict) -> ADR | None:
+    def update_adr(self, adr_id: str, updates: dict[str, Any]) -> ADR | None:
+        """Update fields on an existing ADR.
+
+        Args:
+            adr_id: The ADR to update.
+            updates: Dictionary of field names to new values.
+
+        Returns:
+            The updated ADR, or ``None`` if not found.
+        """
         adr = self.adrs.get(adr_id)
         if not adr:
             return None
@@ -172,7 +343,18 @@ class ADRSystem:
         self._save_adr(adr)
         return adr
 
-    def deprecate_adr(self, adr_id: str, replacement_id: str | None = None) -> ADR | None:
+    def deprecate_adr(
+        self, adr_id: str, replacement_id: str | None = None
+    ) -> ADR | None:
+        """Mark an ADR as deprecated, optionally linking a replacement.
+
+        Args:
+            adr_id: The ADR to deprecate.
+            replacement_id: ID of the superseding ADR.
+
+        Returns:
+            The deprecated ADR, or ``None`` if not found.
+        """
         adr = self.adrs.get(adr_id)
         if not adr:
             return None
@@ -189,15 +371,35 @@ class ADRSystem:
         return adr
 
     def is_high_stakes(self, category: str) -> bool:
+        """Check whether a category is considered high-stakes.
+
+        Args:
+            category: Category value string.
+
+        Returns:
+            ``True`` if the category requires extra review.
+        """
         try:
             cat = ADRCategory(category)
             return cat in HIGH_STAKES_CATEGORIES
         except ValueError:
             return False
 
-    def generate_proposal(self, context: str, num_options: int = 3) -> ADRProposal:
-        options = []
+    def generate_proposal(
+        self, context: str, num_options: int = 3
+    ) -> ADRProposal:
+        """Generate a proposal template for a new architecture decision.
 
+        Creates a proposal with placeholder options that can be customized
+        before being accepted via :meth:`accept_proposal`.
+
+        Args:
+            context: Problem statement to address.
+            num_options: Number of option templates to include.
+
+        Returns:
+            An ADRProposal with template options.
+        """
         example_options = [
             {
                 "id": "option_1",
@@ -219,19 +421,30 @@ class ADRSystem:
             },
         ]
 
-        options = example_options[:num_options]
-
         return ADRProposal(
             question=context,
-            options=options,
+            options=example_options[:num_options],
             recommended=0,
             rationale="Option 1 provides the best balance of simplicity and functionality for initial implementation.",
         )
 
     def accept_proposal(self, proposal: ADRProposal, title: str, category: str) -> ADR:
-        decision = "; ".join([f"{o['id']}: {o['description']}" for o in proposal.options])
+        """Accept a proposal and create an ADR from it.
 
-        consequences = "\n".join([f"Pros: {', '.join(o.get('pros', []))}" for o in proposal.options])
+        Args:
+            proposal: The proposal to accept.
+            title: Title for the resulting ADR.
+            category: Category for the resulting ADR.
+
+        Returns:
+            The newly created ADR.
+        """
+        decision = "; ".join(
+            [f"{o['id']}: {o['description']}" for o in proposal.options]
+        )
+        consequences = "\n".join(
+            [f"Pros: {', '.join(o.get('pros', []))}" for o in proposal.options]
+        )
 
         return self.create_adr(
             title=title,
@@ -243,11 +456,24 @@ class ADRSystem:
         )
 
     def get_statistics(self) -> dict[str, Any]:
-        stats = {"total": len(self.adrs), "by_status": {}, "by_category": {}, "high_stakes_count": 0}
+        """Compute summary statistics across all ADRs.
+
+        Returns:
+            Dictionary with ``total``, ``by_status``, ``by_category``,
+            and ``high_stakes_count`` keys.
+        """
+        stats: dict[str, Any] = {
+            "total": len(self.adrs),
+            "by_status": {},
+            "by_category": {},
+            "high_stakes_count": 0,
+        }
 
         for adr in self.adrs.values():
             stats["by_status"][adr.status] = stats["by_status"].get(adr.status, 0) + 1
-            stats["by_category"][adr.category] = stats["by_category"].get(adr.category, 0) + 1
+            stats["by_category"][adr.category] = (
+                stats["by_category"].get(adr.category, 0) + 1
+            )
 
             if self.is_high_stakes(adr.category):
                 stats["high_stakes_count"] += 1
@@ -255,4 +481,5 @@ class ADRSystem:
         return stats
 
 
+# Lazy singleton accessor — import ``adr_system`` for backward compatibility.
 adr_system = ADRSystem.get_instance()
