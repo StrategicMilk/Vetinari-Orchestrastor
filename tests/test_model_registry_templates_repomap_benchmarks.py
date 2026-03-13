@@ -13,10 +13,9 @@ Organized into test classes per logical unit:
 """
 
 import ast
-import sys
-import os
 import json
-import threading
+import os
+import sys
 import time
 
 # ── Clean stubs that may have been created by other test files ──────────
@@ -29,33 +28,35 @@ for _stubname in (
 ):
     sys.modules.pop(_stubname, None)
 
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock, mock_open
 from dataclasses import asdict
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # ── Now import the modules under test ──────────────────────────────────
 from vetinari.model_registry import (
-    _infer_capabilities,
-    _infer_context_window,
     ModelInfo,
     ModelRegistry,
+    _infer_capabilities,
+    _infer_context_window,
     get_model_registry,
 )
 from vetinari.prompt_templates import (
-    get_prompt,
-    PLANNING_PROMPT,
-    DECOMPOSITION_PROMPT,
-    TOOL_USE_PROMPT,
-    EVALUATION_PROMPT,
+    CONTEXT_SUMMARY_PROMPT,
     DECISION_PROMPT,
-    REFLECTION_PROMPT,
-    ORCHESTRATION_PROMPT,
+    DECOMPOSITION_PROMPT,
+    EVALUATION_PROMPT,
     MEMORY_SEARCH_PROMPT,
     MEMORY_STORE_PROMPT,
-    CONTEXT_SUMMARY_PROMPT,
+    ORCHESTRATION_PROMPT,
+    PLANNING_PROMPT,
+    REFLECTION_PROMPT,
+    TOOL_USE_PROMPT,
+    get_prompt,
 )
 from vetinari.repo_map import ModuleInfo, RepoMap, get_repo_map
+
 # Python 3.12+ removed ast.Str; repo_map._parse_file references it for
 # docstring extraction, which silently crashes on 3.14.  Detect this so
 # tests can adjust expectations.
@@ -68,7 +69,6 @@ from vetinari.benchmarks.suite import (
     _score_by_keys,
     run_benchmark,
 )
-
 
 # ========================================================================
 # Fixtures
@@ -574,7 +574,7 @@ class TestModelRegistry:
         }
 
         with patch.object(Path, "exists", return_value=True):
-            with patch("vetinari.model_registry.load_yaml", create=True) as mock_ly:
+            with patch("vetinari.model_registry.load_yaml", create=True):
                 # We need to patch the import inside _load_static_config
                 with patch.dict(sys.modules, {}):
                     mock_utils = MagicMock()

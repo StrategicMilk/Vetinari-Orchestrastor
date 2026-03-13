@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.planning.subtask_tree
+"""Backward-compat shim. Canonical: vetinari.planning.subtask_tree.
 
 All new code should import from vetinari.planning.subtask_tree directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

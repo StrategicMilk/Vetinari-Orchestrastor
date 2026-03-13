@@ -8,44 +8,39 @@ import tempfile
 
 import pytest
 
-from vetinari.observability.otel_genai import (
-    GenAITracer,
-    SpanContext,
-    get_genai_tracer,
-    reset_genai_tracer,
-    ATTR_AGENT_NAME,
-    ATTR_OPERATION,
-    ATTR_REQUEST_MODEL,
-    ATTR_SPAN_STATUS,
-    ATTR_TOOL_NAME,
-)
-from vetinari.observability.step_evaluator import (
-    StepEvaluator,
-    PlanQualityMetric,
-    PlanAdherenceMetric,
-    StepScore,
-    EvaluationReport,
-    get_step_evaluator,
-    reset_step_evaluator,
-)
 from vetinari.observability.ci_evaluator import (
-    CIEvaluator,
-    EvalCase,
     CaseResult,
+    CIEvaluator,
     CIReport,
+    EvalCase,
     get_ci_evaluator,
     reset_ci_evaluator,
 )
+from vetinari.observability.otel_genai import (
+    ATTR_REQUEST_MODEL,
+    ATTR_SPAN_STATUS,
+    ATTR_TOOL_NAME,
+    GenAITracer,
+    get_genai_tracer,
+    reset_genai_tracer,
+)
+from vetinari.observability.step_evaluator import (
+    PlanAdherenceMetric,
+    PlanQualityMetric,
+    StepEvaluator,
+    StepScore,
+    get_step_evaluator,
+    reset_step_evaluator,
+)
 from vetinari.observability.tracing import (
-    start_span,
+    NoOpSpan,
+    agent_span,
+    is_otel_available,
+    llm_span,
     pipeline_span,
     stage_span,
-    agent_span,
-    llm_span,
-    NoOpSpan,
-    is_otel_available,
+    start_span,
 )
-
 
 # ── GenAI Tracer ────────────────────────────────────────────────────────────
 
@@ -265,6 +260,13 @@ class TestStepEvaluator:
 class TestTracing:
     """Tests for the tracing context managers and NoOpSpan."""
 
+    @pytest.fixture(autouse=True)
+    def _no_otel(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Force NoOpSpan path for all tracing tests regardless of OTel install."""
+        import vetinari.observability.tracing as _tracing
+        monkeypatch.setattr(_tracing, "_OTEL_AVAILABLE", False)
+        monkeypatch.setattr(_tracing, "_tracer", None)
+
     def test_start_span_no_otel(self) -> None:
         with start_span("test.span", {"key": "val"}) as span:
             assert isinstance(span, NoOpSpan)
@@ -305,9 +307,8 @@ class TestTracing:
             assert span.attributes["llm.model_id"] == "qwen-32b"
 
     def test_span_exception_propagates(self) -> None:
-        with pytest.raises(ValueError, match="boom"):
-            with start_span("failing") as span:
-                raise ValueError("boom")
+        with pytest.raises(ValueError, match="boom"), start_span("failing"):
+            raise ValueError("boom")
 
     def test_is_otel_available(self) -> None:
         # Should return a bool regardless of whether OTel is installed
@@ -420,15 +421,10 @@ class TestObservabilityImports:
 
     def test_package_imports(self) -> None:
         from vetinari.observability import (
-            get_genai_tracer,
-            GenAITracer,
-            SpanContext,
-            get_step_evaluator,
-            StepEvaluator,
-            start_span,
-            NoOpSpan,
             get_ci_evaluator,
-            CIEvaluator,
+            get_genai_tracer,
+            get_step_evaluator,
+            start_span,
         )
         assert callable(get_genai_tracer)
         assert callable(get_step_evaluator)

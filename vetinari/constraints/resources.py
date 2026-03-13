@@ -1,5 +1,5 @@
-"""
-Per-Agent Resource Constraints
+"""Per-Agent Resource Constraints.
+
 ================================
 Defines token limits, retry budgets, timeouts, cost caps, and parallelism
 limits for each agent type.
@@ -14,14 +14,13 @@ Enforcement points:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 
 @dataclass
 class ResourceConstraint:
     """Per-agent resource limits."""
 
-    agent_type: str                  # AgentType.value
+    agent_type: str  # AgentType.value
     max_tokens: int = 4096
     max_retries: int = 3
     timeout_seconds: int = 120
@@ -34,7 +33,7 @@ class ResourceConstraint:
 # Default resource limits per agent
 # ---------------------------------------------------------------------------
 
-AGENT_RESOURCE_LIMITS: Dict[str, ResourceConstraint] = {
+AGENT_RESOURCE_LIMITS: dict[str, ResourceConstraint] = {
     # Core orchestration — needs larger context for decomposition
     "PLANNER": ResourceConstraint(
         agent_type="PLANNER",
@@ -59,9 +58,7 @@ AGENT_RESOURCE_LIMITS: Dict[str, ResourceConstraint] = {
         max_retries=2,
         max_delegation_calls=1,
     ),
-
     # --- Consolidated agents ---
-
     "ORCHESTRATOR": ResourceConstraint(
         agent_type="ORCHESTRATOR",
         max_tokens=4096,

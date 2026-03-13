@@ -6,6 +6,8 @@ Three-layer testing architecture:
   Layer 3 (Pipeline):      Full end-to-end pipelines
 """
 
+from __future__ import annotations
+
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
     BenchmarkLayer,

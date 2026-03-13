@@ -1,5 +1,5 @@
-"""
-Git Operations Tool
+"""Git Operations Tool.
+
 ===================
 Provides safe git operations for Vetinari agents.
 
@@ -10,12 +10,13 @@ directory is locked to the project root.
 from __future__ import annotations
 
 import logging
-import subprocess
 import shutil
-from dataclasses import dataclass, field
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
     ToolCategory,
@@ -23,7 +24,6 @@ from vetinari.tool_interface import (
     ToolParameter,
     ToolResult,
 )
-from vetinari.execution_context import ToolPermission
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class GitResult:
     stderr: str = ""
     return_code: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "stdout": self.stdout,
@@ -57,11 +57,11 @@ class GitOperations:
 
     # -- helpers ------------------------------------------------------------
 
-    def _run(self, args: List[str], timeout: int | None = None) -> GitResult:
+    def _run(self, args: list[str], timeout: int | None = None) -> GitResult:
         """Execute ``git <args>`` and return the result."""
-        cmd = [self._git] + args
+        cmd = [self._git, *args]
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # noqa: S603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -98,9 +98,9 @@ class GitOperations:
     def init_repo(self) -> GitResult:
         return self._run(["init"])
 
-    def add(self, files: List[str] | None = None) -> GitResult:
+    def add(self, files: list[str] | None = None) -> GitResult:
         if files:
-            return self._run(["add"] + files)
+            return self._run(["add", *files])
         return self._run(["add", "."])
 
     def commit(self, message: str) -> GitResult:
@@ -140,6 +140,7 @@ class GitOperations:
 # Tool wrapper
 # ---------------------------------------------------------------------------
 
+
 class GitOperationsTool(Tool):
     """Vetinari Tool wrapper around :class:`GitOperations`."""
 
@@ -152,9 +153,12 @@ class GitOperationsTool(Tool):
             category=ToolCategory.GIT_OPERATIONS,
             required_permissions=[ToolPermission.FILE_WRITE],
             parameters=[
-                ToolParameter(name="operation", type=str,
-                              description="Operation: status, log, diff, init, add, commit, branch, checkout, push, pull, stash, tag, current_branch",
-                              required=True),
+                ToolParameter(
+                    name="operation",
+                    type=str,
+                    description="Operation: status, log, diff, init, add, commit, branch, checkout, push, pull, stash, tag, current_branch",
+                    required=True,
+                ),
                 ToolParameter(name="message", type=str, description="Commit/tag message", required=False),
                 ToolParameter(name="branch", type=str, description="Branch name", required=False),
                 ToolParameter(name="files", type=list, description="Files to add", required=False),
@@ -164,7 +168,7 @@ class GitOperationsTool(Tool):
         )
         super().__init__(metadata)
 
-    def execute(self, **kwargs) -> ToolResult:  # noqa: C901
+    def execute(self, **kwargs) -> ToolResult:
         op = kwargs.get("operation", "")
 
         try:

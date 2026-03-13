@@ -92,14 +92,21 @@ def add_warning(filepath, line, code, message):
 
 
 def has_noqa(line_text, code):
-    """Check if a line has a noqa suppression for the given code."""
-    if f"# noqa: {code}" in line_text:
-        return True
-    # Check for blanket noqa
+    """Check if a line has a noqa suppression for the given code.
+
+    Supports both single-code (``# noqa: VET006``) and comma-separated
+    multi-code (``# noqa: F403, VET006``) noqa annotations.
+    """
     noqa_match = re.search(r"#\s*noqa\b", line_text)
-    if noqa_match and ":" not in line_text[noqa_match.start():]:
+    if not noqa_match:
+        return False
+    noqa_section = line_text[noqa_match.start():]
+    # Blanket noqa with no specific codes
+    if ":" not in noqa_section:
         return True
-    return False
+    codes_part = noqa_section.split(":", 1)[1]
+    codes = [c.strip() for c in re.split(r"[,\s]+", codes_part) if c.strip()]
+    return code in codes
 
 
 def is_in_vetinari(filepath):
@@ -487,6 +494,8 @@ _STDLIB_MODULES = {
     "winreg", "winsound", "wsgiref", "xml", "xmlrpc", "zipapp",
     "zipfile", "zipimport", "zlib", "_thread", "__future__",
     "typing_extensions",
+    # Easter-egg / seldom-used stdlib modules
+    "this", "antigravity", "turtle", "idlelib",
 }
 
 
@@ -508,6 +517,7 @@ def check_integration(filepath, source, lines):
         "sklearn": "scikit-learn", "bs4": "beautifulsoup4",
         "attr": "attrs", "dateutil": "python-dateutil",
         "google": "google-generativeai", "gi": "pygobject",
+        "ddgs": "duckduckgo-search",  # ddgs is the newer module name for duckduckgo-search
     }
 
     for i, line in enumerate(lines, 1):
@@ -517,8 +527,10 @@ def check_integration(filepath, source, lines):
             continue
         module = (m.group(1) or m.group(2)).split(".")[0]
 
-        # Skip stdlib, vetinari, and relative imports
+        # Skip stdlib, vetinari, relative imports, and template placeholders
         if module in _STDLIB_MODULES or module == "vetinari" or stripped.startswith("from ."):
+            continue
+        if "{" in module or "}" in module:  # template placeholder like from {target} import X
             continue
 
         # Check if module appears in pyproject.toml

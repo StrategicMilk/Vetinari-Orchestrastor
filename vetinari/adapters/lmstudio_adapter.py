@@ -6,24 +6,26 @@ list_loaded_models, is_healthy) so the legacy shim in
 ``vetinari.lmstudio_adapter`` can delegate everything here.
 """
 
+from __future__ import annotations
+
 import json
 import logging
-import requests
 import time
-from typing import Dict, List, Any, Iterator, Optional
-from .base import (
-    ProviderAdapter, ProviderConfig, ProviderType, ModelInfo,
-    InferenceRequest, InferenceResponse
-)
+from collections.abc import Iterator
+from typing import Any
+
+import requests
+
+from .base import InferenceRequest, InferenceResponse, ModelInfo, ProviderAdapter, ProviderConfig, ProviderType
 
 logger = logging.getLogger(__name__)
 
 
 # Module-level cache: avoids hitting /v1/models on every single request.
-_resolved_model_cache: Dict[str, str] = {}
+_resolved_model_cache: dict[str, str] = {}
 
 
-def get_lmstudio_headers(host: Optional[str] = None) -> Dict[str, str]:
+def get_lmstudio_headers(host: str | None = None) -> dict[str, str]:
     """Return HTTP headers (including auth) for LM Studio requests.
 
     Reads ``LM_STUDIO_API_TOKEN`` from the environment (loaded from ``.env``
@@ -36,14 +38,15 @@ def get_lmstudio_headers(host: Optional[str] = None) -> Dict[str, str]:
         requests.post(url, json=payload, headers=headers)
     """
     import os as _os
-    headers: Dict[str, str] = {"Content-Type": "application/json"}
+
+    headers: dict[str, str] = {"Content-Type": "application/json"}
     token = _os.environ.get("LM_STUDIO_API_TOKEN", "")
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
 
 
-def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
+def resolve_lmstudio_model(model_id: str, host: str | None = None) -> str:
     """Resolve 'default' or empty model_id to an actual loaded LM Studio model.
 
     Resolution order:
@@ -106,7 +109,7 @@ def resolve_lmstudio_model(model_id: str, host: Optional[str] = None) -> str:
     return ""
 
 
-def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
+def _try_discover_model(host: str, endpoint: str) -> str | None:
     """Try to discover a loaded model from an LM Studio endpoint."""
     try:
         resp = requests.get(f"{host}{endpoint}", timeout=5, headers=get_lmstudio_headers())
@@ -137,12 +140,12 @@ def _try_discover_model(host: str, endpoint: str) -> Optional[str]:
             if resolved:
                 logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
                 return resolved
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
     return None
 
 
-def _probe_model_via_chat(host: str) -> Optional[str]:
+def _probe_model_via_chat(host: str) -> str | None:
     """Discover the model name by making a minimal chat completion request.
 
     LM Studio echoes the actual model name in the response ``"model"`` field,
@@ -166,7 +169,7 @@ def _probe_model_via_chat(host: str) -> Optional[str]:
             if model_name and model_name not in ("", "default"):
                 logger.info(f"[LMStudio] Discovered model via probe: '{model_name}'")
                 return model_name
-    except Exception:
+    except Exception:  # noqa: S110, VET022
         pass
     return None
 
@@ -189,7 +192,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # Token management
     # ------------------------------------------------------------------
 
-    def set_api_token(self, api_token: Optional[str]) -> None:
+    def set_api_token(self, api_token: str | None) -> None:
         """Update the API token at runtime and refresh session headers."""
         self.api_key = api_token
         if api_token:
@@ -209,22 +212,23 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # Low-level HTTP helpers
     # ------------------------------------------------------------------
 
-    def _post_with_retry(
-        self, endpoint: str, payload: Dict[str, Any], timeout: int = 120
-    ) -> Dict[str, Any]:
+    def _post_with_retry(self, endpoint: str, payload: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
         """POST with exponential-backoff retry.
 
         Uses *self.max_retries* (inherited from ProviderConfig).
         """
         url = endpoint if endpoint.startswith("http") else self.endpoint + endpoint
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 resp = self.session.post(
-                    url, json=payload, timeout=timeout, headers=headers,
+                    url,
+                    json=payload,
+                    timeout=timeout,
+                    headers=headers,
                 )
                 try:
                     data = resp.json()
@@ -239,13 +243,13 @@ class LMStudioProviderAdapter(ProviderAdapter):
             except Exception as e:
                 if attempt == self.max_retries:
                     return {"status": "error", "error": str(e), "output": ""}
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
         return {"status": "error", "error": "unknown", "output": ""}
 
-    def _get(self, endpoint: str, timeout: int = 10) -> Optional[Dict]:
+    def _get(self, endpoint: str, timeout: int = 10) -> dict | None:
         """Make GET request with optional auth."""
         url = endpoint if endpoint.startswith("http") else self.endpoint + endpoint
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
@@ -266,9 +270,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # Response parsing
     # ------------------------------------------------------------------
 
-    def _parse_response(
-        self, resp: Dict[str, Any], latency_ms: int
-    ) -> Dict[str, Any]:
+    def _parse_response(self, resp: dict[str, Any], latency_ms: int) -> dict[str, Any]:
         """Parse LM Studio response with full envelope handling.
 
         Handles: partial (non-JSON fallback), error, OpenAI choices format,
@@ -299,7 +301,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
             }
 
         # OpenAI-compatible: choices[0].message.content
-        if "choices" in resp and resp["choices"]:
+        if resp.get("choices"):
             choice = resp["choices"][0]
             output_text = ""
             if "message" in choice:
@@ -322,19 +324,13 @@ class LMStudioProviderAdapter(ProviderAdapter):
             output_text = resp["output"]
             if isinstance(output_text, list) and output_text:
                 first = output_text[0]
-                output_text = (
-                    first.get("content", str(first))
-                    if isinstance(first, dict)
-                    else str(first)
-                )
+                output_text = first.get("content", str(first)) if isinstance(first, dict) else str(first)
             elif not isinstance(output_text, str):
                 output_text = str(output_text)
             return {
                 "output": output_text,
                 "latency_ms": latency_ms,
-                "tokens_used": resp.get("stats", {}).get(
-                    "total_output_tokens", 0
-                ),
+                "tokens_used": resp.get("stats", {}).get("total_output_tokens", 0),
                 "status": "ok",
                 "error": None,
             }
@@ -351,13 +347,10 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # ProviderAdapter abstract interface
     # ------------------------------------------------------------------
 
-    def discover_models(self) -> List[ModelInfo]:
+    def discover_models(self) -> list[ModelInfo]:
         """Discover models available in LM Studio."""
         try:
-            response = self.session.get(
-                f"{self.endpoint}/v1/models",
-                timeout=self.timeout_seconds
-            )
+            response = self.session.get(f"{self.endpoint}/v1/models", timeout=self.timeout_seconds)
             response.raise_for_status()
             data = response.json()
 
@@ -400,13 +393,10 @@ class LMStudioProviderAdapter(ProviderAdapter):
             logger.error("[LMStudio] Model discovery failed: %s", e)
             return []
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Check LM Studio health."""
         try:
-            response = self.session.get(
-                f"{self.endpoint}/v1/models",
-                timeout=5
-            )
+            response = self.session.get(f"{self.endpoint}/v1/models", timeout=5)
             return {
                 "healthy": response.status_code == 200,
                 "reason": "LM Studio responding" if response.status_code == 200 else f"Status {response.status_code}",
@@ -431,7 +421,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
                 "model": resolved_model,
                 "messages": [
                     {"role": "system", "content": request.system_prompt or ""},
-                    {"role": "user", "content": request.prompt}
+                    {"role": "user", "content": request.prompt},
                 ],
                 "temperature": request.temperature,
                 "top_p": request.top_p,
@@ -439,9 +429,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
             }
 
             response = self.session.post(
-                f"{self.endpoint}/v1/chat/completions",
-                json=payload,
-                timeout=self.timeout_seconds
+                f"{self.endpoint}/v1/chat/completions", json=payload, timeout=self.timeout_seconds
             )
             response.raise_for_status()
             data = response.json()
@@ -532,7 +520,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
         except Exception as e:
             logger.error("[LMStudio] Streaming failed: %s", e)
 
-    def get_capabilities(self) -> Dict[str, List[str]]:
+    def get_capabilities(self) -> dict[str, list[str]]:
         """Get capabilities of all models."""
         return {m.id: m.capabilities for m in self.models}
 
@@ -546,7 +534,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
         system_prompt: str,
         input_text: str,
         timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """OpenAI-compatible chat returning the legacy Dict envelope.
 
         Kept for backward compatibility with code that expects::
@@ -587,7 +575,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
         Usage::
 
             for chunk in adapter.chat_stream(model, sys_prompt, user_text):
-                print(chunk, end="", flush=True)
+                logger.debug(chunk, end="", flush=True)
         """
         resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
@@ -600,33 +588,30 @@ class LMStudioProviderAdapter(ProviderAdapter):
             "temperature": 0.3,
             "stream": True,
         }
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         try:
             with self.session.post(
-                endpoint, json=payload, headers=headers,
-                timeout=timeout, stream=True,
+                endpoint,
+                json=payload,
+                headers=headers,
+                timeout=timeout,
+                stream=True,
             ) as resp:
                 resp.raise_for_status()
                 for raw_line in resp.iter_lines():
                     if not raw_line:
                         continue
-                    line = (
-                        raw_line.decode("utf-8")
-                        if isinstance(raw_line, bytes)
-                        else raw_line
-                    )
+                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
                     if line.startswith("data: "):
                         line = line[6:]
                     if line.strip() == "[DONE]":
                         return
                     try:
                         chunk = json.loads(line)
-                        delta = (
-                            chunk.get("choices", [{}])[0].get("delta", {})
-                        )
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
                         text = delta.get("content", "")
                         if text:
                             yield text
@@ -635,7 +620,10 @@ class LMStudioProviderAdapter(ProviderAdapter):
         except Exception as e:
             logger.debug(f"[LMStudio] Stream failed, falling back: {e}")
             result = self.chat(
-                model_id, system_prompt, input_text, timeout=timeout,
+                model_id,
+                system_prompt,
+                input_text,
+                timeout=timeout,
             )
             output = result.get("output", "")
             if output:
@@ -646,7 +634,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
         model_endpoint: str,
         prompt: str,
         timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Direct endpoint call returning the old Dict format.
 
         Used by the legacy ``LMStudioAdapter.infer()`` shim.
@@ -672,14 +660,15 @@ class LMStudioProviderAdapter(ProviderAdapter):
             "error": resp.get("error", "unknown"),
         }
 
-    def list_loaded_models(self) -> List[Dict[str, Any]]:
+    def list_loaded_models(self) -> list[dict[str, Any]]:
         """Return loaded models, using ModelRegistry when available."""
         try:
             from vetinari.model_registry import get_model_registry
+
             registry = get_model_registry()
             registry.refresh()
             return registry.get_loaded_as_dicts()
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
         # Direct fallback
@@ -693,7 +682,8 @@ class LMStudioProviderAdapter(ProviderAdapter):
         """Return True if LM Studio is reachable and responding."""
         try:
             resp = self.session.get(
-                f"{self.endpoint}/v1/models", timeout=3,
+                f"{self.endpoint}/v1/models",
+                timeout=3,
             )
             return resp.status_code == 200
         except Exception:
@@ -703,6 +693,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
 # ---------------------------------------------------------------------------
 # Backward-compatible wrapper (legacy vetinari.lmstudio_adapter.LMStudioAdapter)
 # ---------------------------------------------------------------------------
+
 
 class LMStudioAdapter:
     """Backward-compatible wrapper around :class:`LMStudioProviderAdapter`.
@@ -739,7 +730,11 @@ class LMStudioAdapter:
             del self.session.headers["Authorization"]
 
     def chat(
-        self, model_id: str, system_prompt: str, input_text: str, timeout: int = 120,
+        self,
+        model_id: str,
+        system_prompt: str,
+        input_text: str,
+        timeout: int = 120,
     ) -> dict[str, Any]:
         """Call LM Studio chat API via :class:`LMStudioProviderAdapter`."""
         req = InferenceRequest(
@@ -791,6 +786,7 @@ class LMStudioAdapter:
         """Return the list of currently-loaded models from LM Studio."""
         try:
             from vetinari.model_registry import get_model_registry
+
             registry = get_model_registry()
             registry.refresh()
             return registry.get_loaded_as_dicts()
@@ -809,7 +805,11 @@ class LMStudioAdapter:
         return health.get("healthy", False)
 
     def chat_stream(
-        self, model_id: str, system_prompt: str, input_text: str, timeout: int = 180,
+        self,
+        model_id: str,
+        system_prompt: str,
+        input_text: str,
+        timeout: int = 180,
     ) -> Iterator[str]:
         """Stream chat completion tokens from LM Studio."""
         endpoint = f"{self.host}/v1/chat/completions"
@@ -828,8 +828,11 @@ class LMStudioAdapter:
 
         try:
             with self.session.post(
-                endpoint, json=payload, headers=headers,
-                timeout=timeout, stream=True,
+                endpoint,
+                json=payload,
+                headers=headers,
+                timeout=timeout,
+                stream=True,
             ) as resp:
                 resp.raise_for_status()
                 for raw_line in resp.iter_lines():
@@ -876,7 +879,7 @@ class LMStudioAdapter:
             except Exception as e:
                 if attempt == self.max_retries:
                     return {"status": "error", "error": str(e), "output": ""}
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
         return {"status": "error", "error": "unknown", "output": ""}
 
     def _get(self, endpoint: str, timeout: int = 10) -> dict | None:

@@ -1,5 +1,4 @@
-"""
-Vetinari Orchestration Module
+"""Vetinari Orchestration Module.
 
 This module provides the orchestration engine that coordinates all agents
 in the hierarchical multi-agent system.
@@ -11,6 +10,8 @@ Sub-modules:
 - durable_execution — Checkpoint-based durable execution engine
 - two_layer         — Combined TwoLayerOrchestrator
 """
+
+from __future__ import annotations
 
 from .agent_graph import (
     AgentGraph,
@@ -36,21 +37,21 @@ from .two_layer import (
 __all__ = [
     # agent_graph (original)
     "AgentGraph",
-    "ExecutionPlan",
-    "ExecutionStrategy",
-    "TaskNode",
-    "get_agent_graph",
-    # execution_graph
-    "ExecutionGraph",
-    "ExecutionTaskNode",
-    # plan_generator
-    "PlanGenerator",
     # durable_execution
     "Checkpoint",
     "DurableExecutionEngine",
     "ExecutionEvent",
+    # execution_graph
+    "ExecutionGraph",
+    "ExecutionPlan",
+    "ExecutionStrategy",
+    "ExecutionTaskNode",
+    # plan_generator
+    "PlanGenerator",
+    "TaskNode",
     # two_layer
     "TwoLayerOrchestrator",
+    "get_agent_graph",
     "get_two_layer_orchestrator",
     "init_two_layer_orchestrator",
 ]

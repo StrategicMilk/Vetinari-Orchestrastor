@@ -1,10 +1,13 @@
 """MCP Transport layer -- stdio and SSE."""
+
+from __future__ import annotations
+
 import json
 import logging
 import sys
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+
 
 class StdioTransport:
     """stdio-based MCP transport."""
@@ -29,6 +32,7 @@ class StdioTransport:
                 sys.stdout.write(json.dumps(error) + "\n")
                 sys.stdout.flush()
 
+
 class SSETransport:
     """Server-Sent Events transport for MCP."""
 
@@ -37,7 +41,7 @@ class SSETransport:
 
     def create_flask_routes(self):
         """Create Flask Blueprint for SSE-based MCP transport."""
-        from flask import Blueprint, Response, request, jsonify
+        from flask import Blueprint, jsonify, request
 
         bp = Blueprint("mcp", __name__)
 

@@ -10,23 +10,23 @@ Tests cover:
 - Error cases
 """
 
-import pytest
 from unittest.mock import Mock
 
-from vetinari.skills.architect_skill import (
-    ArchitectSkillTool,
-    ArchitectMode,
-    ThinkingMode,
-    ArchitectRequest,
-    ArchitectComponent,
-    ArchitectResult,
-)
+import pytest
+
 from vetinari.execution_context import (
-    ToolPermission,
-    ExecutionMode,
     ExecutionContext,
+    ExecutionMode,
+    ToolPermission,
 )
-from vetinari.tool_interface import ToolResult
+from vetinari.skills.architect_skill import (
+    ArchitectComponent,
+    ArchitectMode,
+    ArchitectRequest,
+    ArchitectResult,
+    ArchitectSkillTool,
+    ThinkingMode,
+)
 
 
 class TestArchitectSkillToolMetadata:

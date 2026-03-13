@@ -1,17 +1,18 @@
-"""
-Workflow Learner - Vetinari Self-Improvement Subsystem
+"""Workflow Learner - Vetinari Self-Improvement Subsystem.
 
 Mines execution history to learn which decomposition strategies work
 best for different goal types. Uses a simple decision tree approach
 (no external ML dependencies).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import threading
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WorkflowPattern:
     """A learned workflow pattern mapping goal characteristics to outcomes."""
+
     pattern_id: str
-    domain: str               # "coding" | "research" | "data" | "docs" | "general"
-    avg_depth: float          # Optimal decomposition depth
-    avg_breadth: float        # Optimal number of parallel tasks
-    preferred_agents: List[str] = field(default_factory=list)
+    domain: str  # "coding" | "research" | "data" | "docs" | "general"
+    avg_depth: float  # Optimal decomposition depth
+    avg_breadth: float  # Optimal number of parallel tasks
+    preferred_agents: list[str] = field(default_factory=list)
     success_rate: float = 0.7
     avg_quality: float = 0.7
     sample_count: int = 0
@@ -31,8 +33,7 @@ class WorkflowPattern:
 
 
 class WorkflowLearner:
-    """
-    Learns effective workflow patterns from execution history.
+    """Learns effective workflow patterns from execution history.
 
     Analyzes completed plans to extract:
     - Optimal decomposition depth per domain
@@ -43,7 +44,7 @@ class WorkflowLearner:
     """
 
     def __init__(self):
-        self._patterns: Dict[str, WorkflowPattern] = {}
+        self._patterns: dict[str, WorkflowPattern] = {}
         self._lock = threading.Lock()
         self._load_patterns()
 
@@ -60,9 +61,8 @@ class WorkflowLearner:
             return "docs"
         return "general"
 
-    def get_recommendations(self, goal: str) -> Dict[str, Any]:
-        """
-        Return workflow recommendations for a goal.
+    def get_recommendations(self, goal: str) -> dict[str, Any]:
+        """Return workflow recommendations for a goal.
 
         Returns:
             Dict with keys: domain, recommended_depth, recommended_breadth,
@@ -75,8 +75,8 @@ class WorkflowLearner:
             if pattern and pattern.sample_count >= 3:
                 return {
                     "domain": domain,
-                    "recommended_depth": int(round(pattern.avg_depth)),
-                    "recommended_breadth": int(round(pattern.avg_breadth)),
+                    "recommended_depth": round(pattern.avg_depth),
+                    "recommended_breadth": round(pattern.avg_breadth),
                     "preferred_agents": pattern.preferred_agents[:5],
                     "confidence": min(1.0, pattern.sample_count / 20),
                 }
@@ -103,12 +103,11 @@ class WorkflowLearner:
         goal: str,
         plan_depth: int,
         plan_breadth: int,
-        agents_used: List[str],
+        agents_used: list[str],
         quality_score: float,
         success: bool,
     ) -> None:
-        """
-        Record a plan execution outcome to update patterns.
+        """Record a plan execution outcome to update patterns.
 
         Args:
             goal: The original goal.
@@ -126,7 +125,7 @@ class WorkflowLearner:
         domain: str,
         plan_depth: int,
         plan_breadth: int,
-        agents_used: List[str],
+        agents_used: list[str],
         quality_score: float,
         success: bool,
     ) -> None:
@@ -142,7 +141,7 @@ class WorkflowLearner:
                 p.avg_quality = (1 - EMA) * p.avg_quality + EMA * quality_score
                 p.sample_count += 1
                 # Update preferred agents (frequency-based)
-                freq: Dict[str, int] = {}
+                freq: dict[str, int] = {}
                 for a in p.preferred_agents:
                     freq[a] = freq.get(a, 0) + 1
                 for a in agents_used:
@@ -164,9 +163,8 @@ class WorkflowLearner:
             self._save_patterns()
         logger.debug("[WorkflowLearner] Updated pattern for domain '%s'", domain)
 
-    def learn_from_benchmark(self, benchmark_result: Dict[str, Any]) -> None:
-        """
-        Extract decomposition patterns from benchmark results.
+    def learn_from_benchmark(self, benchmark_result: dict[str, Any]) -> None:
+        """Extract decomposition patterns from benchmark results.
 
         Analyses successful benchmark runs to learn which workflow structures
         (depth, breadth, agent sequences) correlate with high benchmark scores.
@@ -231,9 +229,7 @@ class WorkflowLearner:
         if per_case_results:
             self._extract_case_patterns(domain, per_case_results)
 
-    def _extract_case_patterns(
-        self, domain: str, results: List[Dict[str, Any]]
-    ) -> None:
+    def _extract_case_patterns(self, domain: str, results: list[dict[str, Any]]) -> None:
         """Extract patterns from individual benchmark case results.
 
         Looks at the highest-scoring cases to identify what made them succeed.
@@ -250,7 +246,7 @@ class WorkflowLearner:
             return
 
         # Aggregate metadata from successful cases to find common patterns
-        agent_freq: Dict[str, int] = {}
+        agent_freq: dict[str, int] = {}
         for result in successful[:10]:  # Top 10 successful cases
             case_meta = result.get("metadata", {})
             for agent in case_meta.get("agents_used", []):
@@ -259,12 +255,10 @@ class WorkflowLearner:
         if agent_freq and domain in self._patterns:
             # Merge successful benchmark agents into preferred_agents
             pattern = self._patterns[domain]
-            existing_freq: Dict[str, int] = {a: 1 for a in pattern.preferred_agents}
+            existing_freq: dict[str, int] = dict.fromkeys(pattern.preferred_agents, 1)
             for agent, count in agent_freq.items():
                 existing_freq[agent] = existing_freq.get(agent, 0) + count
-            pattern.preferred_agents = sorted(
-                existing_freq, key=existing_freq.get, reverse=True
-            )[:5]
+            pattern.preferred_agents = sorted(existing_freq, key=existing_freq.get, reverse=True)[:5]
             self._save_patterns()
 
     def _infer_domain_from_task_type(self, task_type: str) -> str:
@@ -293,7 +287,7 @@ class WorkflowLearner:
         defaults = {"coding": 3, "research": 2, "data": 2, "docs": 1, "general": 2}
         return defaults.get(domain, 2)
 
-    def _default_agents(self, domain: str) -> List[str]:
+    def _default_agents(self, domain: str) -> list[str]:
         defaults = {
             "coding": ["CONSOLIDATED_RESEARCHER", "BUILDER", "QUALITY"],
             "research": ["CONSOLIDATED_RESEARCHER", "OPERATIONS"],
@@ -303,7 +297,7 @@ class WorkflowLearner:
         }
         return defaults.get(domain, ["CONSOLIDATED_RESEARCHER", "BUILDER"])
 
-    def get_all_patterns(self) -> List[Dict[str, Any]]:
+    def get_all_patterns(self) -> list[dict[str, Any]]:
         """Get all learned patterns."""
         with self._lock:
             return [asdict(p) for p in self._patterns.values()]
@@ -311,9 +305,9 @@ class WorkflowLearner:
     def _load_patterns(self) -> None:
         try:
             import os
+
             path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari",
-                ".vetinari", "workflow_patterns.json"
+                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari", "workflow_patterns.json"
             )
             if os.path.exists(path):
                 with open(path) as f:
@@ -328,9 +322,8 @@ class WorkflowLearner:
     def _save_patterns(self) -> None:
         try:
             import os
-            state_dir = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari"
-            )
+
+            state_dir = os.path.join(os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari")
             os.makedirs(state_dir, exist_ok=True)
             path = os.path.join(state_dir, "workflow_patterns.json")
             with open(path, "w") as f:
@@ -339,7 +332,7 @@ class WorkflowLearner:
             logger.debug("Could not save workflow patterns: %s", e)
 
 
-_workflow_learner: Optional[WorkflowLearner] = None
+_workflow_learner: WorkflowLearner | None = None
 
 
 def get_workflow_learner() -> WorkflowLearner:

@@ -13,25 +13,25 @@ Tests cover:
 - Error cases
 """
 
-import pytest
 from unittest.mock import Mock
 
-from vetinari.skills.quality_skill import (
-    QualitySkillTool,
-    QualityMode,
-    QualityGrade,
-    ThinkingMode,
-    SeverityLevel,
-    QualityIssue,
-    QualityResult,
-    OWASP_TOP_10,
-)
+import pytest
+
 from vetinari.execution_context import (
-    ToolPermission,
-    ExecutionMode,
     ExecutionContext,
+    ExecutionMode,
+    ToolPermission,
 )
-from vetinari.tool_interface import ToolResult
+from vetinari.skills.quality_skill import (
+    OWASP_TOP_10,
+    QualityGrade,
+    QualityIssue,
+    QualityMode,
+    QualityResult,
+    QualitySkillTool,
+    SeverityLevel,
+    ThinkingMode,
+)
 
 
 class TestQualitySkillToolMetadata:
@@ -504,7 +504,7 @@ class TestQualitySkillToolParameterValidation:
         """Test invalid mode value is caught."""
         tool = QualitySkillTool()
 
-        is_valid, error = tool.validate_inputs({
+        is_valid, _error = tool.validate_inputs({
             "mode": "nonexistent",
             "code": "x = 1",
         })
@@ -515,7 +515,7 @@ class TestQualitySkillToolParameterValidation:
         """Test optional parameters can be omitted."""
         tool = QualitySkillTool()
 
-        is_valid, error = tool.validate_inputs({
+        is_valid, _error = tool.validate_inputs({
             "mode": "security_audit",
             "code": "import os",
         })

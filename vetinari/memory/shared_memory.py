@@ -1,15 +1,14 @@
+from __future__ import annotations
+
 import json
 import logging
-import time
+import uuid
 import warnings
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
-import uuid
-
-from vetinari.types import MemoryType  # canonical enum from types.py
+from typing import Any
 
 warnings.warn(
     "vetinari.shared_memory is deprecated. Use vetinari.memory.dual_memory.DualMemoryStore instead.",
@@ -19,8 +18,10 @@ warnings.warn(
 
 logger = logging.getLogger(__name__)
 
+
 class AgentName(Enum):
     """Agent names for memory namespacing."""
+
     PLAN = "plan"
     BUILD = "build"
     ASK = "ask"
@@ -33,6 +34,7 @@ class AgentName(Enum):
     ORCHESTRATOR = "orchestrator"
     ARCHITECT = "architect"
 
+
 @dataclass
 class MemoryEntry:
     entry_id: str
@@ -41,10 +43,10 @@ class MemoryEntry:
     summary: str
     content: str
     timestamp: str
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     project_id: str = ""
     session_id: str = ""
-    options: List[Dict] = field(default_factory=list)
+    options: list[dict] = field(default_factory=list)
     resolved: bool = False
     # Phase 1 additions - plan-aware fields
     plan_id: str = ""
@@ -52,16 +54,18 @@ class MemoryEntry:
     task_id: str = ""
     provenance: str = "agent"
     confidence: float = 1.0
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
 
 def _to_dual_entry(entry: MemoryEntry):
     """Convert a legacy MemoryEntry to a DualMemoryStore MemoryEntry."""
     try:
-        from vetinari.memory.interfaces import MemoryEntry as DualEntry, MemoryEntryType
+        from vetinari.memory.interfaces import MemoryEntry as DualEntry
+        from vetinari.memory.interfaces import MemoryEntryType
+
         entry_type = MemoryEntryType.FACT
         if entry.memory_type in ("decision", "choice"):
             entry_type = MemoryEntryType.DECISION
@@ -94,13 +98,13 @@ class SharedMemory:
     _instance = None
 
     @classmethod
-    def get_instance(cls, storage_path: str = None) -> "SharedMemory":
+    def get_instance(cls, storage_path: str | None = None) -> SharedMemory:
         """Get or create singleton instance."""
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
 
-    def __init__(self, storage_path: str = None):
+    def __init__(self, storage_path: str | None = None):
         if storage_path is None:
             storage_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "memory"
 
@@ -108,12 +112,13 @@ class SharedMemory:
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.memory_file = self.storage_path / "memory.json"
-        self.entries: List[MemoryEntry] = []
+        self.entries: list[MemoryEntry] = []
 
         # Try to delegate to DualMemoryStore
         self._dual: Any = None
         try:
             from vetinari.memory.dual_memory import get_dual_memory_store
+
             self._dual = get_dual_memory_store()
             logger.info("SharedMemory delegating to DualMemoryStore")
         except Exception:
@@ -124,14 +129,14 @@ class SharedMemory:
     def _load(self):
         if self.memory_file.exists():
             try:
-                with open(self.memory_file, 'r') as f:
+                with open(self.memory_file) as f:
                     data = json.load(f)
                     for e in data:
                         # Backward compatibility: add default fields if missing
-                        if 'options' not in e:
-                            e['options'] = []
-                        if 'resolved' not in e:
-                            e['resolved'] = False
+                        if "options" not in e:
+                            e["options"] = []
+                        if "resolved" not in e:
+                            e["resolved"] = False
                         self.entries.append(MemoryEntry(**e))
             except Exception as e:
                 logger.warning("Could not load memory: %s", e)
@@ -139,7 +144,7 @@ class SharedMemory:
 
     def _save(self):
         try:
-            with open(self.memory_file, 'w') as f:
+            with open(self.memory_file, "w") as f:
                 json.dump([e.to_dict() for e in self.entries], f, indent=2)
         except Exception as e:
             logger.error("Could not save memory: %s", e)
@@ -150,13 +155,13 @@ class SharedMemory:
         memory_type: str,
         summary: str,
         content: str,
-        tags: List[str] = None,
+        tags: list[str] | None = None,
         project_id: str = "",
         session_id: str = "",
         plan_id: str = "",
         wave_id: str = "",
         task_id: str = "",
-        provenance: str = "agent"
+        provenance: str = "agent",
     ) -> MemoryEntry:
         entry = MemoryEntry(
             entry_id=str(uuid.uuid4())[:8],
@@ -171,7 +176,7 @@ class SharedMemory:
             plan_id=plan_id,
             wave_id=wave_id,
             task_id=task_id,
-            provenance=provenance
+            provenance=provenance,
         )
 
         # Delegate to DualMemoryStore
@@ -191,12 +196,8 @@ class SharedMemory:
         return entry
 
     def search(
-        self,
-        query: str,
-        agent_name: str = None,
-        memory_type: str = None,
-        limit: int = 10
-    ) -> List[MemoryEntry]:
+        self, query: str, agent_name: str | None = None, memory_type: str | None = None, limit: int = 10
+    ) -> list[MemoryEntry]:
         results = self.entries
 
         if agent_name:
@@ -207,30 +208,27 @@ class SharedMemory:
 
         if query:
             query_lower = query.lower()
-            results = [
-                e for e in results
-                if query_lower in e.summary.lower() or query_lower in e.content.lower()
-            ]
+            results = [e for e in results if query_lower in e.summary.lower() or query_lower in e.content.lower()]
 
         results = sorted(results, key=lambda x: x.timestamp, reverse=True)
 
         return results[:limit]
 
-    def get_recent(self, limit: int = 20) -> List[MemoryEntry]:
+    def get_recent(self, limit: int = 20) -> list[MemoryEntry]:
         return sorted(self.entries, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_by_agent(self, agent_name: str, limit: int = 20) -> List[MemoryEntry]:
+    def get_by_agent(self, agent_name: str, limit: int = 20) -> list[MemoryEntry]:
         results = [e for e in self.entries if e.agent_name == agent_name]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_by_type(self, memory_type: str, limit: int = 20) -> List[MemoryEntry]:
+    def get_by_type(self, memory_type: str, limit: int = 20) -> list[MemoryEntry]:
         results = [e for e in self.entries if e.memory_type == memory_type]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_timeline(self, limit: int = 50) -> List[MemoryEntry]:
+    def get_timeline(self, limit: int = 50) -> list[MemoryEntry]:
         return sorted(self.entries, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         total = len(self.entries)
 
         by_type = {}
@@ -249,15 +247,15 @@ class SharedMemory:
             "by_type": by_type,
             "by_agent": by_agent,
             "oldest_entry": oldest,
-            "newest_entry": newest
+            "newest_entry": newest,
         }
 
-    def get_all(self, limit: int = 100) -> List[Dict]:
+    def get_all(self, limit: int = 100) -> list[dict]:
         """Get all memories as dicts (for API compatibility)."""
         sorted_entries = sorted(self.entries, key=lambda x: x.timestamp, reverse=True)
         return [e.to_dict() for e in sorted_entries[:limit]]
 
-    def get_memories_by_type(self, memory_type: str, limit: int = 20) -> List[Dict]:
+    def get_memories_by_type(self, memory_type: str, limit: int = 20) -> list[dict]:
         """Get memories by type (for API compatibility)."""
         results = self.get_by_type(memory_type, limit)
         return [e.to_dict() for e in results]
@@ -267,7 +265,7 @@ class SharedMemory:
         for entry in self.entries:
             if entry.entry_id == decision_id:
                 entry.content = f"{entry.content}\n\n[RESOLVED]: {choice}"
-                entry.tags = entry.tags + ["resolved"] if entry.tags else ["resolved"]
+                entry.tags = [*entry.tags, "resolved"] if entry.tags else ["resolved"]
                 self._save()
                 logger.info("Decision %s resolved with: %s", decision_id, choice)
                 return True
@@ -281,29 +279,27 @@ class SharedMemory:
                 return True
         return False
 
-    def compact(self, max_age_days: int = None):
+    def compact(self, max_age_days: int | None = None):
         if max_age_days:
             from datetime import timedelta
+
             cutoff = datetime.now() - timedelta(days=max_age_days)
-            self.entries = [
-                e for e in self.entries
-                if datetime.fromisoformat(e.timestamp) > cutoff
-            ]
+            self.entries = [e for e in self.entries if datetime.fromisoformat(e.timestamp) > cutoff]
             self._save()
 
     # Phase 1: Plan-aware methods
 
-    def get_by_plan(self, plan_id: str, limit: int = 50) -> List[MemoryEntry]:
+    def get_by_plan(self, plan_id: str, limit: int = 50) -> list[MemoryEntry]:
         """Get all memories linked to a specific plan."""
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_by_task(self, task_id: str, limit: int = 20) -> List[MemoryEntry]:
+    def get_by_task(self, task_id: str, limit: int = 20) -> list[MemoryEntry]:
         """Get all memories linked to a specific task."""
         results = [e for e in self.entries if e.task_id == task_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
-    def get_plan_timeline(self, plan_id: str) -> List[MemoryEntry]:
+    def get_plan_timeline(self, plan_id: str) -> list[MemoryEntry]:
         """Get timeline of all events for a plan (waves, tasks, decisions)."""
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp)
@@ -315,10 +311,10 @@ class SharedMemory:
         memory_type: str,
         summary: str,
         content: str,
-        tags: List[str] = None,
+        tags: list[str] | None = None,
         wave_id: str = "",
         task_id: str = "",
-        provenance: str = "agent"
+        provenance: str = "agent",
     ) -> MemoryEntry:
         """Add a memory with plan linkage."""
         return self.add(
@@ -330,10 +326,10 @@ class SharedMemory:
             plan_id=plan_id,
             wave_id=wave_id,
             task_id=task_id,
-            provenance=provenance
+            provenance=provenance,
         )
 
-    def get_model_selections(self, limit: int = 20) -> List[MemoryEntry]:
+    def get_model_selections(self, limit: int = 20) -> list[MemoryEntry]:
         """Get all model selection memories."""
         return self.get_by_type("model_selection", limit)
 

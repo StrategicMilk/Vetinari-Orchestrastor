@@ -1,5 +1,4 @@
-"""
-2-Stage LLM Pipeline: Architect + Executor.
+"""2-Stage LLM Pipeline: Architect + Executor.
 
 Implements a pipeline where a larger "architect" model creates a high-level plan,
 then a smaller "executor" model implements each step. This enables cost-effective
@@ -7,12 +6,15 @@ orchestration by using expensive models only for planning and cheap models for
 execution of well-defined tasks.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any, Optional, Callable
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,11 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PipelineConfig:
     """Configuration for the architect-executor pipeline."""
+
     enabled: bool = True
     architect_model: str = "qwen2.5-coder-32b"
     executor_model: str = "qwen2.5-coder-7b"
@@ -36,20 +40,20 @@ class PipelineConfig:
     architect_max_tokens: int = 4096
     executor_max_tokens: int = 2048
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PipelineConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
         """Create from dictionary, ignoring unknown keys."""
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
         return cls(**filtered)
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration and return list of errors (empty if valid)."""
-        errors: List[str] = []
+        errors: list[str] = []
         if self.max_steps < 1:
             errors.append("max_steps must be >= 1")
         if self.max_steps > 100:
@@ -71,38 +75,40 @@ class PipelineConfig:
 # Architect Plan
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ArchitectPlan:
     """Plan created by the architect model."""
+
     plan_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     goal: str = ""
-    steps: List[Dict[str, Any]] = field(default_factory=list)
+    steps: list[dict[str, Any]] = field(default_factory=list)
     # Each step: {id, description, files, agent_type, complexity}
-    dependencies: Dict[str, List[str]] = field(default_factory=dict)
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
     # step_id -> [dependency_ids]
     estimated_tokens: int = 0
     architect_model: str = ""
     created_at: str = field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%S"))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ArchitectPlan":
+    def from_dict(cls, data: dict[str, Any]) -> ArchitectPlan:
         """Deserialize from dictionary."""
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
         return cls(**filtered)
 
-    def get_step(self, step_id: str) -> Optional[Dict[str, Any]]:
+    def get_step(self, step_id: str) -> dict[str, Any] | None:
         """Get a step by its ID."""
         for step in self.steps:
             if step.get("id") == step_id:
                 return step
         return None
 
-    def get_ready_steps(self, completed_ids: set) -> List[Dict[str, Any]]:
+    def get_ready_steps(self, completed_ids: set) -> list[dict[str, Any]]:
         """Get steps whose dependencies have all been completed."""
         ready = []
         for step in self.steps:
@@ -118,9 +124,9 @@ class ArchitectPlan:
         """Return number of steps in the plan."""
         return len(self.steps)
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate the plan and return list of errors."""
-        errors: List[str] = []
+        errors: list[str] = []
         if not self.goal:
             errors.append("Plan must have a goal")
         if not self.steps:
@@ -142,9 +148,9 @@ class ArchitectPlan:
 # Pipeline
 # ---------------------------------------------------------------------------
 
+
 class ArchitectExecutorPipeline:
-    """
-    2-stage pipeline: architect plans, executor implements.
+    """2-stage pipeline: architect plans, executor implements.
 
     Stage 1 (Architect): A larger model analyzes the goal and repository context
     to produce a structured plan with ordered steps, dependencies, and file targets.
@@ -157,9 +163,9 @@ class ArchitectExecutorPipeline:
 
     def __init__(
         self,
-        architect_model: str = None,
-        executor_model: str = None,
-        config: dict = None,
+        architect_model: str | None = None,
+        executor_model: str | None = None,
+        config: dict | None = None,
     ):
         if config and isinstance(config, dict):
             self._config = PipelineConfig.from_dict(config)
@@ -197,9 +203,8 @@ class ArchitectExecutorPipeline:
     # Stage 1: Architect
     # ------------------------------------------------------------------
 
-    def create_plan(self, goal: str, context: dict = None) -> ArchitectPlan:
-        """
-        Stage 1: Architect creates a high-level plan.
+    def create_plan(self, goal: str, context: dict | None = None) -> ArchitectPlan:
+        """Stage 1: Architect creates a high-level plan.
 
         The architect model receives the goal and repository context, then
         produces a structured plan with steps, dependencies, and file targets.
@@ -251,33 +256,23 @@ class ArchitectExecutorPipeline:
 
         # Enforce max_steps
         if len(plan.steps) > self._config.max_steps:
-            logger.warning(
-                f"[Architect] Plan has {len(plan.steps)} steps, "
-                f"truncating to {self._config.max_steps}"
-            )
+            logger.warning(f"[Architect] Plan has {len(plan.steps)} steps, truncating to {self._config.max_steps}")
             truncated_ids = {s["id"] for s in plan.steps[: self._config.max_steps]}
             plan.steps = plan.steps[: self._config.max_steps]
             plan.dependencies = {
-                k: [d for d in v if d in truncated_ids]
-                for k, v in plan.dependencies.items()
-                if k in truncated_ids
+                k: [d for d in v if d in truncated_ids] for k, v in plan.dependencies.items() if k in truncated_ids
             }
 
         elapsed = time.time() - start
-        logger.info(
-            f"[Architect] Plan created: {plan.step_count()} steps in {elapsed:.1f}s"
-        )
+        logger.info(f"[Architect] Plan created: {plan.step_count()} steps in {elapsed:.1f}s")
         return plan
 
     # ------------------------------------------------------------------
     # Stage 2: Executor
     # ------------------------------------------------------------------
 
-    def execute_plan(
-        self, plan: ArchitectPlan, executor_fn: Callable = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Stage 2: Executor implements each step.
+    def execute_plan(self, plan: ArchitectPlan, executor_fn: Callable | None = None) -> list[dict[str, Any]]:
+        """Stage 2: Executor implements each step.
 
         Steps are executed in dependency order. Each step receives a focused
         prompt containing only its description and relevant file context.
@@ -292,7 +287,7 @@ class ArchitectExecutorPipeline:
             List of result dicts, one per step executed.
         """
         logger.info(f"[Executor] Executing plan {plan.plan_id} ({plan.step_count()} steps)")
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         completed_ids: set = set()
         failed_ids: set = set()
 
@@ -311,10 +306,7 @@ class ArchitectExecutorPipeline:
                 # Check for deadlock
                 remaining = plan.step_count() - len(completed_ids) - len(failed_ids)
                 if remaining > 0:
-                    logger.warning(
-                        f"[Executor] No ready steps but {remaining} remain -- "
-                        "possible dependency deadlock"
-                    )
+                    logger.warning(f"[Executor] No ready steps but {remaining} remain -- possible dependency deadlock")
                 break
 
             for step in ready:
@@ -339,16 +331,17 @@ class ArchitectExecutorPipeline:
 
                 except Exception as e:
                     logger.error(f"[Executor] Step {step_id} raised exception: {e}")
-                    results.append({
-                        "step_id": step_id,
-                        "success": False,
-                        "error": str(e),
-                    })
+                    results.append(
+                        {
+                            "step_id": step_id,
+                            "success": False,
+                            "error": str(e),
+                        }
+                    )
                     failed_ids.add(step_id)
 
         logger.info(
-            f"[Executor] Plan {plan.plan_id} finished: "
-            f"{len(completed_ids)} completed, {len(failed_ids)} failed"
+            f"[Executor] Plan {plan.plan_id} finished: {len(completed_ids)} completed, {len(failed_ids)} failed"
         )
         return results
 
@@ -359,11 +352,10 @@ class ArchitectExecutorPipeline:
     def run(
         self,
         goal: str,
-        context: dict = None,
-        executor_fn: Callable = None,
-    ) -> Dict[str, Any]:
-        """
-        Full pipeline: plan then execute.
+        context: dict | None = None,
+        executor_fn: Callable | None = None,
+    ) -> dict[str, Any]:
+        """Full pipeline: plan then execute.
 
         Args:
             goal: What needs to be accomplished.
@@ -449,10 +441,9 @@ class ArchitectExecutorPipeline:
         system_prompt: str = "",
         max_tokens: int = 2048,
         temperature: float = 0.3,
-        context: dict = None,
+        context: dict | None = None,
     ) -> str:
-        """
-        Call an LLM model and return raw text output.
+        """Call an LLM model and return raw text output.
 
         Tries adapter_manager from context first, then falls back to
         direct LM Studio adapter.
@@ -464,6 +455,7 @@ class ArchitectExecutorPipeline:
         if adapter_manager:
             try:
                 from vetinari.adapters.base import InferenceRequest
+
                 req = InferenceRequest(
                     model_id=model,
                     prompt=prompt,
@@ -479,7 +471,9 @@ class ArchitectExecutorPipeline:
 
         # Fallback: LM Studio adapter
         import os
+
         from vetinari.lmstudio_adapter import LMStudioAdapter
+
         host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
         adapter = LMStudioAdapter(host=host)
         result = adapter.chat(
@@ -489,7 +483,7 @@ class ArchitectExecutorPipeline:
         )
         return result.get("output", "")
 
-    def _parse_architect_output(self, raw_output: str, goal: str) -> Optional[ArchitectPlan]:
+    def _parse_architect_output(self, raw_output: str, goal: str) -> ArchitectPlan | None:
         """Parse the architect model's JSON output into an ArchitectPlan."""
         if not raw_output or not raw_output.strip():
             return None
@@ -530,7 +524,7 @@ class ArchitectExecutorPipeline:
             architect_model=self.architect_model,
         )
 
-    def _make_fallback_plan(self, goal: str, context: dict = None) -> ArchitectPlan:
+    def _make_fallback_plan(self, goal: str, context: dict | None = None) -> ArchitectPlan:
         """Create a simple single-step fallback plan."""
         return ArchitectPlan(
             goal=goal,
@@ -548,9 +542,7 @@ class ArchitectExecutorPipeline:
             architect_model="fallback",
         )
 
-    def _default_execute_step(
-        self, step: Dict[str, Any], plan: ArchitectPlan
-    ) -> Dict[str, Any]:
+    def _default_execute_step(self, step: dict[str, Any], plan: ArchitectPlan) -> dict[str, Any]:
         """Default step executor using the executor model."""
         description = step.get("description", "")
         files = step.get("files", [])
@@ -564,8 +556,7 @@ class ArchitectExecutorPipeline:
                 model=self.executor_model,
                 prompt=prompt,
                 system_prompt=(
-                    "You are a code executor. Implement the task precisely. "
-                    "Output only the code changes or result."
+                    "You are a code executor. Implement the task precisely. Output only the code changes or result."
                 ),
                 max_tokens=self._config.executor_max_tokens,
                 temperature=self._config.executor_temperature,

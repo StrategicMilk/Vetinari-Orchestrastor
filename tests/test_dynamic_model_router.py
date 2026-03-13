@@ -1,22 +1,19 @@
 """Tests for vetinari/dynamic_model_router.py"""
 
 import threading
-import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from vetinari.dynamic_model_router import (
     DynamicModelRouter,
     ModelCapabilities,
     ModelInfo,
-    ModelSelection,
     TaskType,
     get_model_router,
     infer_task_type,
     init_model_router,
 )
 from vetinari.types import ModelProvider
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,17 +64,17 @@ def _make_model(
 
 class TestTaskTypeEnum(unittest.TestCase):
     def test_has_18_task_types(self):
-        self.assertEqual(len(TaskType), 19)  # 13 original + 6 phase-7 + SPECIFICATION
+        assert len(TaskType) == 19  # 13 original + 6 phase-7 + SPECIFICATION
 
     def test_known_values(self):
-        self.assertEqual(TaskType.CODING.value, "coding")
-        self.assertEqual(TaskType.PLANNING.value, "planning")
-        self.assertEqual(TaskType.SECURITY_AUDIT.value, "security_audit")
-        self.assertEqual(TaskType.COST_ANALYSIS.value, "cost_analysis")
-        self.assertEqual(TaskType.SPECIFICATION.value, "specification")
-        self.assertEqual(TaskType.CREATIVE_WRITING.value, "creative_writing")
-        self.assertEqual(TaskType.DEVOPS.value, "devops")
-        self.assertEqual(TaskType.IMAGE_GENERATION.value, "image_generation")
+        assert TaskType.CODING.value == "coding"
+        assert TaskType.PLANNING.value == "planning"
+        assert TaskType.SECURITY_AUDIT.value == "security_audit"
+        assert TaskType.COST_ANALYSIS.value == "cost_analysis"
+        assert TaskType.SPECIFICATION.value == "specification"
+        assert TaskType.CREATIVE_WRITING.value == "creative_writing"
+        assert TaskType.DEVOPS.value == "devops"
+        assert TaskType.IMAGE_GENERATION.value == "image_generation"
 
 
 # ---------------------------------------------------------------------------
@@ -87,29 +84,29 @@ class TestTaskTypeEnum(unittest.TestCase):
 class TestModelCapabilitiesFromDict(unittest.TestCase):
     def test_empty_dict_gives_defaults(self):
         caps = ModelCapabilities.from_dict({})
-        self.assertFalse(caps.code_gen)
-        self.assertFalse(caps.reasoning)
+        assert not caps.code_gen
+        assert not caps.reasoning
         # from_dict parses an empty capabilities list, so chat stays False
         # (the dataclass default of True is overridden by the list-parse path)
-        self.assertFalse(caps.chat)
-        self.assertEqual(caps.context_length, 2048)
+        assert not caps.chat
+        assert caps.context_length == 2048
 
     def test_capabilities_list_sets_code_gen(self):
         caps = ModelCapabilities.from_dict({"capabilities": ["code_generation", "chat"]})
-        self.assertTrue(caps.code_gen)
-        self.assertTrue(caps.chat)
+        assert caps.code_gen
+        assert caps.chat
 
     def test_capabilities_list_sets_reasoning(self):
         caps = ModelCapabilities.from_dict({"capabilities": ["reasoning"]})
-        self.assertTrue(caps.reasoning)
+        assert caps.reasoning
 
     def test_tags_infer_code_gen(self):
         caps = ModelCapabilities.from_dict({"tags": ["coder", "local"]})
-        self.assertTrue(caps.code_gen)
+        assert caps.code_gen
 
     def test_tags_infer_reasoning(self):
         caps = ModelCapabilities.from_dict({"tags": ["reasoning-model"]})
-        self.assertTrue(caps.reasoning)
+        assert caps.reasoning
 
     def test_technical_specs_populated(self):
         caps = ModelCapabilities.from_dict({
@@ -118,18 +115,18 @@ class TestModelCapabilitiesFromDict(unittest.TestCase):
             "supports_vision": True,
             "supports_json": True,
         })
-        self.assertEqual(caps.context_length, 8192)
-        self.assertTrue(caps.supports_functions)
-        self.assertTrue(caps.supports_vision)
-        self.assertTrue(caps.supports_json)
+        assert caps.context_length == 8192
+        assert caps.supports_functions
+        assert caps.supports_vision
+        assert caps.supports_json
 
     def test_preferred_for_populated(self):
         caps = ModelCapabilities.from_dict({"preferred_for": ["coding", "analysis"]})
-        self.assertEqual(caps.preferred_for, ["coding", "analysis"])
+        assert caps.preferred_for == ["coding", "analysis"]
 
     def test_context_length_alias(self):
         caps = ModelCapabilities.from_dict({"context_length": 16384})
-        self.assertEqual(caps.context_length, 16384)
+        assert caps.context_length == 16384
 
 
 # ---------------------------------------------------------------------------
@@ -140,35 +137,35 @@ class TestModelCapabilitiesMatchesTask(unittest.TestCase):
     def test_coder_scores_high_for_coding(self):
         caps = ModelCapabilities(code_gen=True, reasoning=True, chat=True)
         score = caps.matches_task(TaskType.CODING)
-        self.assertGreater(score, 0.8)
+        assert score > 0.8
 
     def test_no_caps_scores_zero_for_coding(self):
         caps = ModelCapabilities(code_gen=False, reasoning=False, chat=False)
         score = caps.matches_task(TaskType.CODING)
-        self.assertEqual(score, 0.0)
+        assert score == 0.0
 
     def test_reasoning_cap_scores_high_for_reasoning_task(self):
         caps = ModelCapabilities(reasoning=True)
         score = caps.matches_task(TaskType.REASONING)
-        self.assertGreaterEqual(score, 0.6)
+        assert score >= 0.6
 
     def test_creative_cap_scores_for_creative_task(self):
         caps = ModelCapabilities(creative=True, chat=True)
         score = caps.matches_task(TaskType.CREATIVE)
-        self.assertGreater(score, 0.0)
+        assert score > 0.0
 
     def test_summarization_cap_scores_for_summarization(self):
         caps = ModelCapabilities(summarization=True, chat=True)
         score = caps.matches_task(TaskType.SUMMARIZATION)
-        self.assertGreater(score, 0.5)
+        assert score > 0.5
 
     def test_unknown_task_type_returns_half(self):
         # All scores are defined; this just checks the scores dict covers all enum values.
         caps = ModelCapabilities()
         for task in TaskType:
             s = caps.matches_task(task)
-            self.assertGreaterEqual(s, 0.0)
-            self.assertLessEqual(s, 1.0)
+            assert s >= 0.0
+            assert s <= 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -191,24 +188,24 @@ class TestModelInfoFromDictToDict(unittest.TestCase):
 
     def test_from_dict_populates_id_and_name(self):
         info = ModelInfo.from_dict(self._sample_dict())
-        self.assertEqual(info.id, "llama-3-8b")
-        self.assertEqual(info.name, "Llama 3 8B")
+        assert info.id == "llama-3-8b"
+        assert info.name == "Llama 3 8B"
 
     def test_from_dict_detects_local_provider(self):
         info = ModelInfo.from_dict(self._sample_dict())
-        self.assertEqual(info.provider, ModelProvider.LOCAL)
+        assert info.provider == ModelProvider.LOCAL
 
     def test_from_dict_detects_openai_provider(self):
         info = ModelInfo.from_dict({"id": "gpt-4o", "name": "GPT-4o"})
-        self.assertEqual(info.provider, ModelProvider.OPENAI)
+        assert info.provider == ModelProvider.OPENAI
 
     def test_from_dict_detects_anthropic_provider(self):
         info = ModelInfo.from_dict({"id": "claude-3-opus", "name": "Claude 3 Opus"})
-        self.assertEqual(info.provider, ModelProvider.ANTHROPIC)
+        assert info.provider == ModelProvider.ANTHROPIC
 
     def test_from_dict_detects_google_provider(self):
         info = ModelInfo.from_dict({"id": "gemini-pro", "name": "Gemini Pro"})
-        self.assertEqual(info.provider, ModelProvider.GOOGLE)
+        assert info.provider == ModelProvider.GOOGLE
 
     def test_from_dict_metrics_applied(self):
         data = self._sample_dict()
@@ -220,8 +217,8 @@ class TestModelInfoFromDictToDict(unittest.TestCase):
     def test_to_dict_roundtrip_preserves_id(self):
         info = ModelInfo.from_dict(self._sample_dict())
         d = info.to_dict()
-        self.assertEqual(d["id"], "llama-3-8b")
-        self.assertEqual(d["provider"], ModelProvider.LOCAL.value)
+        assert d["id"] == "llama-3-8b"
+        assert d["provider"] == ModelProvider.LOCAL.value
 
     def test_to_dict_contains_capability_keys(self):
         info = ModelInfo.from_dict(self._sample_dict())
@@ -230,7 +227,7 @@ class TestModelInfoFromDictToDict(unittest.TestCase):
         for key in ("code_gen", "reasoning", "chat", "creative", "docs",
                     "math", "analysis", "summarization", "context_length",
                     "supports_functions", "supports_vision", "supports_json", "tags"):
-            self.assertIn(key, caps)
+            assert key in caps
 
 
 # ---------------------------------------------------------------------------
@@ -240,14 +237,14 @@ class TestModelInfoFromDictToDict(unittest.TestCase):
 class TestDynamicModelRouterInit(unittest.TestCase):
     def test_default_init(self):
         router = DynamicModelRouter()
-        self.assertTrue(router.prefer_local)
-        self.assertEqual(router.models, {})
+        assert router.prefer_local
+        assert router.models == {}
 
     def test_custom_init_params(self):
         router = DynamicModelRouter(prefer_local=False, max_latency_ms=5000, max_memory_gb=16)
-        self.assertFalse(router.prefer_local)
-        self.assertEqual(router.max_latency_ms, 5000)
-        self.assertEqual(router.max_memory_gb, 16)
+        assert not router.prefer_local
+        assert router.max_latency_ms == 5000
+        assert router.max_memory_gb == 16
 
 
 # ---------------------------------------------------------------------------
@@ -262,17 +259,17 @@ class TestRegisterModel(unittest.TestCase):
         m = _make_model("llama-3-8b")
         self.router.register_model(m)
         result = self.router.get_model_by_id("llama-3-8b")
-        self.assertIs(result, m)
+        assert result is m
 
     def test_get_missing_model_returns_none(self):
-        self.assertIsNone(self.router.get_model_by_id("nonexistent"))
+        assert self.router.get_model_by_id("nonexistent") is None
 
     def test_register_overwrites_existing(self):
         m1 = _make_model("m1", name="First")
         m2 = _make_model("m1", name="Second")
         self.router.register_model(m1)
         self.router.register_model(m2)
-        self.assertEqual(self.router.get_model_by_id("m1").name, "Second")
+        assert self.router.get_model_by_id("m1").name == "Second"
 
 
 # ---------------------------------------------------------------------------
@@ -289,12 +286,12 @@ class TestRegisterModelsFromPool(unittest.TestCase):
             {"id": "mistral-7b", "name": "Mistral 7B", "capabilities": ["chat"]},
         ]
         self.router.register_models_from_pool(pool)
-        self.assertIn("llama-3-8b", self.router.models)
-        self.assertIn("mistral-7b", self.router.models)
+        assert "llama-3-8b" in self.router.models
+        assert "mistral-7b" in self.router.models
 
     def test_empty_pool_registers_nothing(self):
         self.router.register_models_from_pool([])
-        self.assertEqual(self.router.models, {})
+        assert self.router.models == {}
 
 
 # ---------------------------------------------------------------------------
@@ -311,28 +308,28 @@ class TestSelectModelWithCapabilities(unittest.TestCase):
 
     def test_coding_task_prefers_coder(self):
         sel = self.router.select_model(TaskType.CODING)
-        self.assertIsNotNone(sel)
-        self.assertEqual(sel.model.id, "coder")
+        assert sel is not None
+        assert sel.model.id == "coder"
 
     def test_selection_has_reasoning_field(self):
         sel = self.router.select_model(TaskType.CODING)
-        self.assertIsInstance(sel.reasoning, str)
-        self.assertGreater(len(sel.reasoning), 0)
+        assert isinstance(sel.reasoning, str)
+        assert len(sel.reasoning) > 0
 
     def test_selection_score_between_0_and_1(self):
         sel = self.router.select_model(TaskType.CODING)
-        self.assertGreaterEqual(sel.score, 0.0)
-        self.assertLessEqual(sel.score, 1.5)  # score can exceed 1.0 due to bonuses
+        assert sel.score >= 0.0
+        assert sel.score <= 1.5  # score can exceed 1.0 due to bonuses
 
     def test_selection_confidence_between_0_and_1(self):
         sel = self.router.select_model(TaskType.CODING)
-        self.assertGreaterEqual(sel.confidence, 0.0)
-        self.assertLessEqual(sel.confidence, 1.0)
+        assert sel.confidence >= 0.0
+        assert sel.confidence <= 1.0
 
     def test_selection_history_grows(self):
         before = len(self.router._selection_history)
         self.router.select_model(TaskType.CODING)
-        self.assertEqual(len(self.router._selection_history), before + 1)
+        assert len(self.router._selection_history) == before + 1
 
 
 # ---------------------------------------------------------------------------
@@ -343,14 +340,14 @@ class TestSelectModelNoModels(unittest.TestCase):
     def test_returns_none_when_no_models(self):
         router = DynamicModelRouter()
         result = router.select_model(TaskType.GENERAL)
-        self.assertIsNone(result)
+        assert result is None
 
     def test_returns_none_when_all_unavailable(self):
         router = DynamicModelRouter()
         m = _make_model("m1", is_available=False)
         router.register_model(m)
         result = router.select_model(TaskType.GENERAL)
-        self.assertIsNone(result)
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +364,7 @@ class TestSelectModelFallback(unittest.TestCase):
         # Require code_gen — will force fallback path
         sel = router.select_model(TaskType.CODING, required_capabilities=["code_gen"])
         # Fallback picks any available model
-        self.assertIsNotNone(sel)
+        assert sel is not None
         self.assertAlmostEqual(sel.score, 0.0)
         self.assertAlmostEqual(sel.confidence, 0.1)
 
@@ -376,7 +373,7 @@ class TestSelectModelFallback(unittest.TestCase):
         m = _make_model("chatter", chat=True, code_gen=False)
         router.register_model(m)
         sel = router.select_model(TaskType.CODING, required_capabilities=["code_gen"])
-        self.assertIn("Fallback", sel.reasoning)
+        assert "Fallback" in sel.reasoning
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +388,7 @@ class TestUpdateModelPerformance(unittest.TestCase):
 
     def test_total_uses_increments(self):
         self.router.update_model_performance("m1", latency_ms=200.0, success=True)
-        self.assertEqual(self.m.total_uses, 1)
+        assert self.m.total_uses == 1
 
     def test_avg_latency_updated(self):
         self.router.update_model_performance("m1", latency_ms=200.0, success=True)
@@ -409,7 +406,7 @@ class TestUpdateModelPerformance(unittest.TestCase):
     def test_cache_key_stored(self):
         self.router.update_model_performance("m1", latency_ms=150.0, success=True,
                                              task_type=TaskType.CODING)
-        self.assertIn("m1:coding", self.router._performance_cache)
+        assert "m1:coding" in self.router._performance_cache
 
     def test_unknown_model_does_nothing(self):
         # Should not raise
@@ -417,7 +414,7 @@ class TestUpdateModelPerformance(unittest.TestCase):
 
     def test_last_checked_set(self):
         self.router.update_model_performance("m1", latency_ms=100.0, success=True)
-        self.assertNotEqual(self.m.last_checked, "")
+        assert self.m.last_checked != ""
 
 
 # ---------------------------------------------------------------------------
@@ -433,21 +430,21 @@ class TestScoreModel(unittest.TestCase):
         cloud = _make_model("cloud", provider=ModelProvider.OPENAI, chat=True)
         score_local = self.router._score_model(local, TaskType.GENERAL, "", None)
         score_cloud = self.router._score_model(cloud, TaskType.GENERAL, "", None)
-        self.assertGreater(score_local, score_cloud)
+        assert score_local > score_cloud
 
     def test_preferred_model_gets_preference_bonus(self):
         m1 = _make_model("m1")
         m2 = _make_model("m2")
         score_preferred = self.router._score_model(m1, TaskType.GENERAL, "", ["m1"])
         score_not = self.router._score_model(m2, TaskType.GENERAL, "", ["m1"])
-        self.assertGreater(score_preferred, score_not)
+        assert score_preferred > score_not
 
     def test_large_context_gets_bonus(self):
         small_ctx = _make_model("small", context_length=2048)
         large_ctx = _make_model("large", context_length=8192)
         s_small = self.router._score_model(small_ctx, TaskType.GENERAL, "", None)
         s_large = self.router._score_model(large_ctx, TaskType.GENERAL, "", None)
-        self.assertGreater(s_large, s_small)
+        assert s_large > s_small
 
 
 # ---------------------------------------------------------------------------
@@ -467,14 +464,14 @@ class TestCalculateConfidence(unittest.TestCase):
         m1 = _make_model("m1")
         m2 = _make_model("m2")
         conf = self.router._calculate_confidence([(m1, 1.0), (m2, 0.1)])
-        self.assertGreater(conf, 0.7)
+        assert conf > 0.7
 
     def test_small_gap_gives_lower_confidence(self):
         m1 = _make_model("m1")
         m2 = _make_model("m2")
         conf_large = self.router._calculate_confidence([(m1, 1.0), (m2, 0.1)])
         conf_small = self.router._calculate_confidence([(m1, 0.6), (m2, 0.55)])
-        self.assertGreater(conf_large, conf_small)
+        assert conf_large > conf_small
 
     def test_zero_best_score_gives_low_confidence(self):
         m1 = _make_model("m1")
@@ -495,13 +492,13 @@ class TestGetAvailableModels(unittest.TestCase):
         router.register_model(_make_model("c", is_available=True))
         available = router.get_available_models()
         ids = {m.id for m in available}
-        self.assertIn("a", ids)
-        self.assertNotIn("b", ids)
-        self.assertIn("c", ids)
+        assert "a" in ids
+        assert "b" not in ids
+        assert "c" in ids
 
     def test_empty_router_returns_empty_list(self):
         router = DynamicModelRouter()
-        self.assertEqual(router.get_available_models(), [])
+        assert router.get_available_models() == []
 
 
 # ---------------------------------------------------------------------------
@@ -519,25 +516,25 @@ class TestGetModelsByCapability(unittest.TestCase):
     def test_code_gen_filter(self):
         results = self.router.get_models_by_capability("code_gen")
         ids = [m.id for m in results]
-        self.assertIn("coder", ids)
-        self.assertNotIn("plain", ids)
+        assert "coder" in ids
+        assert "plain" not in ids
 
     def test_reasoning_filter(self):
         results = self.router.get_models_by_capability("reasoning")
         ids = [m.id for m in results]
-        self.assertIn("reasoner", ids)
-        self.assertNotIn("plain", ids)
+        assert "reasoner" in ids
+        assert "plain" not in ids
 
     def test_docs_filter(self):
         results = self.router.get_models_by_capability("docs")
         ids = [m.id for m in results]
-        self.assertIn("docer", ids)
+        assert "docer" in ids
 
     def test_unavailable_excluded(self):
         self.router.register_model(_make_model("offline-coder", code_gen=True, is_available=False))
         results = self.router.get_models_by_capability("code_gen")
         ids = [m.id for m in results]
-        self.assertNotIn("offline-coder", ids)
+        assert "offline-coder" not in ids
 
 
 # ---------------------------------------------------------------------------
@@ -548,28 +545,28 @@ class TestGetRoutingStats(unittest.TestCase):
     def test_empty_stats_structure(self):
         router = DynamicModelRouter()
         stats = router.get_routing_stats()
-        self.assertIn("total_selections", stats)
-        self.assertIn("models_used", stats)
-        self.assertIn("available_models", stats)
-        self.assertIn("total_models", stats)
-        self.assertEqual(stats["total_selections"], 0)
+        assert "total_selections" in stats
+        assert "models_used" in stats
+        assert "available_models" in stats
+        assert "total_models" in stats
+        assert stats["total_selections"] == 0
 
     def test_stats_update_after_selection(self):
         router = DynamicModelRouter()
         router.register_model(_make_model("m1"))
         router.select_model(TaskType.GENERAL)
         stats = router.get_routing_stats()
-        self.assertEqual(stats["total_selections"], 1)
-        self.assertIn("m1", stats["models_used"])
-        self.assertEqual(stats["models_used"]["m1"], 1)
+        assert stats["total_selections"] == 1
+        assert "m1" in stats["models_used"]
+        assert stats["models_used"]["m1"] == 1
 
     def test_stats_total_models(self):
         router = DynamicModelRouter()
         router.register_model(_make_model("a"))
         router.register_model(_make_model("b", is_available=False))
         stats = router.get_routing_stats()
-        self.assertEqual(stats["total_models"], 2)
-        self.assertEqual(stats["available_models"], 1)
+        assert stats["total_models"] == 2
+        assert stats["available_models"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -578,54 +575,54 @@ class TestGetRoutingStats(unittest.TestCase):
 
 class TestInferTaskType(unittest.TestCase):
     def test_security_keywords(self):
-        self.assertEqual(infer_task_type("run a security audit"), TaskType.SECURITY_AUDIT)
-        self.assertEqual(infer_task_type("find a vulnerability in this code"), TaskType.SECURITY_AUDIT)
+        assert infer_task_type("run a security audit") == TaskType.SECURITY_AUDIT
+        assert infer_task_type("find a vulnerability in this code") == TaskType.SECURITY_AUDIT
 
     def test_devops_keywords(self):
-        self.assertEqual(infer_task_type("set up docker"), TaskType.DEVOPS)
-        self.assertEqual(infer_task_type("deploy to kubernetes"), TaskType.DEVOPS)
+        assert infer_task_type("set up docker") == TaskType.DEVOPS
+        assert infer_task_type("deploy to kubernetes") == TaskType.DEVOPS
 
     def test_image_generation_keywords(self):
-        self.assertEqual(infer_task_type("generate a logo"), TaskType.IMAGE_GENERATION)
-        self.assertEqual(infer_task_type("create an icon for the app"), TaskType.IMAGE_GENERATION)
+        assert infer_task_type("generate a logo") == TaskType.IMAGE_GENERATION
+        assert infer_task_type("create an icon for the app") == TaskType.IMAGE_GENERATION
 
     def test_cost_analysis_keywords(self):
-        self.assertEqual(infer_task_type("analyze our budget"), TaskType.COST_ANALYSIS)
-        self.assertEqual(infer_task_type("review pricing options"), TaskType.COST_ANALYSIS)
+        assert infer_task_type("analyze our budget") == TaskType.COST_ANALYSIS
+        assert infer_task_type("review pricing options") == TaskType.COST_ANALYSIS
 
     def test_specification_keywords(self):
-        self.assertEqual(infer_task_type("write a specification"), TaskType.SPECIFICATION)
-        self.assertEqual(infer_task_type("define acceptance criteria"), TaskType.SPECIFICATION)
+        assert infer_task_type("write a specification") == TaskType.SPECIFICATION
+        assert infer_task_type("define acceptance criteria") == TaskType.SPECIFICATION
 
     def test_creative_writing_keywords(self):
-        self.assertEqual(infer_task_type("write a short story"), TaskType.CREATIVE_WRITING)
-        self.assertEqual(infer_task_type("compose a poem"), TaskType.CREATIVE_WRITING)
+        assert infer_task_type("write a short story") == TaskType.CREATIVE_WRITING
+        assert infer_task_type("compose a poem") == TaskType.CREATIVE_WRITING
 
     def test_coding_keywords(self):
-        self.assertEqual(infer_task_type("implement a function"), TaskType.CODING)
-        self.assertEqual(infer_task_type("build the class"), TaskType.CODING)
+        assert infer_task_type("implement a function") == TaskType.CODING
+        assert infer_task_type("build the class") == TaskType.CODING
 
     def test_planning_keywords(self):
-        self.assertEqual(infer_task_type("plan a strategy"), TaskType.PLANNING)
+        assert infer_task_type("plan a strategy") == TaskType.PLANNING
 
     def test_testing_keywords(self):
-        self.assertEqual(infer_task_type("write tests for the module"), TaskType.TESTING)
+        assert infer_task_type("write tests for the module") == TaskType.TESTING
 
     def test_documentation_keywords(self):
-        self.assertEqual(infer_task_type("write docs"), TaskType.DOCUMENTATION)
+        assert infer_task_type("write docs") == TaskType.DOCUMENTATION
 
     def test_summarization_keywords(self):
-        self.assertEqual(infer_task_type("please summarize the meeting notes"), TaskType.SUMMARIZATION)
-        self.assertEqual(infer_task_type("provide a brief summary"), TaskType.SUMMARIZATION)
+        assert infer_task_type("please summarize the meeting notes") == TaskType.SUMMARIZATION
+        assert infer_task_type("provide a brief summary") == TaskType.SUMMARIZATION
 
     def test_translation_keywords(self):
-        self.assertEqual(infer_task_type("translate this text"), TaskType.TRANSLATION)
+        assert infer_task_type("translate this text") == TaskType.TRANSLATION
 
     def test_general_fallback(self):
-        self.assertEqual(infer_task_type("do something random"), TaskType.GENERAL)
+        assert infer_task_type("do something random") == TaskType.GENERAL
 
     def test_case_insensitive(self):
-        self.assertEqual(infer_task_type("SECURITY AUDIT"), TaskType.SECURITY_AUDIT)
+        assert infer_task_type("SECURITY AUDIT") == TaskType.SECURITY_AUDIT
 
 
 # ---------------------------------------------------------------------------
@@ -635,15 +632,15 @@ class TestInferTaskType(unittest.TestCase):
 class TestInitModelRouter(unittest.TestCase):
     def test_creates_new_router(self):
         router = init_model_router(prefer_local=False)
-        self.assertIsInstance(router, DynamicModelRouter)
-        self.assertFalse(router.prefer_local)
+        assert isinstance(router, DynamicModelRouter)
+        assert not router.prefer_local
 
     def test_replaces_global_singleton(self):
         r1 = init_model_router()
         r2 = init_model_router()
-        self.assertIsNot(r1, r2)
+        assert r1 is not r2
         # After init, get_model_router() returns the latest
-        self.assertIs(get_model_router(), r2)
+        assert get_model_router() is r2
 
 
 # ---------------------------------------------------------------------------
@@ -669,8 +666,8 @@ class TestThreadSafety(unittest.TestCase):
         for t in threads:
             t.join()
 
-        self.assertEqual(errors, [], f"Thread errors: {errors}")
-        self.assertEqual(router.models["m1"].total_uses, 250)
+        assert errors == [], f"Thread errors: {errors}"
+        assert router.models["m1"].total_uses == 250
 
     def test_concurrent_selections_do_not_crash(self):
         router = DynamicModelRouter()
@@ -691,7 +688,7 @@ class TestThreadSafety(unittest.TestCase):
         for t in threads:
             t.join()
 
-        self.assertEqual(errors, [], f"Thread errors: {errors}")
+        assert errors == [], f"Thread errors: {errors}"
 
 
 # ---------------------------------------------------------------------------
@@ -709,7 +706,7 @@ class TestSelectModelPrefersLocal(unittest.TestCase):
         router.register_model(cloud)
 
         sel = router.select_model(TaskType.CODING)
-        self.assertEqual(sel.model.id, "llama-local")
+        assert sel.model.id == "llama-local"
 
     def test_no_preference_still_selects_model(self):
         router = DynamicModelRouter(prefer_local=False)
@@ -717,8 +714,8 @@ class TestSelectModelPrefersLocal(unittest.TestCase):
                             code_gen=True, chat=True)
         router.register_model(cloud)
         sel = router.select_model(TaskType.CODING)
-        self.assertIsNotNone(sel)
-        self.assertEqual(sel.model.id, "gpt-cloud")
+        assert sel is not None
+        assert sel.model.id == "gpt-cloud"
 
 
 # ---------------------------------------------------------------------------
@@ -728,26 +725,26 @@ class TestSelectModelPrefersLocal(unittest.TestCase):
 class TestCheckModelHealth(unittest.TestCase):
     def test_unknown_model_returns_false(self):
         router = DynamicModelRouter()
-        self.assertFalse(router.check_model_health("nonexistent"))
+        assert not router.check_model_health("nonexistent")
 
     def test_healthy_model_returns_true(self):
         router = DynamicModelRouter()
         router.register_model(_make_model("m1"))
-        self.assertTrue(router.check_model_health("m1"))
+        assert router.check_model_health("m1")
 
     def test_high_latency_model_returns_false(self):
         router = DynamicModelRouter(max_latency_ms=1000)
         m = _make_model("slow")
         m.avg_latency_ms = 5000.0  # well above 2 * max_latency_ms=1000
         router.register_model(m)
-        self.assertFalse(router.check_model_health("slow"))
+        assert not router.check_model_health("slow")
 
     def test_low_success_rate_returns_false(self):
         router = DynamicModelRouter()
         m = _make_model("flaky")
         m.success_rate = 0.3
         router.register_model(m)
-        self.assertFalse(router.check_model_health("flaky"))
+        assert not router.check_model_health("flaky")
 
     def test_callback_used_when_set(self):
         router = DynamicModelRouter()
@@ -756,7 +753,7 @@ class TestCheckModelHealth(unittest.TestCase):
         router.set_health_check_callback(cb)
         result = router.check_model_health("m1")
         cb.assert_called_once_with("m1")
-        self.assertFalse(result)
+        assert not result
 
 
 if __name__ == "__main__":

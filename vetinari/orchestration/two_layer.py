@@ -1,5 +1,4 @@
-"""
-Two-Layer Orchestrator — the main entry point combining planning and execution.
+"""Two-Layer Orchestrator — the main entry point combining planning and execution.
 
 Implements the assembly-line pattern:
   1. INPUT ANALYSIS   — classify and assess complexity
@@ -11,11 +10,15 @@ Implements the assembly-line pattern:
   7. FINAL ASSEMBLY   — synthesize final output
 """
 
+from __future__ import annotations
+
+import contextlib
 import logging
 import os
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from vetinari.orchestration.durable_execution import DurableExecutionEngine
 from vetinari.orchestration.execution_graph import ExecutionGraph, TaskNode
@@ -31,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Keyword lists for the 9 goal categories.  Order matters: more specific
 # categories should be checked first (e.g. "security audit" before "audit").
 
-_GOAL_CATEGORY_KEYWORDS: Dict[str, List[str]] = {
+_GOAL_CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "security": ["security", "audit", "vulnerability", "pentest", "cve", "owasp", "exploit"],
     "devops": ["deploy", "ci/cd", "docker", "kubernetes", "pipeline", "devops", "terraform", "helm"],
     "image": ["logo", "icon", "mockup", "diagram", "image", "illustration", "screenshot"],
@@ -45,17 +48,17 @@ _GOAL_CATEGORY_KEYWORDS: Dict[str, List[str]] = {
 
 # Maps GoalCategory value -> (primary agent type, default mode, model tier hint)
 # v0.4.0: Updated to use 6 consolidated agent types
-_GOAL_ROUTING_TABLE: Dict[str, tuple] = {
-    "code":     ("BUILDER",                "build",            "coder"),
+_GOAL_ROUTING_TABLE: dict[str, tuple] = {
+    "code": ("BUILDER", "build", "coder"),
     "research": ("CONSOLIDATED_RESEARCHER", "domain_research", "general"),
-    "docs":     ("OPERATIONS",             "documentation",    "general"),
-    "creative": ("OPERATIONS",             "creative_writing", "general"),
-    "security": ("QUALITY",                "security_audit",   "coder"),
-    "data":     ("CONSOLIDATED_RESEARCHER", "database",        "general"),
-    "devops":   ("CONSOLIDATED_RESEARCHER", "devops",          "coder"),
-    "ui":       ("CONSOLIDATED_RESEARCHER", "ui_design",       "vision"),
-    "image":    ("BUILDER",                "image_generation", "general"),
-    "general":  ("PLANNER",                "plan",             "general"),
+    "docs": ("OPERATIONS", "documentation", "general"),
+    "creative": ("OPERATIONS", "creative_writing", "general"),
+    "security": ("QUALITY", "security_audit", "coder"),
+    "data": ("CONSOLIDATED_RESEARCHER", "database", "general"),
+    "devops": ("CONSOLIDATED_RESEARCHER", "devops", "coder"),
+    "ui": ("CONSOLIDATED_RESEARCHER", "ui_design", "vision"),
+    "image": ("BUILDER", "image_generation", "general"),
+    "general": ("PLANNER", "plan", "general"),
 }
 
 
@@ -79,8 +82,7 @@ def get_goal_routing(goal: str) -> tuple:
 
 
 class TwoLayerOrchestrator:
-    """
-    Complete two-layer orchestration system implementing the assembly-line pattern.
+    """Complete two-layer orchestration system implementing the assembly-line pattern.
 
     Combines:
     - Layer 1: Graph-Based Planning (PlanGenerator)
@@ -89,10 +91,10 @@ class TwoLayerOrchestrator:
 
     def __init__(
         self,
-        checkpoint_dir: str = None,
+        checkpoint_dir: str | None = None,
         max_concurrent: int = 4,
         model_router=None,
-        agent_context: Dict[str, Any] = None,
+        agent_context: dict[str, Any] | None = None,
         enable_correction_loop: bool = True,
         correction_loop_max_rounds: int = 3,
     ):
@@ -102,19 +104,19 @@ class TwoLayerOrchestrator:
             max_concurrent=max_concurrent,
         )
         self.model_router = model_router
-        self.agent_context: Dict[str, Any] = agent_context or {}
-        self._agents: Dict[str, Any] = {}
+        self.agent_context: dict[str, Any] = agent_context or {}
+        self._agents: dict[str, Any] = {}
         self.enable_correction_loop: bool = enable_correction_loop
         self.correction_loop_max_rounds: int = correction_loop_max_rounds
 
         logger.info("TwoLayerOrchestrator initialized (assembly-line mode)")
 
-    def set_task_handlers(self, handlers: Dict[str, Callable]) -> None:
+    def set_task_handlers(self, handlers: dict[str, Callable]) -> None:
         """Set task handlers for execution."""
         for task_type, handler in handlers.items():
             self.execution_engine.register_handler(task_type, handler)
 
-    def set_agent_context(self, context: Dict[str, Any]) -> None:
+    def set_agent_context(self, context: dict[str, Any]) -> None:
         """Set the shared agent context (adapter_manager, web_search, etc.)."""
         self.agent_context = context
         self._agents.clear()
@@ -288,17 +290,17 @@ class TwoLayerOrchestrator:
     def generate_and_execute(
         self,
         goal: str,
-        constraints: Dict[str, Any] = None,
-        task_handler: Callable = None,
-        context: Dict[str, Any] = None,
-        project_id: Optional[str] = None,
-        model_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Full assembly-line pipeline: analyze → plan → decompose →
+        constraints: dict[str, Any] | None = None,
+        task_handler: Callable | None = None,
+        context: dict[str, Any] | None = None,
+        project_id: str | None = None,
+        model_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Full assembly-line pipeline: analyze → plan → decompose →.
+
         assign models → execute → review → assemble.
         """
-        stages: Dict[str, Any] = {}
+        stages: dict[str, Any] = {}
         start_time = time.time()
         context = context or {}
 
@@ -310,9 +312,7 @@ class TwoLayerOrchestrator:
             from vetinari.rules_manager import get_rules_manager
 
             rm = get_rules_manager()
-            context["_rules_prefix"] = rm.build_system_prompt_prefix(
-                project_id=project_id, model_id=model_id
-            )
+            context["_rules_prefix"] = rm.build_system_prompt_prefix(project_id=project_id, model_id=model_id)
         except Exception:
             logger.debug("Failed to inject rules prefix into orchestration context", exc_info=True)
 
@@ -328,14 +328,20 @@ class TwoLayerOrchestrator:
 
         # ── C2: Stage-boundary validation (plan → model assignment) ───
         plan_valid, plan_issues = self._validate_stage_boundary(
-            "plan", stages["plan"], min_keys=["plan_id", "tasks"],
+            "plan",
+            stages["plan"],
+            min_keys=["plan_id", "tasks"],
         )
         if not plan_valid:
             logger.warning("[Pipeline] Plan validation failed: %s", plan_issues)
             return {
-                "plan_id": graph.plan_id, "goal": goal, "completed": 0,
-                "failed": 1, "error": f"Plan validation failed: {plan_issues}",
-                "stages": stages, "total_time_ms": int((time.time() - start_time) * 1000),
+                "plan_id": graph.plan_id,
+                "goal": goal,
+                "completed": 0,
+                "failed": 1,
+                "error": f"Plan validation failed: {plan_issues}",
+                "stages": stages,
+                "total_time_ms": int((time.time() - start_time) * 1000),
             }
 
         # STAGE 4: Model Assignment
@@ -344,9 +350,7 @@ class TwoLayerOrchestrator:
             assigned = self._route_model_for_task(node)
             node.input_data["assigned_model"] = assigned
             logger.debug("  Task %s (%s) -> %s", node.id, node.task_type, assigned)
-        stages["model_assignment"] = {
-            nid: n.input_data.get("assigned_model") for nid, n in graph.nodes.items()
-        }
+        stages["model_assignment"] = {nid: n.input_data.get("assigned_model") for nid, n in graph.nodes.items()}
 
         # STAGE 5: Parallel Execution
         logger.info("[Pipeline] Stage 5: Parallel Execution")
@@ -357,16 +361,19 @@ class TwoLayerOrchestrator:
         # P3.5: Check AutoTuner recommendations after execution completes
         try:
             from vetinari.learning.auto_tuner import get_auto_tuner
+
             tuner = get_auto_tuner()
             actions = tuner.run_cycle()
             if actions:
                 logger.info("[AutoTuner] Applied %d tuning actions after execution", len(actions))
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass  # Non-fatal
 
         # ── C2: Stage-boundary validation (execution → review) ────────
         exec_valid, exec_issues = self._validate_stage_boundary(
-            "execution", exec_results, min_keys=["completed"],
+            "execution",
+            exec_results,
+            min_keys=["completed"],
         )
         if not exec_valid:
             logger.warning("[Pipeline] Execution validation failed: %s", exec_issues)
@@ -387,6 +394,7 @@ class TwoLayerOrchestrator:
             logger.info("[Pipeline] Stage 8: Goal Verification + Correction Loop")
             try:
                 from vetinari.goal_verifier import get_goal_verifier
+
                 verifier = get_goal_verifier()
                 task_outputs_for_verify = [
                     {"output": str(v)} for v in exec_results.get("task_results", {}).values() if v
@@ -402,9 +410,9 @@ class TwoLayerOrchestrator:
                 corrective_tasks = initial_report.get_corrective_tasks()
                 if corrective_tasks and not initial_report.fully_compliant:
                     logger.info(
-                        "[Pipeline] Goal verification incomplete (score=%.2f), "
-                        "running %d corrective task(s)",
-                        initial_report.compliance_score, len(corrective_tasks),
+                        "[Pipeline] Goal verification incomplete (score=%.2f), running %d corrective task(s)",
+                        initial_report.compliance_score,
+                        len(corrective_tasks),
                     )
                     plan_dict = {
                         "project_id": project_id or graph.plan_id,
@@ -427,12 +435,10 @@ class TwoLayerOrchestrator:
                     "missing_features": goal_verification_report.missing_features,
                 }
             except Exception as _gv_err:
-                logger.warning(
-                    "[Pipeline] Goal verification stage failed (non-fatal): %s", _gv_err
-                )
+                logger.warning("[Pipeline] Goal verification stage failed (non-fatal): %s", _gv_err)
 
         total_time = int((time.time() - start_time) * 1000)
-        result_dict: Dict[str, Any] = {
+        result_dict: dict[str, Any] = {
             "plan_id": graph.plan_id,
             "goal": goal,
             "completed": exec_results.get("completed", 0),
@@ -453,13 +459,13 @@ class TwoLayerOrchestrator:
     def _validate_stage_boundary(
         stage_name: str,
         stage_output: Any,
-        min_keys: List[str] = None,
+        min_keys: list[str] | None = None,
     ) -> tuple:
         """Validate the output of a pipeline stage before passing to the next.
 
         Returns ``(is_valid, issues_list)``.
         """
-        issues: List[str] = []
+        issues: list[str] = []
 
         if stage_output is None:
             issues.append(f"Stage '{stage_name}' produced None output")
@@ -469,45 +475,34 @@ class TwoLayerOrchestrator:
             if min_keys:
                 missing = [k for k in min_keys if k not in stage_output]
                 if missing:
-                    issues.append(
-                        f"Stage '{stage_name}' missing required keys: {missing}"
-                    )
+                    issues.append(f"Stage '{stage_name}' missing required keys: {missing}")
             # Check for error indicators
             if stage_output.get("error"):
-                issues.append(
-                    f"Stage '{stage_name}' has error: {stage_output['error']}"
-                )
+                issues.append(f"Stage '{stage_name}' has error: {stage_output['error']}")
             if stage_output.get("failed", 0) > 0 and stage_output.get("completed", 0) == 0:
                 issues.append(
-                    f"Stage '{stage_name}': all tasks failed "
-                    f"({stage_output['failed']} failures, 0 completed)"
+                    f"Stage '{stage_name}': all tasks failed ({stage_output['failed']} failures, 0 completed)"
                 )
 
         return (len(issues) == 0, issues)
 
     @staticmethod
-    def _enrich_goal(goal: str, context: Dict[str, Any]) -> str:
+    def _enrich_goal(goal: str, context: dict[str, Any]) -> str:
         """Enrich goal text with intake form context."""
         enriched = goal
         if context.get("required_features"):
-            enriched += "\n\nRequired features:\n" + "\n".join(
-                f"- {f}" for f in context["required_features"]
-            )
+            enriched += "\n\nRequired features:\n" + "\n".join(f"- {f}" for f in context["required_features"])
         if context.get("things_to_avoid"):
-            enriched += "\n\nDo NOT include:\n" + "\n".join(
-                f"- {a}" for a in context["things_to_avoid"]
-            )
+            enriched += "\n\nDo NOT include:\n" + "\n".join(f"- {a}" for a in context["things_to_avoid"])
         if context.get("tech_stack"):
             enriched += f"\n\nTech stack: {context['tech_stack']}"
         if context.get("priority"):
             enriched += f"\n\nPriority: {context['priority']}"
         return enriched
 
-    def _analyze_input(
-        self, goal: str, constraints: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _analyze_input(self, goal: str, constraints: dict[str, Any]) -> dict[str, Any]:
         """Classify the input goal and estimate complexity."""
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "goal": goal,
             "estimated_complexity": "medium",
             "domain": "general",
@@ -519,36 +514,30 @@ class TwoLayerOrchestrator:
         result["needs_code"] = any(
             k in g
             for k in [
-                "code", "implement", "build", "create", "program", "software",
+                "code",
+                "implement",
+                "build",
+                "create",
+                "program",
+                "software",
             ]
         )
-        result["needs_research"] = any(
-            k in g for k in ["research", "analyze", "investigate", "study"]
-        )
-        result["needs_ui"] = any(
-            k in g
-            for k in ["ui", "frontend", "interface", "web app", "dashboard"]
-        )
-        result["domain"] = (
-            "coding"
-            if result["needs_code"]
-            else "research"
-            if result["needs_research"]
-            else "general"
-        )
+        result["needs_research"] = any(k in g for k in ["research", "analyze", "investigate", "study"])
+        result["needs_ui"] = any(k in g for k in ["ui", "frontend", "interface", "web app", "dashboard"])
+        result["domain"] = "coding" if result["needs_code"] else "research" if result["needs_research"] else "general"
         word_count = len(goal.split())
-        result["estimated_complexity"] = (
-            "simple" if word_count < 10 else "complex" if word_count > 30 else "medium"
-        )
+        result["estimated_complexity"] = "simple" if word_count < 10 else "complex" if word_count > 30 else "medium"
         return result
 
     def _make_default_handler(self) -> Callable:
         """Create a default task handler using agent inference with token optimisation."""
 
-        def handle_task(task: TaskNode) -> Dict[str, Any]:
+        def handle_task(task: TaskNode) -> dict[str, Any]:
             # Switch to EXECUTION mode so tool permission checks pass
             try:
-                from vetinari.execution_context import get_context_manager as _get_ctx, ExecutionMode as _ExecMode
+                from vetinari.execution_context import ExecutionMode as _ExecMode  # noqa: VET003
+                from vetinari.execution_context import get_context_manager as _get_ctx
+
                 _ctx_mgr = _get_ctx()
                 _exec_ctx = _ctx_mgr.temporary_mode(_ExecMode.EXECUTION, task_id=task.id)
                 _exec_ctx.__enter__()
@@ -559,27 +548,27 @@ class TwoLayerOrchestrator:
                 return _handle_task_inner(task)
             finally:
                 if _exec_ctx is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         _exec_ctx.__exit__(None, None, None)
-                    except Exception:
-                        pass
 
-        def _handle_task_inner(task: TaskNode) -> Dict[str, Any]:
+        def _handle_task_inner(task: TaskNode) -> dict[str, Any]:
             try:
                 assigned_model = task.input_data.get("assigned_model", "default")
                 is_cloud = not any(
                     x in assigned_model.lower()
                     for x in [
-                        "qwen", "llama", "mistral", "gemma", "phi",
-                        "local", "lm_studio", "default",
+                        "qwen",
+                        "llama",
+                        "mistral",
+                        "gemma",
+                        "phi",
+                        "local",
+                        "lm_studio",
+                        "default",
                     ]
                 )
 
-                task_context = (
-                    " ".join(str(v)[:500] for v in task.input_data.values() if v)
-                    if task.input_data
-                    else ""
-                )
+                task_context = " ".join(str(v)[:500] for v in task.input_data.values() if v) if task.input_data else ""
 
                 try:
                     from vetinari.token_optimizer import get_token_optimizer
@@ -606,6 +595,7 @@ class TwoLayerOrchestrator:
                 # Post task to blackboard for inter-agent visibility
                 try:
                     from vetinari.blackboard import get_blackboard
+
                     board = get_blackboard()
                     board.post(
                         content=task.description[:500],
@@ -614,21 +604,22 @@ class TwoLayerOrchestrator:
                         priority=5,
                         metadata={"task_id": task.id},
                     )
-                except Exception:
+                except Exception:  # noqa: S110, VET022
                     pass  # Blackboard unavailable, continue without
 
                 # Augment with web search for research/exploration tasks
                 if task_type_label in ("research", "exploration", "documentation", "fact_finding"):
                     try:
                         from vetinari.tools.web_search import web_search
+
                         search_query = task.description[:200]
                         results = web_search(search_query, max_results=3)
                         if results:
                             web_context = "\nRelevant web search results:\n"
                             for r in results[:3]:
-                                web_context += f"- [{r.get('title','')}]({r.get('url','')}): {r.get('snippet','')}\n"
+                                web_context += f"- [{r.get('title', '')}]({r.get('url', '')}): {r.get('snippet', '')}\n"
                             optimised_prompt = web_context + "\n" + optimised_prompt
-                    except Exception:
+                    except Exception:  # noqa: S110, VET022
                         pass  # Web search unavailable
 
                 system_prompt = (
@@ -660,9 +651,7 @@ class TwoLayerOrchestrator:
                                 "task_id": task.id,
                             }
                     except Exception as e:
-                        logger.warning(
-                            f"Adapter inference failed for task {task.id}: {e}"
-                        )
+                        logger.warning(f"Adapter inference failed for task {task.id}: {e}")
 
                 # Fallback: use LM Studio adapter directly
                 from vetinari.lmstudio_adapter import LMStudioAdapter
@@ -690,14 +679,13 @@ class TwoLayerOrchestrator:
 
         return handle_task
 
-    def _review_outputs(
-        self, exec_results: Dict[str, Any], goal: str
-    ) -> Dict[str, Any]:
+    def _review_outputs(self, exec_results: dict[str, Any], goal: str) -> dict[str, Any]:
         """Use QualityAgent to review execution outputs for quality."""
         try:
             quality = self._get_agent("QUALITY")
             if quality:
-                from vetinari.agents.contracts import AgentTask, AgentType
+                from vetinari.agents.contracts import AgentTask
+                from vetinari.types import AgentType
 
                 task_results = exec_results.get("task_results", {})
                 artifacts = [str(v) for v in task_results.values() if v]
@@ -721,25 +709,20 @@ class TwoLayerOrchestrator:
 
     def _assemble_final_output(
         self,
-        exec_results: Dict[str, Any],
-        review_result: Dict[str, Any],
+        exec_results: dict[str, Any],
+        review_result: dict[str, Any],
         goal: str,
     ) -> str:
         """Use OperationsAgent (synthesis mode) to assemble a final coherent output."""
         try:
             operations = self._get_agent("OPERATIONS")
             if operations:
-                from vetinari.agents.contracts import AgentTask, AgentType
+                from vetinari.agents.contracts import AgentTask
+                from vetinari.types import AgentType
 
                 task_results = exec_results.get("task_results", {})
-                sources = [
-                    {"agent": k, "artifact": str(v)[:500]}
-                    for k, v in task_results.items()
-                    if v
-                ]
-                sources.append(
-                    {"agent": "review", "artifact": str(review_result)[:200]}
-                )
+                sources = [{"agent": k, "artifact": str(v)[:500]} for k, v in task_results.items() if v]
+                sources.append({"agent": "review", "artifact": str(review_result)[:200]})
                 synth_task = AgentTask(
                     task_id="assemble-0",
                     agent_type=AgentType.OPERATIONS,
@@ -749,9 +732,7 @@ class TwoLayerOrchestrator:
                 )
                 result = operations.execute(synth_task)
                 if result.success and result.output:
-                    return result.output.get(
-                        "synthesized_artifact", str(result.output)
-                    )
+                    return result.output.get("synthesized_artifact", str(result.output))
         except Exception as e:
             logger.warning("Final assembly failed: %s", e)
 
@@ -766,12 +747,12 @@ class TwoLayerOrchestrator:
 
     def _execute_corrections(
         self,
-        corrective_tasks: List[Dict[str, Any]],
-        plan: Dict[str, Any],
+        corrective_tasks: list[dict[str, Any]],
+        plan: dict[str, Any],
         goal: str,
-        context: Dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
         max_rounds: int | None = None,
-    ) -> "GoalVerificationReport":  # type: ignore[name-defined]  # noqa: F821
+    ) -> GoalVerificationReport:  # type: ignore[name-defined]  # noqa: F821
         """Execute corrective tasks returned by GoalVerifier and re-verify.
 
         Takes the list of corrective tasks from
@@ -794,31 +775,33 @@ class TwoLayerOrchestrator:
         Returns:
             The final ``GoalVerificationReport`` after all correction rounds.
         """
-        from vetinari.goal_verifier import get_goal_verifier, GoalVerificationReport
         from vetinari.agents.contracts import AgentTask
+        from vetinari.goal_verifier import GoalVerificationReport, get_goal_verifier
 
         _max = max_rounds if max_rounds is not None else self.correction_loop_max_rounds
         context = context or {}
 
         # Build a minimal report to return if corrections can't run at all.
         _project_id = plan.get("project_id", "unknown")
-        _required_features: List[str] = plan.get("required_features", [])
-        _things_to_avoid: List[str] = plan.get("things_to_avoid", [])
+        _required_features: list[str] = plan.get("required_features", [])
+        _things_to_avoid: list[str] = plan.get("things_to_avoid", [])
 
         # Collect existing task outputs from the plan for re-verification.
-        _task_outputs: List[Dict[str, Any]] = plan.get("task_outputs", [])
+        _task_outputs: list[dict[str, Any]] = plan.get("task_outputs", [])
         _final_output: str = plan.get("final_output", "")
 
         verifier = get_goal_verifier()
-        report: Optional[GoalVerificationReport] = None
+        report: GoalVerificationReport | None = None
 
         for round_num in range(1, _max + 1):
             logger.info(
                 "[CorrectionLoop] Round %d/%d — executing %d corrective task(s)",
-                round_num, _max, len(corrective_tasks),
+                round_num,
+                _max,
+                len(corrective_tasks),
             )
 
-            round_outputs: List[str] = []
+            round_outputs: list[str] = []
 
             for task_dict in corrective_tasks:
                 agent_type_str = task_dict.get("assigned_agent", "BUILDER").upper()
@@ -827,7 +810,8 @@ class TwoLayerOrchestrator:
 
                 # Resolve AgentType enum value
                 try:
-                    from vetinari.agents.contracts import AgentType
+                    from vetinari.types import AgentType
+
                     try:
                         agent_type_enum = AgentType[agent_type_str]
                     except KeyError:
@@ -865,33 +849,30 @@ class TwoLayerOrchestrator:
                 try:
                     result = agent.execute(task)
                     if result.success and result.output:
-                        output_str = (
-                            result.output
-                            if isinstance(result.output, str)
-                            else str(result.output)
-                        )
+                        output_str = result.output if isinstance(result.output, str) else str(result.output)
                         round_outputs.append(output_str)
                         logger.info(
                             "[CorrectionLoop] Task %s completed (agent=%s)",
-                            task_id, agent_type_str,
+                            task_id,
+                            agent_type_str,
                         )
                     else:
                         logger.warning(
                             "[CorrectionLoop] Task %s failed: %s",
-                            task_id, result.errors,
+                            task_id,
+                            result.errors,
                         )
                 except Exception as exc:
                     logger.error(
                         "[CorrectionLoop] Task %s raised exception: %s",
-                        task_id, exc,
+                        task_id,
+                        exc,
                     )
 
             # Append round outputs to the running final output for re-verification.
             if round_outputs:
                 _final_output = _final_output + "\n" + "\n".join(round_outputs)
-                _task_outputs.extend(
-                    {"output": o, "round": round_num} for o in round_outputs
-                )
+                _task_outputs.extend({"output": o, "round": round_num} for o in round_outputs)
 
             # Re-verify after this correction round.
             report = verifier.verify(
@@ -905,13 +886,13 @@ class TwoLayerOrchestrator:
 
             logger.info(
                 "[CorrectionLoop] Round %d verification: score=%.2f, compliant=%s",
-                round_num, report.compliance_score, report.fully_compliant,
+                round_num,
+                report.compliance_score,
+                report.fully_compliant,
             )
 
             if report.fully_compliant:
-                logger.info(
-                    "[CorrectionLoop] Verification passed after round %d", round_num
-                )
+                logger.info("[CorrectionLoop] Verification passed after round %d", round_num)
                 return report
 
             # Prepare next round's corrective tasks from remaining gaps.
@@ -943,9 +924,9 @@ class TwoLayerOrchestrator:
     def execute_with_agent_graph(
         self,
         goal: str,
-        constraints: Dict[str, Any] = None,
-        context: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
+        constraints: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute a goal using AgentGraph as the execution backend.
 
         This delegates task execution to AgentGraph's registered agents
@@ -958,10 +939,14 @@ class TwoLayerOrchestrator:
         Falls back to ``generate_and_execute()`` if AgentGraph is unavailable.
         """
         try:
-            from vetinari.orchestration.agent_graph import get_agent_graph
             from vetinari.agents.contracts import (
-                AgentType, Plan, Task as ContractsTask,
+                Plan,
             )
+            from vetinari.agents.contracts import (
+                Task as ContractsTask,
+            )
+            from vetinari.orchestration.agent_graph import get_agent_graph
+            from vetinari.types import AgentType
 
             agent_graph = get_agent_graph()
             context = context or {}
@@ -971,10 +956,8 @@ class TwoLayerOrchestrator:
 
             # Convert ExecutionGraph nodes -> contracts.Plan for AgentGraph
             plan = Plan.create_new(goal)
-            for node_id, node in graph.nodes.items():
-                agent_type_str = node.input_data.get(
-                    "assigned_agent", "BUILDER"
-                ).upper()
+            for _node_id, node in graph.nodes.items():
+                agent_type_str = node.input_data.get("assigned_agent", "BUILDER").upper()
                 try:
                     agent_type = AgentType[agent_type_str]
                 except KeyError:
@@ -997,33 +980,24 @@ class TwoLayerOrchestrator:
                 "plan_id": graph.plan_id,
                 "goal": goal,
                 "backend": "agent_graph",
-                "completed": sum(
-                    1 for r in results.values() if r.success
-                ),
-                "failed": sum(
-                    1 for r in results.values() if not r.success
-                ),
-                "outputs": {
-                    tid: r.output for tid, r in results.items()
-                },
-                "errors": {
-                    tid: r.errors for tid, r in results.items()
-                    if r.errors
-                },
+                "completed": sum(1 for r in results.values() if r.success),
+                "failed": sum(1 for r in results.values() if not r.success),
+                "outputs": {tid: r.output for tid, r in results.items()},
+                "errors": {tid: r.errors for tid, r in results.items() if r.errors},
             }
 
         except Exception as e:
-            logger.warning(
-                f"[TwoLayer] AgentGraph execution failed, falling back: {e}"
-            )
+            logger.warning(f"[TwoLayer] AgentGraph execution failed, falling back: {e}")
             return self.generate_and_execute(
-                goal, constraints, context=context,
+                goal,
+                constraints,
+                context=context,
             )
 
     def generate_plan_only(
         self,
         goal: str,
-        constraints: Dict[str, Any] = None,
+        constraints: dict[str, Any] | None = None,
     ) -> ExecutionGraph:
         """Generate a plan without executing."""
         return self.plan_generator.generate_plan(goal, constraints)
@@ -1031,20 +1005,20 @@ class TwoLayerOrchestrator:
     def execute_plan(
         self,
         graph: ExecutionGraph,
-        task_handler: Callable = None,
-    ) -> Dict[str, Any]:
+        task_handler: Callable | None = None,
+    ) -> dict[str, Any]:
         """Execute an existing plan."""
         return self.execution_engine.execute_plan(graph, task_handler)
 
-    def recover_plan(self, plan_id: str) -> Dict[str, Any]:
+    def recover_plan(self, plan_id: str) -> dict[str, Any]:
         """Recover and continue a plan from checkpoint."""
         return self.execution_engine.recover_execution(plan_id)
 
-    def get_plan_status(self, plan_id: str) -> Optional[Dict[str, Any]]:
+    def get_plan_status(self, plan_id: str) -> dict[str, Any] | None:
         """Get status of a plan."""
         return self.execution_engine.get_execution_status(plan_id)
 
-    def list_checkpoints(self) -> List[str]:
+    def list_checkpoints(self) -> list[str]:
         """List all available plan checkpoints."""
         return self.execution_engine.list_checkpoints()
 
@@ -1053,7 +1027,7 @@ class TwoLayerOrchestrator:
 # Global singleton
 # ---------------------------------------------------------------------------
 
-_two_layer_orchestrator: Optional[TwoLayerOrchestrator] = None
+_two_layer_orchestrator: TwoLayerOrchestrator | None = None
 
 
 def get_two_layer_orchestrator() -> TwoLayerOrchestrator:
@@ -1064,12 +1038,8 @@ def get_two_layer_orchestrator() -> TwoLayerOrchestrator:
     return _two_layer_orchestrator
 
 
-def init_two_layer_orchestrator(
-    checkpoint_dir: str = None, **kwargs
-) -> TwoLayerOrchestrator:
+def init_two_layer_orchestrator(checkpoint_dir: str | None = None, **kwargs) -> TwoLayerOrchestrator:
     """Initialize a new two-layer orchestrator."""
     global _two_layer_orchestrator
-    _two_layer_orchestrator = TwoLayerOrchestrator(
-        checkpoint_dir=checkpoint_dir, **kwargs
-    )
+    _two_layer_orchestrator = TwoLayerOrchestrator(checkpoint_dir=checkpoint_dir, **kwargs)
     return _two_layer_orchestrator

@@ -1,11 +1,14 @@
 """Plan caching layer — reuse past plans for similar goals."""
+
+from __future__ import annotations
+
+import hashlib
 import json
 import logging
-import hashlib
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ logger = logging.getLogger(__name__)
 class CachedPlan:
     goal: str
     goal_hash: str
-    plan_data: Dict[str, Any]
+    plan_data: dict[str, Any]
     created_at: float
     hit_count: int = 0
     last_hit: float = 0.0
@@ -24,7 +27,7 @@ class CachedPlan:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "CachedPlan":
+    def from_dict(cls, d: dict) -> CachedPlan:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -40,9 +43,9 @@ class PlanCache:
     DEFAULT_THRESHOLD = 0.6
     DEFAULT_MAX_AGE_DAYS = 30
 
-    def __init__(self, cache_dir: str = None):
+    def __init__(self, cache_dir: str | None = None):
         self._cache_dir = Path(cache_dir or self.DEFAULT_CACHE_DIR)
-        self._cache: Dict[str, CachedPlan] = {}
+        self._cache: dict[str, CachedPlan] = {}
         self._loaded = False
 
     def _ensure_loaded(self):
@@ -75,12 +78,59 @@ class PlanCache:
         return hashlib.sha256(normalized.encode()).hexdigest()[:16]
 
     def _extract_keywords(self, text: str) -> set:
-        stop_words = {"the", "a", "an", "is", "are", "was", "were", "be", "been",
-                      "being", "have", "has", "had", "do", "does", "did", "will",
-                      "would", "could", "should", "may", "might", "can", "shall",
-                      "to", "of", "in", "for", "on", "with", "at", "by", "from",
-                      "and", "or", "but", "not", "no", "if", "then", "than", "that",
-                      "this", "it", "its", "my", "your", "we", "they", "i", "me"}
+        stop_words = {
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "can",
+            "shall",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "and",
+            "or",
+            "but",
+            "not",
+            "no",
+            "if",
+            "then",
+            "than",
+            "that",
+            "this",
+            "it",
+            "its",
+            "my",
+            "your",
+            "we",
+            "they",
+            "i",
+            "me",
+        }
         words = set(text.lower().split())
         return words - stop_words
 
@@ -93,7 +143,7 @@ class PlanCache:
         union = kw_a | kw_b
         return len(intersection) / len(union) if union else 0.0
 
-    def find_similar(self, goal: str, threshold: float = None) -> Optional[CachedPlan]:
+    def find_similar(self, goal: str, threshold: float | None = None) -> CachedPlan | None:
         """Find a cached plan similar to the given goal."""
         self._ensure_loaded()
         threshold = threshold or self.DEFAULT_THRESHOLD
@@ -123,7 +173,7 @@ class PlanCache:
 
         return best_plan
 
-    def store(self, goal: str, plan_data: Dict[str, Any], quality_score: float = 0.0) -> None:
+    def store(self, goal: str, plan_data: dict[str, Any], quality_score: float = 0.0) -> None:
         """Store a plan in the cache."""
         self._ensure_loaded()
 
@@ -143,7 +193,7 @@ class PlanCache:
 
         self._save_cache()
 
-    def invalidate(self, older_than_days: int = None) -> int:
+    def invalidate(self, older_than_days: int | None = None) -> int:
         """Remove stale entries. Returns count of removed entries."""
         self._ensure_loaded()
         older_than_days = older_than_days or self.DEFAULT_MAX_AGE_DAYS
@@ -158,7 +208,7 @@ class PlanCache:
 
         return len(to_remove)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         self._ensure_loaded()
         return {
             "total_cached": len(self._cache),
@@ -167,10 +217,10 @@ class PlanCache:
         }
 
 
-_plan_cache: Optional[PlanCache] = None
+_plan_cache: PlanCache | None = None
 
 
-def get_plan_cache(cache_dir: str = None) -> PlanCache:
+def get_plan_cache(cache_dir: str | None = None) -> PlanCache:
     global _plan_cache
     if _plan_cache is None:
         _plan_cache = PlanCache(cache_dir)

@@ -1,5 +1,5 @@
-"""
-Typed Output Schemas (C6)
+"""Typed Output Schemas (C6).
+
 ==========================
 Pydantic BaseModel schemas for every agent mode output. Used for
 validation after _infer_json() calls with auto-repair on failure.
@@ -10,28 +10,29 @@ enabling structured validation and IDE autocompletion.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     from pydantic import BaseModel, Field
 except ImportError:
     # Fallback: use dataclasses to mimic Pydantic when not installed
-    from dataclasses import dataclass, field as dc_field
 
     class _BaseMeta(type):
         """Metaclass that adds model_validate and model_json_schema."""
+
         def __new__(mcs, name, bases, namespace):
             cls = super().__new__(mcs, name, bases, namespace)
             return cls
 
     class BaseModel(metaclass=_BaseMeta):  # type: ignore[no-redef]
         """Minimal Pydantic-like base when pydantic is not installed."""
+
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
         @classmethod
-        def model_validate(cls, data: dict) -> "BaseModel":
+        def model_validate(cls, data: dict) -> BaseModel:
             return cls(**data)
 
         @classmethod
@@ -47,125 +48,144 @@ except ImportError:
 
 # ── Planner Agent Schemas ─────────────────────────────────────────────
 
+
 class PlanOutput(BaseModel):
     """Output schema for PlannerAgent plan mode."""
-    plan: List[Dict[str, Any]] = Field(default_factory=list)
+
+    plan: list[dict[str, Any]] = Field(default_factory=list)
     summary: str = Field(default="")
     estimated_steps: int = Field(default=0)
     complexity: str = Field(default="medium")
-    dependencies: List[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
 
 
 class ClarifyOutput(BaseModel):
     """Output schema for PlannerAgent clarify mode."""
-    questions: List[str] = Field(default_factory=list)
-    ambiguities: List[Dict[str, str]] = Field(default_factory=list)
-    assumptions: List[str] = Field(default_factory=list)
+
+    questions: list[str] = Field(default_factory=list)
+    ambiguities: list[dict[str, str]] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5)
 
 
 class SummariseOutput(BaseModel):
     """Output schema for PlannerAgent summarise mode."""
+
     summary: str = Field(default="")
-    key_points: List[str] = Field(default_factory=list)
-    decisions_made: List[str] = Field(default_factory=list)
-    open_items: List[str] = Field(default_factory=list)
+    key_points: list[str] = Field(default_factory=list)
+    decisions_made: list[str] = Field(default_factory=list)
+    open_items: list[str] = Field(default_factory=list)
 
 
 class ConsolidateOutput(BaseModel):
     """Output schema for PlannerAgent consolidate mode."""
+
     consolidated: str = Field(default="")
     entries_processed: int = Field(default=0)
-    themes: List[str] = Field(default_factory=list)
+    themes: list[str] = Field(default_factory=list)
 
 
 # ── Researcher Agent Schemas ─────────────────────────────────────────
 
+
 class CodeDiscoveryOutput(BaseModel):
     """Output schema for ResearcherAgent code_discovery mode."""
-    files: List[Dict[str, Any]] = Field(default_factory=list)
-    patterns: List[str] = Field(default_factory=list)
+
+    files: list[dict[str, Any]] = Field(default_factory=list)
+    patterns: list[str] = Field(default_factory=list)
     architecture: str = Field(default="")
-    dependencies: List[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
 
 
 class DomainResearchOutput(BaseModel):
     """Output schema for ResearcherAgent domain_research mode."""
-    findings: List[Dict[str, str]] = Field(default_factory=list)
-    sources: List[str] = Field(default_factory=list)
+
+    findings: list[dict[str, str]] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
     summary: str = Field(default="")
     confidence: float = Field(default=0.5)
-    recommendations: List[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class APILookupOutput(BaseModel):
     """Output schema for ResearcherAgent api_lookup mode."""
-    endpoints: List[Dict[str, Any]] = Field(default_factory=list)
+
+    endpoints: list[dict[str, Any]] = Field(default_factory=list)
     documentation: str = Field(default="")
-    examples: List[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
     version: str = Field(default="")
 
 
 # ── Oracle Agent Schemas ──────────────────────────────────────────────
 
+
 class ArchitectureOutput(BaseModel):
     """Output schema for OracleAgent architecture mode."""
+
     analysis: str = Field(default="")
-    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
-    patterns: List[str] = Field(default_factory=list)
-    risks: List[Dict[str, str]] = Field(default_factory=list)
+    recommendations: list[dict[str, Any]] = Field(default_factory=list)
+    patterns: list[str] = Field(default_factory=list)
+    risks: list[dict[str, str]] = Field(default_factory=list)
     score: float = Field(default=0.5)
 
 
 class RiskAssessmentOutput(BaseModel):
     """Output schema for OracleAgent risk_assessment mode."""
-    risks: List[Dict[str, Any]] = Field(default_factory=list)
+
+    risks: list[dict[str, Any]] = Field(default_factory=list)
     overall_risk: str = Field(default="medium")
-    mitigations: List[Dict[str, str]] = Field(default_factory=list)
-    risk_matrix: Dict[str, Any] = Field(default_factory=dict)
+    mitigations: list[dict[str, str]] = Field(default_factory=list)
+    risk_matrix: dict[str, Any] = Field(default_factory=dict)
 
 
 class ContrarianReviewOutput(BaseModel):
     """Output schema for OracleAgent contrarian_review mode."""
-    challenges: List[Dict[str, str]] = Field(default_factory=list)
-    blind_spots: List[str] = Field(default_factory=list)
-    alternative_approaches: List[Dict[str, str]] = Field(default_factory=list)
+
+    challenges: list[dict[str, str]] = Field(default_factory=list)
+    blind_spots: list[str] = Field(default_factory=list)
+    alternative_approaches: list[dict[str, str]] = Field(default_factory=list)
     verdict: str = Field(default="")
 
 
 # ── Builder Agent Schemas ─────────────────────────────────────────────
 
+
 class BuildOutput(BaseModel):
     """Output schema for BuilderAgent build mode."""
+
     scaffold_code: str = Field(default="")
-    tests: List[Dict[str, str]] = Field(default_factory=list)
-    artifacts: List[Dict[str, str]] = Field(default_factory=list)
-    implementation_notes: List[str] = Field(default_factory=list)
+    tests: list[dict[str, str]] = Field(default_factory=list)
+    artifacts: list[dict[str, str]] = Field(default_factory=list)
+    implementation_notes: list[str] = Field(default_factory=list)
     summary: str = Field(default="")
 
 
 class ImageGenerationOutput(BaseModel):
     """Output schema for BuilderAgent image_generation mode."""
-    images: List[Dict[str, Any]] = Field(default_factory=list)
-    spec: Dict[str, Any] = Field(default_factory=dict)
+
+    images: list[dict[str, Any]] = Field(default_factory=list)
+    spec: dict[str, Any] = Field(default_factory=dict)
     sd_available: bool = Field(default=False)
     count: int = Field(default=0)
 
 
 # ── Quality Agent Schemas ─────────────────────────────────────────────
 
+
 class CodeReviewOutput(BaseModel):
     """Output schema for QualityAgent code_review mode."""
+
     score: float = Field(default=0.5)
     summary: str = Field(default="")
-    issues: List[Dict[str, Any]] = Field(default_factory=list)
-    strengths: List[str] = Field(default_factory=list)
-    recommendations: List[str] = Field(default_factory=list)
+    issues: list[dict[str, Any]] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class SecurityAuditOutput(BaseModel):
     """Output schema for QualityAgent security_audit mode."""
-    findings: List[Dict[str, Any]] = Field(default_factory=list)
+
+    findings: list[dict[str, Any]] = Field(default_factory=list)
     summary: str = Field(default="")
     overall_risk: str = Field(default="medium")
     score: float = Field(default=0.5)
@@ -174,78 +194,87 @@ class SecurityAuditOutput(BaseModel):
 
 class TestGenerationOutput(BaseModel):
     """Output schema for QualityAgent test_generation mode."""
+
     tests: str = Field(default="")
     test_count: int = Field(default=0)
     coverage_estimate: float = Field(default=0.0)
-    fixtures: List[str] = Field(default_factory=list)
-    edge_cases_covered: List[str] = Field(default_factory=list)
+    fixtures: list[str] = Field(default_factory=list)
+    edge_cases_covered: list[str] = Field(default_factory=list)
 
 
 class SimplificationOutput(BaseModel):
     """Output schema for QualityAgent simplification mode."""
+
     score: float = Field(default=0.5)
-    complexity_issues: List[Dict[str, str]] = Field(default_factory=list)
-    overall_recommendations: List[str] = Field(default_factory=list)
+    complexity_issues: list[dict[str, str]] = Field(default_factory=list)
+    overall_recommendations: list[str] = Field(default_factory=list)
     estimated_line_reduction: int = Field(default=0)
 
 
 # ── Operations Agent Schemas ──────────────────────────────────────────
 
+
 class DocumentationOutput(BaseModel):
     """Output schema for OperationsAgent documentation mode."""
+
     content: str = Field(default="")
     type: str = Field(default="api_reference")
-    sections: List[Dict[str, str]] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    sections: list[dict[str, str]] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CostAnalysisOutput(BaseModel):
     """Output schema for OperationsAgent cost_analysis mode."""
-    comparisons: List[Dict[str, Any]] = Field(default_factory=list)
+
+    comparisons: list[dict[str, Any]] = Field(default_factory=list)
     recommendation: str = Field(default="")
     estimated_tokens: int = Field(default=0)
     analysis: str = Field(default="")
-    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ExperimentOutput(BaseModel):
     """Output schema for OperationsAgent experiment mode."""
-    experiment: Dict[str, Any] = Field(default_factory=dict)
-    metrics: List[Dict[str, Any]] = Field(default_factory=list)
-    variants: List[Dict[str, str]] = Field(default_factory=list)
+
+    experiment: dict[str, Any] = Field(default_factory=dict)
+    metrics: list[dict[str, Any]] = Field(default_factory=list)
+    variants: list[dict[str, str]] = Field(default_factory=list)
     sample_size: int = Field(default=0)
     duration_days: int = Field(default=7)
 
 
 class ErrorRecoveryOutput(BaseModel):
     """Output schema for OperationsAgent error_recovery mode."""
+
     root_cause: str = Field(default="")
     category: str = Field(default="")
     severity: str = Field(default="medium")
-    recovery_strategy: Dict[str, Any] = Field(default_factory=dict)
-    matched_patterns: List[Dict[str, Any]] = Field(default_factory=list)
-    prevention: List[str] = Field(default_factory=list)
+    recovery_strategy: dict[str, Any] = Field(default_factory=dict)
+    matched_patterns: list[dict[str, Any]] = Field(default_factory=list)
+    prevention: list[str] = Field(default_factory=list)
 
 
 class SynthesisOutput(BaseModel):
     """Output schema for OperationsAgent synthesis mode."""
+
     synthesis: str = Field(default="")
-    sources_used: List[str] = Field(default_factory=list)
-    conflicts_resolved: List[str] = Field(default_factory=list)
+    sources_used: list[str] = Field(default_factory=list)
+    conflicts_resolved: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5)
 
 
 class MonitorOutput(BaseModel):
     """Output schema for OperationsAgent monitor mode."""
+
     status: str = Field(default="healthy")
-    issues: List[str] = Field(default_factory=list)
-    recommendations: List[str] = Field(default_factory=list)
-    metrics_summary: Dict[str, Any] = Field(default_factory=dict)
+    issues: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    metrics_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Schema Registry ──────────────────────────────────────────────────
 
-OUTPUT_SCHEMAS: Dict[str, type] = {
+OUTPUT_SCHEMAS: dict[str, type] = {
     # Planner
     "plan": PlanOutput,
     "clarify": ClarifyOutput,
@@ -277,7 +306,7 @@ OUTPUT_SCHEMAS: Dict[str, type] = {
 }
 
 
-def validate_output(mode: str, data: Any) -> Optional[BaseModel]:
+def validate_output(mode: str, data: Any) -> BaseModel | None:
     """Validate agent output against the schema for the given mode.
 
     Returns a validated model instance, or None if no schema exists
@@ -295,14 +324,15 @@ def validate_output(mode: str, data: Any) -> Optional[BaseModel]:
     except Exception:
         # Auto-repair: try to construct with available fields
         try:
-            return schema_cls(**{
-                k: v for k, v in data.items()
-                if k in schema_cls.__annotations__
-            } if hasattr(schema_cls, "__annotations__") else data)
+            return schema_cls(
+                **{k: v for k, v in data.items() if k in schema_cls.__annotations__}
+                if hasattr(schema_cls, "__annotations__")
+                else data
+            )
         except Exception:
             return None
 
 
-def get_schema_for_mode(mode: str) -> Optional[type]:
+def get_schema_for_mode(mode: str) -> type | None:
     """Get the output schema class for a mode."""
     return OUTPUT_SCHEMAS.get(mode)

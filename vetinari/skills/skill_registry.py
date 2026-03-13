@@ -1,5 +1,5 @@
-"""
-Programmatic Skill Registry
+"""Programmatic Skill Registry.
+
 ==============================
 Typed, validated registry of all Vetinari skills.
 
@@ -24,13 +24,12 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 from vetinari.skills.skill_spec import (
+    SkillConstraint,
+    SkillGuideline,
     SkillSpec,
     SkillStandard,
-    SkillGuideline,
-    SkillConstraint,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,8 +98,7 @@ _UNIVERSAL_CONSTRAINTS = [
 # Registry
 # ═══════════════════════════════════════════════════════════════════════════
 
-SKILL_REGISTRY: Dict[str, SkillSpec] = {
-
+SKILL_REGISTRY: dict[str, SkillSpec] = {
     # ───────────────────────────────────────────────────────────────────
     # PLANNER
     # ───────────────────────────────────────────────────────────────────
@@ -160,7 +158,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["GeneratePlan"],
         min_verification_score=0.6,
         tags=["planning", "decomposition", "scheduling"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-PLN-001",
                 category="planning",
@@ -209,7 +208,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Helps orchestrator allocate resources and set expectations",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-PLN-001",
                 category="scope",
@@ -233,7 +233,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # ORCHESTRATOR
     # ───────────────────────────────────────────────────────────────────
@@ -284,7 +283,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["MemoryRecall", "MemoryRemember"],
         min_verification_score=0.5,
         tags=["orchestration", "clarification", "monitoring"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-ORC-001",
                 category="interaction",
@@ -319,7 +319,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Keeps working memory focused and reduces token usage",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-ORC-001",
                 category="scope",
@@ -336,7 +337,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # RESEARCHER
     # ───────────────────────────────────────────────────────────────────
@@ -386,7 +386,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["WebSearch", "FileOperations"],
         min_verification_score=0.5,
         tags=["research", "discovery", "analysis"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-RES-001",
                 category="accuracy",
@@ -434,7 +435,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Consumers can truncate at their confidence threshold",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-RES-001",
                 category="resource",
@@ -458,7 +460,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # ORACLE
     # ───────────────────────────────────────────────────────────────────
@@ -474,7 +475,11 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             "type": "object",
             "required": ["subject"],
             "properties": {
-                "subject": {"type": "string", "minLength": 1, "description": "Subject to analyze or decision to evaluate"},
+                "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Subject to analyze or decision to evaluate",
+                },
                 "context": {
                     "type": "object",
                     "properties": {
@@ -483,7 +488,11 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                         "prior_decisions": {"type": "array", "items": {"type": "object"}},
                     },
                 },
-                "options": {"type": "array", "items": {"type": "string"}, "description": "Decision options to evaluate"},
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Decision options to evaluate",
+                },
             },
         },
         output_schema={
@@ -495,15 +504,18 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                     "required": ["summary", "trade_offs"],
                     "properties": {
                         "summary": {"type": "string"},
-                        "trade_offs": {"type": "array", "items": {
-                            "type": "object",
-                            "properties": {
-                                "option": {"type": "string"},
-                                "pros": {"type": "array", "items": {"type": "string"}},
-                                "cons": {"type": "array", "items": {"type": "string"}},
-                                "risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                        "trade_offs": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "option": {"type": "string"},
+                                    "pros": {"type": "array", "items": {"type": "string"}},
+                                    "cons": {"type": "array", "items": {"type": "string"}},
+                                    "risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                                },
                             },
-                        }},
+                        },
                         "assumptions": {"type": "array", "items": {"type": "string"}},
                     },
                 },
@@ -528,7 +540,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         max_cost_usd=1.00,
         min_verification_score=0.6,
         tags=["architecture", "risk", "analysis", "decision"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-ORA-001",
                 category="analysis",
@@ -583,7 +596,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Irreversible decisions warrant more scrutiny",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-ORA-001",
                 category="scope",
@@ -600,7 +614,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # BUILDER
     # ───────────────────────────────────────────────────────────────────
@@ -610,10 +623,21 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         version="1.1.0",
         description="Code implementation, scaffolding, refactoring, test writing, debugging",
         agent_type="BUILDER",
-        modes=["feature_implementation", "refactoring", "test_writing", "error_handling", "code_generation", "debugging"],
+        modes=[
+            "feature_implementation",
+            "refactoring",
+            "test_writing",
+            "error_handling",
+            "code_generation",
+            "debugging",
+        ],
         capabilities=[
-            "feature_implementation", "refactoring", "test_writing",
-            "error_handling", "code_generation", "debugging",
+            "feature_implementation",
+            "refactoring",
+            "test_writing",
+            "error_handling",
+            "code_generation",
+            "debugging",
         ],
         input_schema={
             "type": "object",
@@ -623,7 +647,11 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 "language": {"type": "string", "description": "Target programming language"},
                 "files": {"type": "array", "items": {"type": "string"}, "description": "Files to create or modify"},
                 "context": {"type": "string", "description": "Existing code or codebase context"},
-                "requirements": {"type": "array", "items": {"type": "string"}, "description": "Specific requirements or acceptance criteria"},
+                "requirements": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific requirements or acceptance criteria",
+                },
                 "thinking_mode": {"type": "string", "enum": ["low", "medium", "high", "xhigh"], "default": "medium"},
             },
         },
@@ -647,12 +675,18 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["FileOperations", "GitTool"],
         min_verification_score=0.6,
         forbidden_patterns=[
-            "eval(", "exec(", "__import__(",
-            "os.system(", "subprocess.call(",
-            "# TODO", "# HACK", "# FIXME",
+            "eval(",
+            "exec(",
+            "__import__(",
+            "os.system(",
+            "subprocess.call(",
+            "# TODO(#pending)",  # noqa: VET030  (blocklist pattern string, not a live TODO)
+            "# HACK(#pending)",  # noqa: VET030
+            "# FIXME(#pending)",  # noqa: VET030
         ],
         tags=["code", "implementation", "building", "refactoring", "testing"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-BLD-001",
                 category="code_quality",
@@ -735,7 +769,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Leads to more modular, testable, and maintainable code",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-BLD-001",
                 category="scope",
@@ -766,7 +801,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # ARCHITECT
     # ───────────────────────────────────────────────────────────────────
@@ -778,8 +812,12 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         agent_type="ARCHITECT",
         modes=["ui_design", "database", "devops", "git_workflow", "system_design", "api_design"],
         capabilities=[
-            "ui_design", "database", "devops",
-            "git_workflow", "system_design", "api_design",
+            "ui_design",
+            "database",
+            "devops",
+            "git_workflow",
+            "system_design",
+            "api_design",
         ],
         input_schema={
             "type": "object",
@@ -819,7 +857,10 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                     },
                 },
                 "diagrams": {"type": "array", "items": {"type": "object"}},
-                "migration_plan": {"type": "object", "description": "Steps to migrate from current to target architecture"},
+                "migration_plan": {
+                    "type": "object",
+                    "description": "Steps to migrate from current to target architecture",
+                },
             },
         },
         max_tokens=8192,
@@ -828,7 +869,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["FileOperations", "GitTool"],
         min_verification_score=0.6,
         tags=["architecture", "design", "infrastructure", "schema", "ui"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-ARC-001",
                 category="design",
@@ -888,7 +930,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="C4 is widely understood and provides consistent abstraction levels",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-ARC-001",
                 category="scope",
@@ -912,7 +955,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # QUALITY
     # ───────────────────────────────────────────────────────────────────
@@ -922,23 +964,49 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         version="1.1.0",
         description="Code review, test generation, security audit, simplification, performance review",
         agent_type="QUALITY",
-        modes=["code_review", "test_generation", "security_audit", "simplification", "performance_review", "best_practices"],
+        modes=[
+            "code_review",
+            "test_generation",
+            "security_audit",
+            "simplification",
+            "performance_review",
+            "best_practices",
+        ],
         capabilities=[
-            "code_review", "test_generation", "security_audit",
-            "simplification", "performance_review", "best_practices",
+            "code_review",
+            "test_generation",
+            "security_audit",
+            "simplification",
+            "performance_review",
+            "best_practices",
         ],
         input_schema={
             "type": "object",
             "required": ["code"],
             "properties": {
                 "code": {"type": "string", "minLength": 1, "description": "Code to review, test, or audit"},
-                "review_type": {"type": "string", "enum": [
-                    "code_review", "security_audit", "performance_review",
-                    "test_generation", "simplification", "best_practices",
-                ]},
+                "review_type": {
+                    "type": "string",
+                    "enum": [
+                        "code_review",
+                        "security_audit",
+                        "performance_review",
+                        "test_generation",
+                        "simplification",
+                        "best_practices",
+                    ],
+                },
                 "context": {"type": "string", "description": "File path, PR description, or surrounding context"},
-                "focus_areas": {"type": "array", "items": {"type": "string"}, "description": "Specific areas to prioritize"},
-                "severity_threshold": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"], "default": "low"},
+                "focus_areas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific areas to prioritize",
+                },
+                "severity_threshold": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium", "low", "info"],
+                    "default": "low",
+                },
             },
         },
         output_schema={
@@ -982,10 +1050,13 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["FileOperations"],
         min_verification_score=0.7,
         forbidden_patterns=[
-            "eval(", "exec(", "__import__(",
+            "eval(",
+            "exec(",
+            "__import__(",
         ],
         tags=["quality", "review", "testing", "security", "audit", "performance"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-QUA-001",
                 category="security",
@@ -1065,7 +1136,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Quantitative metrics enable trend tracking across reviews",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-QUA-001",
                 category="scope",
@@ -1089,7 +1161,6 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
             ),
         ],
     ),
-
     # ───────────────────────────────────────────────────────────────────
     # OPERATIONS
     # ───────────────────────────────────────────────────────────────────
@@ -1100,13 +1171,23 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         description="Documentation, creative writing, cost analysis, experiments, error recovery, synthesis, image generation",
         agent_type="OPERATIONS",
         modes=[
-            "documentation", "creative_writing", "cost_analysis",
-            "experiment", "error_recovery", "synthesis", "image_generation",
+            "documentation",
+            "creative_writing",
+            "cost_analysis",
+            "experiment",
+            "error_recovery",
+            "synthesis",
+            "image_generation",
             "improvement",
         ],
         capabilities=[
-            "documentation", "creative_writing", "cost_analysis",
-            "experiment", "error_recovery", "synthesis", "image_generation",
+            "documentation",
+            "creative_writing",
+            "cost_analysis",
+            "experiment",
+            "error_recovery",
+            "synthesis",
+            "image_generation",
             "improvement",
         ],
         input_schema={
@@ -1116,9 +1197,14 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 "task_type": {
                     "type": "string",
                     "enum": [
-                        "documentation", "creative_writing", "cost_analysis",
-                        "experiment", "error_recovery", "synthesis",
-                        "image_generation", "improvement",
+                        "documentation",
+                        "creative_writing",
+                        "cost_analysis",
+                        "experiment",
+                        "error_recovery",
+                        "synthesis",
+                        "image_generation",
+                        "improvement",
                     ],
                 },
                 "content": {"type": "string", "description": "Input content to process"},
@@ -1160,7 +1246,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
         requires_tools=["WebSearch", "FileOperations"],
         min_verification_score=0.5,
         tags=["documentation", "creative", "operations", "cost", "recovery"],
-        standards=_UNIVERSAL_STANDARDS + [
+        standards=[
+            *_UNIVERSAL_STANDARDS,
             SkillStandard(
                 id="STD-OPS-001",
                 category="documentation",
@@ -1219,7 +1306,8 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
                 rationale="Continuous improvement prevents debt accumulation",
             ),
         ],
-        constraints=_UNIVERSAL_CONSTRAINTS + [
+        constraints=[
+            *_UNIVERSAL_CONSTRAINTS,
             SkillConstraint(
                 id="CON-OPS-001",
                 category="resource",
@@ -1250,7 +1338,7 @@ SKILL_REGISTRY: Dict[str, SkillSpec] = {
 # Legacy agent type -> consolidated skill mapping
 # ═══════════════════════════════════════════════════════════════════════════
 
-_LEGACY_AGENT_TO_SKILL: Dict[str, str] = {
+_LEGACY_AGENT_TO_SKILL: dict[str, str] = {
     # Planning / Orchestration
     "PLANNER": "planner",
     "USER_INTERACTION": "orchestrator",
@@ -1294,12 +1382,13 @@ _LEGACY_AGENT_TO_SKILL: Dict[str, str] = {
 # Public API
 # ═══════════════════════════════════════════════════════════════════════════
 
-def get_skill(skill_id: str) -> Optional[SkillSpec]:
+
+def get_skill(skill_id: str) -> SkillSpec | None:
     """Get a skill spec by ID."""
     return SKILL_REGISTRY.get(skill_id)
 
 
-def get_skill_for_agent_type(agent_type: str) -> Optional[SkillSpec]:
+def get_skill_for_agent_type(agent_type: str) -> SkillSpec | None:
     """Map a legacy agent type string to its consolidated skill spec."""
     skill_id = _LEGACY_AGENT_TO_SKILL.get(agent_type.upper())
     if skill_id:
@@ -1307,36 +1396,27 @@ def get_skill_for_agent_type(agent_type: str) -> Optional[SkillSpec]:
     return None
 
 
-def get_all_skills() -> Dict[str, SkillSpec]:
+def get_all_skills() -> dict[str, SkillSpec]:
     """Return the full registry."""
     return dict(SKILL_REGISTRY)
 
 
-def get_skills_by_capability(capability: str) -> List[SkillSpec]:
+def get_skills_by_capability(capability: str) -> list[SkillSpec]:
     """Find all skills that declare a given capability."""
-    return [
-        spec for spec in SKILL_REGISTRY.values()
-        if capability in spec.capabilities
-    ]
+    return [spec for spec in SKILL_REGISTRY.values() if capability in spec.capabilities]
 
 
-def get_skills_by_tag(tag: str) -> List[SkillSpec]:
+def get_skills_by_tag(tag: str) -> list[SkillSpec]:
     """Find all skills with a given tag."""
-    return [
-        spec for spec in SKILL_REGISTRY.values()
-        if tag in spec.tags
-    ]
+    return [spec for spec in SKILL_REGISTRY.values() if tag in spec.tags]
 
 
-def get_skills_by_standard_category(category: str) -> List[SkillSpec]:
+def get_skills_by_standard_category(category: str) -> list[SkillSpec]:
     """Find all skills that have standards in a given category."""
-    return [
-        spec for spec in SKILL_REGISTRY.values()
-        if any(s.category == category for s in spec.standards)
-    ]
+    return [spec for spec in SKILL_REGISTRY.values() if any(s.category == category for s in spec.standards)]
 
 
-def validate_all() -> List[str]:
+def validate_all() -> list[str]:
     """Validate every skill spec in the registry. Returns list of errors."""
     errors = []
     for skill_id, spec in SKILL_REGISTRY.items():
@@ -1346,7 +1426,7 @@ def validate_all() -> List[str]:
     return errors
 
 
-def auto_populate_from_agents() -> Dict[str, SkillSpec]:
+def auto_populate_from_agents() -> dict[str, SkillSpec]:
     """Auto-derive SkillSpecs from all MultiModeAgent subclasses.
 
     For each agent class, calls ``to_skill_spec()`` to generate a baseline
@@ -1374,13 +1454,14 @@ def auto_populate_from_agents() -> Dict[str, SkillSpec]:
         "vetinari.agents.consolidated.operations_agent",
     ]
     import importlib
+
     for mod_name in _agent_modules:
         try:
             importlib.import_module(mod_name)
         except ImportError:
             logger.debug("Could not import %s for auto-population", mod_name)
 
-    result: Dict[str, SkillSpec] = {}
+    result: dict[str, SkillSpec] = {}
 
     for subclass in MultiModeAgent.__subclasses__():
         if not subclass.MODES:

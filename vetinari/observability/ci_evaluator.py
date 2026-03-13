@@ -38,7 +38,7 @@ class AdapterProtocol(Protocol):
         Returns:
             Generated text string.
         """
-        ...  # pragma: no cover
+        ...  # noqa: VET032  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -167,9 +167,7 @@ class CIEvaluator:
         cases: list[EvalCase] = []
         for item in raw:
             if not isinstance(item, dict):
-                raise ValueError(
-                    f"Each eval case must be a JSON object, got {type(item).__name__}"
-                )
+                raise ValueError(f"Each eval case must be a JSON object, got {type(item).__name__}")
             try:
                 cases.append(
                     EvalCase(
@@ -331,7 +329,7 @@ class CIEvaluator:
         output = ""
         try:
             output = adapter.complete(case.prompt, model_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             latency_ms = (time.monotonic() - t0) * 1_000
             logger.warning("Eval case %r raised: %s", case.name, exc)
             return CaseResult(
@@ -393,15 +391,11 @@ class CIEvaluator:
         if latency_ms <= case.max_latency_ms:
             checks_passed += 1
         else:
-            failures.append(
-                f"latency {latency_ms:.0f}ms exceeds limit {case.max_latency_ms}ms"
-            )
+            failures.append(f"latency {latency_ms:.0f}ms exceeds limit {case.max_latency_ms}ms")
 
         quality_score = checks_passed / checks_total if checks_total else 1.0
         if quality_score < case.min_quality_score and not failures:
-            failures.append(
-                f"quality score {quality_score:.2f} below threshold {case.min_quality_score}"
-            )
+            failures.append(f"quality score {quality_score:.2f} below threshold {case.min_quality_score}")
 
         return quality_score, "; ".join(failures)
 

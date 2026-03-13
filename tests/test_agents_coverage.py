@@ -1,11 +1,10 @@
 """Coverage tests for vetinari/agents/* agent classes — Phase 7C"""
 import unittest
-from unittest.mock import MagicMock
 
 
 def _make_agent(agent_type_value="BUILDER"):
-    from vetinari.agents.contracts import AgentType
     from vetinari.agents.base_agent import BaseAgent
+    from vetinari.types import AgentType
 
     class MinimalAgent(BaseAgent):
         def execute(self, task, context=None):
@@ -31,40 +30,41 @@ class TestBaseAgentCoverage(unittest.TestCase):
 
     def test_properties(self):
         agent = _make_agent("BUILDER")
-        self.assertIsNotNone(agent.agent_type)
-        self.assertIsInstance(agent.name, str)
-        self.assertIsInstance(agent.description, str)
-        self.assertFalse(agent.is_initialized)
+        assert agent.agent_type is not None
+        assert isinstance(agent.name, str)
+        assert isinstance(agent.description, str)
+        assert not agent.is_initialized
 
     def test_initialize(self):
         agent = _make_agent("EXPLORER")
         agent.initialize({"project": "test"})
-        self.assertTrue(agent.is_initialized)
+        assert agent.is_initialized
 
     def test_execute(self):
-        from vetinari.agents.contracts import AgentTask, AgentType
+        from vetinari.agents.contracts import AgentTask
+        from vetinari.types import AgentType
         agent = _make_agent("EVALUATOR")
         task  = AgentTask(task_id="t1", agent_type=AgentType.EVALUATOR,
                           description="evaluate this", prompt="check it")
         result = agent.execute(task)
-        self.assertTrue(result.success)
+        assert result.success
 
     def test_verify(self):
         from vetinari.agents.contracts import AgentResult
         agent = _make_agent("ORACLE")
         result = AgentResult(success=True, output="answer")
         vr = agent.verify(result)
-        self.assertTrue(vr.passed)
+        assert vr.passed
 
     def test_get_system_prompt(self):
         agent = _make_agent("LIBRARIAN")
         prompt = agent.get_system_prompt()
-        self.assertIsInstance(prompt, str)
+        assert isinstance(prompt, str)
 
     def test_get_capabilities(self):
         agent = _make_agent("RESEARCHER")
         caps = agent.get_capabilities()
-        self.assertIsInstance(caps, list)
+        assert isinstance(caps, list)
 
 
 # ─── PlannerAgent ─────────────────────────────────────────────────────────────
@@ -76,27 +76,28 @@ class TestPlannerAgent(unittest.TestCase):
         self.agent = PlannerAgent()
 
     def test_properties(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.PLANNER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.PLANNER
 
     def test_get_system_prompt(self):
         prompt = self.agent.get_system_prompt()
-        self.assertIn("Plan", prompt)
+        assert "Plan" in prompt
 
     def test_get_capabilities(self):
         caps = self.agent.get_capabilities()
-        self.assertIn("plan_generation", caps)
+        assert "plan_generation" in caps
 
     def test_initialize(self):
         self.agent.initialize({"project_root": "/tmp"})
-        self.assertTrue(self.agent.is_initialized)
+        assert self.agent.is_initialized
 
     def test_execute_returns_result(self):
-        from vetinari.agents.contracts import AgentTask, AgentType
+        from vetinari.agents.contracts import AgentTask
+        from vetinari.types import AgentType
         task   = AgentTask(task_id="t1", agent_type=AgentType.PLANNER,
                            description="Plan task", prompt="Plan: build a REST API")
         result = self.agent.execute(task)
-        self.assertIsNotNone(result)
+        assert result is not None
 
 
 # ─── BuilderAgent ─────────────────────────────────────────────────────────────
@@ -108,18 +109,18 @@ class TestBuilderAgent(unittest.TestCase):
         self.agent = BuilderAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.BUILDER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.BUILDER
 
     def test_get_system_prompt(self):
         prompt = self.agent.get_system_prompt()
-        self.assertIsInstance(prompt, str)
-        self.assertGreater(len(prompt), 10)
+        assert isinstance(prompt, str)
+        assert len(prompt) > 10
 
     def test_get_capabilities(self):
         caps = self.agent.get_capabilities()
-        self.assertIsInstance(caps, list)
-        self.assertGreater(len(caps), 0)
+        assert isinstance(caps, list)
+        assert len(caps) > 0
 
 
 # ─── ExplorerAgent (-> ConsolidatedResearcherAgent) ──────────────────────────
@@ -130,11 +131,11 @@ class TestExplorerAgent(unittest.TestCase):
         self.agent = ExplorerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_RESEARCHER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_RESEARCHER
 
     def test_get_capabilities(self):
-        self.assertIsInstance(self.agent.get_capabilities(), list)
+        assert isinstance(self.agent.get_capabilities(), list)
 
 
 # ─── EvaluatorAgent (-> QualityAgent) ────────────────────────────────────────
@@ -145,11 +146,11 @@ class TestEvaluatorAgent(unittest.TestCase):
         self.agent = EvaluatorAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.QUALITY)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.QUALITY
 
     def test_get_capabilities(self):
-        self.assertIsInstance(self.agent.get_capabilities(), list)
+        assert isinstance(self.agent.get_capabilities(), list)
 
 
 # ─── ResearcherAgent (-> ConsolidatedResearcherAgent) ────────────────────────
@@ -160,11 +161,11 @@ class TestResearcherAgent(unittest.TestCase):
         self.agent = ResearcherAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_RESEARCHER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_RESEARCHER
 
     def test_get_capabilities(self):
-        self.assertIsInstance(self.agent.get_capabilities(), list)
+        assert isinstance(self.agent.get_capabilities(), list)
 
 
 # ─── SynthesizerAgent (-> OperationsAgent) ───────────────────────────────────
@@ -175,11 +176,11 @@ class TestSynthesizerAgent(unittest.TestCase):
         self.agent = SynthesizerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.OPERATIONS)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.OPERATIONS
 
     def test_get_capabilities(self):
-        self.assertIsInstance(self.agent.get_capabilities(), list)
+        assert isinstance(self.agent.get_capabilities(), list)
 
 
 # ─── LibrarianAgent (-> ConsolidatedResearcherAgent) ─────────────────────────
@@ -190,8 +191,8 @@ class TestLibrarianAgent(unittest.TestCase):
         self.agent = LibrarianAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_RESEARCHER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_RESEARCHER
 
 
 # ─── OracleAgent (-> ConsolidatedOracleAgent) ────────────────────────────────
@@ -202,8 +203,8 @@ class TestOracleAgent(unittest.TestCase):
         self.agent = OracleAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_ORACLE)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_ORACLE
 
 
 # ─── SecurityAuditorAgent (-> QualityAgent) ──────────────────────────────────
@@ -214,11 +215,11 @@ class TestSecurityAuditorAgent(unittest.TestCase):
         self.agent = SecurityAuditorAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.QUALITY)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.QUALITY
 
     def test_get_capabilities(self):
-        self.assertIsInstance(self.agent.get_capabilities(), list)
+        assert isinstance(self.agent.get_capabilities(), list)
 
 
 # ─── DataEngineerAgent (-> ConsolidatedResearcherAgent) ──────────────────────
@@ -229,8 +230,8 @@ class TestDataEngineerAgent(unittest.TestCase):
         self.agent = DataEngineerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_RESEARCHER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_RESEARCHER
 
 
 # ─── DocumentationAgent (-> OperationsAgent) ─────────────────────────────────
@@ -241,8 +242,8 @@ class TestDocumentationAgent(unittest.TestCase):
         self.agent = DocumentationAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.OPERATIONS)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.OPERATIONS
 
 
 # ─── CostPlannerAgent (-> PlannerAgent) ──────────────────────────────────────
@@ -253,8 +254,8 @@ class TestCostPlannerAgent(unittest.TestCase):
         self.agent = CostPlannerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.PLANNER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.PLANNER
 
 
 # ─── UIPlannerAgent (-> ConsolidatedResearcherAgent) ─────────────────────────
@@ -265,8 +266,8 @@ class TestUIPlannerAgent(unittest.TestCase):
         self.agent = UIPlannerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.CONSOLIDATED_RESEARCHER)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.CONSOLIDATED_RESEARCHER
 
 
 # ─── TestAutomationAgent (-> QualityAgent) ───────────────────────────────────
@@ -277,8 +278,8 @@ class TestTestAutomationAgent(unittest.TestCase):
         self.agent = TestAutomationAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.QUALITY)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.QUALITY
 
 
 # ─── ExperimentationManagerAgent (-> OperationsAgent) ────────────────────────
@@ -289,8 +290,8 @@ class TestExperimentationManagerAgent(unittest.TestCase):
         self.agent = ExperimentationManagerAgent()
 
     def test_agent_type(self):
-        from vetinari.agents.contracts import AgentType
-        self.assertEqual(self.agent.agent_type, AgentType.OPERATIONS)
+        from vetinari.types import AgentType
+        assert self.agent.agent_type == AgentType.OPERATIONS
 
 
 if __name__ == "__main__":

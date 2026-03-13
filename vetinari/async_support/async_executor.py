@@ -109,10 +109,7 @@ class AsyncExecutor:
         if not tasks:
             return []
 
-        coroutines = [
-            self.execute_task(task, task.get("agent_type", "PLANNER"))
-            for task in tasks
-        ]
+        coroutines = [self.execute_task(task, task.get("agent_type", "PLANNER")) for task in tasks]
 
         if self.fail_fast:
             results: list[dict[str, Any]] = await asyncio.gather(*coroutines)
@@ -205,11 +202,7 @@ class AsyncExecutor:
                     overall_status = "failed"
                     break
 
-        any_failed = any(
-            r.get("status") == "failed"
-            for wave in wave_results
-            for r in wave
-        )
+        any_failed = any(r.get("status") == "failed" for wave in wave_results for r in wave)
         if any_failed and overall_status != "failed":
             overall_status = "completed_with_errors"
 
@@ -225,9 +218,7 @@ class AsyncExecutor:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _dispatch(
-        self, task: dict[str, Any], agent_type: str
-    ) -> dict[str, Any]:
+    async def _dispatch(self, task: dict[str, Any], agent_type: str) -> dict[str, Any]:
         """Dispatch a task to the named agent type.
 
         This is the extension point for concrete integrations.  The default

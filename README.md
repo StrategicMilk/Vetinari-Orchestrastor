@@ -103,7 +103,7 @@ vetinari interactive               Enter REPL mode
 
 Global flags:
   --config PATH   Manifest file path
-  --host URL      LM Studio host (default: http://100.78.30.7:1234)
+  --host URL      LM Studio host (default: http://localhost:1234)
   --mode          planning | execution | sandbox
   --verbose       Debug logging
 ```
@@ -234,7 +234,7 @@ See `AGENTS.md` at the repository root for the complete governance document cove
 
 ```bash
 # LM Studio
-LM_STUDIO_HOST=http://100.78.30.7:1234
+LM_STUDIO_HOST=http://localhost:1234
 
 # Cloud providers (optional)
 CLAUDE_API_KEY=your_key
@@ -338,7 +338,7 @@ python -m pytest tests/test_registry.py tests/test_registry_orchestration.py -v
 ## Requirements
 
 - Python 3.10+
-- LM Studio running at configured host (default: http://100.78.30.7:1234)
+- LM Studio running at configured host (default: http://localhost:1234)
 - Windows 10/11 recommended (64-bit)
 - 16GB+ RAM (64GB+ recommended for large models)
 

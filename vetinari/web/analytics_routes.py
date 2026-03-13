@@ -1,5 +1,4 @@
-"""
-Analytics REST API Routes — vetinari.web.analytics_routes
+"""Analytics REST API Routes — vetinari.web.analytics_routes.
 
 Provides 7 REST endpoints for the analytics dashboard:
 
@@ -16,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from flask import Blueprint, jsonify, request
 
@@ -31,29 +30,35 @@ bp = Blueprint("analytics", __name__, url_prefix="/api/analytics")
 # Helper: safe singleton access
 # ---------------------------------------------------------------------------
 
+
 def _cost_tracker():
     from vetinari.analytics.cost import get_cost_tracker
+
     return get_cost_tracker()
 
 
 def _sla_tracker():
     from vetinari.analytics.sla import get_sla_tracker
+
     return get_sla_tracker()
 
 
 def _anomaly_detector():
     from vetinari.analytics.anomaly import get_anomaly_detector
+
     return get_anomaly_detector()
 
 
 def _forecaster():
     from vetinari.analytics.forecasting import get_forecaster
+
     return get_forecaster()
 
 
 # ---------------------------------------------------------------------------
 # GET /api/analytics/cost
 # ---------------------------------------------------------------------------
+
 
 @bp.route("/cost")
 @require_admin
@@ -76,6 +81,7 @@ def analytics_cost():
 # GET /api/analytics/sla
 # ---------------------------------------------------------------------------
 
+
 @bp.route("/sla")
 @require_admin
 def analytics_sla():
@@ -83,13 +89,15 @@ def analytics_sla():
     try:
         tracker = _sla_tracker()
         reports = tracker.get_all_reports()
-        return jsonify({
-            "status": "ok",
-            "sla": {
-                "slos": [r.to_dict() for r in reports],
-                "stats": tracker.get_stats(),
-            },
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "sla": {
+                    "slos": [r.to_dict() for r in reports],
+                    "stats": tracker.get_stats(),
+                },
+            }
+        )
     except Exception as e:
         logger.error("analytics/sla error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -99,6 +107,7 @@ def analytics_sla():
 # GET /api/analytics/anomalies
 # ---------------------------------------------------------------------------
 
+
 @bp.route("/anomalies")
 @require_admin
 def analytics_anomalies():
@@ -107,14 +116,16 @@ def analytics_anomalies():
         metric = request.args.get("metric") or None
         detector = _anomaly_detector()
         history = detector.get_history(metric=metric)
-        return jsonify({
-            "status": "ok",
-            "anomalies": {
-                "total": len(history),
-                "items": [a.to_dict() for a in history[-100:]],  # Most recent 100
-                "stats": detector.get_stats(),
-            },
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "anomalies": {
+                    "total": len(history),
+                    "items": [a.to_dict() for a in history[-100:]],  # Most recent 100
+                    "stats": detector.get_stats(),
+                },
+            }
+        )
     except Exception as e:
         logger.error("analytics/anomalies error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -123,6 +134,7 @@ def analytics_anomalies():
 # ---------------------------------------------------------------------------
 # GET /api/analytics/forecast
 # ---------------------------------------------------------------------------
+
 
 @bp.route("/forecast")
 @require_admin
@@ -136,13 +148,14 @@ def analytics_forecast():
     """
     try:
         from vetinari.analytics.forecasting import ForecastRequest
+
         fc = _forecaster()
         horizon = request.args.get("horizon", default=10, type=int)
         method = request.args.get("method", default="linear_trend")
         requested_metric = request.args.get("metric") or None
 
         metrics = [requested_metric] if requested_metric else fc.list_metrics()
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
         for m in metrics[:20]:  # Cap at 20 metrics per request
             try:
                 req = ForecastRequest(metric=m, horizon=horizon, method=method)
@@ -151,15 +164,17 @@ def analytics_forecast():
             except Exception as fe:
                 results[m] = {"error": str(fe)}
 
-        return jsonify({
-            "status": "ok",
-            "forecast": {
-                "horizon": horizon,
-                "method": method,
-                "metrics": results,
-                "forecaster_stats": fc.get_stats(),
-            },
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "forecast": {
+                    "horizon": horizon,
+                    "method": method,
+                    "metrics": results,
+                    "forecaster_stats": fc.get_stats(),
+                },
+            }
+        )
     except Exception as e:
         logger.error("analytics/forecast error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -168,6 +183,7 @@ def analytics_forecast():
 # ---------------------------------------------------------------------------
 # GET /api/analytics/models
 # ---------------------------------------------------------------------------
+
 
 @bp.route("/models")
 @require_admin
@@ -178,7 +194,7 @@ def analytics_models():
         sla_reports = _sla_tracker().get_all_reports()
 
         # Build per-model stats from cost tracker
-        model_stats: Dict[str, Any] = {}
+        model_stats: dict[str, Any] = {}
         for model_key, cost_usd in cost_report.by_model.items():
             model_stats[model_key] = {
                 "cost_usd": cost_usd,
@@ -198,13 +214,15 @@ def analytics_models():
                 if key in slo_name or slo_name in key:
                     model_stats[key]["sla_compliance_pct"] = report.compliance_pct
 
-        return jsonify({
-            "status": "ok",
-            "models": {
-                "by_model": model_stats,
-                "top_cost": _cost_tracker().get_top_models(n=5),
-            },
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "models": {
+                    "by_model": model_stats,
+                    "top_cost": _cost_tracker().get_top_models(n=5),
+                },
+            }
+        )
     except Exception as e:
         logger.error("analytics/models error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -213,6 +231,7 @@ def analytics_models():
 # ---------------------------------------------------------------------------
 # GET /api/analytics/agents
 # ---------------------------------------------------------------------------
+
 
 @bp.route("/agents")
 @require_admin
@@ -223,26 +242,29 @@ def analytics_agents():
         top_agents = _cost_tracker().get_top_agents(n=10)
 
         # Try to get quality scores from feedback loop
-        agent_quality: Dict[str, float] = {}
+        agent_quality: dict[str, float] = {}
         try:
             from vetinari.learning.feedback_loop import get_feedback_loop
+
             fl = get_feedback_loop()
             if hasattr(fl, "get_stats"):
-                for agent_key, cost in cost_report.by_agent.items():
+                for agent_key, _cost in cost_report.by_agent.items():
                     stats = fl.get_stats(agent_key) if hasattr(fl, "get_stats") else {}
                     agent_quality[agent_key] = stats.get("avg_quality", 0.0) if stats else 0.0
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
-        return jsonify({
-            "status": "ok",
-            "agents": {
-                "by_agent_cost": cost_report.by_agent,
-                "top_agents": top_agents,
-                "agent_quality": agent_quality,
-                "total_requests": cost_report.total_requests,
-            },
-        })
+        return jsonify(
+            {
+                "status": "ok",
+                "agents": {
+                    "by_agent_cost": cost_report.by_agent,
+                    "top_agents": top_agents,
+                    "agent_quality": agent_quality,
+                    "total_requests": cost_report.total_requests,
+                },
+            }
+        )
     except Exception as e:
         logger.error("analytics/agents error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500
@@ -251,6 +273,7 @@ def analytics_agents():
 # ---------------------------------------------------------------------------
 # GET /api/analytics/summary
 # ---------------------------------------------------------------------------
+
 
 @bp.route("/summary")
 @require_admin
@@ -267,38 +290,41 @@ def analytics_summary():
         total_slos = len(sla_reports)
 
         # AutoTuner current config
-        tuner_config: Dict[str, Any] = {}
+        tuner_config: dict[str, Any] = {}
         try:
             from vetinari.learning.auto_tuner import get_auto_tuner
+
             tuner_config = get_auto_tuner().get_config()
-        except Exception:
+        except Exception:  # noqa: S110, VET022
             pass
 
-        return jsonify({
-            "status": "ok",
-            "summary": {
-                "cost": {
-                    "total_usd": cost_report.total_cost_usd,
-                    "total_tokens": cost_report.total_tokens,
-                    "total_requests": cost_report.total_requests,
+        return jsonify(
+            {
+                "status": "ok",
+                "summary": {
+                    "cost": {
+                        "total_usd": cost_report.total_cost_usd,
+                        "total_tokens": cost_report.total_tokens,
+                        "total_requests": cost_report.total_requests,
+                    },
+                    "sla": {
+                        "compliant_slos": compliant_slos,
+                        "total_slos": total_slos,
+                        "compliance_pct": round(compliant_slos / max(total_slos, 1) * 100, 1),
+                        "slo_names": [r.slo.name for r in sla_reports],
+                    },
+                    "anomalies": {
+                        "total_detected": anomaly_stats.get("total_anomalies", 0),
+                        "tracked_metrics": anomaly_stats.get("tracked_metrics", 0),
+                    },
+                    "forecasting": {
+                        "tracked_metrics": forecaster_stats.get("tracked_metrics", 0),
+                    },
+                    "tuner_config": tuner_config,
+                    "generated_at": time.time(),
                 },
-                "sla": {
-                    "compliant_slos": compliant_slos,
-                    "total_slos": total_slos,
-                    "compliance_pct": round(compliant_slos / max(total_slos, 1) * 100, 1),
-                    "slo_names": [r.slo.name for r in sla_reports],
-                },
-                "anomalies": {
-                    "total_detected": anomaly_stats.get("total_anomalies", 0),
-                    "tracked_metrics": anomaly_stats.get("tracked_metrics", 0),
-                },
-                "forecasting": {
-                    "tracked_metrics": forecaster_stats.get("tracked_metrics", 0),
-                },
-                "tuner_config": tuner_config,
-                "generated_at": time.time(),
-            },
-        })
+            }
+        )
     except Exception as e:
         logger.error("analytics/summary error: %s", e)
         return jsonify({"status": "error", "error": str(e)}), 500

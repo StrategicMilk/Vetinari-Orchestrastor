@@ -1,13 +1,17 @@
-"""Test Automation Skill Tool Wrapper
+"""Test Automation Skill Tool Wrapper.
 
 .. deprecated:: 1.1.0
    DEPRECATED: Superseded by QualitySkillTool (vetinari.skills.quality_skill).
    Will be removed in a future release.
 """
 
+from __future__ import annotations
+
 import logging
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,7 @@ class TestAutomationSkill(Tool):
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "TestAutomationSkill is deprecated since v1.1.0. "
             "Use QualitySkillTool (vetinari.skills.quality_skill) instead.",
@@ -44,6 +49,7 @@ class TestAutomationSkill(Tool):
         if self._agent is None:
             try:
                 from vetinari.agents.test_automation_agent import get_test_automation_agent
+
                 self._agent = get_test_automation_agent()
             except Exception as e:
                 logger.warning("TestAutomationAgent unavailable: %s", e)
@@ -54,7 +60,9 @@ class TestAutomationSkill(Tool):
         if agent is None:
             return ToolResult(success=False, output=None, error="TestAutomationAgent not available")
         try:
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.agents.contracts import AgentTask
+            from vetinari.types import AgentType
+
             task = AgentTask(
                 task_id="test-auto",
                 agent_type=AgentType.TEST_AUTOMATION,
@@ -62,7 +70,8 @@ class TestAutomationSkill(Tool):
                 context=kwargs,
             )
             result = agent.execute(task)
-            return ToolResult(success=result.success, output=result.output,
-                              error="; ".join(result.errors) if result.errors else None)
+            return ToolResult(
+                success=result.success, output=result.output, error="; ".join(result.errors) if result.errors else None
+            )
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

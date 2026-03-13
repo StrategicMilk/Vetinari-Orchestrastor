@@ -1,8 +1,0 @@
-# Requirements Specification
-
-## 1. Introduction
-This document outlines the requirements for an online learning platform...
-
-## 2. Functional Requirements
-### FR-1: User Authentication
-- Users must be able to register with email and password...

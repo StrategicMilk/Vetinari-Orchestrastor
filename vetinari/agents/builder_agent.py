@@ -1,5 +1,4 @@
-"""
-Vetinari Builder Agent (v0.4.0)
+"""Vetinari Builder Agent (v0.4.0).
 
 The Builder agent handles code scaffolding, boilerplate generation, test
 scaffolding, writing generated files to disk, and image generation.
@@ -7,6 +6,8 @@ scaffolding, writing generated files to disk, and image generation.
 Absorbs: IMAGE_GENERATOR (image_generation mode)
 Modes: build, image_generation
 """
+
+from __future__ import annotations
 
 import ast
 import base64
@@ -19,24 +20,24 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from vetinari.agents.multi_mode_agent import MultiModeAgent
 from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
-    AgentType,
     VerificationResult,
 )
+from vetinari.agents.multi_mode_agent import MultiModeAgent
 from vetinari.constants import (
-    SD_WEBUI_HOST,
-    SD_WEBUI_ENABLED,
-    SD_DEFAULT_WIDTH,
+    SD_DEFAULT_CFG,
     SD_DEFAULT_HEIGHT,
     SD_DEFAULT_STEPS,
-    SD_DEFAULT_CFG,
+    SD_DEFAULT_WIDTH,
+    SD_WEBUI_ENABLED,
+    SD_WEBUI_HOST,
     TIMEOUT_MEDIUM,
 )
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,29 @@ class BuilderAgent(MultiModeAgent):
     DEFAULT_MODE = "build"
     MODE_KEYWORDS = {
         "build": [
-            "scaffold", "boilerplate", "generate code", "code gen", "project structure",
-            "create project", "implement", "build", "code",
+            "scaffold",
+            "boilerplate",
+            "generate code",
+            "code gen",
+            "project structure",
+            "create project",
+            "implement",
+            "build",
+            "code",
         ],
         "image_generation": [
-            "image", "logo", "icon", "mockup", "diagram", "illustration",
-            "banner", "background", "svg", "picture", "visual", "asset",
+            "image",
+            "logo",
+            "icon",
+            "mockup",
+            "diagram",
+            "illustration",
+            "banner",
+            "background",
+            "svg",
+            "picture",
+            "visual",
+            "asset",
         ],
     }
     LEGACY_TYPE_TO_MODE = {
@@ -71,22 +89,19 @@ class BuilderAgent(MultiModeAgent):
     # ── Image generation constants ────────────────────────────────────
     STYLE_PRESETS = {
         "logo": "clean vector logo, flat design, minimalist, professional, white background, "
-                "high contrast, suitable for brand identity",
-        "icon": "flat icon, simple shapes, clean lines, professional, vector style, 512x512, "
-                "transparent background",
+        "high contrast, suitable for brand identity",
+        "icon": "flat icon, simple shapes, clean lines, professional, vector style, 512x512, transparent background",
         "ui_mockup": "UI wireframe, clean layout, modern web design, annotated, low fidelity mockup",
-        "diagram": "technical diagram, clean flowchart, professional infographic, clear labels, "
-                   "minimal color palette",
+        "diagram": "technical diagram, clean flowchart, professional infographic, clear labels, minimal color palette",
         "banner": "professional banner, marketing design, clean typography, modern gradient",
-        "background": "abstract background, subtle texture, professional, suitable for UI, "
-                      "dark theme, minimal",
+        "background": "abstract background, subtle texture, professional, suitable for UI, dark theme, minimal",
     }
     NEGATIVE_PROMPT = (
         "blurry, low quality, artifacts, watermark, text errors, distorted, "
         "ugly, deformed, bad anatomy, duplicate, extra elements, noisy, grainy"
     )
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.BUILDER, config)
         self._language = self._config.get("language", "python")
         # Image generation config (absorbed from ImageGeneratorAgent)
@@ -169,19 +184,19 @@ class BuilderAgent(MultiModeAgent):
                 "- Include at least one parametrized test for functions with multiple valid inputs\n\n"
                 "FEW-SHOT EXAMPLE 1 — HTTP client class:\n"
                 'Spec: "HTTP client with retry logic and timeout"\n'
-                'Output: scaffold_code includes class HTTPClient with __init__(base_url, timeout, max_retries),\n'
-                'get(endpoint) and post(endpoint, data) methods with exponential backoff,\n'
-                'full type hints, Google-style docstrings, and specific exception handling.\n'
-                'tests include test_get_success, test_get_timeout_retries, test_post_with_auth_header.\n\n'
+                "Output: scaffold_code includes class HTTPClient with __init__(base_url, timeout, max_retries),\n"
+                "get(endpoint) and post(endpoint, data) methods with exponential backoff,\n"
+                "full type hints, Google-style docstrings, and specific exception handling.\n"
+                "tests include test_get_success, test_get_timeout_retries, test_post_with_auth_header.\n\n"
                 "FEW-SHOT EXAMPLE 2 — Database model:\n"
                 'Spec: "User model with PostgreSQL using SQLAlchemy"\n'
-                'Output: scaffold_code includes User dataclass with id (UUID), email (str), created_at (datetime),\n'
-                'repository class with create(), get_by_email(), update(), parameterized queries only.\n'
-                'artifacts include migration SQL in 001_create_users.sql.\n\n'
+                "Output: scaffold_code includes User dataclass with id (UUID), email (str), created_at (datetime),\n"
+                "repository class with create(), get_by_email(), update(), parameterized queries only.\n"
+                "artifacts include migration SQL in 001_create_users.sql.\n\n"
                 "FEW-SHOT EXAMPLE 3 — CLI tool:\n"
                 'Spec: "CLI tool to process CSV files"\n'
-                'Output: scaffold_code uses argparse with --input, --output, --format flags,\n'
-                'validates file existence before opening, streams large files in chunks.\n\n'
+                "Output: scaffold_code uses argparse with --input, --output, --format flags,\n"
+                "validates file existence before opening, streams large files in chunks.\n\n"
                 "ERROR HANDLING:\n"
                 "- If spec is ambiguous, make the simplest reasonable interpretation and note it\n"
                 "- If spec requires a library not in stdlib, list it in dependencies\n"
@@ -250,16 +265,16 @@ class BuilderAgent(MultiModeAgent):
                 "FEW-SHOT EXAMPLE 1 — Logo generation:\n"
                 'Description: "Logo for a Python developer tools company called Vetinari"\n'
                 'Output: sd_prompt="clean vector logo for Vetinari developer tools, snake icon stylised\n'
-                'as code brackets, dark teal and white, minimalist flat design, professional brand identity,\n'
+                "as code brackets, dark teal and white, minimalist flat design, professional brand identity,\n"
                 'white background, sharp edges, scalable",\n'
                 'color_palette={primary:"#1A535C",secondary:"#4ECDC4",background:"#FFFFFF"}\n\n'
                 "FEW-SHOT EXAMPLE 2 — Architecture diagram SVG:\n"
                 'Description: "System architecture diagram showing API gateway and 3 services"\n'
-                'Output: svg_fallback=complete SVG with labeled rectangles for API Gateway, Service A/B/C,\n'
-                'arrows showing data flow, colour-coded by service type\n\n'
+                "Output: svg_fallback=complete SVG with labeled rectangles for API Gateway, Service A/B/C,\n"
+                "arrows showing data flow, colour-coded by service type\n\n"
                 "FEW-SHOT EXAMPLE 3 — UI mockup:\n"
                 'Description: "Login page wireframe"\n'
-                'Output: style_preset=ui_mockup, width=1280, height=720,\n'
+                "Output: style_preset=ui_mockup, width=1280, height=720,\n"
                 'sd_prompt="UI wireframe login page, centered card layout, email and password fields,\n'
                 'submit button, clean low-fidelity mockup, annotated, professional"\n\n'
                 "ERROR HANDLING:\n"
@@ -285,17 +300,13 @@ class BuilderAgent(MultiModeAgent):
     def verify(self, output: Any) -> VerificationResult:
         """Verify output — mode-aware."""
         if not isinstance(output, dict):
-            return VerificationResult(
-                passed=False, issues=[{"message": "Output must be a dict"}], score=0.0
-            )
+            return VerificationResult(passed=False, issues=[{"message": "Output must be a dict"}], score=0.0)
 
         # Image generation output
         images = output.get("images")
         if images is not None:
             if not images:
-                return VerificationResult(
-                    passed=False, issues=[{"message": "No images generated"}], score=0.0
-                )
+                return VerificationResult(passed=False, issues=[{"message": "No images generated"}], score=0.0)
             score = 1.0
             issues = []
             for img in images:
@@ -324,12 +335,21 @@ class BuilderAgent(MultiModeAgent):
             score -= 0.1
         return VerificationResult(passed=score >= 0.5, issues=issues, score=max(0, score))
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "code_scaffolding", "test_generation", "boilerplate_creation",
-            "project_structure", "configuration_templates", "documentation_generation",
-            "image_generation", "logo_design", "icon_creation", "ui_mockup",
-            "diagram_generation", "svg_generation", "asset_creation",
+            "code_scaffolding",
+            "test_generation",
+            "boilerplate_creation",
+            "project_structure",
+            "configuration_templates",
+            "documentation_generation",
+            "image_generation",
+            "logo_design",
+            "icon_creation",
+            "ui_mockup",
+            "diagram_generation",
+            "svg_generation",
+            "asset_creation",
         ]
 
     # ==================================================================
@@ -344,7 +364,7 @@ class BuilderAgent(MultiModeAgent):
 
         scaffold = self._generate_scaffold(spec, feature_name)
 
-        written_files: List[str] = []
+        written_files: list[str] = []
         if output_dir or task.context.get("write_files", False):
             written_files = self._write_scaffold_to_disk(scaffold, output_dir or ".")
 
@@ -363,7 +383,7 @@ class BuilderAgent(MultiModeAgent):
             },
         )
 
-    def _generate_scaffold(self, spec: str, feature_name: str) -> Dict[str, Any]:
+    def _generate_scaffold(self, spec: str, feature_name: str) -> dict[str, Any]:
         """Generate code scaffold using LLM-powered code generation."""
         prompt = f"""You are a code generation expert. Generate a complete, production-ready code scaffold.
 
@@ -374,7 +394,7 @@ Produce a JSON response with this exact structure:
 {{
   "scaffold_code": "complete Python module code as a string",
   "tests": [
-    {{"filename": "test_{feature_name.lower().replace(' ','_')}.py", "content": "complete test code"}}
+    {{"filename": "test_{feature_name.lower().replace(" ", "_")}.py", "content": "complete test code"}}
   ],
   "artifacts": [
     {{"filename": "README.md", "content": "complete README"}},
@@ -408,8 +428,14 @@ Requirements:
         generated_code = self._infer(code_prompt, temperature=0.2)
 
         return {
-            "scaffold_code": generated_code or f'"""Auto-generated {feature_name} module."""\n\nclass {class_name}:\n    pass\n',
-            "tests": [{"filename": f"test_{safe_name}.py", "content": f"import unittest\n\nclass Test{class_name}(unittest.TestCase):\n    pass\n\nif __name__ == '__main__':\n    unittest.main()\n"}],
+            "scaffold_code": generated_code
+            or f'"""Auto-generated {feature_name} module."""\n\nclass {class_name}:\n    pass\n',
+            "tests": [
+                {
+                    "filename": f"test_{safe_name}.py",
+                    "content": f"import unittest\n\nclass Test{class_name}(unittest.TestCase):\n    pass\n\nif __name__ == '__main__':\n    unittest.main()\n",
+                }
+            ],
             "artifacts": [
                 {"filename": "README.md", "content": f"# {class_name}\n\n{spec}\n"},
                 {"filename": "config.yaml", "content": f"feature:\n  name: {safe_name}\n  version: 1.0.0\n"},
@@ -446,9 +472,9 @@ Requirements:
             self._log("error", f"File write failed for {path}: {exc}")
             return False
 
-    def _write_scaffold_to_disk(self, scaffold: Dict[str, Any], output_dir: str) -> List[str]:
+    def _write_scaffold_to_disk(self, scaffold: dict[str, Any], output_dir: str) -> list[str]:
         """Write all scaffold files to ``output_dir``. Returns list of written paths."""
-        written: List[str] = []
+        written: list[str] = []
         base = Path(output_dir)
         base.mkdir(parents=True, exist_ok=True)
 
@@ -480,7 +506,7 @@ Requirements:
         return written
 
     @staticmethod
-    def _check_syntax(code: str) -> List[str]:
+    def _check_syntax(code: str) -> list[str]:
         """Return list of syntax error messages for Python code, or empty list."""
         if not code or not code.strip():
             return []
@@ -493,43 +519,56 @@ Requirements:
             return [str(e)]
 
     def write_and_execute(
-        self, code: str, timeout: int = 30, working_dir: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self,
+        code: str,
+        timeout: int = 30,
+        working_dir: str | None = None,
+    ) -> dict[str, Any]:
         """Write code to a temp file and execute it safely."""
         syntax_errors = self._check_syntax(code)
         if syntax_errors:
             return {
-                "success": False, "stdout": "", "stderr": "\n".join(syntax_errors),
-                "returncode": -1, "syntax_errors": syntax_errors,
+                "success": False,
+                "stdout": "",
+                "stderr": "\n".join(syntax_errors),
+                "returncode": -1,
+                "syntax_errors": syntax_errors,
             }
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, encoding="utf-8"
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
             f.write(code)
             tmp_path = f.name
 
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # noqa: S603
                 [sys.executable, tmp_path],
-                capture_output=True, text=True, timeout=timeout,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
                 cwd=working_dir or ".",
             )
             return {
                 "success": proc.returncode == 0,
-                "stdout": proc.stdout[:5000], "stderr": proc.stderr[:2000],
-                "returncode": proc.returncode, "syntax_errors": [],
+                "stdout": proc.stdout[:5000],
+                "stderr": proc.stderr[:2000],
+                "returncode": proc.returncode,
+                "syntax_errors": [],
             }
         except subprocess.TimeoutExpired:
             return {
-                "success": False, "stdout": "",
+                "success": False,
+                "stdout": "",
                 "stderr": f"Execution timed out after {timeout}s",
-                "returncode": -1, "syntax_errors": [],
+                "returncode": -1,
+                "syntax_errors": [],
             }
         except Exception as e:
             return {
-                "success": False, "stdout": "", "stderr": str(e),
-                "returncode": -1, "syntax_errors": [],
+                "success": False,
+                "stdout": "",
+                "stderr": str(e),
+                "returncode": -1,
+                "syntax_errors": [],
             }
         finally:
             try:
@@ -550,7 +589,7 @@ Requirements:
         image_spec = self._build_image_spec(description, context)
 
         # Step 2: Try to generate via Stable Diffusion
-        generated_images: List[Dict[str, Any]] = []
+        generated_images: list[dict[str, Any]] = []
         sd_error = None
 
         if self._sd_enabled:
@@ -562,17 +601,17 @@ Requirements:
 
         # Step 3: If SD failed/unavailable, generate SVG fallback
         if not generated_images:
-            svg_code = image_spec.get("svg_fallback") or self._generate_svg_fallback(
-                description, image_spec
-            )
+            svg_code = image_spec.get("svg_fallback") or self._generate_svg_fallback(description, image_spec)
             if svg_code:
                 svg_path = self._save_svg(svg_code, description)
-                generated_images = [{
-                    "type": "svg",
-                    "path": str(svg_path),
-                    "description": image_spec.get("description", description),
-                    "code": svg_code,
-                }]
+                generated_images = [
+                    {
+                        "type": "svg",
+                        "path": str(svg_path),
+                        "description": image_spec.get("description", description),
+                        "code": svg_code,
+                    }
+                ]
 
         result = {
             "images": generated_images,
@@ -593,16 +632,16 @@ Requirements:
             },
         )
 
-    def _build_image_spec(self, description: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_image_spec(self, description: str, context: dict[str, Any]) -> dict[str, Any]:
         """Use LLM to build an optimized image specification."""
         style = self._detect_style(description)
 
         prompt = f"""Create an image generation specification for this asset:
 
 Description: {description}
-Context: {json.dumps(context, default=str)[:300] if context else 'none'}
+Context: {json.dumps(context, default=str)[:300] if context else "none"}
 
-Infer the best style preset from: {', '.join(self.STYLE_PRESETS.keys())}
+Infer the best style preset from: {", ".join(self.STYLE_PRESETS.keys())}
 For the SD prompt, use descriptive terms that produce professional results.
 Include an SVG code fallback for simple icons/logos that can be represented as vectors.
 
@@ -657,12 +696,12 @@ Respond with valid JSON only."""
         }
         return sizes.get(style, (512, 512))
 
-    def _generate_via_sd(self, spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_via_sd(self, spec: dict[str, Any]) -> list[dict[str, Any]]:
         """Call the Stable Diffusion WebUI API to generate images."""
         try:
             import requests as req
         except ImportError:
-            raise RuntimeError("requests library required for SD generation")
+            raise RuntimeError("requests library required for SD generation") from None
 
         url = f"{self._sd_host}/sdapi/v1/txt2img"
         payload = {
@@ -682,23 +721,25 @@ Respond with valid JSON only."""
         data = response.json()
 
         images = []
-        for i, img_b64 in enumerate(data.get("images", [])):
+        for _i, img_b64 in enumerate(data.get("images", [])):
             filename = f"img_{uuid.uuid4().hex[:8]}.png"
             out_path = self._output_dir / filename
             with open(out_path, "wb") as f:
                 f.write(base64.b64decode(img_b64))
-            images.append({
-                "type": "png",
-                "path": str(out_path),
-                "filename": filename,
-                "description": spec.get("description", ""),
-                "prompt": spec.get("sd_prompt", ""),
-            })
+            images.append(
+                {
+                    "type": "png",
+                    "path": str(out_path),
+                    "filename": filename,
+                    "description": spec.get("description", ""),
+                    "prompt": spec.get("sd_prompt", ""),
+                }
+            )
             logger.info("Generated image: %s", out_path)
 
         return images
 
-    def _generate_svg_fallback(self, description: str, spec: Dict[str, Any]) -> str:
+    def _generate_svg_fallback(self, description: str, spec: dict[str, Any]) -> str:
         """Ask the LLM to generate SVG code as a fallback."""
         style = spec.get("style_preset", "logo")
         size = self._get_default_size(style)
@@ -722,7 +763,7 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
         if not result:
             return self._minimal_svg_placeholder(description, size)
 
-        svg_match = re.search(r'<svg[\s\S]*?</svg>', result, re.IGNORECASE)
+        svg_match = re.search(r"<svg[\s\S]*?</svg>", result, re.IGNORECASE)
         if svg_match:
             return svg_match.group(0)
 
@@ -735,9 +776,14 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
         """Generate a descriptive placeholder SVG with keyword-based theming."""
         w, h = size
         colors = {
-            "landscape": "#4CAF50", "portrait": "#2196F3", "abstract": "#9C27B0",
-            "diagram": "#FF9800", "chart": "#00BCD4", "icon": "#E91E63",
-            "logo": "#3F51B5", "photo": "#795548",
+            "landscape": "#4CAF50",
+            "portrait": "#2196F3",
+            "abstract": "#9C27B0",
+            "diagram": "#FF9800",
+            "chart": "#00BCD4",
+            "icon": "#E91E63",
+            "logo": "#3F51B5",
+            "photo": "#795548",
         }
         bg_color = "#607D8B"
         for keyword, color in colors.items():
@@ -746,7 +792,7 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
                 break
 
         safe_desc = description.replace('"', "'").replace("<", "&lt;").replace(">", "&gt;")
-        lines = [safe_desc[i:i + 40] for i in range(0, min(len(safe_desc), 120), 40)]
+        lines = [safe_desc[i : i + 40] for i in range(0, min(len(safe_desc), 120), 40)]
         text_elements = "\n".join(
             f'  <text x="{w // 2}" y="{h // 2 + i * 20 - len(lines) * 10}" '
             f'text-anchor="middle" fill="white" font-family="sans-serif" '
@@ -760,8 +806,8 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
             f'  <rect width="{w}" height="{h}" fill="{bg_color}" rx="8"/>\n'
             f'  <text x="{w // 2}" y="28" text-anchor="middle" fill="white" font-family="sans-serif"\n'
             f'        font-size="15" font-weight="bold">Image Placeholder ({w}x{h})</text>\n'
-            f'{text_elements}\n'
-            f'</svg>'
+            f"{text_elements}\n"
+            f"</svg>"
         )
 
     def _save_svg(self, svg_code: str, description: str) -> Path:
@@ -775,10 +821,10 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
 
 
 # Singleton instance
-_builder_agent: Optional[BuilderAgent] = None
+_builder_agent: BuilderAgent | None = None
 
 
-def get_builder_agent(config: Optional[Dict[str, Any]] = None) -> BuilderAgent:
+def get_builder_agent(config: dict[str, Any] | None = None) -> BuilderAgent:
     """Get the singleton Builder agent instance."""
     global _builder_agent
     if _builder_agent is None:

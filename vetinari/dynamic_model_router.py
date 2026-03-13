@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.models.dynamic_model_router
+"""Backward-compat shim. Canonical: vetinari.models.dynamic_model_router.
 
 All new code should import from vetinari.models.dynamic_model_router directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

@@ -14,22 +14,22 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from vetinari.async_support.async_executor import AsyncExecutor
 from vetinari.async_support.conversation import (
+    ContextReconstructor,
     ConversationMessage,
     ConversationStore,
-    ContextReconstructor,
     _reset_conversation_store,
     get_conversation_store,
 )
 from vetinari.async_support.streaming import (
     BufferedStreamHandler,
-    LoggingStreamHandler,
     SSEStreamHandler,
     StreamChunk,
     StreamRouter,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -54,21 +54,21 @@ class TestAsyncExecutorSingleTask(unittest.TestCase):
     def test_single_task_status_completed(self):
         task = {"id": "t1", "prompt": "do something", "agent_type": "BUILDER"}
         result = _run(self.executor.execute_task(task, "BUILDER"))
-        self.assertEqual(result["status"], "completed")
+        assert result["status"] == "completed"
 
     def test_single_task_id_preserved(self):
         task = {"id": "task-abc", "agent_type": "PLANNER"}
         result = _run(self.executor.execute_task(task, "PLANNER"))
-        self.assertEqual(result["task_id"], "task-abc")
+        assert result["task_id"] == "task-abc"
 
     def test_single_task_agent_type_preserved(self):
         task = {"id": "t2", "agent_type": "ORACLE"}
         result = _run(self.executor.execute_task(task, "ORACLE"))
-        self.assertEqual(result["agent_type"], "ORACLE")
+        assert result["agent_type"] == "ORACLE"
 
     def test_single_task_missing_id_defaults_to_unknown(self):
         result = _run(self.executor.execute_task({}, "PLANNER"))
-        self.assertEqual(result["task_id"], "unknown")
+        assert result["task_id"] == "unknown"
 
     def test_single_task_exception_returns_failed_status(self):
         """Patch _dispatch to raise; execute_task must return status='failed'."""
@@ -79,8 +79,8 @@ class TestAsyncExecutorSingleTask(unittest.TestCase):
         self.executor._dispatch = _bad_dispatch
         task = {"id": "err-task", "agent_type": "BUILDER"}
         result = _run(self.executor.execute_task(task, "BUILDER"))
-        self.assertEqual(result["status"], "failed")
-        self.assertIn("simulated failure", result["error"])
+        assert result["status"] == "failed"
+        assert "simulated failure" in result["error"]
 
 
 class TestAsyncExecutorTimeout(unittest.TestCase):
@@ -96,8 +96,8 @@ class TestAsyncExecutorTimeout(unittest.TestCase):
         executor._dispatch = _slow_dispatch
         task = {"id": "slow", "agent_type": "BUILDER"}
         result = _run(executor.execute_task(task, "BUILDER"))
-        self.assertEqual(result["status"], "failed")
-        self.assertIn("Timeout", result["error"])
+        assert result["status"] == "failed"
+        assert "Timeout" in result["error"]
 
 
 class TestAsyncExecutorWave(unittest.TestCase):
@@ -113,22 +113,22 @@ class TestAsyncExecutorWave(unittest.TestCase):
             {"id": "w3", "agent_type": "PLANNER"},
         ]
         results = _run(self.executor.execute_wave(tasks))
-        self.assertEqual(len(results), 3)
+        assert len(results) == 3
 
     def test_wave_empty_returns_empty_list(self):
         results = _run(self.executor.execute_wave([]))
-        self.assertEqual(results, [])
+        assert results == []
 
     def test_wave_all_completed_by_default(self):
         tasks = [{"id": f"t{i}", "agent_type": "BUILDER"} for i in range(5)]
         results = _run(self.executor.execute_wave(tasks))
         statuses = {r["status"] for r in results}
-        self.assertEqual(statuses, {"completed"})
+        assert statuses == {"completed"}
 
     def test_wave_uses_agent_type_from_task_dict(self):
         tasks = [{"id": "a", "agent_type": "QUALITY"}]
         results = _run(self.executor.execute_wave(tasks))
-        self.assertEqual(results[0]["agent_type"], "QUALITY")
+        assert results[0]["agent_type"] == "QUALITY"
 
 
 class TestAsyncExecutorPlan(unittest.TestCase):
@@ -151,24 +151,24 @@ class TestAsyncExecutorPlan(unittest.TestCase):
 
     def test_plan_empty_waves_returns_completed(self):
         result = _run(self.executor.execute_plan({"id": "empty", "waves": []}))
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(result["total_tasks"], 0)
+        assert result["status"] == "completed"
+        assert result["total_tasks"] == 0
 
     def test_plan_single_wave(self):
         plan = self._make_plan([3])
         result = _run(self.executor.execute_plan(plan))
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(result["total_tasks"], 3)
+        assert result["status"] == "completed"
+        assert result["total_tasks"] == 3
 
     def test_plan_multi_wave_task_count(self):
         plan = self._make_plan([2, 3, 1])
         result = _run(self.executor.execute_plan(plan))
-        self.assertEqual(result["total_tasks"], 6)
+        assert result["total_tasks"] == 6
 
     def test_plan_wave_results_length_matches_wave_count(self):
         plan = self._make_plan([1, 2])
         result = _run(self.executor.execute_plan(plan))
-        self.assertEqual(len(result["wave_results"]), 2)
+        assert len(result["wave_results"]) == 2
 
 
 # ===========================================================================
@@ -179,14 +179,14 @@ class TestAsyncExecutorPlan(unittest.TestCase):
 class TestStreamChunk(unittest.TestCase):
     def test_dataclass_fields(self):
         chunk = StreamChunk(content="hello", chunk_index=0, is_final=False)
-        self.assertEqual(chunk.content, "hello")
-        self.assertEqual(chunk.chunk_index, 0)
-        self.assertFalse(chunk.is_final)
-        self.assertEqual(chunk.metadata, {})
+        assert chunk.content == "hello"
+        assert chunk.chunk_index == 0
+        assert not chunk.is_final
+        assert chunk.metadata == {}
 
     def test_metadata_field(self):
         chunk = StreamChunk("x", 1, True, metadata={"model": "gpt-4"})
-        self.assertEqual(chunk.metadata["model"], "gpt-4")
+        assert chunk.metadata["model"] == "gpt-4"
 
 
 # ===========================================================================
@@ -200,25 +200,25 @@ class TestSSEStreamHandler(unittest.TestCase):
 
     def test_non_final_chunk_formats_as_data_event(self):
         _run(self.handler.on_chunk(StreamChunk("Hi", 0, False)))
-        self.assertTrue(self.handler.events[0].startswith("data:"))
+        assert self.handler.events[0].startswith("data:")
 
     def test_final_chunk_formats_as_done_event(self):
         _run(self.handler.on_chunk(StreamChunk("End", 1, True)))
-        self.assertIn("event: done", self.handler.events[0])
+        assert "event: done" in self.handler.events[0]
 
     def test_on_complete_appends_complete_event(self):
         _run(self.handler.on_complete("full text"))
-        self.assertIn("event: complete", self.handler.events[0])
+        assert "event: complete" in self.handler.events[0]
 
     def test_on_error_appends_error_event(self):
         _run(self.handler.on_error(ValueError("boom")))
-        self.assertIn("event: error", self.handler.events[0])
-        self.assertIn("boom", self.handler.events[0])
+        assert "event: error" in self.handler.events[0]
+        assert "boom" in self.handler.events[0]
 
     def test_multiple_chunks_accumulate(self):
         _run(self.handler.on_chunk(StreamChunk("A", 0, False)))
         _run(self.handler.on_chunk(StreamChunk("B", 1, True)))
-        self.assertEqual(len(self.handler.events), 2)
+        assert len(self.handler.events) == 2
 
 
 # ===========================================================================
@@ -234,14 +234,14 @@ class TestBufferedStreamHandler(unittest.TestCase):
         _run(self.handler.on_chunk(StreamChunk("Hello ", 0, False)))
         _run(self.handler.on_chunk(StreamChunk("world", 1, True)))
         _run(self.handler.on_complete("Hello world"))
-        self.assertEqual(self.handler.buffer, "Hello world")
-        self.assertTrue(self.handler.completed)
+        assert self.handler.buffer == "Hello world"
+        assert self.handler.completed
 
     def test_on_error_records_error(self):
         exc = RuntimeError("fail")
         _run(self.handler.on_error(exc))
-        self.assertIs(self.handler.error, exc)
-        self.assertFalse(self.handler.completed)
+        assert self.handler.error is exc
+        assert not self.handler.completed
 
 
 # ===========================================================================
@@ -261,17 +261,17 @@ class TestStreamRouter(unittest.TestCase):
         _run(router.route_chunk(chunk))
 
         # h1 accumulated the chunk internally
-        self.assertEqual(h1._chunks, ["test"])
+        assert h1._chunks == ["test"]
         # h2 formatted it as SSE
-        self.assertEqual(len(h2.events), 1)
+        assert len(h2.events) == 1
 
     def test_route_complete_fans_out(self):
         router = StreamRouter()
         h1 = BufferedStreamHandler()
         router.add_handler(h1)
         _run(router.route_complete("full"))
-        self.assertTrue(h1.completed)
-        self.assertEqual(h1.buffer, "full")
+        assert h1.completed
+        assert h1.buffer == "full"
 
     def test_failing_handler_does_not_block_others(self):
         """A handler that raises on_chunk must not prevent other handlers from receiving."""
@@ -285,7 +285,7 @@ class TestStreamRouter(unittest.TestCase):
         router.add_handler(good)
 
         _run(router.route_chunk(StreamChunk("safe", 0, False)))
-        self.assertEqual(good._chunks, ["safe"])
+        assert good._chunks == ["safe"]
 
 
 # ===========================================================================
@@ -300,16 +300,16 @@ class TestConversationStore(unittest.TestCase):
 
     def test_create_session_returns_id(self):
         sid = self.store.create_session()
-        self.assertIsInstance(sid, str)
-        self.assertGreater(len(sid), 0)
+        assert isinstance(sid, str)
+        assert len(sid) > 0
 
     def test_create_session_with_explicit_id(self):
         sid = self.store.create_session("my-session")
-        self.assertEqual(sid, "my-session")
+        assert sid == "my-session"
 
     def test_create_duplicate_session_raises(self):
         self.store.create_session("dup")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.store.create_session("dup")
 
     def test_add_and_get_history(self):
@@ -317,34 +317,34 @@ class TestConversationStore(unittest.TestCase):
         self.store.add_message(sid, "user", "Hello")
         self.store.add_message(sid, "assistant", "Hi there")
         history = self.store.get_history(sid)
-        self.assertEqual(len(history), 2)
-        self.assertEqual(history[0].role, "user")
-        self.assertEqual(history[1].role, "assistant")
+        assert len(history) == 2
+        assert history[0].role == "user"
+        assert history[1].role == "assistant"
 
     def test_get_history_limit(self):
         sid = self.store.create_session()
         for i in range(10):
             self.store.add_message(sid, "user", f"msg {i}")
         history = self.store.get_history(sid, limit=3)
-        self.assertEqual(len(history), 3)
-        self.assertEqual(history[-1].content, "msg 9")
+        assert len(history) == 3
+        assert history[-1].content == "msg 9"
 
     def test_add_message_to_unknown_session_raises(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.store.add_message("nonexistent", "user", "hello")
 
     def test_clear_session(self):
         sid = self.store.create_session()
         self.store.add_message(sid, "user", "x")
         self.store.clear_session(sid)
-        self.assertEqual(self.store.get_history(sid), [])
+        assert self.store.get_history(sid) == []
 
     def test_list_sessions(self):
         self.store.create_session("alpha")
         self.store.create_session("beta")
         sessions = self.store.list_sessions()
-        self.assertIn("alpha", sessions)
-        self.assertIn("beta", sessions)
+        assert "alpha" in sessions
+        assert "beta" in sessions
 
     def test_get_context_window_token_limit(self):
         sid = self.store.create_session()
@@ -354,13 +354,13 @@ class TestConversationStore(unittest.TestCase):
             self.store.add_message(sid, "user", f"msg{i:05d}")  # 8 chars each
         window = self.store.get_context_window(sid, max_tokens=10)
         # With budget=40 chars and 8 chars/msg, we fit at most 5 messages
-        self.assertLessEqual(len(window), 5)
+        assert len(window) <= 5
 
     def test_singleton_returns_same_instance(self):
         _reset_conversation_store()
         s1 = get_conversation_store()
         s2 = get_conversation_store()
-        self.assertIs(s1, s2)
+        assert s1 is s2
 
 
 # ===========================================================================
@@ -378,7 +378,7 @@ class TestContextReconstructor(unittest.TestCase):
 
     def test_empty_messages_returns_system_header(self):
         result = self.rc.reconstruct([])
-        self.assertIn("helpful AI assistant", result)
+        assert "helpful AI assistant" in result
 
     def test_messages_are_included_in_output(self):
         msgs = [
@@ -386,17 +386,17 @@ class TestContextReconstructor(unittest.TestCase):
             self._make_msg("assistant", "Hi there"),
         ]
         result = self.rc.reconstruct(msgs)
-        self.assertIn("USER: Hello", result)
-        self.assertIn("ASSISTANT: Hi there", result)
+        assert "USER: Hello" in result
+        assert "ASSISTANT: Hi there" in result
 
     def test_truncation_omits_old_messages(self):
         msgs = [self._make_msg("user", "x" * 500) for _ in range(20)]
         result = self.rc.reconstruct(msgs, max_tokens=50)
-        self.assertIn("earlier message", result.lower())
+        assert "earlier message" in result.lower()
 
     def test_output_starts_with_system_header(self):
         result = self.rc.reconstruct([self._make_msg("user", "hi")])
-        self.assertTrue(result.startswith("You are a helpful AI assistant"))
+        assert result.startswith("You are a helpful AI assistant")
 
 
 if __name__ == "__main__":

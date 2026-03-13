@@ -2,10 +2,10 @@
 Unit tests for Oracle Skill Tool
 """
 
-import pytest
 from unittest.mock import Mock
-from vetinari.skills.oracle import OracleSkillTool, OracleCapability, ThinkingMode
-from vetinari.execution_context import ExecutionMode
+
+from vetinari.skills.oracle import OracleCapability, OracleSkillTool, ThinkingMode
+from vetinari.types import ExecutionMode
 
 
 class TestOracleMetadata:

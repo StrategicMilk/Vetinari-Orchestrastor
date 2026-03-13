@@ -10,8 +10,9 @@ Tests cover:
 - Error handling and empty data
 """
 
-import pytest
 import json
+
+import pytest
 
 try:
     from flask import Flask
@@ -20,15 +21,18 @@ except ImportError:
     HAS_FLASK = False
 
 if HAS_FLASK:
-    from vetinari.dashboard.rest_api import create_app
     from vetinari.dashboard import reset_dashboard
+    from vetinari.dashboard.rest_api import create_app
 
-from vetinari.analytics.cost import get_cost_tracker, reset_cost_tracker, CostEntry
-from vetinari.analytics.sla import (
-    get_sla_tracker, reset_sla_tracker, SLOTarget, SLOType,
-)
-from vetinari.analytics.forecasting import get_forecaster, reset_forecaster
 from vetinari.analytics.anomaly import get_anomaly_detector, reset_anomaly_detector
+from vetinari.analytics.cost import CostEntry, get_cost_tracker, reset_cost_tracker
+from vetinari.analytics.forecasting import get_forecaster, reset_forecaster
+from vetinari.analytics.sla import (
+    SLOTarget,
+    SLOType,
+    get_sla_tracker,
+    reset_sla_tracker,
+)
 
 
 def _reset_all():

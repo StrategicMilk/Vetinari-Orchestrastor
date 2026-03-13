@@ -1,14 +1,14 @@
 """Tests for vetinari.learning.cost_optimizer."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from vetinari.learning.cost_optimizer import (
     CostEfficiency,
     CostOptimizer,
     get_cost_optimizer,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -71,11 +71,11 @@ class TestCostEfficiencyDataclass:
         assert ce.total_uses == 0
 
     def test_equality_of_identical_instances(self):
-        kwargs = dict(
-            model_id="m", task_type="t",
-            avg_quality=0.9, avg_cost_usd=0.01,
-            quality_per_dollar=90.0, total_uses=5,
-        )
+        kwargs = {
+            "model_id": "m", "task_type": "t",
+            "avg_quality": 0.9, "avg_cost_usd": 0.01,
+            "quality_per_dollar": 90.0, "total_uses": 5,
+        }
         assert CostEfficiency(**kwargs) == CostEfficiency(**kwargs)
 
     def test_fields_are_mutable(self):
@@ -293,10 +293,10 @@ class TestSelectCheapestAdequate:
         assert result == "only-model"
 
     def test_default_min_quality_constant(self):
-        assert CostOptimizer.DEFAULT_MIN_QUALITY == pytest.approx(0.65)
+        assert pytest.approx(0.65) == CostOptimizer.DEFAULT_MIN_QUALITY
 
     def test_local_cost_constant(self):
-        assert CostOptimizer.LOCAL_COST == pytest.approx(0.0)
+        assert pytest.approx(0.0) == CostOptimizer.LOCAL_COST
 
     def test_all_models_below_quality_threshold_returns_first_when_no_efficiencies(self):
         opt = _make_optimizer()

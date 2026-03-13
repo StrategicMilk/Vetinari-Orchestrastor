@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class StepScore:
 
     @property
     def ratio(self) -> float:
-        """Score as a fraction of max_score (0.0 – 1.0)."""
+        """Score as a fraction of max_score (0.0 - 1.0)."""
         if self.max_score == 0:
             return 1.0
         return self.score / self.max_score
@@ -52,7 +52,7 @@ class EvaluationReport:
 
     Attributes:
         scores: One :class:`StepScore` per metric evaluated.
-        overall_score: Weighted average of score ratios (0.0 – 1.0).
+        overall_score: Weighted average of score ratios (0.0 - 1.0).
         passed: True when all metrics passed.
         recommendations: Human-readable suggestions for failing metrics.
     """
@@ -154,7 +154,7 @@ class PlanQualityMetric:
         ids = [str(t.get("id", i)) for i, t in enumerate(tasks)]
         id_set = set(ids)
         adj: dict[str, list[str]] = {tid: [] for tid in ids}
-        in_degree: dict[str, int] = {tid: 0 for tid in ids}
+        in_degree: dict[str, int] = dict.fromkeys(ids, 0)
 
         for i, task in enumerate(tasks):
             tid = ids[i]
@@ -289,7 +289,7 @@ class StepEvaluator:
 
         ev = get_step_evaluator()
         report = ev.evaluate_all(plan, execution_log)
-        print(report.overall_score, report.passed)
+        logger.debug(report.overall_score, report.passed)
     """
 
     def __init__(self) -> None:
@@ -348,7 +348,7 @@ class StepEvaluator:
             recs.append("Dependency graph contains cycles — remove circular references.")
         if not d.get("reasonable_task_count"):
             count = d.get("task_count", 0)
-            recs.append(f"Task count ({count}) is outside the acceptable range (1–100).")
+            recs.append(f"Task count ({count}) is outside the acceptable range (1-100).")
         return recs
 
     @staticmethod
@@ -357,9 +357,7 @@ class StepEvaluator:
         d = score.details
         ratio = d.get("tasks_completed_ratio", 0.0)
         if ratio < 1.0:
-            recs.append(
-                f"Only {ratio:.0%} of planned tasks were executed — check for early termination."
-            )
+            recs.append(f"Only {ratio:.0%} of planned tasks were executed — check for early termination.")
         if not d.get("order_followed"):
             recs.append("Execution order did not match planned order.")
         skipped = d.get("skipped_tasks", [])

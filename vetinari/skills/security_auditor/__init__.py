@@ -1,5 +1,4 @@
-"""
-Security Auditor Skill Tool Wrapper
+"""Security Auditor Skill Tool Wrapper.
 
 Provides policy compliance checks, vulnerability scanning, and security
 assessment as a standardized Vetinari tool.
@@ -10,11 +9,13 @@ assessment as a standardized Vetinari tool.
    Will be removed in a future release.
 """
 
-import logging
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
 
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
+import logging
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class SecurityAuditorSkill(Tool):
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "SecurityAuditorSkill is deprecated since v1.1.0. "
             "Use QualitySkillTool (vetinari.skills.quality_skill) instead.",
@@ -36,8 +38,12 @@ class SecurityAuditorSkill(Tool):
             category=ToolCategory.SEARCH_ANALYSIS,
             parameters=[
                 ToolParameter("target", "str", "Code or system to audit", required=True),
-                ToolParameter("focus", "str", "Audit focus: vulnerabilities|compliance|access_control|all", required=False),
-                ToolParameter("severity_threshold", "str", "Minimum severity: low|medium|high|critical", required=False),
+                ToolParameter(
+                    "focus", "str", "Audit focus: vulnerabilities|compliance|access_control|all", required=False
+                ),
+                ToolParameter(
+                    "severity_threshold", "str", "Minimum severity: low|medium|high|critical", required=False
+                ),
             ],
             required_permissions=[ToolPermission.FILE_READ],
             allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
@@ -50,6 +56,7 @@ class SecurityAuditorSkill(Tool):
         if self._agent is None:
             try:
                 from vetinari.agents.consolidated.quality_agent import get_quality_agent
+
                 self._agent = get_quality_agent()
             except Exception as e:
                 logger.warning("SecurityAuditorAgent unavailable: %s", e)
@@ -65,7 +72,9 @@ class SecurityAuditorSkill(Tool):
             return ToolResult(success=False, output=None, error="SecurityAuditorAgent not available")
 
         try:
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.agents.contracts import AgentTask
+            from vetinari.types import AgentType
+
             task = AgentTask(
                 task_id="security-audit",
                 agent_type=AgentType.SECURITY_AUDITOR,

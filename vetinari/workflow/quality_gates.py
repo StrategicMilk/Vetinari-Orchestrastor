@@ -1,5 +1,5 @@
-"""
-Workflow Quality Gates
+"""Workflow Quality Gates.
+
 ======================
 Formal quality gates between workflow stages, inspired by manufacturing
 stage-gate processes.  Each gate defines criteria that must be satisfied
@@ -10,10 +10,10 @@ action (re-plan, retry, escalate, or block).
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Enums & data classes
 # ---------------------------------------------------------------------------
+
 
 class GateAction(Enum):
     """Action to take when a quality gate fails."""
@@ -54,7 +55,7 @@ class WorkflowGate:
 
     name: str
     stage: str
-    criteria: Dict[str, Any]
+    criteria: dict[str, Any]
     failure_action: GateAction
 
 
@@ -62,7 +63,7 @@ class WorkflowGate:
 # Default gate definitions
 # ---------------------------------------------------------------------------
 
-WORKFLOW_GATES: Dict[str, WorkflowGate] = {
+WORKFLOW_GATES: dict[str, WorkflowGate] = {
     "post_decomposition": WorkflowGate(
         name="decomposition_gate",
         stage="post_decomposition",
@@ -108,6 +109,7 @@ WORKFLOW_GATES: Dict[str, WorkflowGate] = {
 # Gate runner
 # ---------------------------------------------------------------------------
 
+
 class WorkflowGateRunner:
     """Evaluates workflow gates and determines actions.
 
@@ -120,20 +122,20 @@ class WorkflowGateRunner:
         )
     """
 
-    def __init__(self, gates: Optional[Dict[str, WorkflowGate]] = None):
-        self._gates: Dict[str, WorkflowGate] = gates if gates is not None else dict(WORKFLOW_GATES)
-        self._history: List[Dict[str, Any]] = []
+    def __init__(self, gates: dict[str, WorkflowGate] | None = None):
+        self._gates: dict[str, WorkflowGate] = gates if gates is not None else dict(WORKFLOW_GATES)
+        self._history: list[dict[str, Any]] = []
 
     # -- public API ---------------------------------------------------------
 
     def evaluate(
         self,
         stage: str,
-        metrics: Dict[str, Any],
-    ) -> Tuple[bool, GateAction, List[str]]:
+        metrics: dict[str, Any],
+    ) -> tuple[bool, GateAction, list[str]]:
         """Evaluate the gate for *stage* against *metrics*.
 
-        Returns
+        Returns:
         -------
         passed : bool
             ``True`` when every criterion is satisfied.
@@ -147,7 +149,7 @@ class WorkflowGateRunner:
             logger.warning("No gate defined for stage %r -- passing by default", stage)
             return True, GateAction.CONTINUE, []
 
-        violations: List[str] = []
+        violations: list[str] = []
 
         for key, threshold in gate.criteria.items():
             value = metrics.get(key)
@@ -158,22 +160,16 @@ class WorkflowGateRunner:
 
             if isinstance(threshold, bool):
                 if value != threshold:
-                    violations.append(
-                        f"{key}: expected {threshold}, got {value}"
-                    )
+                    violations.append(f"{key}: expected {threshold}, got {value}")
             elif isinstance(threshold, (int, float)):
                 # For keys containing "max" the threshold is an upper bound;
                 # otherwise it is a lower bound.
                 if "max" in key:
                     if value > threshold:
-                        violations.append(
-                            f"{key}: {value} exceeds maximum {threshold}"
-                        )
+                        violations.append(f"{key}: {value} exceeds maximum {threshold}")
                 else:
                     if value < threshold:
-                        violations.append(
-                            f"{key}: {value} below minimum {threshold}"
-                        )
+                        violations.append(f"{key}: {value} below minimum {threshold}")
 
         passed = len(violations) == 0
         action = GateAction.CONTINUE if passed else gate.failure_action
@@ -195,12 +191,15 @@ class WorkflowGateRunner:
         else:
             logger.warning(
                 "Gate %s FAILED for stage %s: %s -> %s",
-                gate.name, stage, violations, action.value,
+                gate.name,
+                stage,
+                violations,
+                action.value,
             )
 
         return passed, action, violations
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Return an ordered list of all gate evaluation results."""
         return list(self._history)
 
@@ -210,11 +209,11 @@ class WorkflowGateRunner:
         """Register (or replace) a gate for *stage*."""
         self._gates[stage] = gate
 
-    def remove_gate(self, stage: str) -> Optional[WorkflowGate]:
+    def remove_gate(self, stage: str) -> WorkflowGate | None:
         """Remove and return the gate for *stage*, or ``None``."""
         return self._gates.pop(stage, None)
 
     @property
-    def gates(self) -> Dict[str, WorkflowGate]:
+    def gates(self) -> dict[str, WorkflowGate]:
         """Read-only view of the current gate map."""
         return dict(self._gates)

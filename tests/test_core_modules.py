@@ -21,24 +21,19 @@ for _stubname in (
 ):
     sys.modules.pop(_stubname, None)
 
-import ast
 import importlib.util
 import json
-import os
 import zipfile
-from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # 1. vetinari.adr
 # ---------------------------------------------------------------------------
-
-from vetinari.adr import ADR, ADRCategory, ADRProposal, ADRStatus, ADRSystem, HIGH_STAKES_CATEGORIES
+from vetinari.adr import ADR, HIGH_STAKES_CATEGORIES, ADRCategory, ADRProposal, ADRStatus, ADRSystem
 
 
 class TestADRDataclasses:
@@ -429,14 +424,14 @@ class TestBuilder:
         assert b.config["key"] == "val"
 
     def test_build_creates_zip(self, builder_with_dirs):
-        builder, outputs, tmp_path = builder_with_dirs
+        builder, outputs, _tmp_path = builder_with_dirs
         (outputs / "file.txt").write_text("hello")
         zip_path = builder.build_final_artifact()
         assert Path(zip_path).exists()
         assert zip_path.endswith(".zip")
 
     def test_build_zip_contains_files(self, builder_with_dirs):
-        builder, outputs, tmp_path = builder_with_dirs
+        builder, outputs, _tmp_path = builder_with_dirs
         (outputs / "a.txt").write_text("aaa")
         (outputs / "b.txt").write_text("bbb")
         zip_path = builder.build_final_artifact()
@@ -446,7 +441,7 @@ class TestBuilder:
             assert "b.txt" in names
 
     def test_build_zip_preserves_subdirectory_structure(self, builder_with_dirs):
-        builder, outputs, tmp_path = builder_with_dirs
+        builder, outputs, _tmp_path = builder_with_dirs
         sub = outputs / "subdir"
         sub.mkdir()
         (sub / "nested.txt").write_text("nested content")
@@ -457,7 +452,7 @@ class TestBuilder:
             assert any("nested.txt" in n for n in names)
 
     def test_build_empty_outputs_creates_zip(self, builder_with_dirs):
-        builder, outputs, tmp_path = builder_with_dirs
+        builder, _outputs, _tmp_path = builder_with_dirs
         zip_path = builder.build_final_artifact()
         assert Path(zip_path).exists()
         with zipfile.ZipFile(zip_path) as zf:
@@ -573,7 +568,7 @@ class TestCredential:
         cred = Credential(
             source_type="github",
             credential_type="bearer",
-            token="secret123",
+            token="secret123",  # noqa: VET040
             scopes=["read"],
         )
         d = cred.to_dict()
@@ -693,7 +688,7 @@ class TestCredentialVault:
     def make_cred(self):
         from vetinari.credentials import Credential
 
-        def _make(source="github", token="tok123", enabled=True, **kw):
+        def _make(source="github", token="tok123", enabled=True, **kw):  # noqa: VET040
             return Credential(
                 source_type=source,
                 credential_type="bearer",
@@ -725,7 +720,7 @@ class TestCredentialVault:
         assert vault.get_credential("github") is None
 
     def test_get_token(self, vault, make_cred):
-        vault.set_credential("gh", make_cred(source="gh", token="abc"))
+        vault.set_credential("gh", make_cred(source="gh", token="abc"))  # noqa: VET040
         assert vault.get_token("gh") == "abc"
 
     def test_get_token_missing(self, vault):
@@ -748,7 +743,7 @@ class TestCredentialVault:
         vault.remove_credential("nope")
 
     def test_rotate_credential_success(self, vault, make_cred):
-        vault.set_credential("gh", make_cred(token="old"))
+        vault.set_credential("gh", make_cred(token="old"))  # noqa: VET040
         result = vault.rotate_credential("gh", "new_token")
         assert result is True
         assert vault.get_token("gh") == "new_token"
@@ -765,7 +760,7 @@ class TestCredentialVault:
 
     def test_list_credentials(self, vault, make_cred):
         vault.set_credential("gh", make_cred(source="gh"))
-        vault.set_credential("gl", make_cred(source="gl", token="tok2"))
+        vault.set_credential("gl", make_cred(source="gl", token="tok2"))  # noqa: VET040
         listing = vault.list_credentials()
         assert "gh" in listing
         assert "gl" in listing
@@ -787,8 +782,8 @@ class TestCredentialVault:
         assert vault.get_health() == {}
 
     def test_is_admin_no_admins_file(self, vault):
-        # When no admins file exists, everyone is admin
-        assert vault.is_admin("anyone") is True
+        # When no admins file exists, fail-closed: no one is admin
+        assert vault.is_admin("anyone") is False
 
     def test_add_admin_and_check(self, vault):
         vault.add_admin("user1")
@@ -848,23 +843,27 @@ class TestCredentialVault:
 # ---------------------------------------------------------------------------
 
 from vetinari.exceptions import (
-    VetinariError,
-    ConfigurationError,
-    StorageError,
-    InferenceError,
     AdapterError,
-    ModelNotFoundError,
-    TimeoutError as VetinariTimeoutError,
     AgentError,
-    PlanningError,
-    ExecutionError,
-    VerificationError,
     CircularDependencyError,
-    SecurityError as VetinariSecurityError,
-    SandboxError,
-    GuardrailError,
+    ConfigurationError,
     DriftError,
+    ExecutionError,
+    GuardrailError,
+    InferenceError,
+    ModelNotFoundError,
+    PlanningError,
+    SandboxError,
     SLABreachError,
+    StorageError,
+    VerificationError,
+    VetinariError,
+)
+from vetinari.exceptions import (
+    SecurityError as VetinariSecurityError,
+)
+from vetinari.exceptions import (
+    TimeoutError as VetinariTimeoutError,
 )
 
 
@@ -988,7 +987,8 @@ class TestExceptions:
         err = ConfigurationError("missing key", key="api_key")
         s = str(err)
         assert s.startswith("missing key")
-        assert "[" in s and "]" in s
+        assert "[" in s
+        assert "]" in s
 
     def test_all_exception_classes_are_instantiable(self):
         classes = [
@@ -1265,8 +1265,9 @@ class TestUpgrader:
         assert len(result) == 2
 
     def test_check_for_upgrades_network_error(self):
-        from vetinari.upgrader import Upgrader
         import requests as req
+
+        from vetinari.upgrader import Upgrader
 
         u = Upgrader({"benchmarks_source": ["http://example.com"]})
         with patch("vetinari.upgrader.requests.get", side_effect=req.exceptions.ConnectionError("refused")):
@@ -1333,13 +1334,13 @@ class TestUpgrader:
 
     def test_install_upgrade_logs_name(self, caplog):
         """install_upgrade logs the model name and version."""
-        from vetinari.upgrader import Upgrader
         import logging
 
+        from vetinari.upgrader import Upgrader
+
         u = Upgrader({})
-        with caplog.at_level(logging.INFO, logger="vetinari.upgrader"):
-            with self._mock_install(200):
-                u.install_upgrade({"name": "my-model", "version": "2.0"})
+        with caplog.at_level(logging.INFO, logger="vetinari.upgrader"), self._mock_install(200):
+            u.install_upgrade({"name": "my-model", "version": "2.0"})
         assert "my-model" in caplog.text
         assert "2.0" in caplog.text
 

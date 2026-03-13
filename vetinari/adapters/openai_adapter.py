@@ -1,14 +1,15 @@
 """OpenAI provider adapter."""
 
+from __future__ import annotations
+
 import logging
 import os
-import requests
 import time
-from typing import Dict, List, Any, Optional
-from .base import (
-    ProviderAdapter, ProviderConfig, ProviderType, ModelInfo,
-    InferenceRequest, InferenceResponse
-)
+from typing import Any
+
+import requests
+
+from .base import InferenceRequest, InferenceResponse, ModelInfo, ProviderAdapter, ProviderConfig, ProviderType
 
 logger = logging.getLogger(__name__)
 
@@ -66,29 +67,29 @@ class OpenAIProviderAdapter(ProviderAdapter):
         if not self.api_key:
             raise ValueError("OpenAI adapter requires api_key in config")
 
-    def _load_model_definitions(self) -> List[Dict[str, Any]]:
+    def _load_model_definitions(self) -> list[dict[str, Any]]:
         """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
         try:
             config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                '..', 'config', 'provider_models.yaml'
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "provider_models.yaml"
             )
             import yaml
+
             with open(config_path) as f:
                 config = yaml.safe_load(f)
-            provider_models = config.get('providers', {}).get('openai', {}).get('models', [])
+            provider_models = config.get("providers", {}).get("openai", {}).get("models", [])
             if provider_models:
                 return provider_models
         except Exception:
             logger.debug("Config file not available, using hardcoded models")
         return self._HARDCODED_MODELS
 
-    def discover_models(self) -> List[ModelInfo]:
+    def discover_models(self) -> list[ModelInfo]:
         """Discover available models from OpenAI."""
         try:
             # Load model list from config file (falls back to hardcoded if unavailable)
             models_data = self._load_model_definitions()
-            
+
             discovered = []
             for m in models_data:
                 model_info = ModelInfo(
@@ -105,7 +106,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                     tags=["cloud", "openai", "commercial"],
                 )
                 discovered.append(model_info)
-            
+
             self.models = discovered
             logger.info("[OpenAI] Discovered %s models", len(discovered))
             return discovered
@@ -114,19 +115,15 @@ class OpenAIProviderAdapter(ProviderAdapter):
             logger.error("[OpenAI] Model discovery failed: %s", e)
             return []
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Check OpenAI API health."""
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             }
-            
-            response = self.session.get(
-                "https://api.openai.com/v1/models",
-                headers=headers,
-                timeout=5
-            )
+
+            response = self.session.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
             return {
                 "healthy": response.status_code == 200,
                 "reason": "OpenAI API responding" if response.status_code == 200 else f"Status {response.status_code}",
@@ -150,12 +147,12 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             }
-            
+
             messages = []
             if request.system_prompt:
                 messages.append({"role": "system", "content": request.system_prompt})
             messages.append({"role": "user", "content": request.prompt})
-            
+
             payload = {
                 "model": request.model_id,
                 "messages": messages,
@@ -168,7 +165,7 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=self.timeout_seconds
+                timeout=self.timeout_seconds,
             )
             response.raise_for_status()
             data = response.json()
@@ -211,6 +208,6 @@ class OpenAIProviderAdapter(ProviderAdapter):
                 error=str(e),
             )
 
-    def get_capabilities(self) -> Dict[str, List[str]]:
+    def get_capabilities(self) -> dict[str, list[str]]:
         """Get capabilities of all models."""
         return {m.id: m.capabilities for m in self.models}

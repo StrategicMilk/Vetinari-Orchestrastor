@@ -1,12 +1,15 @@
 """Ponder (model deliberation) API routes."""
 
+from __future__ import annotations
+
 from flask import Blueprint, jsonify, request
+
 from vetinari.web import is_admin_user
 
-bp = Blueprint('ponder', __name__)
+bp = Blueprint("ponder", __name__)
 
 
-@bp.route('/api/ponder/choose-model', methods=['POST'])
+@bp.route("/api/ponder/choose-model", methods=["POST"])
 def api_ponder_choose_model():
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
@@ -27,7 +30,7 @@ def api_ponder_choose_model():
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/ponder/templates', methods=['GET'])
+@bp.route("/api/ponder/templates", methods=["GET"])
 def api_ponder_templates():
     try:
         from vetinari.ponder import PonderEngine
@@ -36,30 +39,23 @@ def api_ponder_templates():
         engine = PonderEngine(template_version=version)
         templates = engine.get_template_prompts()
 
-        return jsonify({
-            "templates": templates,
-            "total": len(templates),
-            "version": version
-        })
+        return jsonify({"templates": templates, "total": len(templates), "version": version})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/ponder/models', methods=['GET'])
+@bp.route("/api/ponder/models", methods=["GET"])
 def api_ponder_models():
     try:
         from vetinari.ponder import get_available_models
 
         models = get_available_models()
-        return jsonify({
-            "models": models,
-            "total": len(models)
-        })
+        return jsonify({"models": models, "total": len(models)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/ponder/plan/<plan_id>', methods=['POST'])
+@bp.route("/api/ponder/plan/<plan_id>", methods=["POST"])
 def api_ponder_run_plan(plan_id):
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
@@ -76,7 +72,7 @@ def api_ponder_run_plan(plan_id):
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/ponder/plan/<plan_id>', methods=['GET'])
+@bp.route("/api/ponder/plan/<plan_id>", methods=["GET"])
 def api_ponder_get_plan(plan_id):
     try:
         from vetinari.ponder import get_ponder_results_for_plan
@@ -87,7 +83,7 @@ def api_ponder_get_plan(plan_id):
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/ponder/health', methods=['GET'])
+@bp.route("/api/ponder/health", methods=["GET"])
 def api_ponder_health():
     try:
         from vetinari.ponder import get_ponder_health

@@ -1,5 +1,5 @@
-"""
-Vetinari Self-Refinement Loop
+"""Vetinari Self-Refinement Loop.
+
 ================================
 Implements iterative self-correction for agent outputs.
 
@@ -26,36 +26,33 @@ Usage::
         model_id="qwen3-vl-32b",
         importance=0.9,   # 0.0-1.0; high importance = more rounds
     )
-    print(refined.output)
-    print(refined.rounds_used)
+    logger.debug(refined.output)
+    logger.debug(refined.rounds_used)
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 # Maximum rounds per importance tier
 _ROUNDS_BY_IMPORTANCE = {
-    "high": 3,    # importance >= 0.8
+    "high": 3,  # importance >= 0.8
     "medium": 2,  # importance >= 0.5
-    "low": 1,     # importance < 0.5
+    "low": 1,  # importance < 0.5
 }
 
 # Only trigger refinement when initial quality is below this
-_QUALITY_TRIGGER_THRESHOLD = float(
-    os.environ.get("VETINARI_REFINE_THRESHOLD", "0.70")
-)
+_QUALITY_TRIGGER_THRESHOLD = float(os.environ.get("VETINARI_REFINE_THRESHOLD", "0.70"))
 
 
 @dataclass
 class RefinementResult:
     """Result of a self-refinement cycle."""
+
     output: str
     rounds_used: int
     initial_quality: float
@@ -65,8 +62,7 @@ class RefinementResult:
 
 
 class SelfRefinementLoop:
-    """
-    Iterative critique-and-revise loop for agent outputs.
+    """Iterative critique-and-revise loop for agent outputs.
 
     Calibrated for local LM Studio inference speed:
     - Importance >= 0.8 -> max 3 rounds
@@ -84,7 +80,7 @@ class SelfRefinementLoop:
         task_type: str = "general",
         model_id: str = "default",
         importance: float = 0.5,
-        initial_quality: Optional[float] = None,
+        initial_quality: float | None = None,
     ) -> RefinementResult:
         """Run the self-refinement loop.
 
@@ -134,18 +130,14 @@ class SelfRefinementLoop:
 
             critique_summary = critique[:300]
 
-            revised = self._revise(
-                task_description, current_output, critique, task_type, model_id
-            )
+            revised = self._revise(task_description, current_output, critique, task_type, model_id)
             if not revised or revised == current_output:
                 logger.debug("[SelfRefinement] Round %s: revision unchanged, stopping", round_num)
                 break
 
             current_output = revised
             rounds_used = round_num
-            logger.info(
-                f"[SelfRefinement] Round {round_num}/{max_rounds} completed for task '{task_description[:50]}'"
-            )
+            logger.info(f"[SelfRefinement] Round {round_num}/{max_rounds} completed for task '{task_description[:50]}'")
 
         improved = rounds_used > 0 and current_output != initial_output
         final_quality = initial_quality or 0.7
@@ -171,14 +163,14 @@ class SelfRefinementLoop:
         output: str,
         task_type: str,
         model_id: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Ask the model to critique its own output."""
         critique_prompt = (
             f"Review this {task_type} output critically.\n\n"
             f"TASK: {task_description[:300]}\n\n"
             f"OUTPUT:\n{output[:2000]}\n\n"
             "If the output is complete and correct, respond with exactly: "
-            "\"No improvements needed.\"\n"
+            '"No improvements needed."\n'
             "Otherwise, list SPECIFIC improvements needed (max 3 bullet points). "
             "Be concrete, not generic."
         )
@@ -201,7 +193,7 @@ class SelfRefinementLoop:
         critique: str,
         task_type: str,
         model_id: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Ask the model to produce a revised output based on the critique."""
         revise_prompt = (
             f"Revise this {task_type} output based on the critique.\n\n"
@@ -229,12 +221,14 @@ class SelfRefinementLoop:
         user: str,
         max_tokens: int = 512,
         temperature: float = 0.2,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Call LM Studio directly."""
         host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
-        from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
+        from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers, resolve_lmstudio_model
+
         resolved_model = resolve_lmstudio_model(model_id, host)
         import requests as _req
+
         resp = _req.post(
             f"{host}/v1/chat/completions",
             json={
@@ -250,13 +244,7 @@ class SelfRefinementLoop:
             timeout=180,  # Local models can be slow
         )
         if resp.status_code == 200:
-            return (
-                resp.json()
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-                .strip()
-            )
+            return resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         return None
 
     @staticmethod
@@ -272,7 +260,7 @@ class SelfRefinementLoop:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_refiner: Optional[SelfRefinementLoop] = None
+_refiner: SelfRefinementLoop | None = None
 _refiner_lock = __import__("threading").Lock()
 
 

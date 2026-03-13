@@ -1,10 +1,11 @@
 """Tests for vetinari/analytics/anomaly.py (Phase 5)"""
-import time
 import unittest
 
 from vetinari.analytics.anomaly import (
-    AnomalyConfig, AnomalyDetector, AnomalyResult,
-    get_anomaly_detector, reset_anomaly_detector,
+    AnomalyConfig,
+    AnomalyResult,
+    get_anomaly_detector,
+    reset_anomaly_detector,
 )
 
 
@@ -22,11 +23,11 @@ class TestAnomalyResult(unittest.TestCase):
         r = AnomalyResult(metric="m", value=1.0)
         d = r.to_dict()
         for k in ("metric","value","timestamp","is_anomaly","method","score","reason"):
-            self.assertIn(k, d)
+            assert k in d
 
     def test_default_not_anomaly(self):
         r = AnomalyResult(metric="m", value=5.0)
-        self.assertFalse(r.is_anomaly)
+        assert not r.is_anomaly
 
 
 class TestAnomalyDetectorSingleton(unittest.TestCase):
@@ -34,12 +35,12 @@ class TestAnomalyDetectorSingleton(unittest.TestCase):
     def tearDown(self): reset_anomaly_detector()
 
     def test_same_instance(self):
-        self.assertIs(get_anomaly_detector(), get_anomaly_detector())
+        assert get_anomaly_detector() is get_anomaly_detector()
 
     def test_reset_new_instance(self):
         a = get_anomaly_detector()
         reset_anomaly_detector()
-        self.assertIsNot(a, get_anomaly_detector())
+        assert a is not get_anomaly_detector()
 
 
 class TestInsufficientSamples(unittest.TestCase):
@@ -51,7 +52,7 @@ class TestInsufficientSamples(unittest.TestCase):
         e.configure(AnomalyConfig(min_samples=10))
         for i in range(9):
             r = e.detect("m", float(i))
-            self.assertFalse(r.is_anomaly)
+            assert not r.is_anomaly
 
 
 class TestZScoreDetection(unittest.TestCase):
@@ -65,9 +66,9 @@ class TestZScoreDetection(unittest.TestCase):
             e.detect("lat", 100.0)
         # Inject a large spike
         r = e.detect("lat", 2000.0)
-        self.assertTrue(r.is_anomaly)
-        self.assertEqual(r.method, "zscore")
-        self.assertGreater(r.score, 0)
+        assert r.is_anomaly
+        assert r.method == "zscore"
+        assert r.score > 0
 
     def test_normal_value_not_flagged(self):
         e = _engine()
@@ -76,7 +77,7 @@ class TestZScoreDetection(unittest.TestCase):
         for i in range(20):
             e.detect("lat", 100.0 + 5.0 * math.sin(i))
         r = e.detect("lat", 100.5)   # well within any fence
-        self.assertFalse(r.is_anomaly)
+        assert not r.is_anomaly
 
 
 class TestIQRDetection(unittest.TestCase):
@@ -90,7 +91,7 @@ class TestIQRDetection(unittest.TestCase):
             e.detect("tok", 100.0)
         r = e.detect("tok", 500.0)
         # either zscore or iqr should fire
-        self.assertTrue(r.is_anomaly)
+        assert r.is_anomaly
 
     def test_value_within_iqr_fence_not_flagged(self):
         e = _engine()
@@ -98,7 +99,7 @@ class TestIQRDetection(unittest.TestCase):
                   90, 95, 100, 105, 110]:
             e.detect("tok", float(v))
         r = e.detect("tok", 102.0)
-        self.assertFalse(r.is_anomaly)
+        assert not r.is_anomaly
 
 
 class TestEWMADetection(unittest.TestCase):
@@ -112,7 +113,7 @@ class TestEWMADetection(unittest.TestCase):
             e.detect("sr", 99.5 + (i % 2) * 0.1)
         # Sudden drop
         r = e.detect("sr", 10.0)
-        self.assertTrue(r.is_anomaly)
+        assert r.is_anomaly
 
 
 class TestScanSnapshot(unittest.TestCase):
@@ -125,7 +126,7 @@ class TestScanSnapshot(unittest.TestCase):
         snap = MagicMock()
         snap.to_dict.return_value = {"adapters": {"average_latency_ms": 100.0}}
         result = e.scan_snapshot(snap)
-        self.assertIsInstance(result, list)
+        assert isinstance(result, list)
 
 
 class TestHistory(unittest.TestCase):
@@ -137,7 +138,7 @@ class TestHistory(unittest.TestCase):
         for _ in range(15):
             e.detect("m", 100.0)
         e.detect("m", 9999.0)   # spike
-        self.assertGreater(len(e.get_history()), 0)
+        assert len(e.get_history()) > 0
 
     def test_history_filter_by_metric(self):
         e = _engine()
@@ -147,20 +148,20 @@ class TestHistory(unittest.TestCase):
         e.detect("b", 9999.0)
         hist_a = e.get_history("a")
         for r in hist_a:
-            self.assertEqual(r.metric, "a")
+            assert r.metric == "a"
 
     def test_clear_history(self):
         e = _engine()
         for _ in range(15): e.detect("m", 100.0)
         e.detect("m", 9999.0)
         e.clear_history()
-        self.assertEqual(len(e.get_history()), 0)
+        assert len(e.get_history()) == 0
 
     def test_get_stats(self):
         e = _engine()
         stats = e.get_stats()
         for k in ("tracked_metrics", "total_anomalies", "config"):
-            self.assertIn(k, stats)
+            assert k in stats
 
 
 if __name__ == "__main__":

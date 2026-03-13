@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.memory.shared_memory
+"""Backward-compat shim. Canonical: vetinari.memory.shared_memory.
 
 All new code should import from vetinari.memory.shared_memory directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

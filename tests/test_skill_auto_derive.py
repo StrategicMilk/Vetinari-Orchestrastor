@@ -6,14 +6,10 @@ and that auto_populate_from_agents() merges with hand-written specs.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
-
-import pytest
-
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
+from vetinari.agents.contracts import AgentResult, AgentTask
 from vetinari.agents.multi_mode_agent import MultiModeAgent
-from vetinari.skills.skill_spec import SkillSpec, SkillStandard
-
+from vetinari.skills.skill_spec import SkillSpec
+from vetinari.types import AgentType
 
 # ---------------------------------------------------------------------------
 # Test agent subclass
@@ -125,7 +121,7 @@ class TestAutoPopulateFromAgents:
         assert len(result) >= 6
 
     def test_merges_with_existing_hand_written_specs(self):
-        from vetinari.skills.skill_registry import auto_populate_from_agents, SKILL_REGISTRY
+        from vetinari.skills.skill_registry import SKILL_REGISTRY, auto_populate_from_agents
         result = auto_populate_from_agents()
         # Builder exists in hand-written registry
         if "builder" in SKILL_REGISTRY:
@@ -142,7 +138,7 @@ class TestAutoPopulateFromAgents:
             assert "auto-derived" in spec.tags
 
     def test_hand_written_name_preserved(self):
-        from vetinari.skills.skill_registry import auto_populate_from_agents, SKILL_REGISTRY
+        from vetinari.skills.skill_registry import SKILL_REGISTRY, auto_populate_from_agents
         result = auto_populate_from_agents()
         if "builder" in SKILL_REGISTRY:
             assert result["builder"].name == SKILL_REGISTRY["builder"].name

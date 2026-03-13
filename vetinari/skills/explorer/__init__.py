@@ -1,5 +1,4 @@
-"""
-Explorer Skill Tool Wrapper
+"""Explorer Skill Tool Wrapper.
 
 Migrates the explorer skill to the Tool interface, providing fast codebase
 search and file discovery capabilities as a standardized Vetinari tool.
@@ -18,26 +17,32 @@ The explorer skill specializes in:
    Will be removed in a future release.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Literal
-import logging
-from enum import Enum
+from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ExplorerCapability(str, Enum):
     """Capabilities of the explorer skill."""
+
     GREP_SEARCH = "grep_search"
     FILE_DISCOVERY = "file_discovery"
     PATTERN_MATCHING = "pattern_matching"
@@ -48,25 +53,27 @@ class ExplorerCapability(str, Enum):
 
 class SearchStrategy(str, Enum):
     """Search strategy options."""
-    EXACT = "exact"          # Exact string match
-    REGEX = "regex"          # Regex pattern
-    PARTIAL = "partial"      # Partial/contains match
+
+    EXACT = "exact"  # Exact string match
+    REGEX = "regex"  # Regex pattern
+    PARTIAL = "partial"  # Partial/contains match
 
 
 @dataclass
 class ExplorationRequest:
     """Request structure for explorer operations."""
+
     capability: ExplorerCapability
     query: str
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
     search_strategy: SearchStrategy = SearchStrategy.PARTIAL
-    file_extensions: List[str] = field(default_factory=list)
+    file_extensions: list[str] = field(default_factory=list)
     context_lines: int = 2
     max_results: int = 20
     include_imports: bool = False
     rank_by_relevance: bool = True
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "capability": self.capability.value,
@@ -82,13 +89,14 @@ class ExplorationRequest:
 @dataclass
 class SearchResult:
     """Single search result."""
+
     file_path: str
     line_number: int
     line_content: str
-    before_context: List[str] = field(default_factory=list)
-    after_context: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    before_context: list[str] = field(default_factory=list)
+    after_context: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "file_path": self.file_path,
@@ -102,17 +110,18 @@ class SearchResult:
 @dataclass
 class ExplorationResult:
     """Result of an exploration operation."""
+
     success: bool
     query: str
     capability: str
-    results: List[SearchResult] = field(default_factory=list)
+    results: list[SearchResult] = field(default_factory=list)
     total_found: int = 0
     files_searched: int = 0
     execution_time_ms: int = 0
-    project_type: Optional[str] = None
-    warnings: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    project_type: str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "success": self.success,
@@ -128,27 +137,26 @@ class ExplorationResult:
 
 
 class ExplorerSkillTool(Tool):
-    """
-    Tool wrapper for the explorer skill.
-    
+    """Tool wrapper for the explorer skill.
+
     Provides fast codebase search and file discovery capabilities
     through a standardized Tool interface.
-    
+
     Permissions:
     - FILE_READ: Read files to search content
     - NETWORK_REQUEST: Optional for remote searches
-    
+
     Allowed Modes:
     - EXECUTION: Full search capabilities
     - PLANNING: Analysis and read-only searches
     """
-    
+
     def __init__(self):
         """Initialize the explorer skill tool."""
         import warnings
+
         warnings.warn(
-            "ExplorerSkillTool is deprecated since v1.1.0. "
-            "Use ConsolidatedResearcherAgent instead.",
+            "ExplorerSkillTool is deprecated since v1.1.0. Use ConsolidatedResearcherAgent instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -226,11 +234,10 @@ class ExplorerSkillTool(Tool):
             ],
         )
         super().__init__(metadata)
-    
-    def execute(self, **kwargs) -> ToolResult:
-        """
-        Execute an explorer operation.
-        
+
+    def execute(self, **kwargs) -> ToolResult:  # noqa: D417
+        """Execute an explorer operation.
+
         Args:
             capability: ExplorerCapability to use
             query: Search query or pattern
@@ -239,7 +246,7 @@ class ExplorerSkillTool(Tool):
             file_extensions: File types to search (optional)
             context_lines: Context lines around matches (default: 2)
             max_results: Max results to return (default: 20)
-            
+
         Returns:
             ToolResult with search results
         """
@@ -252,7 +259,7 @@ class ExplorerSkillTool(Tool):
             file_extensions = kwargs.get("file_extensions", [])
             context_lines = kwargs.get("context_lines", 2)
             max_results = kwargs.get("max_results", 20)
-            
+
             # Validate enums
             try:
                 capability = ExplorerCapability(capability_str)
@@ -262,7 +269,7 @@ class ExplorerSkillTool(Tool):
                     output=None,
                     error=f"Invalid capability: {capability_str}",
                 )
-            
+
             try:
                 thinking_mode = ThinkingMode(thinking_mode_str)
             except ValueError:
@@ -271,7 +278,7 @@ class ExplorerSkillTool(Tool):
                     output=None,
                     error=f"Invalid thinking_mode: {thinking_mode_str}",
                 )
-            
+
             try:
                 search_strategy = SearchStrategy(search_strategy_str)
             except ValueError:
@@ -280,7 +287,7 @@ class ExplorerSkillTool(Tool):
                     output=None,
                     error=f"Invalid search_strategy: {search_strategy_str}",
                 )
-            
+
             # Create request
             request = ExplorationRequest(
                 capability=capability,
@@ -291,14 +298,14 @@ class ExplorerSkillTool(Tool):
                 context_lines=context_lines,
                 max_results=max_results,
             )
-            
+
             # Get execution mode
             ctx = self._context_manager.current_context
             execution_mode = ctx.mode
-            
+
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -309,32 +316,31 @@ class ExplorerSkillTool(Tool):
                     "execution_mode": execution_mode.value,
                 },
             )
-        
+
         except Exception as e:
             logger.error("Explorer tool execution failed: %s", e, exc_info=True)
             return ToolResult(
                 success=False,
                 output=None,
-                error=f"Explorer tool execution failed: {str(e)}",
+                error=f"Explorer tool execution failed: {e!s}",
             )
-    
+
     def _execute_capability(
         self,
         request: ExplorationRequest,
         execution_mode: ExecutionMode,
     ) -> ExplorationResult:
-        """
-        Execute a specific explorer capability.
-        
+        """Execute a specific explorer capability.
+
         Args:
             request: The exploration request
             execution_mode: Current execution mode
-            
+
         Returns:
             ExplorationResult with search details
         """
         capability = request.capability
-        
+
         if capability == ExplorerCapability.GREP_SEARCH:
             return self._grep_search(request, execution_mode)
         elif capability == ExplorerCapability.FILE_DISCOVERY:
@@ -354,7 +360,7 @@ class ExplorerSkillTool(Tool):
                 capability=capability.value,
                 warnings=[f"Unknown capability: {capability.value}"],
             )
-    
+
     def _grep_search(
         self,
         request: ExplorationRequest,
@@ -362,16 +368,12 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Perform grep-based text search."""
         logger.info("Grep search: %s", request.query)
-        
-        explanation = (
-            f"Grep Search\n"
-            f"Query: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
+
+        explanation = f"Grep Search\nQuery: {request.query}\nStrategy: {request.search_strategy.value}\n"
+
         if request.file_extensions:
             explanation += f"File types: {', '.join(request.file_extensions)}\n"
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would search for the pattern in codebase.\n"
             explanation += f"Thinking mode: {request.thinking_mode.value}\n"
@@ -385,7 +387,7 @@ class ExplorerSkillTool(Tool):
                 f"5. Rank results by relevance\n"
                 f"6. Return top {request.max_results} results\n"
             )
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,
@@ -393,7 +395,7 @@ class ExplorerSkillTool(Tool):
             total_found=0,
             files_searched=0,
         )
-    
+
     def _file_discovery(
         self,
         request: ExplorationRequest,
@@ -401,15 +403,12 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Discover files matching pattern."""
         logger.info("File discovery: %s", request.query)
-        
-        explanation = (
-            f"File Discovery\n"
-            f"Pattern: {request.query}\n"
-        )
-        
+
+        explanation = f"File Discovery\nPattern: {request.query}\n"
+
         if request.file_extensions:
             explanation += f"Extensions: {', '.join(request.file_extensions)}\n"
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would find files matching the pattern.\n"
         else:
@@ -421,7 +420,7 @@ class ExplorerSkillTool(Tool):
                 f"4. Filter by extensions if provided\n"
                 f"5. Return file list with metadata\n"
             )
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,
@@ -429,7 +428,7 @@ class ExplorerSkillTool(Tool):
             total_found=0,
             files_searched=0,
         )
-    
+
     def _pattern_matching(
         self,
         request: ExplorationRequest,
@@ -437,13 +436,9 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Match patterns in code."""
         logger.info("Pattern matching: %s", request.query)
-        
-        explanation = (
-            f"Pattern Matching\n"
-            f"Pattern: {request.query}\n"
-            f"Strategy: {request.search_strategy.value}\n"
-        )
-        
+
+        explanation = f"Pattern Matching\nPattern: {request.query}\nStrategy: {request.search_strategy.value}\n"
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would find all pattern matches.\n"
         else:
@@ -455,7 +450,7 @@ class ExplorerSkillTool(Tool):
                 f"4. Group by file\n"
                 f"5. Provide context around matches\n"
             )
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,
@@ -463,7 +458,7 @@ class ExplorerSkillTool(Tool):
             total_found=0,
             files_searched=0,
         )
-    
+
     def _symbol_lookup(
         self,
         request: ExplorationRequest,
@@ -471,12 +466,9 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Look up function, class, or variable symbols."""
         logger.info("Symbol lookup: %s", request.query)
-        
-        explanation = (
-            f"Symbol Lookup\n"
-            f"Symbol: {request.query}\n"
-        )
-        
+
+        explanation = f"Symbol Lookup\nSymbol: {request.query}\n"
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would find symbol definitions and usages.\n"
         else:
@@ -489,7 +481,7 @@ class ExplorerSkillTool(Tool):
                 f"5. Return definition + usage locations\n"
                 f"6. Include signatures and type info\n"
             )
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,
@@ -497,7 +489,7 @@ class ExplorerSkillTool(Tool):
             total_found=0,
             files_searched=0,
         )
-    
+
     def _import_analysis(
         self,
         request: ExplorationRequest,
@@ -505,12 +497,9 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Analyze imports and dependencies."""
         logger.info("Import analysis: %s", request.query)
-        
-        explanation = (
-            f"Import Analysis\n"
-            f"Target: {request.query}\n"
-        )
-        
+
+        explanation = f"Import Analysis\nTarget: {request.query}\n"
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would analyze import dependencies.\n"
         else:
@@ -524,7 +513,7 @@ class ExplorerSkillTool(Tool):
                 f"6. Identify circular dependencies\n"
                 f"7. Show import relationships\n"
             )
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,
@@ -532,7 +521,7 @@ class ExplorerSkillTool(Tool):
             total_found=0,
             files_searched=0,
         )
-    
+
     def _project_mapping(
         self,
         request: ExplorationRequest,
@@ -540,20 +529,22 @@ class ExplorerSkillTool(Tool):
     ) -> ExplorationResult:
         """Map project structure and architecture."""
         logger.info("Project mapping: %s", request.query)
-        
-        explanation = (
-            f"Project Mapping\n"
-            f"Focus: {request.query}\n"
-        )
-        
+
+        explanation = f"Project Mapping\nFocus: {request.query}\n"
+
         if execution_mode == ExecutionMode.PLANNING:
             explanation += "\nPlanning mode: Would map project structure.\n"
         else:
-            approach = "Quick scan" if request.thinking_mode == ThinkingMode.LOW else \
-                       "Comprehensive map" if request.thinking_mode == ThinkingMode.MEDIUM else \
-                       "Deep analysis" if request.thinking_mode == ThinkingMode.HIGH else \
-                       "Full AST traversal"
-            
+            approach = (
+                "Quick scan"
+                if request.thinking_mode == ThinkingMode.LOW
+                else "Comprehensive map"
+                if request.thinking_mode == ThinkingMode.MEDIUM
+                else "Deep analysis"
+                if request.thinking_mode == ThinkingMode.HIGH
+                else "Full AST traversal"
+            )
+
             explanation += (
                 f"\nMapping Process ({approach}):\n"
                 f"1. Detect project type\n"
@@ -562,12 +553,12 @@ class ExplorerSkillTool(Tool):
                 f"4. Find key files (config, setup, main)\n"
                 f"5. Trace major dependencies\n"
             )
-            
+
             if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
                 explanation += "6. Build architecture diagram\n"
                 explanation += "7. Identify design patterns\n"
                 explanation += "8. Analyze import relationships\n"
-        
+
         return ExplorationResult(
             success=True,
             query=request.query,

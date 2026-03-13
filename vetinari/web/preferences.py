@@ -3,27 +3,32 @@
 Replaces client-only localStorage with a JSON file store that syncs
 to the browser on load and accepts updates via REST API.
 """
+
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _PREFS_PATH = Path(".vetinari/user_preferences.json")
 
 # Whitelist of allowed preference keys (prevents arbitrary data injection)
-ALLOWED_KEYS = frozenset({
-    "sidebarCollapsed",
-    "reducedMotion",
-    "compactMode",
-    "theme",
-    "onboardingComplete",
-    "vetinari_sd_host",
-})
+ALLOWED_KEYS = frozenset(
+    {
+        "sidebarCollapsed",
+        "reducedMotion",
+        "compactMode",
+        "theme",
+        "onboardingComplete",
+        "vetinari_sd_host",
+    }
+)
 
 # Default values matching current localStorage defaults
-DEFAULTS: Dict[str, Any] = {
+DEFAULTS: dict[str, Any] = {
     "sidebarCollapsed": False,
     "reducedMotion": False,
     "compactMode": False,
@@ -36,9 +41,9 @@ DEFAULTS: Dict[str, Any] = {
 class PreferencesManager:
     """Manages server-side user preferences with JSON file persistence."""
 
-    def __init__(self, path: Optional[Path] = None):
+    def __init__(self, path: Path | None = None):
         self._path = path or _PREFS_PATH
-        self._prefs: Dict[str, Any] = {}
+        self._prefs: dict[str, Any] = {}
         self._load()
 
     def _load(self):
@@ -65,7 +70,7 @@ class PreferencesManager:
         except Exception as e:
             logger.warning("Failed to save preferences: %s", e)
 
-    def get_all(self) -> Dict[str, Any]:
+    def get_all(self) -> dict[str, Any]:
         """Get all preferences with defaults applied."""
         result = dict(DEFAULTS)
         result.update(self._prefs)
@@ -83,7 +88,7 @@ class PreferencesManager:
         self._save()
         return True
 
-    def set_many(self, updates: Dict[str, Any]) -> Dict[str, bool]:
+    def set_many(self, updates: dict[str, Any]) -> dict[str, bool]:
         """Set multiple preferences. Returns per-key success map."""
         results = {}
         changed = False
@@ -98,7 +103,7 @@ class PreferencesManager:
             self._save()
         return results
 
-    def reset(self, key: Optional[str] = None):
+    def reset(self, key: str | None = None):
         """Reset one or all preferences to defaults."""
         if key:
             self._prefs.pop(key, None)
@@ -107,7 +112,7 @@ class PreferencesManager:
         self._save()
 
 
-_manager: Optional[PreferencesManager] = None
+_manager: PreferencesManager | None = None
 
 
 def get_preferences_manager() -> PreferencesManager:

@@ -1,33 +1,38 @@
 """Rules configuration API routes."""
 
+from __future__ import annotations
+
 from flask import Blueprint, jsonify, request
+
 from vetinari.web import is_admin_user
 
-bp = Blueprint('rules', __name__)
+bp = Blueprint("rules", __name__)
 
 
-@bp.route('/api/rules', methods=['GET'])
+@bp.route("/api/rules", methods=["GET"])
 def api_rules_get():
     """Get all rules configuration."""
     try:
         from vetinari.rules_manager import get_rules_manager
+
         rm = get_rules_manager()
         return jsonify(rm.to_dict())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/rules/global', methods=['GET', 'POST'])
+@bp.route("/api/rules/global", methods=["GET", "POST"])
 def api_rules_global():
     """Get or set global rules."""
-    if request.method == 'POST' and not is_admin_user():
+    if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
+
         rm = get_rules_manager()
-        if request.method == 'POST':
+        if request.method == "POST":
             data = request.json or {}
-            rules = data.get('rules', [])
+            rules = data.get("rules", [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
             rm.set_global_rules(rules)
@@ -37,34 +42,36 @@ def api_rules_global():
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/rules/global-prompt', methods=['GET', 'POST'])
+@bp.route("/api/rules/global-prompt", methods=["GET", "POST"])
 def api_rules_global_prompt():
     """Get or set the global system prompt override."""
-    if request.method == 'POST' and not is_admin_user():
+    if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
+
         rm = get_rules_manager()
-        if request.method == 'POST':
+        if request.method == "POST":
             data = request.json or {}
-            rm.set_global_system_prompt(data.get('prompt', ''))
+            rm.set_global_system_prompt(data.get("prompt", ""))
             return jsonify({"status": "saved"})
         return jsonify({"prompt": rm.get_global_system_prompt()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/rules/project/<project_id>', methods=['GET', 'POST'])
+@bp.route("/api/rules/project/<project_id>", methods=["GET", "POST"])
 def api_rules_project(project_id):
     """Get or set rules for a specific project."""
-    if request.method == 'POST' and not is_admin_user():
+    if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
+
         rm = get_rules_manager()
-        if request.method == 'POST':
+        if request.method == "POST":
             data = request.json or {}
-            rules = data.get('rules', [])
+            rules = data.get("rules", [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
             rm.set_project_rules(project_id, rules)
@@ -74,17 +81,18 @@ def api_rules_project(project_id):
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route('/api/rules/model/<path:model_id>', methods=['GET', 'POST'])
+@bp.route("/api/rules/model/<path:model_id>", methods=["GET", "POST"])
 def api_rules_model(model_id):
     """Get or set rules for a specific model."""
-    if request.method == 'POST' and not is_admin_user():
+    if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
         from vetinari.rules_manager import get_rules_manager
+
         rm = get_rules_manager()
-        if request.method == 'POST':
+        if request.method == "POST":
             data = request.json or {}
-            rules = data.get('rules', [])
+            rules = data.get("rules", [])
             if isinstance(rules, str):
                 rules = [r.strip() for r in rules.splitlines() if r.strip()]
             rm.set_model_rules(model_id, rules)

@@ -1,5 +1,5 @@
-"""
-Consolidated Oracle Agent (Phase 3)
+"""Consolidated Oracle Agent (Phase 3).
+
 ====================================
 Replaces: ORACLE + PONDER
 
@@ -13,10 +13,11 @@ Modes:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult
 from vetinari.agents.multi_mode_agent import MultiModeAgent
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
         "PONDER": "ontological_analysis",
     }
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.CONSOLIDATED_ORACLE, config)
 
     def _get_base_system_prompt(self) -> str:
@@ -152,7 +153,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
                 "modeling, threat analysis, and mitigation strategy design. You apply the ISO\n"
                 "31000 risk management framework and OWASP risk rating methodology. You score\n"
                 "risks on a 5x5 likelihood-impact matrix and calculate composite risk scores\n"
-                "(likelihood × impact) to enable objective prioritisation. You distinguish\n"
+                "(likelihood × impact) to enable objective prioritisation. You distinguish\n"  # noqa: RUF001
                 "between inherent risk (before controls) and residual risk (after mitigation).\n"
                 "You identify systemic risks that compound across multiple dimensions: a single\n"
                 "architectural decision may simultaneously create technical debt, security\n"
@@ -205,7 +206,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
                 "- If risk data is insufficient, set likelihood=1 and note 'insufficient data'\n"
                 "- Never return an empty risks array — every system has at least one risk\n\n"
                 "QUALITY CRITERIA:\n"
-                "- composite_score must equal likelihood × impact exactly\n"
+                "- composite_score must equal likelihood × impact exactly\n"  # noqa: RUF001
                 "- inherent_risk_level and residual_risk_level must differ when mitigation is specified\n"
                 "- top_3_risks must correspond to the 3 highest composite_score entries\n\n"
                 "MICRO-RULES for output stability:\n"
@@ -264,7 +265,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
                 "6. Is this an analogy from another domain? -> note domain_of_origin\n\n"
                 "FEW-SHOT EXAMPLE 1 — Complexity problem:\n"
                 'Subject: "Why does our codebase keep getting more complex over time?"\n'
-                'first_principles=[\n'
+                "first_principles=[\n"
                 '  {principle:"Entropy increases in closed systems (Second Law, applied to code)",\n'
                 '   derived_from:"thermodynamics",\n'
                 '   implications_for_problem:"Without active refactoring energy input, complexity is the thermodynamic default"},\n'
@@ -274,7 +275,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
                 "]\n\n"
                 "FEW-SHOT EXAMPLE 2 — AI alignment question:\n"
                 'Subject: "Can we trust AI agents to make autonomous decisions?"\n'
-                'assumptions_challenged=[\n'
+                "assumptions_challenged=[\n"
                 '  {assumption:"More capable AI is safer AI",\n'
                 '   challenge:"Capability and alignment are orthogonal — a highly capable misaligned system is more dangerous",\n'
                 '   evidence:"Instrumental convergence theorem (Bostrom 2014)"}\n'
@@ -358,7 +359,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
                 'challenges=[{assumption:"Requirements are fully understood",severity:"critical",\n'
                 '  failure_mode:"Scope expands mid-sprint, deadline missed, team demoralised"}]\n'
                 'pre_mortem="In 12 months: the rushed 2-week deadline produced technical debt\n'
-                'that became a 3-month refactor project. The original feature shipped but lacked\n'
+                "that became a 3-month refactor project. The original feature shipped but lacked\n"
                 'error handling, causing production incidents."\n\n'
                 "ERROR HANDLING:\n"
                 "- If subject is genuinely sound, provide verdict=proceed and note which assumptions were tested\n"
@@ -382,8 +383,7 @@ class ConsolidatedOracleAgent(MultiModeAgent):
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         if isinstance(output, dict):
             has_substance = bool(
-                output.get("analysis") or output.get("recommendations")
-                or output.get("risks") or output.get("insights")
+                output.get("analysis") or output.get("recommendations") or output.get("risks") or output.get("insights")
             )
             return VerificationResult(passed=has_substance, score=0.8 if has_substance else 0.3)
         return VerificationResult(passed=True, score=0.6)
@@ -439,20 +439,24 @@ class ConsolidatedOracleAgent(MultiModeAgent):
         result = self._infer_json(prompt, fallback={"challenges": [], "blind_spots": []})
         return AgentResult(success=True, output=result, metadata={"mode": "contrarian_review"})
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "architecture_decision", "design_pattern_recommendation",
-            "risk_assessment", "risk_mitigation",
-            "ontological_analysis", "first_principles_thinking",
-            "contrarian_review", "assumption_challenging",
+            "architecture_decision",
+            "design_pattern_recommendation",
+            "risk_assessment",
+            "risk_mitigation",
+            "ontological_analysis",
+            "first_principles_thinking",
+            "contrarian_review",
+            "assumption_challenging",
         ]
 
 
 # Singleton
-_consolidated_oracle_agent: Optional[ConsolidatedOracleAgent] = None
+_consolidated_oracle_agent: ConsolidatedOracleAgent | None = None
 
 
-def get_consolidated_oracle_agent(config: Optional[Dict[str, Any]] = None) -> ConsolidatedOracleAgent:
+def get_consolidated_oracle_agent(config: dict[str, Any] | None = None) -> ConsolidatedOracleAgent:
     global _consolidated_oracle_agent
     if _consolidated_oracle_agent is None:
         _consolidated_oracle_agent = ConsolidatedOracleAgent(config)

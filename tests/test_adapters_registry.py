@@ -1,8 +1,14 @@
 """Tests for vetinari/adapters/registry.py — Phase 7B"""
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
+
 from vetinari.adapters.base import (
-    ProviderType, ProviderConfig, ModelInfo, InferenceRequest, InferenceResponse, ProviderAdapter,
+    ModelInfo,
+    ProviderAdapter,
+    ProviderConfig,
+    ProviderType,
 )
 from vetinari.adapters.registry import AdapterRegistry
 
@@ -36,93 +42,93 @@ class TestAdapterRegistry(unittest.TestCase):
 
     def test_list_supported_providers(self):
         providers = AdapterRegistry.list_supported_providers()
-        self.assertIn(ProviderType.LM_STUDIO, providers)
-        self.assertIn(ProviderType.OPENAI, providers)
-        self.assertIn(ProviderType.ANTHROPIC, providers)
+        assert ProviderType.LM_STUDIO in providers
+        assert ProviderType.OPENAI in providers
+        assert ProviderType.ANTHROPIC in providers
 
     # ── create_adapter ────────────────────────────────────────────────────────
 
     def test_create_lmstudio_adapter(self):
         cfg = _make_config(ProviderType.LM_STUDIO)
         adapter = AdapterRegistry.create_adapter(cfg)
-        self.assertIsNotNone(adapter)
+        assert adapter is not None
 
     def test_create_unknown_provider_raises(self):
         cfg = ProviderConfig(provider_type=ProviderType.HUGGINGFACE,
                              name="hf", endpoint="http://hf")
-        with self.assertRaises((ValueError, KeyError)):
+        with pytest.raises((ValueError, KeyError)):
             AdapterRegistry.create_adapter(cfg)
 
     def test_create_with_instance_name_caches(self):
         cfg = _make_config(ProviderType.LM_STUDIO)
         AdapterRegistry.create_adapter(cfg, instance_name="my_lms")
-        self.assertIsNotNone(AdapterRegistry.get_adapter("my_lms"))
+        assert AdapterRegistry.get_adapter("my_lms") is not None
 
     def test_create_without_name_not_cached(self):
         cfg = _make_config(ProviderType.LM_STUDIO)
         AdapterRegistry.create_adapter(cfg)
         # No instance_name → nothing cached under "None"
-        self.assertIsNone(AdapterRegistry.get_adapter(""))
+        assert AdapterRegistry.get_adapter("") is None
 
     # ── get_adapter ───────────────────────────────────────────────────────────
 
     def test_get_nonexistent_returns_none(self):
-        self.assertIsNone(AdapterRegistry.get_adapter("ghost"))
+        assert AdapterRegistry.get_adapter("ghost") is None
 
     # ── list_adapters ─────────────────────────────────────────────────────────
 
     def test_list_adapters_empty(self):
-        self.assertEqual(AdapterRegistry.list_adapters(), {})
+        assert AdapterRegistry.list_adapters() == {}
 
     def test_list_adapters_after_register(self):
         cfg = _make_config(ProviderType.LM_STUDIO)
         AdapterRegistry.create_adapter(cfg, instance_name="lms1")
         adapters = AdapterRegistry.list_adapters()
-        self.assertIn("lms1", adapters)
+        assert "lms1" in adapters
 
     # ── discover_all_models ───────────────────────────────────────────────────
 
     def test_discover_all_models_empty(self):
         results = AdapterRegistry.discover_all_models()
-        self.assertEqual(results, {})
+        assert results == {}
 
     def test_discover_all_models_populated(self):
         mock_a = _mock_adapter([_make_model("m1"), _make_model("m2")])
         AdapterRegistry._instances["test"] = mock_a
         results = AdapterRegistry.discover_all_models()
-        self.assertEqual(len(results["test"]), 2)
+        assert len(results["test"]) == 2
 
     def test_discover_all_models_handles_exception(self):
         mock_a = _mock_adapter()
         mock_a.discover_models.side_effect = RuntimeError("fail")
         AdapterRegistry._instances["bad"] = mock_a
         results = AdapterRegistry.discover_all_models()
-        self.assertEqual(results["bad"], [])
+        assert results["bad"] == []
 
     # ── health_check_all ──────────────────────────────────────────────────────
 
     def test_health_check_all_empty(self):
-        self.assertEqual(AdapterRegistry.health_check_all(), {})
+        assert AdapterRegistry.health_check_all() == {}
 
     def test_health_check_all_healthy(self):
         mock_a = _mock_adapter()
         AdapterRegistry._instances["healthy"] = mock_a
         results = AdapterRegistry.health_check_all()
-        self.assertTrue(results["healthy"]["healthy"])
+        assert results["healthy"]["healthy"]
 
     def test_health_check_all_handles_exception(self):
         mock_a = _mock_adapter()
         mock_a.health_check.side_effect = RuntimeError("boom")
         AdapterRegistry._instances["broken"] = mock_a
         results = AdapterRegistry.health_check_all()
-        self.assertFalse(results["broken"]["healthy"])
+        assert not results["broken"]["healthy"]
 
     # ── find_best_model ───────────────────────────────────────────────────────
 
     def test_find_best_model_empty(self):
         adapter, model = AdapterRegistry.find_best_model({"required_capabilities": ["code_gen"]})
-        self.assertIsNone(adapter)
-        self.assertIsNone(model)
+        assert adapter is None
+        assert model is None
 
     def test_find_best_model_picks_highest_score(self):
         from vetinari.adapters.base import ProviderAdapter
@@ -144,7 +150,7 @@ class TestAdapterRegistry(unittest.TestCase):
         mock_a.score_model_for_task = lambda m, reqs: PA.score_model_for_task(mock_a, m, reqs)
         AdapterRegistry._instances["a1"] = mock_a
         _, best = AdapterRegistry.find_best_model({"required_capabilities": ["code_gen"]})
-        self.assertEqual(best.id, "good")
+        assert best.id == "good"
 
     # ── register_adapter ─────────────────────────────────────────────────────
 
@@ -156,7 +162,7 @@ class TestAdapterRegistry(unittest.TestCase):
             def get_capabilities(self): return {}
 
         AdapterRegistry.register_adapter(ProviderType.LOCAL, DummyAdapter)
-        self.assertIn(ProviderType.LOCAL, AdapterRegistry.list_supported_providers())
+        assert ProviderType.LOCAL in AdapterRegistry.list_supported_providers()
         # Clean up
         del AdapterRegistry._adapter_classes[ProviderType.LOCAL]
 
@@ -165,7 +171,7 @@ class TestAdapterRegistry(unittest.TestCase):
     def test_clear_instances(self):
         AdapterRegistry._instances["x"] = _mock_adapter()
         AdapterRegistry.clear_instances()
-        self.assertEqual(AdapterRegistry.list_adapters(), {})
+        assert AdapterRegistry.list_adapters() == {}
 
 
 if __name__ == "__main__":

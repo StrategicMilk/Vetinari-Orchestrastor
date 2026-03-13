@@ -1,5 +1,5 @@
-"""
-Consolidated Agents Package (v0.4.0)
+"""Consolidated Agents Package (v0.4.0).
+
 ======================================
 4 multi-mode agents in the consolidated sub-package.
 Combined with PlannerAgent and BuilderAgent in the parent package,
@@ -16,9 +16,11 @@ The consolidation mapping (22 -> 6):
                EXPERIMENTATION_MANAGER + IMPROVEMENT + ERROR_RECOVERY
 """
 
-from vetinari.agents.consolidated.researcher_agent import (
-    ConsolidatedResearcherAgent,
-    get_consolidated_researcher_agent,
+from __future__ import annotations
+
+from vetinari.agents.consolidated.operations_agent import (
+    OperationsAgent,
+    get_operations_agent,
 )
 from vetinari.agents.consolidated.oracle_agent import (
     ConsolidatedOracleAgent,
@@ -28,14 +30,18 @@ from vetinari.agents.consolidated.quality_agent import (
     QualityAgent,
     get_quality_agent,
 )
-from vetinari.agents.consolidated.operations_agent import (
-    OperationsAgent,
-    get_operations_agent,
+from vetinari.agents.consolidated.researcher_agent import (
+    ConsolidatedResearcherAgent,
+    get_consolidated_researcher_agent,
 )
 
 __all__ = [
-    "ConsolidatedResearcherAgent", "get_consolidated_researcher_agent",
-    "ConsolidatedOracleAgent", "get_consolidated_oracle_agent",
-    "QualityAgent", "get_quality_agent",
-    "OperationsAgent", "get_operations_agent",
+    "ConsolidatedOracleAgent",
+    "ConsolidatedResearcherAgent",
+    "OperationsAgent",
+    "QualityAgent",
+    "get_consolidated_oracle_agent",
+    "get_consolidated_researcher_agent",
+    "get_operations_agent",
+    "get_quality_agent",
 ]

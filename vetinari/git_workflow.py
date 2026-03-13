@@ -4,12 +4,13 @@ Provides conventional commit generation, branch management, PR description
 generation, and conflict detection. Used by DOCUMENTER agent in git mode.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import subprocess
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,11 @@ class CommitInfo:
     """Structured commit information following Conventional Commits."""
 
     type: str  # feat, fix, refactor, etc.
-    scope: Optional[str] = None
+    scope: str | None = None
     description: str = ""
     body: str = ""
     breaking: bool = False
-    files_changed: List[str] = field(default_factory=list)
+    files_changed: list[str] = field(default_factory=list)
 
     def format_message(self) -> str:
         """Format as a conventional commit message string."""
@@ -85,11 +86,11 @@ class GitWorkflow:
     def __init__(self, repo_path: str = "."):
         self._repo_path = repo_path
 
-    def _run_git(self, *args: str) -> Tuple[int, str, str]:
+    def _run_git(self, *args: str) -> tuple[int, str, str]:
         """Run a git command. Returns (returncode, stdout, stderr)."""
         try:
-            result = subprocess.run(
-                ["git"] + list(args),
+            result = subprocess.run(  # noqa: S603
+                ["git", *list(args)],  # noqa: S607
                 cwd=self._repo_path,
                 capture_output=True,
                 text=True,
@@ -103,7 +104,7 @@ class GitWorkflow:
     # Change classification
     # ------------------------------------------------------------------
 
-    def classify_changes(self, diff_text: str = None) -> str:
+    def classify_changes(self, diff_text: str | None = None) -> str:
         """Classify changes into a conventional commit type.
 
         If *diff_text* is ``None`` the method inspects the currently staged
@@ -135,18 +136,12 @@ class GitWorkflow:
     # Commit helpers
     # ------------------------------------------------------------------
 
-    def generate_commit_message(
-        self, description: str = None, scope: str = None
-    ) -> CommitInfo:
+    def generate_commit_message(self, description: str | None = None, scope: str | None = None) -> CommitInfo:
         """Generate a conventional commit message from staged changes."""
         _, diff_stat, _ = self._run_git("diff", "--cached", "--stat")
         _, diff_names, _ = self._run_git("diff", "--cached", "--name-only")
 
-        files = (
-            [f.strip() for f in diff_names.split("\n") if f.strip()]
-            if diff_names
-            else []
-        )
+        files = [f.strip() for f in diff_names.split("\n") if f.strip()] if diff_names else []
         commit_type = self.classify_changes(diff_stat)
 
         if not description:
@@ -162,7 +157,7 @@ class GitWorkflow:
             files_changed=files,
         )
 
-    def _infer_description(self, files: List[str], diff_stat: str) -> str:
+    def _infer_description(self, files: list[str], diff_stat: str) -> str:
         """Infer a commit description from changed files."""
         if not files:
             return "update files"
@@ -173,22 +168,18 @@ class GitWorkflow:
             return f"update {common_dir} ({len(files)} files)"
         return f"update {len(files)} files"
 
-    def _infer_scope(self, files: List[str]) -> Optional[str]:
+    def _infer_scope(self, files: list[str]) -> str | None:
         """Infer scope from file paths."""
         dirs: set = set()
         for f in files:
             parts = f.split("/")
             if len(parts) > 1:
-                dirs.add(
-                    parts[0]
-                    if parts[0] != "vetinari"
-                    else parts[1] if len(parts) > 2 else parts[0]
-                )
+                dirs.add(parts[0] if parts[0] != "vetinari" else parts[1] if len(parts) > 2 else parts[0])
         if len(dirs) == 1:
             return dirs.pop()
         return None
 
-    def _common_directory(self, files: List[str]) -> str:
+    def _common_directory(self, files: list[str]) -> str:
         """Find common directory prefix among *files*."""
         if not files:
             return ""
@@ -210,7 +201,7 @@ class GitWorkflow:
         code, _, _ = self._run_git("checkout", "-b", name, base)
         return code == 0
 
-    def get_branches(self) -> List[BranchInfo]:
+    def get_branches(self) -> list[BranchInfo]:
         """List all local branches with metadata."""
         code, output, _ = self._run_git("branch", "-v")
         branches: list = []
@@ -236,20 +227,12 @@ class GitWorkflow:
     # PR description generation
     # ------------------------------------------------------------------
 
-    def generate_pr_description(self, base_branch: str = "main") -> Dict[str, str]:
+    def generate_pr_description(self, base_branch: str = "main") -> dict[str, str]:
         """Generate a PR description from commit history since *base_branch*."""
-        _, log_output, _ = self._run_git(
-            "log", f"{base_branch}..HEAD", "--oneline"
-        )
-        _, diff_stat, _ = self._run_git(
-            "diff", f"{base_branch}..HEAD", "--stat"
-        )
+        _, log_output, _ = self._run_git("log", f"{base_branch}..HEAD", "--oneline")
+        _, diff_stat, _ = self._run_git("diff", f"{base_branch}..HEAD", "--stat")
 
-        commits = (
-            [l.strip() for l in log_output.split("\n") if l.strip()]
-            if log_output
-            else []
-        )
+        commits = [l.strip() for l in log_output.split("\n") if l.strip()] if log_output else []  # noqa: E741
 
         title = commits[0].split(" ", 1)[1] if commits else "Update"
 
@@ -258,9 +241,7 @@ class GitWorkflow:
             parts = c.split(" ", 1)
             body_lines.append(f"- {parts[1] if len(parts) > 1 else c}")
 
-        body_lines.extend(
-            ["", "## Changes", "", diff_stat or "No changes detected"]
-        )
+        body_lines.extend(["", "## Changes", "", diff_stat or "No changes detected"])
 
         return {
             "title": title[:70],
@@ -272,11 +253,9 @@ class GitWorkflow:
     # Conflict detection
     # ------------------------------------------------------------------
 
-    def detect_conflicts(self, target_branch: str = "main") -> List[ConflictInfo]:
+    def detect_conflicts(self, target_branch: str = "main") -> list[ConflictInfo]:
         """Detect potential merge conflicts with *target_branch*."""
-        code, _, stderr = self._run_git(
-            "merge", "--no-commit", "--no-ff", target_branch, "--dry-run"
-        )
+        code, _, stderr = self._run_git("merge", "--no-commit", "--no-ff", target_branch, "--dry-run")
 
         conflicts: list = []
         if code != 0 and "conflict" in stderr.lower():
@@ -301,13 +280,13 @@ class GitWorkflow:
     # Repository status
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current repository status as a structured dict."""
         _, status, _ = self._run_git("status", "--porcelain")
         _, branch, _ = self._run_git("rev-parse", "--abbrev-ref", "HEAD")
         _, commit, _ = self._run_git("rev-parse", "--short", "HEAD")
 
-        files: Dict[str, List[str]] = {
+        files: dict[str, list[str]] = {
             "modified": [],
             "added": [],
             "deleted": [],
@@ -339,7 +318,7 @@ class GitWorkflow:
 # Module-level singleton accessor
 # ------------------------------------------------------------------
 
-_git_workflow: Optional[GitWorkflow] = None
+_git_workflow: GitWorkflow | None = None
 
 
 def get_git_workflow(repo_path: str = ".") -> GitWorkflow:

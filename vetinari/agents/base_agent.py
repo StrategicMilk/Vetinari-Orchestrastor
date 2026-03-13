@@ -1,5 +1,4 @@
-"""
-Vetinari Base Agent
+"""Vetinari Base Agent.
 
 This module defines the base agent class that all Vetinari agents inherit from.
 All agents must implement the execute and verify methods.
@@ -12,16 +11,10 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from vetinari.agents.contracts import (
-    AgentResult,
-    AgentSpec,
-    AgentTask,
-    AgentType,
-    VerificationResult,
-    get_agent_spec
-)
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult, get_agent_spec
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +23,15 @@ logger = logging.getLogger(__name__)
 # Constraint-aware helpers (Phase 8.10)
 # ---------------------------------------------------------------------------
 
-def _get_agent_constraints(agent_type_value: str, mode: Optional[str] = None):
+
+def _get_agent_constraints(agent_type_value: str, mode: str | None = None):
     """Lazily load constraints for an agent. Returns None on import failure."""
     try:
         from vetinari.constraints.registry import get_constraint_registry
+
         return get_constraint_registry().get_constraints_for_agent(
-            agent_type_value, mode=mode,
+            agent_type_value,
+            mode=mode,
         )
     except Exception:
         return None
@@ -43,16 +39,16 @@ def _get_agent_constraints(agent_type_value: str, mode: Optional[str] = None):
 
 class BaseAgent(ABC):
     """Base class for all Vetinari agents.
-    
+
     All agents must inherit from this class and implement:
     - execute(): Process a task and return results
     - verify(): Verify output meets quality standards
     - get_system_prompt(): Return the agent's system prompt
     """
-    
-    def __init__(self, agent_type: AgentType, config: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, agent_type: AgentType, config: dict[str, Any] | None = None):
         """Initialize the agent.
-        
+
         Args:
             agent_type: The type of agent
             config: Optional configuration dictionary
@@ -61,45 +57,45 @@ class BaseAgent(ABC):
         self._config = config or {}
         self._spec = get_agent_spec(agent_type)
         self._initialized = False
-        self._context: Dict[str, Any] = {}
+        self._context: dict[str, Any] = {}
         # Shared services (populated by initialize())
         self._adapter_manager = None
         self._web_search = None
         self._tool_registry = None
-        
+
     @property
     def agent_type(self) -> AgentType:
         """Return the agent type."""
         return self._agent_type
-    
+
     @property
     def name(self) -> str:
         """Return the human-readable agent name."""
         return self._spec.name if self._spec else self._agent_type.value
-    
+
     @property
     def description(self) -> str:
         """Return the agent description."""
         return self._spec.description if self._spec else ""
-    
+
     @property
     def default_model(self) -> str:
         """Return the default model for this agent."""
         return self._spec.default_model if self._spec else ""
-    
+
     @property
     def thinking_variant(self) -> str:
         """Return the thinking variant for this agent."""
         return self._spec.thinking_variant if self._spec else "medium"
-    
+
     @property
     def is_initialized(self) -> bool:
         """Return whether the agent is initialized."""
         return self._initialized
-    
-    def initialize(self, context: Dict[str, Any]) -> None:
+
+    def initialize(self, context: dict[str, Any]) -> None:
         """Initialize the agent with context.
-        
+
         Args:
             context: Context information including:
                 - adapter_manager: AdapterManager instance for LLM inference
@@ -157,8 +153,8 @@ class BaseAgent(ABC):
     def _infer(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        model_id: Optional[str] = None,
+        system_prompt: str | None = None,
+        model_id: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.3,
         expect_json: bool = False,
@@ -184,17 +180,18 @@ class BaseAgent(ABC):
         # ── C1: Circuit breaker pre-check ─────────────────────────────
         try:
             from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
             _cb = get_circuit_breaker_registry().get(self._agent_type.value)
             if not _cb.allow_request():
                 self._log("warning", f"Circuit breaker OPEN for {self._agent_type.value}")
                 return ""
-        except ImportError:
+        except ImportError:  # noqa: VET022
             pass  # resilience module not available
         except Exception as _cb_err:
             logger.debug("Circuit breaker check failed: %s", _cb_err)
 
         # ── C5: Token budget pre-check ────────────────────────────────
-        _budget_remaining = getattr(self, '_token_budget_remaining', None)
+        _budget_remaining = getattr(self, "_token_budget_remaining", None)
         if _budget_remaining is not None and _budget_remaining <= 0:
             self._log("warning", f"Token budget exhausted for {self._agent_type.value}")
             return ""
@@ -203,6 +200,7 @@ class BaseAgent(ABC):
             # No adapter: try to use the singleton if available
             try:
                 from vetinari.adapter_manager import get_adapter_manager
+
                 self._adapter_manager = get_adapter_manager()
             except Exception:
                 logger.debug("Failed to import singleton adapter_manager", exc_info=True)
@@ -211,6 +209,7 @@ class BaseAgent(ABC):
             # Last resort: call LM Studio directly
             try:
                 from vetinari.lmstudio_adapter import LMStudioAdapter
+
                 _host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
                 _adapter = LMStudioAdapter(host=_host)
                 _sys = system_prompt or self.get_system_prompt()
@@ -227,6 +226,7 @@ class BaseAgent(ABC):
         _variant_id = "default"
         try:
             from vetinari.learning.prompt_evolver import get_prompt_evolver
+
             evolved_prompt, _variant_id = get_prompt_evolver().select_prompt(self._agent_type.value)
             if evolved_prompt and evolved_prompt != _active_system_prompt:
                 _active_system_prompt = evolved_prompt
@@ -237,6 +237,7 @@ class BaseAgent(ABC):
         _model_for_config = model_id or self.default_model or ""
         try:
             from vetinari.config.inference_config import get_inference_config
+
             _task_key = self._agent_type.value.lower()
             _effective = get_inference_config().get_effective_params(_task_key, _model_for_config)
             # Only override if caller used default values
@@ -248,6 +249,7 @@ class BaseAgent(ABC):
             # Fallback to legacy token_optimizer
             try:
                 from vetinari.token_optimizer import get_token_optimizer
+
                 _optimizer = get_token_optimizer()
                 _profile = _optimizer.get_task_profile(self._agent_type.value.lower())
                 _profile_max_tokens, _profile_temp, _ = _profile
@@ -256,26 +258,29 @@ class BaseAgent(ABC):
                 if temperature == 0.3:
                     temperature = _profile_temp
             except Exception:
-                logger.debug("Failed to load token_optimizer task profile for %s", self._agent_type.value, exc_info=True)
+                logger.debug(
+                    "Failed to load token_optimizer task profile for %s", self._agent_type.value, exc_info=True
+                )
 
         # Use AdapterManager.infer() path
         try:
             from vetinari.adapters.base import InferenceRequest
         except ImportError:
             # Fallback dataclass if adapters not available
-            from dataclasses import dataclass, field as dc_field
+            from dataclasses import dataclass
+            from dataclasses import field as dc_field
 
             @dataclass
             class InferenceRequest:  # type: ignore[no-redef]
                 model_id: str
                 prompt: str
-                system_prompt: Optional[str] = None
+                system_prompt: str | None = None
                 max_tokens: int = 4096
                 temperature: float = 0.3
                 top_p: float = 0.9
                 top_k: int = 40
-                stop_sequences: List[str] = dc_field(default_factory=list)
-                metadata: Dict[str, Any] = dc_field(default_factory=dict)
+                stop_sequences: list[str] = dc_field(default_factory=list)
+                metadata: dict[str, Any] = dc_field(default_factory=dict)
 
         if expect_json:
             prompt = prompt + "\n\nRespond ONLY with valid JSON. Do not include markdown code fences or explanation."
@@ -302,13 +307,14 @@ class BaseAgent(ABC):
                 # ── C1: Record success ────────────────────────────────
                 try:
                     from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
                     get_circuit_breaker_registry().get(self._agent_type.value).record_success()
-                except Exception:
+                except Exception:  # noqa: S110, VET022
                     pass
 
                 # ── C5: Track token usage ─────────────────────────────
                 _estimated_tokens = len(result.split()) if result else 0
-                if hasattr(self, '_token_budget_remaining') and self._token_budget_remaining is not None:
+                if hasattr(self, "_token_budget_remaining") and self._token_budget_remaining is not None:
                     self._token_budget_remaining -= _estimated_tokens
 
                 return result
@@ -316,25 +322,27 @@ class BaseAgent(ABC):
                 self._log("warning", f"Inference failed: {response.error}")
                 try:
                     from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
                     get_circuit_breaker_registry().get(self._agent_type.value).record_failure()
-                except Exception:
+                except Exception:  # noqa: S110, VET022
                     pass
                 return ""
         except Exception as e:
             self._log("error", f"Inference exception: {e}")
             try:
                 from vetinari.resilience.circuit_breaker import get_circuit_breaker_registry
+
                 get_circuit_breaker_registry().get(self._agent_type.value).record_failure()
-            except Exception:
+            except Exception:  # noqa: S110, VET022
                 pass
             return ""
 
     def _infer_json(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        model_id: Optional[str] = None,
-        fallback: Optional[Any] = None,
+        system_prompt: str | None = None,
+        model_id: str | None = None,
+        fallback: Any | None = None,
         **kwargs,
     ) -> Any:
         """Call _infer() and parse the result as JSON.
@@ -366,11 +374,12 @@ class BaseAgent(ABC):
         except json.JSONDecodeError:
             # Try to extract JSON object/array from surrounding text
             import re
-            match = re.search(r'(\{.*\}|\[.*\])', raw, re.DOTALL)
+
+            match = re.search(r"(\{.*\}|\[.*\])", raw, re.DOTALL)
             if match:
                 try:
                     return json.loads(match.group(1))
-                except json.JSONDecodeError:
+                except json.JSONDecodeError:  # noqa: VET022
                     pass
             self._log("warning", "Could not parse LLM output as JSON — using fallback")
             return fallback
@@ -379,7 +388,7 @@ class BaseAgent(ABC):
     # Web search helper
     # ------------------------------------------------------------------
 
-    def _search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    def _search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         """Perform a web search and return a list of result dicts.
 
         Each result dict has keys: title, url, snippet, source_reliability.
@@ -388,6 +397,7 @@ class BaseAgent(ABC):
         if self._web_search is None:
             try:
                 from vetinari.tools.web_search_tool import get_search_tool
+
                 self._web_search = get_search_tool()
             except Exception:
                 return []
@@ -405,12 +415,12 @@ class BaseAgent(ABC):
         except Exception as e:
             self._log("warning", f"Web search failed for '{query}': {e}")
             return []
-        
+
     # ------------------------------------------------------------------
     # Tool Registry access helpers
     # ------------------------------------------------------------------
 
-    def _use_tool(self, tool_name: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    def _use_tool(self, tool_name: str, **kwargs: Any) -> dict[str, Any] | None:
         """Execute a registered tool by name.
 
         Delegates to the ToolRegistry injected via ``initialize(context)``.
@@ -459,7 +469,9 @@ class BaseAgent(ABC):
     # ------------------------------------------------------------------
 
     def _extract_code_context(
-        self, file_paths: List[str], keywords: List[str],
+        self,
+        file_paths: list[str],
+        keywords: list[str],
         budget_chars: int = 2000,
     ) -> str:
         """Extract only relevant code context using grep.
@@ -467,6 +479,7 @@ class BaseAgent(ABC):
         Use instead of reading whole files to reduce token usage by 40-60%.
         """
         from vetinari.grep_context import get_grep_context
+
         gc = get_grep_context()
         parts = []
         remaining = budget_chars
@@ -480,11 +493,14 @@ class BaseAgent(ABC):
         return "\n\n".join(parts)
 
     def _grep_patterns(
-        self, file_paths: List[str], patterns: List[str],
+        self,
+        file_paths: list[str],
+        patterns: list[str],
         context_lines: int = 3,
     ) -> str:
         """Extract lines matching patterns with surrounding context."""
         from vetinari.grep_context import get_grep_context
+
         gc = get_grep_context()
         matches = gc.extract_patterns(file_paths, patterns, context_lines)
         return gc.format_for_prompt(matches)
@@ -495,10 +511,10 @@ class BaseAgent(ABC):
             "agent_type": self._agent_type.value,
             "agent_name": self.name,
             "timestamp": datetime.now().isoformat(),
-            **kwargs
+            **kwargs,
         }
         getattr(logger, level)(f"{message} | {log_data}")
-    
+
     # ------------------------------------------------------------------
     # Phase 2.0b: Template method helpers for concrete agents
     # ------------------------------------------------------------------
@@ -517,6 +533,7 @@ class BaseAgent(ABC):
         """
         try:
             from vetinari.shared_memory import SharedMemory
+
             memory = SharedMemory.get_instance()
             if memory is None:
                 return []
@@ -562,16 +579,17 @@ class BaseAgent(ABC):
             if result.success:
                 # P6.2: Soft-enforce output guardrails — log violations but do not block
                 try:
-                    from vetinari.safety.guardrails import get_guardrails, RailContext
                     import json as _json
+
+                    from vetinari.safety.guardrails import RailContext, get_guardrails
+
                     _output_text = (
-                        result.output if isinstance(result.output, str)
-                        else _json.dumps(result.output, default=str)
-                    ) if result.output else ""
+                        (result.output if isinstance(result.output, str) else _json.dumps(result.output, default=str))
+                        if result.output
+                        else ""
+                    )
                     if _output_text:
-                        _gr = get_guardrails().check_output(
-                            _output_text, context=RailContext.USER_FACING
-                        )
+                        _gr = get_guardrails().check_output(_output_text, context=RailContext.USER_FACING)
                         if not _gr.allowed:
                             self._log(
                                 "warning",
@@ -614,47 +632,44 @@ class BaseAgent(ABC):
     @abstractmethod
     def execute(self, task: AgentTask) -> AgentResult:
         """Execute the given task and return results.
-        
+
         Args:
             task: The task to execute
-            
+
         Returns:
             AgentResult containing success status, output, and metadata
         """
-        pass
-    
+
     @abstractmethod
     def verify(self, output: Any) -> VerificationResult:
         """Verify the output meets quality standards.
-        
+
         Args:
             output: The output to verify
-            
+
         Returns:
             VerificationResult with pass/fail status and issues
         """
-        pass
-    
+
     @abstractmethod
     def get_system_prompt(self) -> str:
         """Return the system prompt for this agent.
-        
+
         Returns:
             The system prompt that defines the agent's role and behavior
         """
-        pass
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         """Return the capabilities of this agent.
-        
+
         Returns:
             List of capability identifiers
         """
         return []
-    
-    def get_metadata(self) -> Dict[str, Any]:
+
+    def get_metadata(self) -> dict[str, Any]:
         """Return metadata about this agent.
-        
+
         Returns:
             Dictionary containing agent metadata
         """
@@ -665,15 +680,15 @@ class BaseAgent(ABC):
             "default_model": self.default_model,
             "thinking_variant": self.thinking_variant,
             "capabilities": self.get_capabilities(),
-            "initialized": self._initialized
+            "initialized": self._initialized,
         }
-    
+
     def validate_task(self, task: AgentTask) -> bool:
         """Validate that the task is appropriate for this agent.
-        
+
         Args:
             task: The task to validate
-            
+
         Returns:
             True if the task is valid for this agent
         """
@@ -681,15 +696,15 @@ class BaseAgent(ABC):
             self._log("warning", f"Task agent type {task.agent_type} does not match {self._agent_type}")
             return False
         return True
-    
+
     def prepare_task(self, task: AgentTask) -> AgentTask:
         """Prepare a task for execution.
-        
+
         This method can be overridden to add preprocessing.
-        
+
         Args:
             task: The task to prepare
-            
+
         Returns:
             The prepared task
         """
@@ -699,11 +714,10 @@ class BaseAgent(ABC):
 
         # ----- Phase 11.9: Enforce MODEL_INFERENCE permission -----
         try:
-            from vetinari.execution_context import get_context_manager, ToolPermission
-            get_context_manager().enforce_permission(
-                ToolPermission.MODEL_INFERENCE, "agent_execute"
-            )
-        except (ImportError, AttributeError):
+            from vetinari.execution_context import ToolPermission, get_context_manager
+
+            get_context_manager().enforce_permission(ToolPermission.MODEL_INFERENCE, "agent_execute")
+        except (ImportError, AttributeError):  # noqa: VET022
             pass  # Permission system not available — degrade gracefully
         except PermissionError:
             raise  # Permission denied — propagate to caller
@@ -720,7 +734,7 @@ class BaseAgent(ABC):
             "OPERATIONS": 24576,
         }
         _budget = _TOKEN_BUDGETS.get(self._agent_type.value, 16384)
-        if not hasattr(self, '_token_budget_remaining') or self._token_budget_remaining is None:
+        if not hasattr(self, "_token_budget_remaining") or self._token_budget_remaining is None:
             self._token_budget_total = _budget
             self._token_budget_remaining = _budget
 
@@ -729,28 +743,38 @@ class BaseAgent(ABC):
         if constraints and constraints.resources:
             rc = constraints.resources
             # Apply max_tokens cap to the task metadata so _infer() can respect it
-            if not hasattr(task, '_constraint_max_tokens'):
+            if not hasattr(task, "_constraint_max_tokens"):
                 task._constraint_max_tokens = rc.max_tokens
             # Apply max_retries cap (accessible by AgentGraph)
-            if not hasattr(task, '_constraint_max_retries'):
+            if not hasattr(task, "_constraint_max_retries"):
                 task._constraint_max_retries = rc.max_retries
             # Store timeout for monitoring
-            if not hasattr(task, '_constraint_timeout'):
+            if not hasattr(task, "_constraint_timeout"):
                 task._constraint_timeout = rc.timeout_seconds
-            self._log("debug", f"Constraints applied: max_tokens={rc.max_tokens}, "
-                      f"timeout={rc.timeout_seconds}s, max_retries={rc.max_retries}")
+            self._log(
+                "debug",
+                f"Constraints applied: max_tokens={rc.max_tokens}, "
+                f"timeout={rc.timeout_seconds}s, max_retries={rc.max_retries}",
+            )
 
         # Emit structured trace span for this task
         try:
             from vetinari.structured_logging import log_event
-            log_event("info", f"agent.{self._agent_type.value}", "task_started",
-                      task_id=task.task_id, agent=self._agent_type.value)
+
+            log_event(
+                "info",
+                f"agent.{self._agent_type.value}",
+                "task_started",
+                task_id=task.task_id,
+                agent=self._agent_type.value,
+            )
         except Exception:
             logger.debug("Failed to emit structured trace span for task_started", exc_info=True)
 
         # Register prompt variant if evolver is available
         try:
             from vetinari.learning.prompt_evolver import get_prompt_evolver
+
             evolver = get_prompt_evolver()
             evolver.register_baseline(self._agent_type.value, self.get_system_prompt())
         except Exception:
@@ -762,9 +786,7 @@ class BaseAgent(ABC):
     # Phase 7.9I: Dependency results incorporation
     # ------------------------------------------------------------------
 
-    def _incorporate_prior_results(
-        self, task: AgentTask
-    ) -> Dict[str, Any]:
+    def _incorporate_prior_results(self, task: AgentTask) -> dict[str, Any]:
         """Extract and return dependency results from the task context.
 
         AgentGraph injects ``dependency_results`` into ``task.context`` before
@@ -780,20 +802,19 @@ class BaseAgent(ABC):
         if dep_results:
             self._log(
                 "debug",
-                f"Incorporating {len(dep_results)} dependency results: "
-                + ", ".join(dep_results.keys()),
+                f"Incorporating {len(dep_results)} dependency results: " + ", ".join(dep_results.keys()),
             )
         return dep_results
 
     def complete_task(self, task: AgentTask, result: AgentResult) -> AgentTask:
         """Mark a task as complete.
-        
+
         This method can be overridden to add postprocessing.
-        
+
         Args:
             task: The completed task
             result: The result from execution
-            
+
         Returns:
             The completed task
         """
@@ -805,9 +826,15 @@ class BaseAgent(ABC):
         # Emit structured trace span for completion
         try:
             from vetinari.structured_logging import log_event
-            log_event("info", f"agent.{self._agent_type.value}", "task_completed",
-                      task_id=task.task_id, success=result.success,
-                      agent=self._agent_type.value)
+
+            log_event(
+                "info",
+                f"agent.{self._agent_type.value}",
+                "task_completed",
+                task_id=task.task_id,
+                success=result.success,
+                agent=self._agent_type.value,
+            )
         except Exception:
             logger.debug("Failed to emit structured trace span for task_completed", exc_info=True)
 
@@ -818,19 +845,22 @@ class BaseAgent(ABC):
                 qg = constraints.quality_gate
                 # Quality gate will be checked after scoring below;
                 # store the gate for downstream use
-                if not hasattr(task, '_quality_gate'):
+                if not hasattr(task, "_quality_gate"):
                     task._quality_gate = qg
 
         # Feed results into quality scoring and feedback loop
         if result.success and result.output:
             try:
                 import json as _json
-                output_str = (result.output if isinstance(result.output, str)
-                              else _json.dumps(result.output, default=str)[:1000])
+
+                output_str = (
+                    result.output if isinstance(result.output, str) else _json.dumps(result.output, default=str)[:1000]
+                )
                 task_type = self._agent_type.value.lower()
                 model_id = self.default_model or "default"
 
                 from vetinari.learning.quality_scorer import get_quality_scorer
+
                 scorer = get_quality_scorer()
                 scorer._adapter_manager = self._adapter_manager
                 score = scorer.score(
@@ -843,6 +873,7 @@ class BaseAgent(ABC):
                 )
 
                 from vetinari.learning.feedback_loop import get_feedback_loop
+
                 get_feedback_loop().record_outcome(
                     task_id=task.task_id,
                     model_id=model_id,
@@ -852,14 +883,17 @@ class BaseAgent(ABC):
                 )
 
                 from vetinari.learning.model_selector import get_thompson_selector
+
                 get_thompson_selector().update(model_id, task_type, score.overall_score, result.success)
 
                 # Phase 8.10: Check quality gate threshold
-                if hasattr(task, '_quality_gate') and task._quality_gate:
+                if hasattr(task, "_quality_gate") and task._quality_gate:
                     try:
                         from vetinari.constraints.registry import get_constraint_registry
+
                         passed, reason = get_constraint_registry().check_quality_gate(
-                            self._agent_type.value, score.overall_score,
+                            self._agent_type.value,
+                            score.overall_score,
                         )
                         if not passed:
                             self._log("warning", f"Quality gate failed: {reason}")
@@ -869,6 +903,7 @@ class BaseAgent(ABC):
                 # Feed PromptEvolver with the quality result for the active variant
                 try:
                     from vetinari.learning.prompt_evolver import get_prompt_evolver
+
                     _, v_id = get_prompt_evolver().select_prompt(self._agent_type.value)
                     if v_id and v_id != "default":
                         get_prompt_evolver().record_result(self._agent_type.value, v_id, score.overall_score)
@@ -878,6 +913,7 @@ class BaseAgent(ABC):
                 # Record execution to training data collector
                 try:
                     from vetinari.learning.training_data import get_training_collector
+
                     get_training_collector().record(
                         task=task.description or "",
                         prompt=self.get_system_prompt()[:500] + "\n\n" + (task.prompt or task.description or ""),
@@ -894,6 +930,7 @@ class BaseAgent(ABC):
                 # Record to episodic memory
                 try:
                     from vetinari.learning.episode_memory import get_episode_memory
+
                     get_episode_memory().record(
                         task_description=task.description or "",
                         agent_type=self._agent_type.value,
@@ -910,7 +947,7 @@ class BaseAgent(ABC):
                 logger.debug("Learning subsystem error during task completion", exc_info=True)
 
         return task
-    
+
     # ------------------------------------------------------------------
     # Inter-agent communication via Blackboard
     # ------------------------------------------------------------------
@@ -931,6 +968,7 @@ class BaseAgent(ABC):
             entry_id: Use with get_help_result() to retrieve the answer.
         """
         from vetinari.blackboard import get_blackboard
+
         board = get_blackboard()
         entry_id = board.post(
             content=content,
@@ -942,7 +980,7 @@ class BaseAgent(ABC):
         logger.debug("[%s] posted help request %s: %r", self.name, entry_id, request_type)
         return entry_id
 
-    def get_help_result(self, entry_id: str, timeout: float = 30.0) -> Optional[Any]:
+    def get_help_result(self, entry_id: str, timeout: float = 30.0) -> Any | None:
         """Wait for and retrieve the result of a help request.
 
         Args:
@@ -953,6 +991,7 @@ class BaseAgent(ABC):
             The result posted by the helper agent, or None if timed out / failed.
         """
         from vetinari.blackboard import get_blackboard
+
         board = get_blackboard()
         return board.get_result(entry_id, timeout=timeout)
 
@@ -967,6 +1006,7 @@ class BaseAgent(ABC):
             finding_type: Category for filtering (e.g. "security", "architecture").
         """
         from vetinari.blackboard import get_blackboard
+
         board = get_blackboard()
         board.post(
             content=value,
@@ -977,7 +1017,7 @@ class BaseAgent(ABC):
         )
         logger.debug("[%s] published finding '%s' (%s)", self.name, key, finding_type)
 
-    def query_findings(self, finding_type: str = None) -> List[Dict[str, Any]]:
+    def query_findings(self, finding_type: str | None = None) -> list[dict[str, Any]]:
         """Query published findings from the Blackboard.
 
         Args:
@@ -987,6 +1027,7 @@ class BaseAgent(ABC):
             List of dicts with keys: content, agent, finding_key.
         """
         from vetinari.blackboard import get_blackboard
+
         board = get_blackboard()
         prefix = f"finding:{finding_type}" if finding_type else "finding:"
         entries = board.get_pending(request_type_prefix=prefix)
@@ -999,7 +1040,7 @@ class BaseAgent(ABC):
             for e in entries
         ]
 
-    def delegate_task(self, task: "AgentTask", reason: str) -> "AgentResult":
+    def delegate_task(self, task: AgentTask, reason: str) -> AgentResult:
         """Signal that this task is outside the agent's domain.
 
         Returns an AgentResult with delegation_requested=True so the
@@ -1017,7 +1058,7 @@ class BaseAgent(ABC):
             },
         )
 
-    def can_handle(self, task: "AgentTask") -> bool:
+    def can_handle(self, task: AgentTask) -> bool:
         """Return True if this agent can handle the given task.
 
         Default: always True. Override in subclasses for smarter routing.
@@ -1027,6 +1068,3 @@ class BaseAgent(ABC):
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(type={self._agent_type.value}, name={self.name})>"
-
-
-

@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.models.model_pool
+"""Backward-compat shim. Canonical: vetinari.models.model_pool.
 
 All new code should import from vetinari.models.model_pool directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

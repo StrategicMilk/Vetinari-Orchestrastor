@@ -1,5 +1,4 @@
-"""
-Quality Gates for Vetinari Agentic Verification System (Task 26)
+"""Quality Gates for Vetinari Agentic Verification System (Task 26).
 
 Implements verification as TESTER agent modes that serve as quality gates
 between execution stages. Uses modes within existing agents rather than
@@ -12,12 +11,14 @@ Features:
 - QualityGateRunner for running gates between pipeline stages
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +29,16 @@ class VerificationMode(Enum):
     Each mode represents a different verification strategy that the
     TESTER (Evaluator) agent can operate in during quality gate checks.
     """
-    VERIFY_QUALITY = "verify_quality"           # Style, complexity, best practices
-    SECURITY = "security"                        # Security checks
-    VERIFY_COVERAGE = "verify_coverage"         # Test existence and pass rate
-    VERIFY_ARCHITECTURE = "verify_architecture" # Consistency with project arch
+
+    VERIFY_QUALITY = "verify_quality"  # Style, complexity, best practices
+    SECURITY = "security"  # Security checks
+    VERIFY_COVERAGE = "verify_coverage"  # Test existence and pass rate
+    VERIFY_ARCHITECTURE = "verify_architecture"  # Consistency with project arch
 
 
 class GateResult(Enum):
     """Outcome of a quality gate check."""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
@@ -53,6 +56,7 @@ class QualityGateConfig:
         timeout_seconds: Maximum time allowed for the check.
         auto_fix: If True, attempt auto-remediation on failure.
     """
+
     name: str
     mode: VerificationMode
     required: bool = True
@@ -74,15 +78,16 @@ class GateCheckResult:
         suggestions: List of improvement suggestions.
         metadata: Additional metadata about the check.
     """
+
     gate_name: str
     mode: VerificationMode
     result: GateResult
     score: float
-    issues: List[Dict[str, Any]] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    issues: list[dict[str, Any]] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert the result to a serializable dictionary."""
         return {
             "gate_name": self.gate_name,
@@ -107,7 +112,7 @@ class QualityGateRunner:
     construction time to override or extend defaults.
     """
 
-    PIPELINE_GATES: Dict[str, List[QualityGateConfig]] = {
+    PIPELINE_GATES: dict[str, list[QualityGateConfig]] = {
         "post_planning": [
             QualityGateConfig(
                 "architecture_check",
@@ -149,23 +154,23 @@ class QualityGateRunner:
         ],
     }
 
-    def __init__(self, custom_gates: Optional[Dict[str, List[QualityGateConfig]]] = None):
+    def __init__(self, custom_gates: dict[str, list[QualityGateConfig]] | None = None):
         """Initialize the runner with optional custom gate configurations.
 
         Args:
             custom_gates: Optional dict mapping stage names to gate configs.
                           Merges with (and overrides) the default PIPELINE_GATES.
         """
-        self._gates: Dict[str, List[QualityGateConfig]] = dict(self.PIPELINE_GATES)
+        self._gates: dict[str, list[QualityGateConfig]] = dict(self.PIPELINE_GATES)
         if custom_gates:
             self._gates.update(custom_gates)
-        self._history: List[GateCheckResult] = []
+        self._history: list[GateCheckResult] = []
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def run_gate(self, stage: str, artifacts: Dict[str, Any]) -> List[GateCheckResult]:
+    def run_gate(self, stage: str, artifacts: dict[str, Any]) -> list[GateCheckResult]:
         """Run all gates for a pipeline stage.
 
         Args:
@@ -183,15 +188,13 @@ class QualityGateRunner:
             logger.debug("No gates configured for stage '%s'", stage)
             return []
 
-        results: List[GateCheckResult] = []
+        results: list[GateCheckResult] = []
         for config in gate_configs:
             start = time.time()
             try:
                 result = self._run_single_gate(config, artifacts)
             except Exception as exc:
-                logger.error(
-                    "Gate '%s' raised an exception: %s", config.name, exc
-                )
+                logger.error("Gate '%s' raised an exception: %s", config.name, exc)
                 result = GateCheckResult(
                     gate_name=config.name,
                     mode=config.mode,
@@ -209,7 +212,7 @@ class QualityGateRunner:
 
         return results
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Get the full history of gate check results.
 
         Returns:
@@ -217,11 +220,11 @@ class QualityGateRunner:
         """
         return [r.to_dict() for r in self._history]
 
-    def get_gates_for_stage(self, stage: str) -> List[QualityGateConfig]:
+    def get_gates_for_stage(self, stage: str) -> list[QualityGateConfig]:
         """Return the gate configs for a given stage."""
         return list(self._gates.get(stage, []))
 
-    def stage_passed(self, results: List[GateCheckResult]) -> bool:
+    def stage_passed(self, results: list[GateCheckResult]) -> bool:
         """Return True if all *required* gates in the results passed.
 
         A gate is considered passing if its result is PASSED or WARNING.
@@ -237,9 +240,7 @@ class QualityGateRunner:
     # Gate-specific check implementations
     # ------------------------------------------------------------------
 
-    def check_quality(
-        self, artifacts: Dict[str, Any], config: QualityGateConfig
-    ) -> GateCheckResult:
+    def check_quality(self, artifacts: dict[str, Any], config: QualityGateConfig) -> GateCheckResult:
         """Run quality verification (style, complexity, best practices).
 
         Inspects ``artifacts["code"]`` for common quality issues using
@@ -247,8 +248,8 @@ class QualityGateRunner:
         code key is absent.
         """
         code = artifacts.get("code", "")
-        issues: List[Dict[str, Any]] = []
-        suggestions: List[str] = []
+        issues: list[dict[str, Any]] = []
+        suggestions: list[str] = []
         score = 1.0
 
         if not code:
@@ -269,11 +270,13 @@ class QualityGateRunner:
             penalty = min(0.3, len(long_functions) * 0.1)
             score -= penalty
             for fn in long_functions:
-                issues.append({
-                    "severity": "warning",
-                    "category": "complexity",
-                    "message": f"Function '{fn}' appears to be overly long",
-                })
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "category": "complexity",
+                        "message": f"Function '{fn}' appears to be overly long",
+                    }
+                )
             suggestions.append("Break large functions into smaller, focused helpers")
 
         # 2. Missing docstrings
@@ -282,33 +285,39 @@ class QualityGateRunner:
             penalty = min(0.2, len(missing_docs) * 0.05)
             score -= penalty
             for fn in missing_docs:
-                issues.append({
-                    "severity": "info",
-                    "category": "documentation",
-                    "message": f"Function '{fn}' is missing a docstring",
-                })
+                issues.append(
+                    {
+                        "severity": "info",
+                        "category": "documentation",
+                        "message": f"Function '{fn}' is missing a docstring",
+                    }
+                )
             suggestions.append("Add docstrings to all public functions")
 
         # 3. Bare except clauses
-        bare_excepts = len(re.findall(r'except\s*:', code))
+        bare_excepts = len(re.findall(r"except\s*:", code))
         if bare_excepts:
             score -= min(0.2, bare_excepts * 0.1)
-            issues.append({
-                "severity": "warning",
-                "category": "best_practices",
-                "message": f"Found {bare_excepts} bare except clause(s)",
-            })
+            issues.append(
+                {
+                    "severity": "warning",
+                    "category": "best_practices",
+                    "message": f"Found {bare_excepts} bare except clause(s)",
+                }
+            )
             suggestions.append("Catch specific exception types instead of bare except")
 
         # 4. TODO/FIXME/HACK markers
-        markers = len(re.findall(r'#\s*(TODO|FIXME|HACK|XXX)\b', code, re.IGNORECASE))
+        markers = len(re.findall(r"#\s*(TODO|FIXME|HACK|XXX)\b", code, re.IGNORECASE))
         if markers:
             score -= min(0.1, markers * 0.02)
-            issues.append({
-                "severity": "info",
-                "category": "maintenance",
-                "message": f"Found {markers} TODO/FIXME/HACK marker(s)",
-            })
+            issues.append(
+                {
+                    "severity": "info",
+                    "category": "maintenance",
+                    "message": f"Found {markers} TODO/FIXME/HACK marker(s)",
+                }
+            )
 
         score = max(0.0, min(1.0, score))
         result_enum = self._score_to_result(score, config.min_score)
@@ -322,17 +331,15 @@ class QualityGateRunner:
             suggestions=suggestions,
         )
 
-    def check_security(
-        self, artifacts: Dict[str, Any], config: QualityGateConfig
-    ) -> GateCheckResult:
+    def check_security(self, artifacts: dict[str, Any], config: QualityGateConfig) -> GateCheckResult:
         """Run security verification.
 
         Checks ``artifacts["code"]`` for dangerous patterns, potential
         secrets, and unsafe practices.
         """
         code = artifacts.get("code", "")
-        issues: List[Dict[str, Any]] = []
-        suggestions: List[str] = []
+        issues: list[dict[str, Any]] = []
+        suggestions: list[str] = []
         score = 1.0
 
         if not code:
@@ -348,14 +355,14 @@ class QualityGateRunner:
         # --- Security heuristics ---
 
         dangerous_patterns = [
-            (r'eval\s*\(', "eval() allows arbitrary code execution", "critical"),
-            (r'exec\s*\(', "exec() allows arbitrary code execution", "critical"),
-            (r'__import__\s*\(', "Dynamic __import__() may be unsafe", "high"),
-            (r'os\.system\s*\(', "os.system() is vulnerable to shell injection", "high"),
-            (r'subprocess.*shell\s*=\s*True', "subprocess with shell=True is dangerous", "high"),
-            (r'pickle\.loads?\s*\(', "pickle deserialization can execute arbitrary code", "high"),
-            (r'yaml\.load\s*\((?!.*Loader)', "yaml.load without Loader is unsafe", "medium"),
-            (r'input\s*\(', "input() in production code may be unintended", "low"),
+            (r"eval\s*\(", "eval() allows arbitrary code execution", "critical"),
+            (r"exec\s*\(", "exec() allows arbitrary code execution", "critical"),
+            (r"__import__\s*\(", "Dynamic __import__() may be unsafe", "high"),
+            (r"os\.system\s*\(", "os.system() is vulnerable to shell injection", "high"),
+            (r"subprocess.*shell\s*=\s*True", "subprocess with shell=True is dangerous", "high"),
+            (r"pickle\.loads?\s*\(", "pickle deserialization can execute arbitrary code", "high"),
+            (r"yaml\.load\s*\((?!.*Loader)", "yaml.load without Loader is unsafe", "medium"),
+            (r"input\s*\(", "input() in production code may be unintended", "low"),
         ]
 
         severity_penalties = {"critical": 0.3, "high": 0.2, "medium": 0.1, "low": 0.05}
@@ -365,12 +372,14 @@ class QualityGateRunner:
             if matches:
                 penalty = severity_penalties.get(severity, 0.1)
                 score -= penalty
-                issues.append({
-                    "severity": severity,
-                    "category": "security",
-                    "message": message,
-                    "count": len(matches),
-                })
+                issues.append(
+                    {
+                        "severity": severity,
+                        "category": "security",
+                        "message": message,
+                        "count": len(matches),
+                    }
+                )
                 suggestions.append(f"Review and mitigate: {message}")
 
         # Check for potential hardcoded secrets
@@ -383,11 +392,13 @@ class QualityGateRunner:
         for pattern, message in secret_patterns:
             if re.search(pattern, code, re.IGNORECASE):
                 score -= 0.25
-                issues.append({
-                    "severity": "critical",
-                    "category": "secrets",
-                    "message": message,
-                })
+                issues.append(
+                    {
+                        "severity": "critical",
+                        "category": "secrets",
+                        "message": message,
+                    }
+                )
                 suggestions.append("Move secrets to environment variables or a secrets manager")
 
         score = max(0.0, min(1.0, score))
@@ -402,9 +413,7 @@ class QualityGateRunner:
             suggestions=suggestions,
         )
 
-    def check_coverage(
-        self, artifacts: Dict[str, Any], config: QualityGateConfig
-    ) -> GateCheckResult:
+    def check_coverage(self, artifacts: dict[str, Any], config: QualityGateConfig) -> GateCheckResult:
         """Run coverage verification.
 
         Checks ``artifacts["tests"]`` for test existence and
@@ -415,18 +424,20 @@ class QualityGateRunner:
         tests = artifacts.get("tests", "")
         code = artifacts.get("code", "")
         coverage_pct = artifacts.get("coverage_percent")
-        issues: List[Dict[str, Any]] = []
-        suggestions: List[str] = []
+        issues: list[dict[str, Any]] = []
+        suggestions: list[str] = []
         score = 1.0
 
         # Check that tests exist
         if not tests:
             score -= 0.4
-            issues.append({
-                "severity": "error",
-                "category": "coverage",
-                "message": "No test artifacts provided",
-            })
+            issues.append(
+                {
+                    "severity": "error",
+                    "category": "coverage",
+                    "message": "No test artifacts provided",
+                }
+            )
             suggestions.append("Write tests for the implemented code")
 
         # Check coverage percentage if provided
@@ -435,32 +446,38 @@ class QualityGateRunner:
                 cov = float(coverage_pct)
                 if cov < 50:
                     score -= 0.3
-                    issues.append({
-                        "severity": "error",
-                        "category": "coverage",
-                        "message": f"Test coverage is {cov}%, below 50% minimum",
-                    })
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "category": "coverage",
+                            "message": f"Test coverage is {cov}%, below 50% minimum",
+                        }
+                    )
                 elif cov < 70:
                     score -= 0.15
-                    issues.append({
-                        "severity": "warning",
-                        "category": "coverage",
-                        "message": f"Test coverage is {cov}%, below 70% target",
-                    })
+                    issues.append(
+                        {
+                            "severity": "warning",
+                            "category": "coverage",
+                            "message": f"Test coverage is {cov}%, below 70% target",
+                        }
+                    )
                 elif cov < 80:
                     score -= 0.05
-                    issues.append({
-                        "severity": "info",
-                        "category": "coverage",
-                        "message": f"Test coverage is {cov}%, consider improving to 80%+",
-                    })
-            except (ValueError, TypeError):
+                    issues.append(
+                        {
+                            "severity": "info",
+                            "category": "coverage",
+                            "message": f"Test coverage is {cov}%, consider improving to 80%+",
+                        }
+                    )
+            except (ValueError, TypeError):  # noqa: VET022
                 pass
 
         # Heuristic: count test functions vs code functions
         if code and tests:
-            code_fns = set(re.findall(r'def\s+(\w+)\s*\(', code))
-            test_fns_raw = set(re.findall(r'def\s+(test_\w+)\s*\(', tests))
+            code_fns = set(re.findall(r"def\s+(\w+)\s*\(", code))
+            test_fns_raw = set(re.findall(r"def\s+(test_\w+)\s*\(", tests))
             # Try to match test function names to code function names
             tested_fns = set()
             for code_fn in code_fns:
@@ -476,11 +493,13 @@ class QualityGateRunner:
             if untested and public_fns:
                 ratio = len(untested) / len(public_fns)
                 score -= min(0.3, ratio * 0.3)
-                issues.append({
-                    "severity": "warning",
-                    "category": "coverage",
-                    "message": f"{len(untested)} public function(s) appear untested: {', '.join(sorted(untested)[:5])}",
-                })
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "category": "coverage",
+                        "message": f"{len(untested)} public function(s) appear untested: {', '.join(sorted(untested)[:5])}",
+                    }
+                )
                 suggestions.append("Add tests for untested public functions")
 
         score = max(0.0, min(1.0, score))
@@ -495,9 +514,7 @@ class QualityGateRunner:
             suggestions=suggestions,
         )
 
-    def check_architecture(
-        self, artifacts: Dict[str, Any], config: QualityGateConfig
-    ) -> GateCheckResult:
+    def check_architecture(self, artifacts: dict[str, Any], config: QualityGateConfig) -> GateCheckResult:
         """Run architecture verification.
 
         Checks ``artifacts["code"]`` for architectural consistency
@@ -506,8 +523,8 @@ class QualityGateRunner:
         """
         code = artifacts.get("code", "")
         architecture = artifacts.get("architecture", {})
-        issues: List[Dict[str, Any]] = []
-        suggestions: List[str] = []
+        issues: list[dict[str, Any]] = []
+        suggestions: list[str] = []
         score = 1.0
 
         if not code:
@@ -521,39 +538,45 @@ class QualityGateRunner:
             )
 
         # 1. Check for wildcard imports (anti-pattern)
-        wildcard_imports = re.findall(r'^from\s+\S+\s+import\s+\*', code, re.MULTILINE)
+        wildcard_imports = re.findall(r"^from\s+\S+\s+import\s+\*", code, re.MULTILINE)
         if wildcard_imports:
             score -= min(0.15, len(wildcard_imports) * 0.05)
-            issues.append({
-                "severity": "warning",
-                "category": "architecture",
-                "message": f"Found {len(wildcard_imports)} wildcard import(s)",
-            })
+            issues.append(
+                {
+                    "severity": "warning",
+                    "category": "architecture",
+                    "message": f"Found {len(wildcard_imports)} wildcard import(s)",
+                }
+            )
             suggestions.append("Replace wildcard imports with explicit imports")
 
         # 2. Check for circular import patterns (heuristic: same-package back-imports)
-        imports = re.findall(r'^(?:from|import)\s+([\w.]+)', code, re.MULTILINE)
+        imports = re.findall(r"^(?:from|import)\s+([\w.]+)", code, re.MULTILINE)
         if architecture.get("package_name"):
             pkg = architecture["package_name"]
             back_imports = [i for i in imports if i.startswith(pkg)]
             if len(back_imports) > 5:
                 score -= 0.1
-                issues.append({
-                    "severity": "warning",
-                    "category": "architecture",
-                    "message": f"High internal coupling: {len(back_imports)} intra-package imports",
-                })
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "category": "architecture",
+                        "message": f"High internal coupling: {len(back_imports)} intra-package imports",
+                    }
+                )
                 suggestions.append("Consider reducing coupling between modules")
 
         # 3. Check class count per file (God-module detection)
-        classes = re.findall(r'^class\s+(\w+)', code, re.MULTILINE)
+        classes = re.findall(r"^class\s+(\w+)", code, re.MULTILINE)
         if len(classes) > 5:
             score -= 0.1
-            issues.append({
-                "severity": "warning",
-                "category": "architecture",
-                "message": f"File defines {len(classes)} classes, consider splitting",
-            })
+            issues.append(
+                {
+                    "severity": "warning",
+                    "category": "architecture",
+                    "message": f"File defines {len(classes)} classes, consider splitting",
+                }
+            )
             suggestions.append("Split large modules into focused, single-responsibility files")
 
         # 4. Check for forbidden patterns from architecture config
@@ -562,12 +585,18 @@ class QualityGateRunner:
             pat = pattern_info if isinstance(pattern_info, str) else pattern_info.get("pattern", "")
             if pat and re.search(pat, code):
                 score -= 0.2
-                msg = pattern_info.get("message", f"Forbidden pattern found: {pat}") if isinstance(pattern_info, dict) else f"Forbidden pattern found: {pat}"
-                issues.append({
-                    "severity": "error",
-                    "category": "architecture",
-                    "message": msg,
-                })
+                msg = (
+                    pattern_info.get("message", f"Forbidden pattern found: {pat}")
+                    if isinstance(pattern_info, dict)
+                    else f"Forbidden pattern found: {pat}"
+                )
+                issues.append(
+                    {
+                        "severity": "error",
+                        "category": "architecture",
+                        "message": msg,
+                    }
+                )
 
         score = max(0.0, min(1.0, score))
         result_enum = self._score_to_result(score, config.min_score)
@@ -585,9 +614,7 @@ class QualityGateRunner:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _run_single_gate(
-        self, config: QualityGateConfig, artifacts: Dict[str, Any]
-    ) -> GateCheckResult:
+    def _run_single_gate(self, config: QualityGateConfig, artifacts: dict[str, Any]) -> GateCheckResult:
         """Dispatch to the appropriate check method based on mode."""
         dispatch = {
             VerificationMode.VERIFY_QUALITY: self.check_quality,
@@ -602,10 +629,12 @@ class QualityGateRunner:
                 mode=config.mode,
                 result=GateResult.WARNING,
                 score=0.5,
-                issues=[{
-                    "severity": "warning",
-                    "message": f"No handler for verification mode: {config.mode.value}",
-                }],
+                issues=[
+                    {
+                        "severity": "warning",
+                        "message": f"No handler for verification mode: {config.mode.value}",
+                    }
+                ],
             )
         return handler(artifacts, config)
 
@@ -620,7 +649,7 @@ class QualityGateRunner:
             return GateResult.FAILED
 
     @staticmethod
-    def _check_long_functions(code: str, max_lines: int = 50) -> List[str]:
+    def _check_long_functions(code: str, max_lines: int = 50) -> list[str]:
         """Return names of functions that exceed max_lines."""
         long_fns = []
         lines = code.split("\n")
@@ -628,11 +657,10 @@ class QualityGateRunner:
         fn_start = 0
 
         for i, line in enumerate(lines):
-            match = re.match(r'^(\s*)def\s+(\w+)\s*\(', line)
+            match = re.match(r"^(\s*)def\s+(\w+)\s*\(", line)
             if match:
-                if current_fn is not None:
-                    if (i - fn_start) > max_lines:
-                        long_fns.append(current_fn)
+                if current_fn is not None and (i - fn_start) > max_lines:
+                    long_fns.append(current_fn)
                 current_fn = match.group(2)
                 fn_start = i
 
@@ -643,13 +671,13 @@ class QualityGateRunner:
         return long_fns
 
     @staticmethod
-    def _check_missing_docstrings(code: str) -> List[str]:
+    def _check_missing_docstrings(code: str) -> list[str]:
         """Return names of functions missing docstrings."""
         missing = []
         lines = code.split("\n")
 
         for i, line in enumerate(lines):
-            match = re.match(r'^\s*def\s+(\w+)\s*\(', line)
+            match = re.match(r"^\s*def\s+(\w+)\s*\(", line)
             if match:
                 fn_name = match.group(1)
                 if fn_name.startswith("_"):
@@ -660,7 +688,7 @@ class QualityGateRunner:
                     stripped = lines[j].strip()
                     if not stripped:
                         continue
-                    if stripped.startswith('"""') or stripped.startswith("'''"):
+                    if stripped.startswith(('"""', "'''")):
                         found_docstring = True
                     break
                 if not found_docstring:

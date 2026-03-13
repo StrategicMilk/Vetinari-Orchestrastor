@@ -231,6 +231,22 @@ def test_something_specific() -> None:
 - **Circular import**: resolve by extracting shared types to `vetinari/types.py`
   or by using `TYPE_CHECKING` guards.
 
+
+## Coding Conventions (from CLAUDE.md)
+
+These rules are mandatory for all code Builder produces:
+
+- **Future annotations**: every file starts with `from __future__ import annotations`
+- **Canonical imports**: enums from `vetinari.types`, specs from `vetinari.agents.contracts`
+- **Modern typing**: `list[str]`, `dict[str, Any]`, `X | None` -- never `List`, `Dict`, `Optional`
+- **Logging**: `logger = logging.getLogger(__name__)` per module; %-style formatting in logger calls; never `print()` in production
+- **File I/O**: always `encoding="utf-8"` on `open()`; use `pathlib.Path` not `os.path`
+- **Error handling**: never bare `except:`; always chain with `from exc`; never swallow silently
+- **Completeness**: no `TODO`, `FIXME`, `pass` bodies, `NotImplementedError`, `print()`, commented-out code, or magic numbers
+- **Docstrings**: Google-style for all public APIs with Args/Returns/Raises sections
+- **String formatting**: f-strings for general use; %-style ONLY in logger calls; never `.format()`
+- **Tests**: every new public function needs at least one test; run `python -m pytest tests/ -x -q` before completion
+
 ## Important Reminders
 
 - You are the **only** agent that writes production source files.

@@ -1,5 +1,4 @@
-"""
-Inference Configuration Manager — vetinari.config.inference_config
+"""Inference Configuration Manager — vetinari.config.inference_config.
 
 Loads per-task inference profiles from external JSON config, applies
 model-size adjustments and per-model overrides, and clamps values.
@@ -17,11 +16,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import pathlib
+import re
 import threading
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +28,19 @@ logger = logging.getLogger(__name__)
 # Dataclass for a resolved profile
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class InferenceProfile:
     """Resolved inference parameters for a task type."""
+
     temperature: float = 0.3
     top_p: float = 0.9
     top_k: int = 40
     max_tokens: int = 2048
-    stop_sequences: List[str] = field(default_factory=list)
+    stop_sequences: list[str] = field(default_factory=list)
     prefer_json: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -54,12 +55,13 @@ class InferenceProfile:
 # Model size classification
 # ---------------------------------------------------------------------------
 
+
 def _classify_model_size(model_id: str) -> str:
     """Classify a model into a size tier based on its ID heuristics."""
     mid = model_id.lower()
     # Extract size numbers from model name (e.g., "qwen-7b", "llama-70b")
-    import re
-    matches = re.findall(r'(\d+)[bB]', mid)
+
+    matches = re.findall(r"(\d+)[bB]", mid)
     if matches:
         size_b = max(int(m) for m in matches)
         if size_b <= 10:
@@ -82,23 +84,21 @@ def _classify_model_size(model_id: str) -> str:
 # Config Manager
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "config", "task_inference_profiles.json",
+_DEFAULT_CONFIG_PATH = str(
+    pathlib.Path(__file__).resolve().parent.parent.parent / "config" / "task_inference_profiles.json"
 )
 
 
 class InferenceConfigManager:
-    """
-    Manages per-task inference profiles loaded from external JSON config.
+    """Manages per-task inference profiles loaded from external JSON config.
 
     Singleton — use ``get_inference_config()`` to get the shared instance.
     """
 
-    _instance: Optional["InferenceConfigManager"] = None
+    _instance: InferenceConfigManager | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "InferenceConfigManager":
+    def __new__(cls) -> InferenceConfigManager:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -108,20 +108,20 @@ class InferenceConfigManager:
 
     def _setup(self) -> None:
         self._lock = threading.RLock()
-        self._profiles: Dict[str, Dict[str, Any]] = {}
-        self._model_size_adjustments: Dict[str, Dict[str, Any]] = {}
-        self._model_overrides: Dict[str, Dict[str, Any]] = {}
+        self._profiles: dict[str, dict[str, Any]] = {}
+        self._model_size_adjustments: dict[str, dict[str, Any]] = {}
+        self._model_overrides: dict[str, dict[str, Any]] = {}
         self._loaded = False
-        self._config_path: Optional[str] = None
+        self._config_path: str | None = None
         self._load_config()
 
-    def _load_config(self, path: Optional[str] = None) -> bool:
+    def _load_config(self, path: str | None = None) -> bool:
         """Load profiles from JSON config. Returns True on success."""
         config_path = path or self._config_path or _DEFAULT_CONFIG_PATH
         self._config_path = config_path
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             with self._lock:
@@ -141,7 +141,7 @@ class InferenceConfigManager:
             self._loaded = False
             return False
 
-    def reload(self, path: Optional[str] = None) -> bool:
+    def reload(self, path: str | None = None) -> bool:
         """Hot-reload config without restart."""
         return self._load_config(path)
 
@@ -169,9 +169,8 @@ class InferenceConfigManager:
             prefer_json=raw.get("prefer_json", False),
         )
 
-    def get_effective_params(self, task_type: str, model_id: str = "") -> Dict[str, Any]:
-        """
-        Resolve profile for (task_type, model_id) with size + override adjustments.
+    def get_effective_params(self, task_type: str, model_id: str = "") -> dict[str, Any]:
+        """Resolve profile for (task_type, model_id) with size + override adjustments.
 
         Returns a dict with: temperature, top_p, top_k, max_tokens,
         stop_sequences, prefer_json.
@@ -216,15 +215,15 @@ class InferenceConfigManager:
     # Introspection
     # ------------------------------------------------------------------
 
-    def list_profiles(self) -> List[str]:
+    def list_profiles(self) -> list[str]:
         with self._lock:
             return list(self._profiles.keys())
 
-    def get_all_profiles(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_profiles(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             return dict(self._profiles)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "loaded": self._loaded,
@@ -239,6 +238,7 @@ class InferenceConfigManager:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
@@ -246,6 +246,7 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------
+
 
 def get_inference_config() -> InferenceConfigManager:
     return InferenceConfigManager()

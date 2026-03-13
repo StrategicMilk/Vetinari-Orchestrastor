@@ -1,5 +1,4 @@
-"""
-Vetinari Token Optimizer
+"""Vetinari Token Optimizer.
 
 Comprehensive token usage optimization system including:
 
@@ -35,15 +34,14 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Task-type profiles: (max_tokens, temperature, prefer_json)
 # ---------------------------------------------------------------------------
-TASK_PROFILES: Dict[str, Tuple[int, float, bool]] = {
+TASK_PROFILES: dict[str, tuple[int, float, bool]] = {
     "planning": (3000, 0.2, True),
     "planner": (3000, 0.2, True),
     "coding": (4096, 0.1, False),
@@ -78,7 +76,7 @@ TASK_PROFILES: Dict[str, Tuple[int, float, bool]] = {
 
 # Per-content-type character-to-token ratios
 # Code ≈ 3 chars/token (operators, short names), text ≈ 5 chars/token
-_CHARS_PER_TOKEN_BY_TYPE: Dict[str, int] = {
+_CHARS_PER_TOKEN_BY_TYPE: dict[str, int] = {
     "code": 3,
     "text": 5,
     "mixed": 4,
@@ -95,11 +93,12 @@ _CONTEXT_WINDOW_CHARS = 4000
 @dataclass
 class TokenBudget:
     """Per-plan token budget with enforcement."""
+
     plan_id: str
-    max_tokens: int = 100_000          # Total token ceiling for the whole plan
-    max_tokens_per_task: int = 8_000   # Per-task ceiling
+    max_tokens: int = 100_000  # Total token ceiling for the whole plan
+    max_tokens_per_task: int = 8_000  # Per-task ceiling
     tokens_used: int = 0
-    task_token_counts: Dict[str, int] = field(default_factory=dict)
+    task_token_counts: dict[str, int] = field(default_factory=dict)
 
     def record(self, task_id: str, tokens: int) -> None:
         self.tokens_used += tokens
@@ -118,14 +117,11 @@ class TokenBudget:
         if self.is_exhausted:
             return False
         task_used = self.task_token_counts.get(task_id, 0)
-        if task_used + estimated_tokens > self.max_tokens_per_task:
-            return False
-        return True
+        return not task_used + estimated_tokens > self.max_tokens_per_task
 
 
 class LocalPreprocessor:
-    """
-    Uses a local LLM to compress and distil context before cloud API calls.
+    """Uses a local LLM to compress and distil context before cloud API calls.
 
     This is the key cost-reduction feature:
     - Input: verbose context (code, docs, prior results)  ~3000 tokens
@@ -142,17 +138,19 @@ class LocalPreprocessor:
     MIN_CONTEXT_CHARS = _COMPRESS_THRESHOLD_CHARS
 
     def __init__(self):
-        self._local_model: Optional[str] = None
-        self._cache: Dict[str, str] = {}  # hash -> compressed result
+        self._local_model: str | None = None
+        self._cache: dict[str, str] = {}  # hash -> compressed result
 
-    def _get_local_model(self) -> Optional[str]:
+    def _get_local_model(self) -> str | None:
         """Discover the best available local model for preprocessing."""
         if self._local_model:
             return self._local_model
         try:
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
             import requests
+
             from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers
+
             resp = requests.get(f"{host}/v1/models", timeout=3, headers=get_lmstudio_headers())
             if resp.status_code == 200:
                 data = resp.json()
@@ -176,9 +174,8 @@ class LocalPreprocessor:
         context: str,
         task_description: str = "",
         compression_goal: str = "key_facts",
-    ) -> Tuple[str, float]:
-        """
-        Compress verbose context using heuristic extraction first, LLM as fallback.
+    ) -> tuple[str, float]:
+        """Compress verbose context using heuristic extraction first, LLM as fallback.
 
         Args:
             context: The verbose context to compress.
@@ -192,9 +189,7 @@ class LocalPreprocessor:
             return context, 1.0
 
         # Check cache
-        cache_key = hashlib.md5(
-            f"{context[:200]}{task_description[:50]}".encode()
-        ).hexdigest()
+        cache_key = hashlib.md5(f"{context[:200]}{task_description[:50]}".encode()).hexdigest()  # noqa: S324
         if cache_key in self._cache:
             cached = self._cache[cache_key]
             ratio = len(cached) / max(len(context), 1)
@@ -207,9 +202,10 @@ class LocalPreprocessor:
                 ratio = len(compressed) / max(len(context), 1)
                 self._cache[cache_key] = compressed
                 logger.info(
-                    "[LocalPreprocessor] Heuristic code extraction: %s -> %s chars "
-                    "(%.0f%%)",
-                    len(context), len(compressed), ratio * 100
+                    "[LocalPreprocessor] Heuristic code extraction: %s -> %s chars (%.0f%%)",
+                    len(context),
+                    len(compressed),
+                    ratio * 100,
                 )
                 return compressed, ratio
 
@@ -219,9 +215,10 @@ class LocalPreprocessor:
                 ratio = len(compressed) / max(len(context), 1)
                 self._cache[cache_key] = compressed
                 logger.info(
-                    "[LocalPreprocessor] Heuristic key-facts extraction: %s -> %s chars "
-                    "(%.0f%%)",
-                    len(context), len(compressed), ratio * 100
+                    "[LocalPreprocessor] Heuristic key-facts extraction: %s -> %s chars (%.0f%%)",
+                    len(context),
+                    len(compressed),
+                    ratio * 100,
                 )
                 return compressed, ratio
 
@@ -247,15 +244,20 @@ class LocalPreprocessor:
             )
 
             host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
-            from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model, get_lmstudio_headers
+            from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers, resolve_lmstudio_model
+
             resolved_model = resolve_lmstudio_model(local_model, host)
             import requests
+
             resp = requests.post(
                 f"{host}/v1/chat/completions",
                 json={
                     "model": resolved_model,
                     "messages": [
-                        {"role": "system", "content": "You are a context compression specialist. Compress text while preserving all technically critical information."},
+                        {
+                            "role": "system",
+                            "content": "You are a context compression specialist. Compress text while preserving all technically critical information.",
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     "max_tokens": 1000,
@@ -270,9 +272,11 @@ class LocalPreprocessor:
                 ratio = len(compressed) / max(len(context), 1)
                 self._cache[cache_key] = compressed
                 logger.info(
-                    "[LocalPreprocessor] Compressed %s -> %s chars "
-                    "(%.0f%%) for task: %s",
-                    len(context), len(compressed), ratio * 100, task_description[:40]
+                    "[LocalPreprocessor] Compressed %s -> %s chars (%.0f%%) for task: %s",
+                    len(context),
+                    len(compressed),
+                    ratio * 100,
+                    task_description[:40],
                 )
                 return compressed, ratio
         except Exception as e:
@@ -281,8 +285,7 @@ class LocalPreprocessor:
         return self._truncate(context), len(context[:_CONTEXT_WINDOW_CHARS]) / max(len(context), 1)
 
     def _extract_code_signatures_ast(self, code: str) -> str:
-        """
-        Extract code structure using ast.parse() for accurate Python parsing.
+        """Extract code structure using ast.parse() for accurate Python parsing.
 
         Extracts:
         - Import statements
@@ -295,7 +298,7 @@ class LocalPreprocessor:
         Falls back to the regex method (via exception) if parsing fails.
         """
         tree = ast.parse(code)
-        lines: List[str] = []
+        lines: list[str] = []
 
         def _annotation_str(node: ast.expr) -> str:
             """Convert an annotation AST node to a source string."""
@@ -305,10 +308,15 @@ class LocalPreprocessor:
             """Convert a default-value AST node to a short source string."""
             return ast.unparse(node)
 
-        def _get_docstring(node: ast.AST) -> Optional[str]:
+        def _get_docstring(node: ast.AST) -> str | None:
             """Return the docstring of a function/class/module node, or None."""
             body = getattr(node, "body", [])
-            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
                 return body[0].value.value
             return None
 
@@ -318,7 +326,7 @@ class LocalPreprocessor:
             return arg.arg
 
         def _format_arguments(args: ast.arguments) -> str:
-            parts: List[str] = []
+            parts: list[str] = []
             # positional-only args (Python 3.8+)
             for i, arg in enumerate(args.posonlyargs):
                 n_defaults = len(args.posonlyargs) - len(args.defaults)
@@ -419,11 +427,15 @@ class LocalPreprocessor:
             elif isinstance(node, ast.Assign):
                 # Module-level UPPER_CASE constants
                 for target in node.targets:
-                    if isinstance(target, ast.Name) and target.id == target.id.upper() and target.id.replace("_", "").isalpha() or (isinstance(target, ast.Name) and re.match(r'^[A-Z][A-Z_0-9]*$', target.id)):
+                    if (
+                        isinstance(target, ast.Name)
+                        and target.id == target.id.upper()
+                        and target.id.replace("_", "").isalpha()
+                    ) or (isinstance(target, ast.Name) and re.match(r"^[A-Z][A-Z_0-9]*$", target.id)):
                         lines.append(f"{target.id} = {ast.unparse(node.value)}")
-            elif isinstance(node, ast.AnnAssign):
+            elif isinstance(node, ast.AnnAssign):  # noqa: SIM102
                 # Module-level annotated constants (e.g. MAX: int = 5)
-                if isinstance(node.target, ast.Name) and re.match(r'^[A-Z][A-Z_0-9]*$', node.target.id):
+                if isinstance(node.target, ast.Name) and re.match(r"^[A-Z][A-Z_0-9]*$", node.target.id):
                     ann = f": {_annotation_str(node.annotation)}"
                     val = f" = {ast.unparse(node.value)}" if node.value else ""
                     lines.append(f"{node.target.id}{ann}{val}")
@@ -431,8 +443,7 @@ class LocalPreprocessor:
         return "\n".join(lines).strip()
 
     def _extract_code_signatures(self, context: str) -> str:
-        """
-        Extract function/class definitions and docstrings from code.
+        """Extract function/class definitions and docstrings from code.
 
         Tries AST-based extraction first (accurate for Python).
         Falls back to regex-based extraction for non-Python content or
@@ -447,12 +458,13 @@ class LocalPreprocessor:
 
         # Regex fallback (handles non-Python code and syntax errors)
         import re as _re
+
         lines = context.split("\n")
         extracted = []
         in_docstring = False
         docstring_delim = None
 
-        for i, line in enumerate(lines):
+        for _i, line in enumerate(lines):
             stripped = line.strip()
 
             # Capture class/function definitions
@@ -496,6 +508,7 @@ class LocalPreprocessor:
     def _extract_key_lines(self, context: str) -> str:
         """Extract key factual lines: headers, bullet points, definitions, URLs."""
         import re as _re
+
         lines = context.split("\n")
         key_lines = []
 
@@ -539,8 +552,8 @@ class LocalPreprocessor:
         """Simple truncation fallback."""
         if len(context) <= _CONTEXT_WINDOW_CHARS:
             return context
-        head = context[:_CONTEXT_WINDOW_CHARS // 3]
-        tail = context[-(2 * _CONTEXT_WINDOW_CHARS // 3):]
+        head = context[: _CONTEXT_WINDOW_CHARS // 3]
+        tail = context[-(2 * _CONTEXT_WINDOW_CHARS // 3) :]
         return f"{head}\n\n[... context truncated for token efficiency ...]\n\n{tail}"
 
     def preprocess_for_cloud(
@@ -548,9 +561,8 @@ class LocalPreprocessor:
         prompt: str,
         context: str = "",
         task_description: str = "",
-    ) -> Tuple[str, str, Dict[str, Any]]:
-        """
-        Full preprocessing pipeline for cloud API calls.
+    ) -> tuple[str, str, dict[str, Any]]:
+        """Full preprocessing pipeline for cloud API calls.
 
         Returns:
             (processed_prompt, processed_context, metadata)
@@ -564,18 +576,14 @@ class LocalPreprocessor:
 
         # Compress context if it's large
         if context and len(context) >= self.MIN_CONTEXT_CHARS:
-            compressed_context, ratio = self.compress_context(
-                context, task_description, "key_facts"
-            )
+            compressed_context, ratio = self.compress_context(context, task_description, "key_facts")
             meta["compressed"] = ratio < 0.9
             meta["compression_ratio"] = ratio
             context = compressed_context
 
         # Compress the prompt itself if it's very large
         if len(prompt) > _COMPRESS_THRESHOLD_CHARS * 2:
-            compressed_prompt, ratio = self.compress_context(
-                prompt, task_description, "summary"
-            )
+            compressed_prompt, ratio = self.compress_context(prompt, task_description, "summary")
             meta["prompt_compressed"] = ratio < 0.9
             prompt = compressed_prompt
 
@@ -585,8 +593,7 @@ class LocalPreprocessor:
 
 
 class TokenOptimizer:
-    """
-    Central token optimization orchestrator.
+    """Central token optimization orchestrator.
 
     Integrates:
     - TokenBudget enforcement
@@ -597,9 +604,9 @@ class TokenOptimizer:
     """
 
     def __init__(self):
-        self._budgets: Dict[str, TokenBudget] = {}
+        self._budgets: dict[str, TokenBudget] = {}
         self._preprocessor = LocalPreprocessor()
-        self._context_cache: Dict[str, str] = {}  # Dedup cache
+        self._context_cache: dict[str, str] = {}  # Dedup cache
 
     # ------------------------------------------------------------------
     # Budget management
@@ -620,7 +627,7 @@ class TokenOptimizer:
         self._budgets[plan_id] = budget
         return budget
 
-    def get_budget(self, plan_id: str) -> Optional[TokenBudget]:
+    def get_budget(self, plan_id: str) -> TokenBudget | None:
         return self._budgets.get(plan_id)
 
     def record_usage(self, plan_id: str, task_id: str, tokens: int) -> None:
@@ -633,7 +640,7 @@ class TokenOptimizer:
     # Task profile resolution
     # ------------------------------------------------------------------
 
-    def get_task_profile(self, task_type: str) -> Tuple[int, float, bool]:
+    def get_task_profile(self, task_type: str) -> tuple[int, float, bool]:
         """Return (max_tokens, temperature, prefer_json) for a task type."""
         key = task_type.lower().replace(" ", "_").replace("-", "_")
         return TASK_PROFILES.get(key, TASK_PROFILES["general"])
@@ -649,12 +656,11 @@ class TokenOptimizer:
         task_type: str = "general",
         task_description: str = "",
         is_cloud_model: bool = False,
-        plan_id: Optional[str] = None,
-        task_id: Optional[str] = None,
-        budget: Optional[TokenBudget] = None,
-    ) -> Dict[str, Any]:
-        """
-        Prepare an optimised prompt for inference.
+        plan_id: str | None = None,
+        task_id: str | None = None,
+        budget: TokenBudget | None = None,
+    ) -> dict[str, Any]:
+        """Prepare an optimised prompt for inference.
 
         Returns a dict with:
           - prompt: optimised prompt string
@@ -667,14 +673,20 @@ class TokenOptimizer:
         """
         max_tokens, temperature, prefer_json = self.get_task_profile(task_type)
 
-        meta: Dict[str, Any] = {
+        meta: dict[str, Any] = {
             "task_type": task_type,
             "task_profile": {"max_tokens": max_tokens, "temperature": temperature},
             "is_cloud_model": is_cloud_model,
         }
 
         # Budget check — use content-type-aware char/token ratio
-        content_type = "code" if task_type in ("coding", "code_gen", "builder", "testing", "test_automation") else "text" if task_type in ("documentation", "documentation_agent", "research", "researcher") else "mixed"
+        content_type = (
+            "code"
+            if task_type in ("coding", "code_gen", "builder", "testing", "test_automation")
+            else "text"
+            if task_type in ("documentation", "documentation_agent", "research", "researcher")
+            else "mixed"
+        )
         chars_per_tok = _CHARS_PER_TOKEN_BY_TYPE.get(content_type, _CHARS_PER_TOKEN)
         estimated_input_tokens = (len(prompt) + len(context)) // chars_per_tok
         estimated_total = estimated_input_tokens + max_tokens
@@ -687,16 +699,15 @@ class TokenOptimizer:
             meta["budget_ok"] = budget_ok
             if not budget_ok:
                 logger.warning(
-                    "[TokenOptimizer] Task %s would exceed budget "
-                    "(estimated %s tokens, remaining %s)",
-                    task_id, estimated_total, active_budget.remaining
+                    "[TokenOptimizer] Task %s would exceed budget (estimated %s tokens, remaining %s)",
+                    task_id,
+                    estimated_total,
+                    active_budget.remaining,
                 )
 
         # Cloud preprocessing: compress context before expensive cloud calls
         if is_cloud_model and context and len(context) >= LocalPreprocessor.MIN_CONTEXT_CHARS:
-            prompt, context, compress_meta = self._preprocessor.preprocess_for_cloud(
-                prompt, context, task_description
-            )
+            prompt, context, compress_meta = self._preprocessor.preprocess_for_cloud(prompt, context, task_description)
             meta.update(compress_meta)
         elif len(context) > _CONTEXT_WINDOW_CHARS:
             # Even for local models, truncate very long contexts
@@ -704,7 +715,7 @@ class TokenOptimizer:
             meta["truncated"] = True
 
         # Deduplicate context: if this exact context was recently seen, skip it
-        context_hash = hashlib.md5(context[:500].encode()).hexdigest() if context else ""
+        context_hash = hashlib.md5(context[:500].encode()).hexdigest() if context else ""  # noqa: S324
         if context_hash and context_hash in self._context_cache:
             # Context hasn't changed — reference it but don't repeat it
             meta["context_deduplicated"] = True
@@ -729,11 +740,9 @@ class TokenOptimizer:
             "budget_ok": budget_ok,
         }
 
-    def summarise_results(
-        self, results: List[Dict[str, Any]], max_chars: int = 2000
-    ) -> str:
-        """
-        Summarise a list of task results for inclusion in subsequent prompts.
+    def summarise_results(self, results: list[dict[str, Any]], max_chars: int = 2000) -> str:
+        """Summarise a list of task results for inclusion in subsequent prompts.
+
         Prevents context explosion when many tasks have completed.
         """
         if not results:
@@ -746,11 +755,7 @@ class TokenOptimizer:
                 out = r.get("output", r.get("result", ""))
                 if isinstance(out, dict):
                     # Take only top-level keys and short values
-                    out_str = "; ".join(
-                        f"{k}: {str(v)[:80]}"
-                        for k, v in list(out.items())[:5]
-                        if v
-                    )
+                    out_str = "; ".join(f"{k}: {str(v)[:80]}" for k, v in list(out.items())[:5] if v)
                 else:
                     out_str = str(out)[:200]
                 summaries.append(f"- {desc}: {out_str}")
@@ -767,7 +772,7 @@ class TokenOptimizer:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_token_optimizer: Optional[TokenOptimizer] = None
+_token_optimizer: TokenOptimizer | None = None
 
 
 def get_token_optimizer() -> TokenOptimizer:

@@ -1,5 +1,4 @@
-"""
-Vetinari Unified CLI
+"""Vetinari Unified CLI.
 
 Single entry point for all Vetinari operations:
 
@@ -19,6 +18,8 @@ Global flags:
   --verbose         Enable debug logging
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -26,7 +27,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # Shared helpers
 # ============================================================
+
 
 def _setup_logging(verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.INFO
@@ -46,6 +47,7 @@ def _setup_logging(verbose: bool = False) -> None:
 
 def _load_config(config_path: str) -> dict:
     import yaml
+
     p = Path(config_path)
     if not p.exists():
         # Try relative to package directory
@@ -54,17 +56,18 @@ def _load_config(config_path: str) -> dict:
     if not p.exists():
         logger.warning("Config file not found: %s, using defaults", config_path)
         return {"project_name": "vetinari", "tasks": []}
-    with open(p, "r", encoding="utf-8") as f:
+    with open(p, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
-def _get_host(args_host: Optional[str]) -> str:
+def _get_host(args_host: str | None) -> str:
     """Resolve host from args → env → default."""
     return args_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
 
 
 def _build_orchestrator(config_path: str, host: str, mode: str = "execution"):
     from vetinari.orchestrator import Orchestrator
+
     orch = Orchestrator(config_path, host=host, execution_mode=mode)
     return orch
 
@@ -80,16 +83,18 @@ def _print_banner(mode: str, host: str) -> None:
 # Subcommand handlers
 # ============================================================
 
+
 def _check_drift_at_startup() -> None:
     """Run contract drift check at startup (non-fatal)."""
     try:
         from vetinari.drift.contract_registry import ContractRegistry
+
         registry = ContractRegistry()
         drift = registry.check_drift()
         if drift:
             for item in drift if isinstance(drift, list) else [drift]:
                 logger.warning("[Drift] %s", item)
-            print(f"[Vetinari] WARNING: Contract drift detected. Run 'vetinari drift-check' for details.")
+            print("[Vetinari] WARNING: Contract drift detected. Run 'vetinari drift-check' for details.")
     except Exception as e:
         logger.debug("Drift check skipped: %s", e)
 
@@ -105,6 +110,7 @@ def cmd_run(args) -> int:
         print(f"[Vetinari] Running goal: {args.goal[:80]}")
         try:
             from vetinari.orchestration.two_layer import get_two_layer_orchestrator
+
             orch = get_two_layer_orchestrator()
             # Wire agent context if orchestrator is available
             try:
@@ -155,6 +161,7 @@ def cmd_serve(args) -> int:
 
     try:
         from vetinari.web_ui import app
+
         # Set global orchestrator config
         app.config["VETINARI_HOST"] = host
         app.run(host=web_host, port=port, debug=args.debug, use_reloader=False)
@@ -184,6 +191,7 @@ def cmd_start(args) -> int:
     if not args.no_dashboard:
         try:
             from vetinari.web_ui import app
+
             app.config["VETINARI_HOST"] = host
 
             def _run_dashboard():
@@ -204,10 +212,12 @@ def cmd_start(args) -> int:
     # Start AutoTuner background cycle (every 15 minutes while running)
     def _auto_tuner_loop():
         import time as _time
+
         while True:
             _time.sleep(900)  # 15 minutes
             try:
                 from vetinari.learning.auto_tuner import get_auto_tuner
+
                 get_auto_tuner().run_cycle()
                 logger.debug("[AutoTuner] Periodic cycle complete")
             except Exception as _at_err:
@@ -243,13 +253,14 @@ def cmd_status(args) -> int:
     _setup_logging(args.verbose)
     host = _get_host(args.host)
 
-    print(f"\n[Vetinari] System Status")
+    print("\n[Vetinari] System Status")
     print(f"  LM Studio Host: {host}")
     print(f"  Config:         {args.config}")
 
     # Check LM Studio connection
     try:
         from vetinari.lmstudio_adapter import LMStudioAdapter
+
         adapter = LMStudioAdapter(host=host)
         models = adapter._get(f"{host}/v1/models")
         model_list = models.get("data", []) if isinstance(models, dict) else []
@@ -263,6 +274,7 @@ def cmd_status(args) -> int:
     # Adapter manager status
     try:
         from vetinari.adapter_manager import get_adapter_manager
+
         mgr = get_adapter_manager()
         status = mgr.get_status()
         providers = status.get("providers", {})
@@ -276,6 +288,7 @@ def cmd_status(args) -> int:
     # Learning system status
     try:
         from vetinari.learning.model_selector import get_thompson_selector
+
         selector = get_thompson_selector()
         total_arms = len(selector._arms)
         total_pulls = sum(a.total_pulls for a in selector._arms.values())
@@ -300,6 +313,7 @@ def _health_check_quiet(host: str) -> None:
     """Run health checks and print results."""
     try:
         from vetinari.lmstudio_adapter import LMStudioAdapter
+
         adapter = LMStudioAdapter(host=host)
         result = adapter._get(f"{host}/v1/models")
         models = result.get("data", []) if isinstance(result, dict) else []
@@ -309,6 +323,7 @@ def _health_check_quiet(host: str) -> None:
 
     try:
         from vetinari.adapter_manager import get_adapter_manager
+
         mgr = get_adapter_manager()
         results = mgr.health_check()
         for name, info in results.items():
@@ -338,12 +353,14 @@ def cmd_review(args) -> int:
 
     print("[Vetinari] Running self-improvement review...")
     try:
+        from vetinari.agents.contracts import AgentTask
         from vetinari.agents.improvement_agent import get_improvement_agent
-        from vetinari.agents.contracts import AgentTask, AgentType
+        from vetinari.types import AgentType
 
         agent = get_improvement_agent()
         try:
             from vetinari.adapter_manager import get_adapter_manager
+
             agent.initialize({"adapter_manager": get_adapter_manager()})
         except Exception:
             logger.debug("Could not initialize improvement agent with adapter manager", exc_info=True)
@@ -376,6 +393,7 @@ def cmd_benchmark(args) -> int:
     print("[Vetinari] Running agent benchmarks...")
     try:
         from vetinari.benchmarks.suite import BenchmarkSuite
+
         suite = BenchmarkSuite()
         agent_filter = getattr(args, "agents", None)
         results = suite.run_all(agent_filter=agent_filter)
@@ -398,6 +416,7 @@ def cmd_drift_check(args) -> int:
     print("[Vetinari] Checking for contract drift...")
     try:
         from vetinari.drift.contract_registry import ContractRegistry
+
         registry = ContractRegistry()
         report = registry.check_drift()
         if not report:
@@ -423,6 +442,7 @@ def cmd_interactive(args) -> int:
 
     try:
         from vetinari.orchestration.two_layer import get_two_layer_orchestrator
+
         orch = get_two_layer_orchestrator()
         try:
             base_orch = _build_orchestrator(args.config, host, args.mode)
@@ -476,6 +496,7 @@ def cmd_interactive(args) -> int:
 # Main entry point
 # ============================================================
 
+
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -494,15 +515,12 @@ Examples:
     )
 
     # Global flags
-    parser.add_argument("--config", default="manifest/vetinari.yaml",
-                        help="Path to manifest file")
-    parser.add_argument("--host", default=None,
-                        help="LM Studio host URL (overrides LM_STUDIO_HOST env var)")
-    parser.add_argument("--mode", default="execution",
-                        choices=["planning", "execution", "sandbox"],
-                        help="Execution mode")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Enable debug logging")
+    parser.add_argument("--config", default="manifest/vetinari.yaml", help="Path to manifest file")
+    parser.add_argument("--host", default=None, help="LM Studio host URL (overrides LM_STUDIO_HOST env var)")
+    parser.add_argument(
+        "--mode", default="execution", choices=["planning", "execution", "sandbox"], help="Execution mode"
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging")
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 

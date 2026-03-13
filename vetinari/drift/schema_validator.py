@@ -1,5 +1,4 @@
-"""
-Schema Validator — vetinari.drift.schema_validator  (Phase 7)
+r"""Schema Validator — vetinari.drift.schema_validator  (Phase 7).
 
 Validates dataclass instances and plain dicts against a set of JSON-Schema-
 style rules without requiring any external ``jsonschema`` dependency.
@@ -34,17 +33,17 @@ import logging
 import re
 import threading
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_TYPE_MAP: Dict[str, type] = {
-    "str":   str,
-    "int":   int,
+_TYPE_MAP: dict[str, type] = {
+    "str": str,
+    "int": int,
     "float": float,
-    "bool":  bool,
-    "list":  list,
-    "dict":  dict,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
 }
 
 
@@ -59,15 +58,15 @@ def _to_dict(obj: Any) -> dict:
 
 
 class SchemaValidator:
-    """
-    Thread-safe schema validator.  Singleton — use
+    """Thread-safe schema validator.  Singleton — use.
+
     ``get_schema_validator()``.
     """
 
-    _instance:   Optional["SchemaValidator"] = None
-    _class_lock  = threading.Lock()
+    _instance: SchemaValidator | None = None
+    _class_lock = threading.Lock()
 
-    def __new__(cls) -> "SchemaValidator":
+    def __new__(cls) -> SchemaValidator:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -76,14 +75,14 @@ class SchemaValidator:
         return cls._instance
 
     def _setup(self) -> None:
-        self._lock    = threading.RLock()
-        self._schemas: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
+        self._schemas: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Schema management
     # ------------------------------------------------------------------
 
-    def register_schema(self, name: str, schema: Dict[str, Any]) -> None:
+    def register_schema(self, name: str, schema: dict[str, Any]) -> None:
         """Register (or replace) a named validation schema."""
         with self._lock:
             self._schemas[name] = schema
@@ -95,7 +94,7 @@ class SchemaValidator:
             self._schemas.pop(name, None)
             return existed
 
-    def list_schemas(self) -> List[str]:
+    def list_schemas(self) -> list[str]:
         with self._lock:
             return sorted(self._schemas.keys())
 
@@ -103,9 +102,8 @@ class SchemaValidator:
     # Validation
     # ------------------------------------------------------------------
 
-    def validate(self, schema_name: str, obj: Any) -> List[str]:
-        """
-        Validate ``obj`` against the named schema.
+    def validate(self, schema_name: str, obj: Any) -> list[str]:
+        """Validate ``obj`` against the named schema.
 
         Returns a list of error strings (empty = valid).
         """
@@ -114,8 +112,8 @@ class SchemaValidator:
         if schema is None:
             return [f"Unknown schema '{schema_name}'"]
 
-        data   = _to_dict(obj)
-        errors: List[str] = []
+        data = _to_dict(obj)
+        errors: list[str] = []
 
         # required_keys
         for key in schema.get("required_keys", []):
@@ -132,20 +130,14 @@ class SchemaValidator:
             if key in data and data[key] is not None:
                 expected = _TYPE_MAP.get(type_name)
                 if expected and not isinstance(data[key], expected):
-                    errors.append(
-                        f"Key '{key}': expected {type_name}, "
-                        f"got {type(data[key]).__name__}"
-                    )
+                    errors.append(f"Key '{key}': expected {type_name}, got {type(data[key]).__name__}")
 
         # version_pattern
         pattern = schema.get("version_pattern")
         if pattern and "version" in data:
             v = str(data["version"])
             if not re.match(pattern, v):
-                errors.append(
-                    f"Field 'version' value '{v}' does not match "
-                    f"pattern '{pattern}'"
-                )
+                errors.append(f"Field 'version' value '{v}' does not match pattern '{pattern}'")
 
         # non_empty_keys
         for key in schema.get("non_empty_keys", []):
@@ -155,22 +147,18 @@ class SchemaValidator:
 
         # allowed_status_values
         allowed_statuses = schema.get("allowed_status_values")
-        if allowed_statuses and "status" in data:
-            if data["status"] not in allowed_statuses:
-                errors.append(
-                    f"Invalid status '{data['status']}'; "
-                    f"allowed: {allowed_statuses}"
-                )
+        if allowed_statuses and "status" in data and data["status"] not in allowed_statuses:
+            errors.append(f"Invalid status '{data['status']}'; allowed: {allowed_statuses}")
 
         return errors
 
     def validate_many(
         self,
         schema_name: str,
-        objects: List[Any],
-    ) -> Dict[int, List[str]]:
+        objects: list[Any],
+    ) -> dict[int, list[str]]:
         """Validate a list of objects.  Returns index → error list (only failures)."""
-        failures: Dict[int, List[str]] = {}
+        failures: dict[int, list[str]] = {}
         for i, obj in enumerate(objects):
             errs = self.validate(schema_name, obj)
             if errs:
@@ -187,57 +175,75 @@ class SchemaValidator:
 
     def register_vetinari_schemas(self) -> None:
         """Register all canonical Vetinari contract schemas."""
-        self.register_schema("Plan", {
-            "required_keys":   ["plan_id", "goal", "status"],
-            "non_empty_keys":  ["plan_id", "goal"],
-            "key_types":       {"plan_id": "str", "goal": "str",
-                                "risk_score": "float"},
-            "version_pattern": r"^v\d+\.\d+\.\d+$",
-            "allowed_status_values": [
-                "draft", "approved", "executing",
-                "completed", "failed", "rejected", "cancelled",
-            ],
-        })
-        self.register_schema("Subtask", {
-            "required_keys":  ["subtask_id", "plan_id", "description", "status"],
-            "non_empty_keys": ["subtask_id", "description"],
-            "key_types":      {"subtask_id": "str", "plan_id": "str",
-                               "depth": "int"},
-        })
-        self.register_schema("LogRecord", {
-            "required_keys":  ["message", "level", "timestamp"],
-            "non_empty_keys": ["message", "level"],
-            "key_types":      {"message": "str", "level": "str",
-                               "timestamp": "float"},
-        })
-        self.register_schema("AlertThreshold", {
-            "required_keys":  ["name", "metric_key", "condition",
-                               "threshold_value", "severity"],
-            "non_empty_keys": ["name", "metric_key"],
-            "key_types":      {"name": "str", "threshold_value": "float"},
-        })
-        self.register_schema("CostEntry", {
-            "required_keys":  ["provider", "model"],
-            "non_empty_keys": ["provider", "model"],
-            "key_types":      {"cost_usd": "float", "input_tokens": "int",
-                               "output_tokens": "int"},
-        })
-        self.register_schema("ForecastResult", {
-            "required_keys":  ["metric", "method", "horizon", "predictions"],
-            "non_empty_keys": ["metric", "method"],
-            "key_types":      {"horizon": "int", "rmse": "float"},
-        })
+        self.register_schema(
+            "Plan",
+            {
+                "required_keys": ["plan_id", "goal", "status"],
+                "non_empty_keys": ["plan_id", "goal"],
+                "key_types": {"plan_id": "str", "goal": "str", "risk_score": "float"},
+                "version_pattern": r"^v\d+\.\d+\.\d+$",
+                "allowed_status_values": [
+                    "draft",
+                    "approved",
+                    "executing",
+                    "completed",
+                    "failed",
+                    "rejected",
+                    "cancelled",
+                ],
+            },
+        )
+        self.register_schema(
+            "Subtask",
+            {
+                "required_keys": ["subtask_id", "plan_id", "description", "status"],
+                "non_empty_keys": ["subtask_id", "description"],
+                "key_types": {"subtask_id": "str", "plan_id": "str", "depth": "int"},
+            },
+        )
+        self.register_schema(
+            "LogRecord",
+            {
+                "required_keys": ["message", "level", "timestamp"],
+                "non_empty_keys": ["message", "level"],
+                "key_types": {"message": "str", "level": "str", "timestamp": "float"},
+            },
+        )
+        self.register_schema(
+            "AlertThreshold",
+            {
+                "required_keys": ["name", "metric_key", "condition", "threshold_value", "severity"],
+                "non_empty_keys": ["name", "metric_key"],
+                "key_types": {"name": "str", "threshold_value": "float"},
+            },
+        )
+        self.register_schema(
+            "CostEntry",
+            {
+                "required_keys": ["provider", "model"],
+                "non_empty_keys": ["provider", "model"],
+                "key_types": {"cost_usd": "float", "input_tokens": "int", "output_tokens": "int"},
+            },
+        )
+        self.register_schema(
+            "ForecastResult",
+            {
+                "required_keys": ["metric", "method", "horizon", "predictions"],
+                "non_empty_keys": ["metric", "method"],
+                "key_types": {"horizon": "int", "rmse": "float"},
+            },
+        )
         logger.info("Registered %d Vetinari schemas", len(self._schemas))
 
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "registered_schemas": len(self._schemas),
-                "schema_names":       list(self._schemas.keys()),
+                "schema_names": list(self._schemas.keys()),
             }
 
     def clear(self) -> None:
@@ -248,6 +254,7 @@ class SchemaValidator:
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_schema_validator() -> SchemaValidator:
     return SchemaValidator()

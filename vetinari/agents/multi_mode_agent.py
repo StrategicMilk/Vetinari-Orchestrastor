@@ -1,5 +1,5 @@
-"""
-Multi-Mode Agent Base Class (Phase 3)
+"""Multi-Mode Agent Base Class (Phase 3).
+
 ======================================
 Base class for consolidated agents that support multiple operational modes.
 
@@ -24,15 +24,18 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from vetinari.agents.base_agent import BaseAgent
 from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
-    AgentType,
     VerificationResult,
 )
+from vetinari.types import AgentType
+
+if TYPE_CHECKING:
+    from vetinari.skills.skill_spec import SkillSpec
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +49,16 @@ class MultiModeAgent(BaseAgent):
     """
 
     # Subclasses override these
-    MODES: Dict[str, str] = {}           # mode_name -> method_name
-    DEFAULT_MODE: str = ""               # fallback mode
-    MODE_KEYWORDS: Dict[str, List[str]] = {}  # mode_name -> keyword list
+    MODES: dict[str, str] = {}  # mode_name -> method_name
+    DEFAULT_MODE: str = ""  # fallback mode
+    MODE_KEYWORDS: dict[str, list[str]] = {}  # mode_name -> keyword list
 
     # Legacy agent type -> mode mapping for backward compatibility
-    LEGACY_TYPE_TO_MODE: Dict[str, str] = {}  # AgentType.value -> mode_name
+    LEGACY_TYPE_TO_MODE: dict[str, str] = {}  # AgentType.value -> mode_name
 
-    def __init__(self, agent_type: AgentType, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, agent_type: AgentType, config: dict[str, Any] | None = None):
         super().__init__(agent_type, config)
-        self._current_mode: Optional[str] = None
+        self._current_mode: str | None = None
         # B5: Validate MODES at init — catch misconfigurations early
         for mode_name, method_name in self.MODES.items():
             handler = getattr(self, method_name, None)
@@ -66,12 +69,12 @@ class MultiModeAgent(BaseAgent):
                 )
 
     @property
-    def current_mode(self) -> Optional[str]:
+    def current_mode(self) -> str | None:
         """Return the currently active mode."""
         return self._current_mode
 
     @property
-    def available_modes(self) -> List[str]:
+    def available_modes(self) -> list[str]:
         """Return all available modes."""
         return list(self.MODES.keys())
 
@@ -95,7 +98,7 @@ class MultiModeAgent(BaseAgent):
             return self.LEGACY_TYPE_TO_MODE[legacy_type]
 
         # Also check the task's agent_type if it's a legacy type
-        if hasattr(task, 'agent_type') and hasattr(task.agent_type, 'value'):
+        if hasattr(task, "agent_type") and hasattr(task.agent_type, "value"):
             agent_val = task.agent_type.value
             if agent_val in self.LEGACY_TYPE_TO_MODE:
                 return self.LEGACY_TYPE_TO_MODE[agent_val]
@@ -114,7 +117,7 @@ class MultiModeAgent(BaseAgent):
             return best_mode
 
         # 4. Default
-        return self.DEFAULT_MODE or (list(self.MODES.keys())[0] if self.MODES else "")
+        return self.DEFAULT_MODE or (next(iter(self.MODES.keys())) if self.MODES else "")
 
     def execute(self, task: AgentTask) -> AgentResult:
         """Route task to the appropriate mode handler."""
@@ -149,7 +152,7 @@ class MultiModeAgent(BaseAgent):
             result = AgentResult(
                 success=False,
                 output=None,
-                errors=[f"Mode '{mode}' failed: {str(e)}"],
+                errors=[f"Mode '{mode}' failed: {e!s}"],
             )
 
         self.complete_task(task, result)
@@ -181,12 +184,12 @@ class MultiModeAgent(BaseAgent):
         """Mode-specific system prompt — subclasses override for custom prompts."""
         return ""
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         """Return capabilities across all modes."""
         return list(self.MODES.keys())
 
     @classmethod
-    def to_skill_spec(cls) -> "SkillSpec":
+    def to_skill_spec(cls) -> SkillSpec:
         """Auto-derive a SkillSpec from this agent's class metadata.
 
         Generates a baseline SkillSpec using MODES, MODE_KEYWORDS, agent_type,

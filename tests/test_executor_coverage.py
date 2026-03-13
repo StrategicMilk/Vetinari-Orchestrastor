@@ -2,7 +2,7 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestTaskExecutor(unittest.TestCase):
@@ -26,8 +26,8 @@ class TestTaskExecutor(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             exec_, _, _ = self._make_executor(d)
             prompt = exec_._load_prompt("task_1", "plan")
-            self.assertIsInstance(prompt, str)
-            self.assertGreater(len(prompt), 0)
+            assert isinstance(prompt, str)
+            assert len(prompt) > 0
 
     def test_load_prompt_from_file(self):
         with tempfile.TemporaryDirectory() as d:
@@ -38,28 +38,28 @@ class TestTaskExecutor(unittest.TestCase):
                 f.write("  File-based prompt  ")
             exec_, _, _ = self._make_executor(d)
             prompt = exec_._load_prompt("task_1", "plan")
-            self.assertEqual(prompt, "File-based prompt")
+            assert prompt == "File-based prompt"
 
     def test_parse_code_blocks_python(self):
         with tempfile.TemporaryDirectory() as d:
             exec_, _, _ = self._make_executor(d)
             text   = "```python\ndef foo():\n    pass\n```"
             blocks = exec_._parse_code_blocks(text)
-            self.assertIsInstance(blocks, dict)
-            self.assertGreater(len(blocks), 0)
+            assert isinstance(blocks, dict)
+            assert len(blocks) > 0
 
     def test_parse_code_blocks_empty(self):
         with tempfile.TemporaryDirectory() as d:
             exec_, _, _ = self._make_executor(d)
             blocks = exec_._parse_code_blocks("no code here")
-            self.assertEqual(blocks, {})
+            assert blocks == {}
 
     def test_parse_code_blocks_readme(self):
         with tempfile.TemporaryDirectory() as d:
             exec_, _, _ = self._make_executor(d)
             text   = "```markdown\n# README content here\n```"
             blocks = exec_._parse_code_blocks(text)
-            self.assertIsInstance(blocks, dict)
+            assert isinstance(blocks, dict)
 
     def test_write_files(self):
         with tempfile.TemporaryDirectory() as d:
@@ -67,9 +67,8 @@ class TestTaskExecutor(unittest.TestCase):
             blocks = {"output_0.py": "print('hello')", "README.md": "# Readme"}
             exec_._write_files(blocks, "task_1")
             output_dir = os.path.join(d, "outputs", "task_1", "generated")
-            self.assertTrue(os.path.isdir(output_dir))
-            self.assertTrue(os.path.exists(
-                os.path.join(output_dir, "output_0.py")))
+            assert os.path.isdir(output_dir)
+            assert os.path.exists(os.path.join(output_dir, "output_0.py"))
 
     def test_execute_task_calls_adapter(self):
         with tempfile.TemporaryDirectory() as d:
@@ -78,7 +77,7 @@ class TestTaskExecutor(unittest.TestCase):
             adapter.chat.return_value = {"output": "```python\nprint('result')\n```",
                                           "model": "test", "tokens": 10}
             result = exec_.execute_task("task_1")
-            self.assertIsInstance(result, dict)
+            assert isinstance(result, dict)
 
 
 if __name__ == "__main__":

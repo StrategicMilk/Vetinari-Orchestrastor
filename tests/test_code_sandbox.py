@@ -12,11 +12,8 @@ Covers:
 
 import subprocess
 import sys
-import tempfile
 import threading
-from pathlib import Path
-from typing import Any, Dict
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -29,7 +26,6 @@ from vetinari.code_sandbox import (
     get_subprocess_executor,
     init_code_executor,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -690,7 +686,7 @@ class TestCodeExecutorInit:
     def test_creates_sandbox_if_none(self):
         with patch("vetinari.code_sandbox.CodeSandbox") as MockSandbox:
             MockSandbox.return_value = MagicMock(spec=CodeSandbox)
-            executor = CodeExecutor()
+            CodeExecutor()
         MockSandbox.assert_called_once()
 
     def test_uses_provided_sandbox(self, tmp_path):

@@ -10,10 +10,8 @@ approval logging, auto-approval, coding execution, and singleton management.
 import json
 import sys
 import types
-import unittest
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch, PropertyMock, call
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -54,30 +52,27 @@ _vetinari_pkg.coding_agent = _coding_agent_stub
 # Now import the module under test.
 import vetinari.plan_mode as plan_mode_module
 from vetinari.plan_mode import (
+    DEPTH_CAP,
+    DRY_RUN_ENABLED,
+    DRY_RUN_RISK_THRESHOLD,
+    MAX_CANDIDATES,
+    PLAN_MODE_DEFAULT,
+    PLAN_MODE_ENABLE,
     PlanModeEngine,
     get_plan_engine,
     init_plan_engine,
-    PLAN_MODE_DEFAULT,
-    PLAN_MODE_ENABLE,
-    DRY_RUN_ENABLED,
-    DRY_RUN_RISK_THRESHOLD,
-    DEPTH_CAP,
-    MAX_CANDIDATES,
 )
 from vetinari.plan_types import (
     Plan,
+    PlanApprovalRequest,
     PlanCandidate,
-    Subtask,
+    PlanGenerationRequest,
+    PlanRiskLevel,
     PlanStatus,
+    Subtask,
     SubtaskStatus,
     TaskDomain,
-    PlanRiskLevel,
-    DefinitionOfDone,
-    DefinitionOfReady,
-    PlanGenerationRequest,
-    PlanApprovalRequest,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -117,7 +112,7 @@ def _simple_plan(goal="build a thing", dry_run=False, risk_score=0.1):
     return plan
 
 
-def _plan_to_dict_for_memory(plan: Plan) -> Dict[str, Any]:
+def _plan_to_dict_for_memory(plan: Plan) -> dict[str, Any]:
     """Serialise a Plan to the shape memory.query_plan_history would return."""
     d = plan.to_dict()
     d["plan_json"] = json.dumps(plan.to_dict())
@@ -656,13 +651,13 @@ class TestGeneratePlan:
         return eng, memory
 
     def _gen(self, engine, **kwargs):
-        defaults = dict(
-            goal="implement a REST endpoint",
-            constraints="",
-            max_candidates=3,
-            plan_depth_cap=16,
-            dry_run=False,
-        )
+        defaults = {
+            "goal": "implement a REST endpoint",
+            "constraints": "",
+            "max_candidates": 3,
+            "plan_depth_cap": 16,
+            "dry_run": False,
+        }
         defaults.update(kwargs)
         req = PlanGenerationRequest(**defaults)
         with patch("vetinari.plan_mode.is_explainability_enabled", return_value=False):
@@ -750,22 +745,20 @@ class TestGeneratePlan:
         engine, _ = engine_and_memory
         mock_learner = MagicMock()
         mock_learner.get_recommendations.return_value = {"confidence": 0.0}
-        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=False):
-            with patch(
-                "vetinari.learning.workflow_learner.get_workflow_learner",
-                return_value=mock_learner,
-            ):
-                self._gen(engine)
+        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=False), patch(
+            "vetinari.learning.workflow_learner.get_workflow_learner",
+            return_value=mock_learner,
+        ):
+            self._gen(engine)
         mock_learner.get_recommendations.assert_called_once()
 
     def test_workflow_learner_failure_does_not_raise(self, engine_and_memory):
         engine, _ = engine_and_memory
-        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=False):
-            with patch(
-                "vetinari.learning.workflow_learner.get_workflow_learner",
-                side_effect=ImportError("no module"),
-            ):
-                plan = self._gen(engine)
+        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=False), patch(
+            "vetinari.learning.workflow_learner.get_workflow_learner",
+            side_effect=ImportError("no module"),
+        ):
+            plan = self._gen(engine)
         assert isinstance(plan, Plan)
 
     def test_explain_agent_called_when_explainability_enabled(self, engine_and_memory):
@@ -782,12 +775,11 @@ class TestGeneratePlan:
 
     def test_explain_agent_failure_does_not_raise(self, engine_and_memory):
         engine, _ = engine_and_memory
-        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=True):
-            with patch(
-                "vetinari.plan_mode.get_explain_agent",
-                side_effect=Exception("explain failed"),
-            ):
-                plan = engine.generate_plan(PlanGenerationRequest(goal="test"))
+        with patch("vetinari.plan_mode.is_explainability_enabled", return_value=True), patch(
+            "vetinari.plan_mode.get_explain_agent",
+            side_effect=Exception("explain failed"),
+        ):
+            plan = engine.generate_plan(PlanGenerationRequest(goal="test"))
         assert isinstance(plan, Plan)
 
     def test_constraints_propagated_to_plan(self, engine_and_memory):
@@ -1196,7 +1188,6 @@ class TestLogApprovalDecision:
         mock_store.remember.assert_called_once()
 
     def test_risk_score_passed_through(self, engine):
-        from vetinari.memory.interfaces import MemoryEntry
         captured = []
         mock_store = MagicMock()
         mock_store.remember.side_effect = lambda entry: captured.append(entry)
@@ -1332,12 +1323,11 @@ class TestExecuteCodingTask:
         plan = _simple_plan()
         subtask = plan.subtasks[0]
         mock_agent = self._make_mock_agent()
-        with patch("vetinari.coding_agent.get_coding_agent", return_value=mock_agent):
-            with patch(
-                "vetinari.plan_mode.get_dual_memory_store",
-                side_effect=RuntimeError("mem fail"),
-            ):
-                result = engine.execute_coding_task(plan, subtask)
+        with patch("vetinari.coding_agent.get_coding_agent", return_value=mock_agent), patch(
+            "vetinari.plan_mode.get_dual_memory_store",
+            side_effect=RuntimeError("mem fail"),
+        ):
+            result = engine.execute_coding_task(plan, subtask)
         assert result["success"] is True
 
 

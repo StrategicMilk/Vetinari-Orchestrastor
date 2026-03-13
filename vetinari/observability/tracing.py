@@ -1,5 +1,5 @@
-"""
-Distributed Tracing (C7)
+"""Distributed Tracing (C7).
+
 =========================
 Optional OpenTelemetry integration with no-op fallback.
 
@@ -15,9 +15,10 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +40,19 @@ except ImportError:
 
 # ── No-op span for when OTel is not available ─────────────────────────
 
+
 @dataclass
 class NoOpSpan:
     """Lightweight span that logs to structured logging."""
+
     name: str
     span_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    parent_id: Optional[str] = None
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    parent_id: str | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
     start_time: float = field(default_factory=time.monotonic)
-    end_time: Optional[float] = None
+    end_time: float | None = None
     status: str = "OK"
-    events: List[Dict[str, Any]] = field(default_factory=list)
+    events: list[dict[str, Any]] = field(default_factory=list)
 
     def set_attribute(self, key: str, value: Any) -> None:
         self.attributes[key] = value
@@ -59,30 +62,36 @@ class NoOpSpan:
         if description:
             self.attributes["status_description"] = description
 
-    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> None:
-        self.events.append({
-            "name": name,
-            "timestamp": time.monotonic(),
-            "attributes": attributes or {},
-        })
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": time.monotonic(),
+                "attributes": attributes or {},
+            }
+        )
 
     def end(self) -> None:
         self.end_time = time.monotonic()
         duration_ms = (self.end_time - self.start_time) * 1000
         logger.debug(
             "Span[%s] %s duration=%.1fms status=%s attrs=%s",
-            self.span_id[:8], self.name, duration_ms, self.status,
+            self.span_id[:8],
+            self.name,
+            duration_ms,
+            self.status,
             {k: v for k, v in self.attributes.items() if k != "status_description"},
         )
 
 
 # ── Span context manager ─────────────────────────────────────────────
 
+
 @contextmanager
 def start_span(
     name: str,
-    attributes: Optional[Dict[str, Any]] = None,
-    parent: Optional[Any] = None,
+    attributes: dict[str, Any] | None = None,
+    parent: Any | None = None,
 ) -> Generator:
     """Start a tracing span.
 
@@ -119,23 +128,30 @@ def start_span(
 
 # ── Convenience functions for common span types ───────────────────────
 
+
 @contextmanager
 def pipeline_span(goal: str, plan_id: str = "") -> Generator:
     """Top-level pipeline span."""
-    with start_span("vetinari.pipeline", {
-        "goal": goal[:200],
-        "plan_id": plan_id,
-    }) as span:
+    with start_span(
+        "vetinari.pipeline",
+        {
+            "goal": goal[:200],
+            "plan_id": plan_id,
+        },
+    ) as span:
         yield span
 
 
 @contextmanager
 def stage_span(stage_name: str, stage_number: int = 0) -> Generator:
     """Pipeline stage span."""
-    with start_span(f"vetinari.stage.{stage_name}", {
-        "stage.name": stage_name,
-        "stage.number": stage_number,
-    }) as span:
+    with start_span(
+        f"vetinari.stage.{stage_name}",
+        {
+            "stage.name": stage_name,
+            "stage.number": stage_number,
+        },
+    ) as span:
         yield span
 
 
@@ -146,11 +162,14 @@ def agent_span(
     task_id: str = "",
 ) -> Generator:
     """Agent execution span."""
-    with start_span("vetinari.agent.execute", {
-        "agent.type": agent_type,
-        "agent.mode": mode,
-        "task.id": task_id,
-    }) as span:
+    with start_span(
+        "vetinari.agent.execute",
+        {
+            "agent.type": agent_type,
+            "agent.mode": mode,
+            "task.id": task_id,
+        },
+    ) as span:
         yield span
 
 
@@ -161,11 +180,14 @@ def llm_span(
     max_tokens: int = 0,
 ) -> Generator:
     """LLM inference call span."""
-    with start_span("vetinari.llm.infer", {
-        "llm.model_id": model_id,
-        "llm.max_tokens": max_tokens,
-        "agent.type": agent_type,
-    }) as span:
+    with start_span(
+        "vetinari.llm.infer",
+        {
+            "llm.model_id": model_id,
+            "llm.max_tokens": max_tokens,
+            "agent.type": agent_type,
+        },
+    ) as span:
         yield span
 
 

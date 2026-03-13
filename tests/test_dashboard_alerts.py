@@ -23,8 +23,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from vetinari.dashboard.alerts import (
+    DISPATCHERS,
     AlertCondition,
-    AlertEngine,
     AlertRecord,
     AlertSeverity,
     AlertThreshold,
@@ -36,7 +36,6 @@ from vetinari.dashboard.alerts import (
     get_alert_engine,
     reset_alert_engine,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -106,27 +105,27 @@ class TestAlertThreshold(unittest.TestCase):
 
     def test_creation_defaults(self):
         t = _make_threshold()
-        self.assertEqual(t.name, "test-alert")
-        self.assertEqual(t.condition, AlertCondition.GREATER_THAN)
-        self.assertEqual(t.severity, AlertSeverity.MEDIUM)
-        self.assertEqual(t.channels, ["log"])
-        self.assertEqual(t.duration_seconds, 0)
+        assert t.name == "test-alert"
+        assert t.condition == AlertCondition.GREATER_THAN
+        assert t.severity == AlertSeverity.MEDIUM
+        assert t.channels == ["log"]
+        assert t.duration_seconds == 0
 
     def test_to_dict_keys(self):
         t = _make_threshold()
         d = t.to_dict()
         for key in ("name", "metric_key", "condition", "threshold_value",
                     "severity", "channels", "duration_seconds"):
-            self.assertIn(key, d)
+            assert key in d
 
     def test_to_dict_values(self):
         t = _make_threshold(condition=AlertCondition.LESS_THAN,
                             severity=AlertSeverity.HIGH,
                             threshold_value=50.0)
         d = t.to_dict()
-        self.assertEqual(d["condition"], "lt")
-        self.assertEqual(d["severity"], "high")
-        self.assertEqual(d["threshold_value"], 50.0)
+        assert d["condition"] == "lt"
+        assert d["severity"] == "high"
+        assert d["threshold_value"] == 50.0
 
 
 # ---------------------------------------------------------------------------
@@ -138,16 +137,16 @@ class TestAlertRecord(unittest.TestCase):
     def test_creation(self):
         t = _make_threshold()
         r = AlertRecord(threshold=t, current_value=999.9)
-        self.assertEqual(r.current_value, 999.9)
-        self.assertIsInstance(r.trigger_time, float)
+        assert r.current_value == 999.9
+        assert isinstance(r.trigger_time, float)
 
     def test_to_dict(self):
         t = _make_threshold()
         r = AlertRecord(threshold=t, current_value=123.4, trigger_time=1700000000.0)
         d = r.to_dict()
-        self.assertIn("threshold", d)
-        self.assertEqual(d["current_value"], 123.4)
-        self.assertEqual(d["trigger_time"], 1700000000.0)
+        assert "threshold" in d
+        assert d["current_value"] == 123.4
+        assert d["trigger_time"] == 1700000000.0
 
 
 # ---------------------------------------------------------------------------
@@ -168,20 +167,20 @@ class TestResolveMetric(unittest.TestCase):
         self.assertAlmostEqual(val, 80.0)
 
     def test_missing_top_key_returns_none(self):
-        self.assertIsNone(_resolve_metric(self.snap, "nonexistent.key"))
+        assert _resolve_metric(self.snap, "nonexistent.key") is None
 
     def test_missing_nested_key_returns_none(self):
-        self.assertIsNone(_resolve_metric(self.snap, "adapters.does_not_exist"))
+        assert _resolve_metric(self.snap, "adapters.does_not_exist") is None
 
     def test_non_numeric_value_returns_none(self):
         snap = {"adapters": {"label": "hello"}}
-        self.assertIsNone(_resolve_metric(snap, "adapters.label"))
+        assert _resolve_metric(snap, "adapters.label") is None
 
     def test_integer_value_coerced_to_float(self):
         snap = {"adapters": {"total_requests": 42}}
         val = _resolve_metric(snap, "adapters.total_requests")
-        self.assertIsInstance(val, float)
-        self.assertEqual(val, 42.0)
+        assert isinstance(val, float)
+        assert val == 42.0
 
 
 # ---------------------------------------------------------------------------
@@ -199,13 +198,13 @@ class TestAlertEngineSingleton(unittest.TestCase):
     def test_get_alert_engine_returns_same_instance(self):
         e1 = get_alert_engine()
         e2 = get_alert_engine()
-        self.assertIs(e1, e2)
+        assert e1 is e2
 
     def test_reset_creates_new_instance(self):
         e1 = get_alert_engine()
         reset_alert_engine()
         e2 = get_alert_engine()
-        self.assertIsNot(e1, e2)
+        assert e1 is not e2
 
 
 # ---------------------------------------------------------------------------
@@ -223,30 +222,30 @@ class TestThresholdManagement(unittest.TestCase):
 
     def test_register_threshold(self):
         self.engine.register_threshold(_make_threshold(name="a"))
-        self.assertEqual(len(self.engine.list_thresholds()), 1)
+        assert len(self.engine.list_thresholds()) == 1
 
     def test_register_duplicate_name_replaces(self):
         self.engine.register_threshold(_make_threshold(name="a", threshold_value=100.0))
         self.engine.register_threshold(_make_threshold(name="a", threshold_value=200.0))
         ts = self.engine.list_thresholds()
-        self.assertEqual(len(ts), 1)
-        self.assertEqual(ts[0].threshold_value, 200.0)
+        assert len(ts) == 1
+        assert ts[0].threshold_value == 200.0
 
     def test_unregister_existing(self):
         self.engine.register_threshold(_make_threshold(name="b"))
         result = self.engine.unregister_threshold("b")
-        self.assertTrue(result)
-        self.assertEqual(len(self.engine.list_thresholds()), 0)
+        assert result
+        assert len(self.engine.list_thresholds()) == 0
 
     def test_unregister_nonexistent_returns_false(self):
         result = self.engine.unregister_threshold("missing")
-        self.assertFalse(result)
+        assert not result
 
     def test_clear_thresholds(self):
         self.engine.register_threshold(_make_threshold(name="x"))
         self.engine.register_threshold(_make_threshold(name="y"))
         self.engine.clear_thresholds()
-        self.assertEqual(len(self.engine.list_thresholds()), 0)
+        assert len(self.engine.list_thresholds()) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +263,7 @@ class TestEvaluateAll(unittest.TestCase):
 
     def test_no_thresholds_returns_empty(self):
         fired = self.engine.evaluate_all(api=_make_mock_api())
-        self.assertEqual(fired, [])
+        assert fired == []
 
     def test_greater_than_not_triggered(self):
         self.engine.register_threshold(_make_threshold(
@@ -273,7 +272,7 @@ class TestEvaluateAll(unittest.TestCase):
             threshold_value=500.0,
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
-        self.assertEqual(len(fired), 0)
+        assert len(fired) == 0
 
     def test_greater_than_triggered(self):
         self.engine.register_threshold(_make_threshold(
@@ -282,7 +281,7 @@ class TestEvaluateAll(unittest.TestCase):
             threshold_value=50.0,
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
-        self.assertEqual(len(fired), 1)
+        assert len(fired) == 1
         self.assertAlmostEqual(fired[0].current_value, 100.0)
 
     def test_less_than_triggered(self):
@@ -293,7 +292,7 @@ class TestEvaluateAll(unittest.TestCase):
             threshold_value=50.0,
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api(approval_rate=30.0))
-        self.assertEqual(len(fired), 1)
+        assert len(fired) == 1
 
     def test_equals_triggered(self):
         self.engine.register_threshold(_make_threshold(
@@ -303,14 +302,14 @@ class TestEvaluateAll(unittest.TestCase):
             threshold_value=0.5,
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api(risk=0.5))
-        self.assertEqual(len(fired), 1)
+        assert len(fired) == 1
 
     def test_missing_metric_key_skipped(self):
         self.engine.register_threshold(_make_threshold(
             metric_key="adapters.nonexistent_field",
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api())
-        self.assertEqual(len(fired), 0)
+        assert len(fired) == 0
 
     def test_alert_fires_only_once_while_active(self):
         """Suppress re-firing while the condition remains triggered."""
@@ -322,8 +321,8 @@ class TestEvaluateAll(unittest.TestCase):
         api = _make_mock_api(latency=100.0)
         fired1 = self.engine.evaluate_all(api=api)
         fired2 = self.engine.evaluate_all(api=api)
-        self.assertEqual(len(fired1), 1)
-        self.assertEqual(len(fired2), 0)  # suppressed
+        assert len(fired1) == 1
+        assert len(fired2) == 0  # suppressed
 
     def test_alert_clears_when_condition_no_longer_met(self):
         self.engine.register_threshold(_make_threshold(
@@ -332,10 +331,10 @@ class TestEvaluateAll(unittest.TestCase):
             threshold_value=50.0,
         ))
         self.engine.evaluate_all(api=_make_mock_api(latency=100.0))  # fires
-        self.assertEqual(len(self.engine.get_active_alerts()), 1)
+        assert len(self.engine.get_active_alerts()) == 1
 
         self.engine.evaluate_all(api=_make_mock_api(latency=10.0))   # clears
-        self.assertEqual(len(self.engine.get_active_alerts()), 0)
+        assert len(self.engine.get_active_alerts()) == 0
 
     def test_alert_refires_after_clear(self):
         self.engine.register_threshold(_make_threshold(
@@ -349,7 +348,7 @@ class TestEvaluateAll(unittest.TestCase):
         self.engine.evaluate_all(api=api_high)  # fires
         self.engine.evaluate_all(api=api_low)   # clears
         fired = self.engine.evaluate_all(api=api_high)  # should fire again
-        self.assertEqual(len(fired), 1)
+        assert len(fired) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -374,8 +373,8 @@ class TestDurationAlerts(unittest.TestCase):
             duration_seconds=60,   # 60 s — won't pass in a unit test
         ))
         fired = self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
-        self.assertEqual(len(fired), 0)
-        self.assertEqual(len(self.engine.get_active_alerts()), 0)
+        assert len(fired) == 0
+        assert len(self.engine.get_active_alerts()) == 0
 
     def test_duration_satisfied_fires(self):
         self.engine.register_threshold(_make_threshold(
@@ -389,13 +388,13 @@ class TestDurationAlerts(unittest.TestCase):
 
         # First evaluation — starts the duration timer
         self.engine.evaluate_all(api=api)
-        self.assertEqual(len(self.engine.get_active_alerts()), 0)
+        assert len(self.engine.get_active_alerts()) == 0
 
         # Patch the start time to be 10 s ago so duration is satisfied
         self.engine._duration_start["dur-alert"] -= 10
 
         fired = self.engine.evaluate_all(api=api)
-        self.assertEqual(len(fired), 1)
+        assert len(fired) == 1
 
     def test_duration_resets_when_condition_clears(self):
         self.engine.register_threshold(_make_threshold(
@@ -406,11 +405,11 @@ class TestDurationAlerts(unittest.TestCase):
             duration_seconds=60,
         ))
         self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
-        self.assertIn("dur-alert", self.engine._duration_start)
+        assert "dur-alert" in self.engine._duration_start
 
         # Condition clears — duration tracker should be removed
         self.engine.evaluate_all(api=_make_mock_api(latency=10.0))
-        self.assertNotIn("dur-alert", self.engine._duration_start)
+        assert "dur-alert" not in self.engine._duration_start
 
 
 # ---------------------------------------------------------------------------
@@ -428,9 +427,9 @@ class TestIntrospection(unittest.TestCase):
 
     def test_get_stats_initial(self):
         stats = self.engine.get_stats()
-        self.assertEqual(stats["registered_thresholds"], 0)
-        self.assertEqual(stats["active_alerts"], 0)
-        self.assertEqual(stats["total_fired"], 0)
+        assert stats["registered_thresholds"] == 0
+        assert stats["active_alerts"] == 0
+        assert stats["total_fired"] == 0
 
     def test_get_stats_after_fire(self):
         self.engine.register_threshold(_make_threshold(
@@ -440,9 +439,9 @@ class TestIntrospection(unittest.TestCase):
         ))
         self.engine.evaluate_all(api=_make_mock_api(latency=100.0))
         stats = self.engine.get_stats()
-        self.assertEqual(stats["registered_thresholds"], 1)
-        self.assertEqual(stats["active_alerts"], 1)
-        self.assertEqual(stats["total_fired"], 1)
+        assert stats["registered_thresholds"] == 1
+        assert stats["active_alerts"] == 1
+        assert stats["total_fired"] == 1
 
     def test_get_history_accumulates(self):
         self.engine.register_threshold(_make_threshold(
@@ -458,7 +457,7 @@ class TestIntrospection(unittest.TestCase):
         self.engine.evaluate_all(api=api_high)  # fire #2
 
         history = self.engine.get_history()
-        self.assertEqual(len(history), 2)
+        assert len(history) == 2
 
 
 # ---------------------------------------------------------------------------

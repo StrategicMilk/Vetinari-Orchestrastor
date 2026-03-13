@@ -9,17 +9,15 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
 
-import pytest
-
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType
-from vetinari.execution_context import ExecutionMode
 from vetinari.tool_interface import (
-    Tool, ToolMetadata, ToolCategory, ToolResult, ToolRegistry,
+    Tool,
+    ToolCategory,
+    ToolMetadata,
+    ToolRegistry,
+    ToolResult,
 )
-
+from vetinari.types import ExecutionMode
 
 # ---------------------------------------------------------------------------
 # Fake tools for testing

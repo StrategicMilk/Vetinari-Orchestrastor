@@ -1,5 +1,5 @@
-"""
-Vetinari Blackboard — Inter-Agent Communication & Delegation
+"""Vetinari Blackboard — Inter-Agent Communication & Delegation.
+
 =============================================================
 
 The Blackboard implements a shared message board through which agents can:
@@ -49,9 +49,10 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
+
 
 class EntryState(Enum):
     PENDING = "pending"
@@ -71,22 +73,25 @@ class EntryState(Enum):
 @dataclass
 class BlackboardEntry:
     """A single work item or message on the blackboard."""
+
     entry_id: str
-    content: str                        # Description of the work needed
-    request_type: str                   # e.g. "code_search", "code_review"
-    requested_by: str                   # AgentType.value of the requester
-    priority: int = 5                   # 1=highest, 10=lowest
+    content: str  # Description of the work needed
+    request_type: str  # e.g. "code_search", "code_review"
+    requested_by: str  # AgentType.value of the requester
+    priority: int = 5  # 1=highest, 10=lowest
     state: EntryState = EntryState.PENDING
-    claimed_by: Optional[str] = None    # AgentType.value
+    claimed_by: str | None = None  # AgentType.value
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     created_at: float = field(default_factory=time.time)
-    claimed_at: Optional[float] = None
-    completed_at: Optional[float] = None
-    ttl_seconds: float = 3600.0         # Expire after 1 hour if unclaimed
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    claimed_at: float | None = None
+    completed_at: float | None = None
+    ttl_seconds: float = 3600.0  # Expire after 1 hour if unclaimed
+    metadata: dict[str, Any] = field(default_factory=dict)
     _completion_event: threading.Event = field(
-        default_factory=threading.Event, repr=False, compare=False,
+        default_factory=threading.Event,
+        repr=False,
+        compare=False,
     )
 
     @property
@@ -95,7 +100,7 @@ class BlackboardEntry:
             return False
         return (time.time() - self.created_at) > self.ttl_seconds
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "entry_id": self.entry_id,
             "content": self.content,
@@ -116,23 +121,24 @@ class BlackboardEntry:
 # Blackboard
 # ---------------------------------------------------------------------------
 
+
 class Blackboard:
     """Thread-safe inter-agent message board."""
 
-    _instance: Optional["Blackboard"] = None
+    _instance: Blackboard | None = None
     _cls_lock = threading.Lock()
 
     def __init__(self):
-        self._entries: Dict[str, BlackboardEntry] = {}
+        self._entries: dict[str, BlackboardEntry] = {}
         self._lock = threading.RLock()
-        self._observers: List[Callable[[BlackboardEntry], None]] = []
+        self._observers: list[Callable[[BlackboardEntry], None]] = []
 
     # ------------------------------------------------------------------
     # Singleton
     # ------------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls) -> "Blackboard":
+    def get_instance(cls) -> Blackboard:
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -149,7 +155,7 @@ class Blackboard:
         requested_by: str,
         priority: int = 5,
         ttl_seconds: float = 3600.0,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Post a new work item. Returns the entry_id."""
         entry_id = f"bb_{uuid.uuid4().hex[:8]}"
@@ -172,20 +178,21 @@ class Blackboard:
     # Claiming and completing
     # ------------------------------------------------------------------
 
-    def claim(self, entry_id: str, agent_type: str) -> Optional[BlackboardEntry]:
+    def claim(self, entry_id: str, agent_type: str) -> BlackboardEntry | None:
         """Claim a pending entry for processing. Returns None if unavailable.
 
         Phase 7.9H: Checks MODEL_INFERENCE permission before allowing claim.
         """
         # Permission check — agents can only claim work if permitted
         try:
-            from vetinari.execution_context import get_context_manager, ToolPermission
+            from vetinari.execution_context import ToolPermission, get_context_manager
+
             ctx_mgr = get_context_manager()
             if not ctx_mgr.check_permission(ToolPermission.MODEL_INFERENCE):
                 logger.warning(
-                    "[Blackboard] Claim denied for %s on %s — "
-                    "MODEL_INFERENCE not allowed in current mode",
-                    agent_type, entry_id
+                    "[Blackboard] Claim denied for %s on %s — MODEL_INFERENCE not allowed in current mode",
+                    agent_type,
+                    entry_id,
                 )
                 return None
         except Exception:
@@ -252,13 +259,14 @@ class Blackboard:
 
     def get_pending(
         self,
-        request_type: Optional[str] = None,
+        request_type: str | None = None,
         limit: int = 10,
-    ) -> List[BlackboardEntry]:
+    ) -> list[BlackboardEntry]:
         """Return pending entries, optionally filtered by type, sorted by priority."""
         with self._lock:
             entries = [
-                e for e in self._entries.values()
+                e
+                for e in self._entries.values()
                 if e.state == EntryState.PENDING
                 and not e.is_expired
                 and (request_type is None or e.request_type == request_type)
@@ -266,7 +274,7 @@ class Blackboard:
         entries.sort(key=lambda e: (e.priority, e.created_at))
         return entries[:limit]
 
-    def get_entry(self, entry_id: str) -> Optional[BlackboardEntry]:
+    def get_entry(self, entry_id: str) -> BlackboardEntry | None:
         with self._lock:
             return self._entries.get(entry_id)
 
@@ -277,14 +285,15 @@ class Blackboard:
     def delegate(
         self,
         task: Any,
-        available_agents: Dict[Any, Any],
-    ) -> Optional[Any]:
+        available_agents: dict[Any, Any],
+    ) -> Any | None:
         """Try to find an agent that can handle ``task.assigned_agent`` type.
 
         Falls back to PLANNER for unknown types, then returns a failure result
         if no fallback exists.
         """
-        from vetinari.agents.contracts import AgentType, AgentTask, AgentResult
+        from vetinari.agents.contracts import AgentTask
+        from vetinari.types import AgentType
 
         # Try to find any capable fallback
         fallback_order = [
@@ -296,9 +305,10 @@ class Blackboard:
             if fallback_type in available_agents:
                 agent = available_agents[fallback_type]
                 logger.warning(
-                    "[Blackboard] Delegating unhandled task %s "
-                    "(type=%s) to fallback %s",
-                    task.id, task.assigned_agent, fallback_type.value
+                    "[Blackboard] Delegating unhandled task %s (type=%s) to fallback %s",
+                    task.id,
+                    task.assigned_agent,
+                    fallback_type.value,
                 )
                 try:
                     agent_task = AgentTask.from_task(task, task.description)
@@ -319,7 +329,7 @@ class Blackboard:
         description: str,
         priority: int = 5,
         timeout: float = 30.0,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Any:
         """Post a help request and wait for a capable agent to fulfil it.
 
@@ -344,11 +354,7 @@ class Blackboard:
             priority=priority,
             metadata=metadata or {},
         )
-        logger.info(
-            "[Blackboard] %s requests help: "
-            "%s (%s)",
-            requesting_agent, request_type, entry_id
-        )
+        logger.info("[Blackboard] %s requests help: %s (%s)", requesting_agent, request_type, entry_id)
         try:
             return self.get_result(entry_id, timeout=timeout)
         except RuntimeError:
@@ -359,7 +365,7 @@ class Blackboard:
         agent_type: str,
         task_id: str,
         error: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         """Escalate an error to the blackboard for error recovery.
 
@@ -386,7 +392,7 @@ class Blackboard:
         requesting_agent: str,
         subject: str,
         options: list,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Post a consensus-check request for multi-agent voting.
 
@@ -438,18 +444,18 @@ class Blackboard:
             # Keep for audit; remove entries older than 2 hours
             cutoff = time.time() - 7200
             stale = [
-                eid for eid, e in self._entries.items()
-                if e.created_at < cutoff
-                and e.state in (EntryState.COMPLETED, EntryState.FAILED, EntryState.EXPIRED)
+                eid
+                for eid, e in self._entries.items()
+                if e.created_at < cutoff and e.state in (EntryState.COMPLETED, EntryState.FAILED, EntryState.EXPIRED)
             ]
             for eid in stale:
                 del self._entries[eid]
         return len(expired)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Return a summary of entry states."""
         with self._lock:
-            states: Dict[str, int] = {}
+            states: dict[str, int] = {}
             for e in self._entries.values():
                 states[e.state.value] = states.get(e.state.value, 0) + 1
         return states
@@ -466,26 +472,26 @@ class Blackboard:
 
 # Maps request_type strings to the agent types capable of handling them.
 # Used by the blackboard to auto-notify the right agents when work is posted.
-REQUEST_TYPE_ROUTING: Dict[str, List[str]] = {
-    "code_search":          ["CONSOLIDATED_RESEARCHER"],
-    "code_review":          ["QUALITY"],
-    "security_audit":       ["QUALITY"],
+REQUEST_TYPE_ROUTING: dict[str, list[str]] = {
+    "code_search": ["CONSOLIDATED_RESEARCHER"],
+    "code_review": ["QUALITY"],
+    "security_audit": ["QUALITY"],
     "architecture_decision": ["CONSOLIDATED_ORACLE", "ORACLE"],
-    "documentation":        ["OPERATIONS"],
-    "implementation":       ["BUILDER"],
-    "test_generation":      ["QUALITY"],
-    "cost_analysis":        ["OPERATIONS"],
-    "research":             ["CONSOLIDATED_RESEARCHER"],
-    "ui_design":            ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
-    "devops":               ["ARCHITECT"],
-    "error_recovery":       ["OPERATIONS"],
-    "image_generation":     ["OPERATIONS"],
-    "data_engineering":     ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
-    "creative_writing":     ["OPERATIONS"],
+    "documentation": ["OPERATIONS"],
+    "implementation": ["BUILDER"],
+    "test_generation": ["QUALITY"],
+    "cost_analysis": ["OPERATIONS"],
+    "research": ["CONSOLIDATED_RESEARCHER"],
+    "ui_design": ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
+    "devops": ["ARCHITECT"],
+    "error_recovery": ["OPERATIONS"],
+    "image_generation": ["OPERATIONS"],
+    "data_engineering": ["CONSOLIDATED_RESEARCHER", "ARCHITECT"],
+    "creative_writing": ["OPERATIONS"],
 }
 
 
-def get_capable_agents(request_type: str) -> List[str]:
+def get_capable_agents(request_type: str) -> list[str]:
     """Return agent type strings capable of handling a given request type."""
     return REQUEST_TYPE_ROUTING.get(request_type, [])
 
@@ -493,6 +499,7 @@ def get_capable_agents(request_type: str) -> List[str]:
 # ---------------------------------------------------------------------------
 # Shared Execution Context (Phase 7.9E)
 # ---------------------------------------------------------------------------
+
 
 class SharedExecutionContext:
     """Key-value store accessible to all agents during a single plan execution.
@@ -507,8 +514,8 @@ class SharedExecutionContext:
 
     def __init__(self, plan_id: str):
         self.plan_id = plan_id
-        self._store: Dict[str, Any] = {}
-        self._provenance: Dict[str, str] = {}   # key -> agent_type that wrote it
+        self._store: dict[str, Any] = {}
+        self._provenance: dict[str, str] = {}  # key -> agent_type that wrote it
         self._lock = threading.RLock()
 
     def set(self, key: str, value: Any, agent_type: str) -> None:
@@ -523,21 +530,17 @@ class SharedExecutionContext:
         with self._lock:
             return self._store.get(key, default)
 
-    def get_all(self) -> Dict[str, Any]:
+    def get_all(self) -> dict[str, Any]:
         """Return a shallow copy of all stored key-value pairs."""
         with self._lock:
             return dict(self._store)
 
-    def get_all_by_agent(self, agent_type: str) -> Dict[str, Any]:
+    def get_all_by_agent(self, agent_type: str) -> dict[str, Any]:
         """Return all entries written by a specific agent type."""
         with self._lock:
-            return {
-                k: self._store[k]
-                for k, a in self._provenance.items()
-                if a == agent_type
-            }
+            return {k: self._store[k] for k, a in self._provenance.items() if a == agent_type}
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         """Return list of stored keys."""
         with self._lock:
             return list(self._store.keys())
@@ -553,7 +556,7 @@ class SharedExecutionContext:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_blackboard: Optional[Blackboard] = None
+_blackboard: Blackboard | None = None
 _board_lock = threading.Lock()
 
 

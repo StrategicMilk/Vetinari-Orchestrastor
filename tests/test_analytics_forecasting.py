@@ -1,10 +1,15 @@
 """Tests for vetinari/analytics/forecasting.py (Phase 5)"""
 import unittest
 
+import pytest
+
 from vetinari.analytics.forecasting import (
-    ForecastRequest, ForecastResult, Forecaster,
-    get_forecaster, reset_forecaster,
-    _ols, _rmse, _stddev,
+    ForecastRequest,
+    _ols,
+    _rmse,
+    _stddev,
+    get_forecaster,
+    reset_forecaster,
 )
 from vetinari.analytics.sla import _percentile
 
@@ -33,7 +38,7 @@ class TestMathHelpers(unittest.TestCase):
         self.assertAlmostEqual(_rmse(y, y), 0.0)
 
     def test_rmse_nonzero(self):
-        self.assertGreater(_rmse([1.0, 2.0], [3.0, 4.0]), 0)
+        assert _rmse([1.0, 2.0], [3.0, 4.0]) > 0
 
     def test_percentile_median(self):
         vals = [1.0, 2.0, 3.0, 4.0, 5.0]
@@ -48,12 +53,12 @@ class TestForecasterSingleton(unittest.TestCase):
     def tearDown(self): reset_forecaster()
 
     def test_same_instance(self):
-        self.assertIs(get_forecaster(), get_forecaster())
+        assert get_forecaster() is get_forecaster()
 
     def test_reset_new_instance(self):
         a = get_forecaster()
         reset_forecaster()
-        self.assertIsNot(a, get_forecaster())
+        assert a is not get_forecaster()
 
 
 class TestIngestion(unittest.TestCase):
@@ -63,25 +68,25 @@ class TestIngestion(unittest.TestCase):
     def test_ingest_single(self):
         fc = _fc()
         fc.ingest("lat", 100.0)
-        self.assertEqual(len(fc.get_history("lat")), 1)
+        assert len(fc.get_history("lat")) == 1
 
     def test_ingest_many(self):
         fc = _fc()
         fc.ingest_many("lat", [1.0, 2.0, 3.0])
-        self.assertEqual(len(fc.get_history("lat")), 3)
+        assert len(fc.get_history("lat")) == 3
 
     def test_list_metrics(self):
         fc = _fc()
         fc.ingest("a", 1.0)
         fc.ingest("b", 2.0)
-        self.assertIn("a", fc.list_metrics())
-        self.assertIn("b", fc.list_metrics())
+        assert "a" in fc.list_metrics()
+        assert "b" in fc.list_metrics()
 
     def test_clear(self):
         fc = _fc()
         fc.ingest_many("lat", [1.0]*10)
         fc.clear()
-        self.assertEqual(fc.list_metrics(), [])
+        assert fc.list_metrics() == []
 
 
 class TestSMAForecast(unittest.TestCase):
@@ -92,7 +97,7 @@ class TestSMAForecast(unittest.TestCase):
         fc = _fc()
         fc.ingest_many("lat", [100.0]*20)
         r = fc.forecast(ForecastRequest(metric="lat", horizon=3, method="sma"))
-        self.assertEqual(len(r.predictions), 3)
+        assert len(r.predictions) == 3
         for p in r.predictions:
             self.assertAlmostEqual(p, 100.0, places=2)
 
@@ -100,10 +105,10 @@ class TestSMAForecast(unittest.TestCase):
         fc = _fc()
         fc.ingest_many("lat", [50.0]*10)
         r = fc.forecast(ForecastRequest(metric="lat", horizon=2, method="sma"))
-        self.assertEqual(r.method, "sma")
-        self.assertEqual(r.horizon, 2)
-        self.assertEqual(len(r.confidence_lo), 2)
-        self.assertEqual(len(r.confidence_hi), 2)
+        assert r.method == "sma"
+        assert r.horizon == 2
+        assert len(r.confidence_lo) == 2
+        assert len(r.confidence_hi) == 2
 
 
 class TestExpSmoothingForecast(unittest.TestCase):
@@ -115,16 +120,16 @@ class TestExpSmoothingForecast(unittest.TestCase):
         for i in range(20):
             fc.ingest("val", float(i * 10))
         r = fc.forecast(ForecastRequest(metric="val", horizon=3, method="exp_smoothing"))
-        self.assertEqual(len(r.predictions), 3)
+        assert len(r.predictions) == 3
         # All predictions should be positive
         for p in r.predictions:
-            self.assertGreater(p, 0)
+            assert p > 0
 
     def test_es_rmse_set(self):
         fc = _fc()
         fc.ingest_many("val", [100.0]*15)
         r = fc.forecast(ForecastRequest(metric="val", horizon=1, method="exp_smoothing"))
-        self.assertIsInstance(r.rmse, float)
+        assert isinstance(r.rmse, float)
 
 
 class TestLinearTrendForecast(unittest.TestCase):
@@ -137,13 +142,13 @@ class TestLinearTrendForecast(unittest.TestCase):
         fc.ingest_many("lat", [float(i * 10) for i in range(20)])
         r = fc.forecast(ForecastRequest(metric="lat", horizon=5, method="linear_trend"))
         self.assertAlmostEqual(r.trend_slope, 10.0, delta=0.1)
-        self.assertEqual(len(r.predictions), 5)
+        assert len(r.predictions) == 5
 
     def test_predictions_increase_for_rising_series(self):
         fc = _fc()
         fc.ingest_many("lat", [float(i) for i in range(20)])
         r = fc.forecast(ForecastRequest(metric="lat", horizon=3, method="linear_trend"))
-        self.assertGreater(r.predictions[-1], r.predictions[0])
+        assert r.predictions[-1] > r.predictions[0]
 
     def test_constant_series_slope_near_zero(self):
         fc = _fc()
@@ -163,14 +168,14 @@ class TestSeasonalForecast(unittest.TestCase):
         data = [50.0 + 10.0 * math.sin(2 * math.pi * i / 7) for i in range(28)]
         fc.ingest_many("s", data)
         r = fc.forecast(ForecastRequest(metric="s", horizon=7, method="seasonal", period=7))
-        self.assertEqual(len(r.predictions), 7)
-        self.assertEqual(r.method, "seasonal")
+        assert len(r.predictions) == 7
+        assert r.method == "seasonal"
 
     def test_seasonal_fallback_with_little_data(self):
         fc = _fc()
         fc.ingest_many("s", [1.0, 2.0, 3.0])
         r = fc.forecast(ForecastRequest(metric="s", horizon=3, method="seasonal", period=7))
-        self.assertEqual(len(r.predictions), 3)
+        assert len(r.predictions) == 3
 
 
 class TestInsufficientHistory(unittest.TestCase):
@@ -180,13 +185,13 @@ class TestInsufficientHistory(unittest.TestCase):
     def test_empty_history_returns_zeros(self):
         fc = _fc()
         r = fc.forecast(ForecastRequest(metric="nonexistent", horizon=3))
-        self.assertEqual(r.predictions, [0.0, 0.0, 0.0])
+        assert r.predictions == [0.0, 0.0, 0.0]
 
     def test_one_point_repeats(self):
         fc = _fc()
         fc.ingest("lat", 42.0)
         r = fc.forecast(ForecastRequest(metric="lat", horizon=2, method="linear_trend"))
-        self.assertEqual(r.predictions, [42.0, 42.0])
+        assert r.predictions == [42.0, 42.0]
 
 
 class TestUnknownMethod(unittest.TestCase):
@@ -196,7 +201,7 @@ class TestUnknownMethod(unittest.TestCase):
     def test_unknown_method_raises(self):
         fc = _fc()
         fc.ingest_many("lat", [1.0]*10)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             fc.forecast(ForecastRequest(metric="lat", horizon=3, method="magic"))
 
 
@@ -207,25 +212,25 @@ class TestCapacityHelpers(unittest.TestCase):
     def test_will_exceed_rising(self):
         fc = _fc()
         fc.ingest_many("lat", [float(i * 10) for i in range(20)])
-        self.assertTrue(fc.will_exceed("lat", threshold=300.0, horizon=20))
+        assert fc.will_exceed("lat", threshold=300.0, horizon=20)
 
     def test_will_not_exceed_flat(self):
         fc = _fc()
         fc.ingest_many("lat", [50.0]*20)
-        self.assertFalse(fc.will_exceed("lat", threshold=1000.0, horizon=10))
+        assert not fc.will_exceed("lat", threshold=1000.0, horizon=10)
 
     def test_steps_until_threshold(self):
         fc = _fc()
         fc.ingest_many("lat", [float(i * 10) for i in range(20)])
         steps = fc.steps_until_threshold("lat", threshold=300.0, horizon=50)
-        self.assertIsNotNone(steps)
-        self.assertGreater(steps, 0)
+        assert steps is not None
+        assert steps > 0
 
     def test_steps_until_threshold_never(self):
         fc = _fc()
         fc.ingest_many("lat", [50.0]*20)
         steps = fc.steps_until_threshold("lat", threshold=1_000_000.0, horizon=10)
-        self.assertIsNone(steps)
+        assert steps is None
 
 
 class TestGetStats(unittest.TestCase):
@@ -237,8 +242,8 @@ class TestGetStats(unittest.TestCase):
         fc.ingest_many("a", [1.0]*5)
         fc.ingest_many("b", [2.0]*3)
         stats = fc.get_stats()
-        self.assertEqual(stats["tracked_metrics"], 2)
-        self.assertEqual(stats["history_sizes"]["a"], 5)
+        assert stats["tracked_metrics"] == 2
+        assert stats["history_sizes"]["a"] == 5
 
 
 if __name__ == "__main__":

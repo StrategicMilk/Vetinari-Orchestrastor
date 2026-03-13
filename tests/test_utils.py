@@ -4,6 +4,8 @@ import os
 import tempfile
 import unittest
 
+import pytest
+
 
 class TestSetupLogging(unittest.TestCase):
     def test_creates_log_directory(self):
@@ -11,13 +13,13 @@ class TestSetupLogging(unittest.TestCase):
             log_dir = os.path.join(d, "logs", "sub")
             from vetinari.utils import setup_logging
             setup_logging(level=logging.WARNING, log_dir=log_dir)
-            self.assertTrue(os.path.isdir(log_dir))
+            assert os.path.isdir(log_dir)
 
     def test_creates_log_file(self):
         with tempfile.TemporaryDirectory() as d:
             from vetinari.utils import setup_logging
             setup_logging(level=logging.WARNING, log_dir=d)
-            self.assertTrue(os.path.exists(os.path.join(d, "vetinari.log")))
+            assert os.path.exists(os.path.join(d, "vetinari.log"))
 
 
 class TestLoadYaml(unittest.TestCase):
@@ -30,14 +32,14 @@ class TestLoadYaml(unittest.TestCase):
         try:
             from vetinari.utils import load_yaml
             data = load_yaml(path)
-            self.assertEqual(data["key"], "value")
-            self.assertEqual(data["num"], 42)
+            assert data["key"] == "value"
+            assert data["num"] == 42
         finally:
             os.unlink(path)
 
     def test_load_missing_file_raises(self):
         from vetinari.utils import load_yaml
-        with self.assertRaises((FileNotFoundError, OSError)):
+        with pytest.raises((FileNotFoundError, OSError)):
             load_yaml("/nonexistent/path/file.yaml")
 
 
@@ -51,7 +53,7 @@ class TestLoadConfig(unittest.TestCase):
         try:
             from vetinari.utils import load_config
             data = load_config(path)
-            self.assertTrue(data["config"])
+            assert data["config"]
         finally:
             os.unlink(path)
 

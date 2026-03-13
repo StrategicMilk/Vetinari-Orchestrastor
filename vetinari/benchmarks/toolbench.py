@@ -16,7 +16,7 @@ Metrics: tool selection accuracy, parameter correctness, chain completion.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from vetinari.benchmarks.runner import (
     BenchmarkCase,
@@ -26,40 +26,55 @@ from vetinari.benchmarks.runner import (
     BenchmarkTier,
 )
 
-
 # -- Mock tool definitions --
 
-_TOOL_POOL: List[Dict[str, Any]] = [
-    {"name": "get_weather", "description": "Get current weather for a city",
-     "params": {"city": "str", "units": "str (metric|imperial)"}},
-    {"name": "search_web", "description": "Search the web for information",
-     "params": {"query": "str", "num_results": "int"}},
-    {"name": "send_email", "description": "Send an email message",
-     "params": {"to": "str", "subject": "str", "body": "str"}},
-    {"name": "create_calendar_event", "description": "Create a calendar event",
-     "params": {"title": "str", "start": "datetime", "end": "datetime"}},
-    {"name": "translate_text", "description": "Translate text between languages",
-     "params": {"text": "str", "source_lang": "str", "target_lang": "str"}},
-    {"name": "calculate", "description": "Evaluate a mathematical expression",
-     "params": {"expression": "str"}},
-    {"name": "get_stock_price", "description": "Get current stock price",
-     "params": {"symbol": "str"}},
-    {"name": "read_file", "description": "Read contents of a file",
-     "params": {"path": "str"}},
-    {"name": "write_file", "description": "Write content to a file",
-     "params": {"path": "str", "content": "str"}},
-    {"name": "run_code", "description": "Execute a code snippet in a sandbox",
-     "params": {"language": "str", "code": "str"}},
-    {"name": "query_database", "description": "Execute a SQL query",
-     "params": {"query": "str", "database": "str"}},
-    {"name": "resize_image", "description": "Resize an image to given dimensions",
-     "params": {"image_path": "str", "width": "int", "height": "int"}},
+_TOOL_POOL: list[dict[str, Any]] = [
+    {
+        "name": "get_weather",
+        "description": "Get current weather for a city",
+        "params": {"city": "str", "units": "str (metric|imperial)"},
+    },
+    {
+        "name": "search_web",
+        "description": "Search the web for information",
+        "params": {"query": "str", "num_results": "int"},
+    },
+    {
+        "name": "send_email",
+        "description": "Send an email message",
+        "params": {"to": "str", "subject": "str", "body": "str"},
+    },
+    {
+        "name": "create_calendar_event",
+        "description": "Create a calendar event",
+        "params": {"title": "str", "start": "datetime", "end": "datetime"},
+    },
+    {
+        "name": "translate_text",
+        "description": "Translate text between languages",
+        "params": {"text": "str", "source_lang": "str", "target_lang": "str"},
+    },
+    {"name": "calculate", "description": "Evaluate a mathematical expression", "params": {"expression": "str"}},
+    {"name": "get_stock_price", "description": "Get current stock price", "params": {"symbol": "str"}},
+    {"name": "read_file", "description": "Read contents of a file", "params": {"path": "str"}},
+    {"name": "write_file", "description": "Write content to a file", "params": {"path": "str", "content": "str"}},
+    {
+        "name": "run_code",
+        "description": "Execute a code snippet in a sandbox",
+        "params": {"language": "str", "code": "str"},
+    },
+    {"name": "query_database", "description": "Execute a SQL query", "params": {"query": "str", "database": "str"}},
+    {
+        "name": "resize_image",
+        "description": "Resize an image to given dimensions",
+        "params": {"image_path": "str", "width": "int", "height": "int"},
+    },
 ]
 
 
 # -- Sample cases --
 
-_SAMPLE_CASES: List[Dict[str, Any]] = [
+_SAMPLE_CASES: list[dict[str, Any]] = [
     # Level 1: Single tool selection
     {
         "case_id": "tb-l1-001",
@@ -74,9 +89,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
         "level": 1,
         "query": "Translate 'hello world' from English to Japanese",
         "expected_tools": ["translate_text"],
-        "expected_params": [
-            {"text": "hello world", "source_lang": "en", "target_lang": "ja"}
-        ],
+        "expected_params": [{"text": "hello world", "source_lang": "en", "target_lang": "ja"}],
         "tags": ["level-1", "single-tool"],
     },
     {
@@ -99,10 +112,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
     {
         "case_id": "tb-l3-001",
         "level": 3,
-        "query": (
-            "Find the weather in Paris, translate the description to Spanish, "
-            "and email it to user@example.com"
-        ),
+        "query": ("Find the weather in Paris, translate the description to Spanish, and email it to user@example.com"),
         "expected_tools": ["get_weather", "translate_text", "send_email"],
         "expected_params": [
             {"city": "Paris", "units": "metric"},
@@ -133,9 +143,7 @@ _SAMPLE_CASES: List[Dict[str, Any]] = [
             "Query the users database to find users in Tokyo, get the weather "
             "for Tokyo, then create a calendar event for a team meeting"
         ),
-        "expected_tools": [
-            "query_database", "get_weather", "create_calendar_event"
-        ],
+        "expected_tools": ["query_database", "get_weather", "create_calendar_event"],
         "expected_params": [
             {"database": "users"},
             {"city": "Tokyo"},
@@ -169,25 +177,27 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
     layer = BenchmarkLayer.AGENT  # Level 1 default; Level 3 cases are Layer 2
     tier = BenchmarkTier.FAST
 
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
-            cases.append(BenchmarkCase(
-                case_id=item["case_id"],
-                suite_name=self.name,
-                description=item["query"],
-                input_data={
-                    "query": item["query"],
-                    "level": item["level"],
-                    "tool_pool": _TOOL_POOL,
-                },
-                expected={
-                    "expected_tools": item["expected_tools"],
-                    "expected_params": item["expected_params"],
-                },
-                tags=item.get("tags", []),
-            ))
+            cases.append(
+                BenchmarkCase(
+                    case_id=item["case_id"],
+                    suite_name=self.name,
+                    description=item["query"],
+                    input_data={
+                        "query": item["query"],
+                        "level": item["level"],
+                        "tool_pool": _TOOL_POOL,
+                    },
+                    expected={
+                        "expected_tools": item["expected_tools"],
+                        "expected_params": item["expected_params"],
+                    },
+                    tags=item.get("tags", []),
+                )
+            )
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
@@ -256,10 +266,7 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
                 if i < len(actual_params):
                     ap = actual_params[i]
                     # Check key overlap
-                    matching_keys = sum(
-                        1 for k in ep
-                        if k in ap and str(ap[k]).lower() == str(ep[k]).lower()
-                    )
+                    matching_keys = sum(1 for k in ep if k in ap and str(ap[k]).lower() == str(ep[k]).lower())
                     if ep:
                         param_matches += matching_keys / len(ep)
             param_score = param_matches / len(expected_params)
@@ -274,7 +281,7 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
 
         return round(min(score, 1.0), 4)
 
-    def _run_via_agent(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _run_via_agent(self, case: BenchmarkCase) -> dict[str, Any]:
         """Tool selection via Vetinari agent, with mock fallback."""
         try:
             from vetinari.tool_interface import ToolInterface
@@ -289,7 +296,7 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
         except Exception:
             return self._mock_run(case)
 
-    def _mock_run(self, case: BenchmarkCase) -> Dict[str, Any]:
+    def _mock_run(self, case: BenchmarkCase) -> dict[str, Any]:
         """Mock run returning expected tool selections."""
         expected = case.expected or {}
         return {

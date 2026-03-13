@@ -1,5 +1,4 @@
-"""
-vetinari.model_relay — DEPRECATED thin shim.
+"""vetinari.model_relay — DEPRECATED thin shim.
 
 This module is retained for backward compatibility only.
 New code should use vetinari.dynamic_model_router directly.
@@ -23,6 +22,8 @@ Unique functionality still in this module (not yet in dynamic_model_router):
   (dynamic_model_router.select_model() uses live performance metrics + Thompson Sampling)
 """
 
+from __future__ import annotations
+
 import warnings as _warnings
 
 _warnings.warn(
@@ -34,41 +35,39 @@ _warnings.warn(
 # ---------------------------------------------------------------------------
 # Standard library imports needed by the classes below
 # ---------------------------------------------------------------------------
-import json
-import logging
-import os
-import yaml
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from pathlib import Path
-from enum import Enum
+import logging  # noqa: E402
+import os  # noqa: E402
+from dataclasses import dataclass, field  # noqa: E402
+from enum import Enum  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import yaml  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-from vetinari.types import ModelProvider  # canonical enum from types.py
 
 # ---------------------------------------------------------------------------
 # Re-export canonical router symbols so callers can migrate incrementally.
 # These are the canonical equivalents of the classes defined below.
 # ---------------------------------------------------------------------------
-from vetinari.dynamic_model_router import (  # noqa: F401  (re-export)
+from vetinari.dynamic_model_router import (  # noqa: F401, E402  (re-export)
     DynamicModelRouter,
-    ModelInfo,
     ModelCapabilities,
+    ModelInfo,
     TaskType,
     get_model_router,
-    init_model_router,
     infer_task_type,
     # NOTE: dynamic_model_router also defines a ModelSelection, but its shape
     # differs from the one defined in this module (it uses ModelInfo, not flat
     # scalar fields).  We intentionally do NOT re-export it here to avoid
     # shadowing the local ModelSelection that existing callers depend on.
+    init_model_router,
 )
-
 
 # ---------------------------------------------------------------------------
 # Local types — unique to this module (yaml-backed catalog)
 # ---------------------------------------------------------------------------
+
 
 class ModelStatus(Enum):
     AVAILABLE = "available"
@@ -79,10 +78,11 @@ class ModelStatus(Enum):
 @dataclass
 class ModelEntry:
     """A single entry in the YAML-backed model catalog."""
+
     model_id: str
     provider: str
     display_name: str
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     context_window: int = 4096
     latency_hint: str = "medium"
     privacy_level: str = "local"
@@ -94,80 +94,81 @@ class ModelEntry:
 
     def to_dict(self) -> dict:
         return {
-            'model_id': self.model_id,
-            'provider': self.provider,
-            'display_name': self.display_name,
-            'capabilities': self.capabilities,
-            'context_window': self.context_window,
-            'latency_hint': self.latency_hint,
-            'privacy_level': self.privacy_level,
-            'memory_requirements_gb': self.memory_requirements_gb,
-            'cost_per_1k_tokens': self.cost_per_1k_tokens,
-            'status': self.status,
-            'endpoint': self.endpoint,
-            'current_load': self.current_load
+            "model_id": self.model_id,
+            "provider": self.provider,
+            "display_name": self.display_name,
+            "capabilities": self.capabilities,
+            "context_window": self.context_window,
+            "latency_hint": self.latency_hint,
+            "privacy_level": self.privacy_level,
+            "memory_requirements_gb": self.memory_requirements_gb,
+            "cost_per_1k_tokens": self.cost_per_1k_tokens,
+            "status": self.status,
+            "endpoint": self.endpoint,
+            "current_load": self.current_load,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'ModelEntry':
+    def from_dict(cls, data: dict) -> ModelEntry:
         return cls(
-            model_id=data.get('model_id', ''),
-            provider=data.get('provider', 'local'),
-            display_name=data.get('display_name', data.get('model_id', '')),
-            capabilities=data.get('capabilities', []),
-            context_window=data.get('context_window', 4096),
-            latency_hint=data.get('latency_hint', 'medium'),
-            privacy_level=data.get('privacy_level', 'local'),
-            memory_requirements_gb=data.get('memory_requirements_gb', 0.0),
-            cost_per_1k_tokens=data.get('cost_per_1k_tokens', 0.0),
-            status=data.get('status', ModelStatus.AVAILABLE.value),
-            endpoint=data.get('endpoint', ''),
-            current_load=data.get('current_load', 0.0)
+            model_id=data.get("model_id", ""),
+            provider=data.get("provider", "local"),
+            display_name=data.get("display_name", data.get("model_id", "")),
+            capabilities=data.get("capabilities", []),
+            context_window=data.get("context_window", 4096),
+            latency_hint=data.get("latency_hint", "medium"),
+            privacy_level=data.get("privacy_level", "local"),
+            memory_requirements_gb=data.get("memory_requirements_gb", 0.0),
+            cost_per_1k_tokens=data.get("cost_per_1k_tokens", 0.0),
+            status=data.get("status", ModelStatus.AVAILABLE.value),
+            endpoint=data.get("endpoint", ""),
+            current_load=data.get("current_load", 0.0),
         )
 
 
 @dataclass
 class RoutingPolicy:
     """Routing policy stored in the YAML catalog (persisted to disk)."""
+
     local_first: bool = True
     privacy_weight: float = 1.0
     latency_weight: float = 0.5
     cost_weight: float = 0.3
     max_cost_per_1k_tokens: float = 0.0
-    preferred_providers: List[str] = field(default_factory=list)
+    preferred_providers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
-            'local_first': self.local_first,
-            'privacy_weight': self.privacy_weight,
-            'latency_weight': self.latency_weight,
-            'cost_weight': self.cost_weight,
-            'max_cost_per_1k_tokens': self.max_cost_per_1k_tokens,
-            'preferred_providers': self.preferred_providers
+            "local_first": self.local_first,
+            "privacy_weight": self.privacy_weight,
+            "latency_weight": self.latency_weight,
+            "cost_weight": self.cost_weight,
+            "max_cost_per_1k_tokens": self.max_cost_per_1k_tokens,
+            "preferred_providers": self.preferred_providers,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'RoutingPolicy':
+    def from_dict(cls, data: dict) -> RoutingPolicy:
         return cls(
-            local_first=data.get('local_first', True),
-            privacy_weight=data.get('privacy_weight', 1.0),
-            latency_weight=data.get('latency_weight', 0.5),
-            cost_weight=data.get('cost_weight', 0.3),
-            max_cost_per_1k_tokens=data.get('max_cost_per_1k_tokens', 0.0),
-            preferred_providers=data.get('preferred_providers', [])
+            local_first=data.get("local_first", True),
+            privacy_weight=data.get("privacy_weight", 1.0),
+            latency_weight=data.get("latency_weight", 0.5),
+            cost_weight=data.get("cost_weight", 0.3),
+            max_cost_per_1k_tokens=data.get("max_cost_per_1k_tokens", 0.0),
+            preferred_providers=data.get("preferred_providers", []),
         )
 
 
 @dataclass
 class ModelSelection:
-    """
-    Flat model-selection result returned by ModelRelay.pick_model_for_task().
+    """Flat model-selection result returned by ModelRelay.pick_model_for_task().
 
     NOTE: dynamic_model_router also defines a ModelSelection but with a
     different shape (it embeds a full ModelInfo object).  Keep this flat
     version here for backward compatibility with web_ui.py callers that
     serialize it directly to JSON.
     """
+
     model_id: str
     provider: str
     endpoint: str
@@ -177,12 +178,12 @@ class ModelSelection:
 
     def to_dict(self) -> dict:
         return {
-            'model_id': self.model_id,
-            'provider': self.provider,
-            'endpoint': self.endpoint,
-            'reasoning': self.reasoning,
-            'confidence': self.confidence,
-            'latency_estimate': self.latency_estimate
+            "model_id": self.model_id,
+            "provider": self.provider,
+            "endpoint": self.endpoint,
+            "reasoning": self.reasoning,
+            "confidence": self.confidence,
+            "latency_estimate": self.latency_estimate,
         }
 
 
@@ -190,9 +191,9 @@ class ModelSelection:
 # ModelRelay — YAML-backed model catalog (unique functionality)
 # ---------------------------------------------------------------------------
 
+
 class ModelRelay:
-    """
-    YAML-backed model catalog with static routing policy.
+    """YAML-backed model catalog with static routing policy.
 
     Unique vs DynamicModelRouter:
     - Persists the model catalog and policy to a YAML config file
@@ -204,15 +205,15 @@ class ModelRelay:
     get_model_router() from vetinari.dynamic_model_router.
     """
 
-    _instance: Optional['ModelRelay'] = None
+    _instance: ModelRelay | None = None
 
     @classmethod
-    def get_instance(cls, config_path: str = None) -> "ModelRelay":
+    def get_instance(cls, config_path: str | None = None) -> ModelRelay:
         if cls._instance is None:
             cls._instance = cls(config_path)
         return cls._instance
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str | None = None):
         if config_path is None:
             env_path = os.environ.get("VETINARI_MODELS_CONFIG", "")
             if env_path:
@@ -222,22 +223,22 @@ class ModelRelay:
                 config_path = pkg_root / "config" / "models.yaml"
 
         self.config_path = Path(config_path)
-        self.models: Dict[str, ModelEntry] = {}
+        self.models: dict[str, ModelEntry] = {}
         self.policy = RoutingPolicy()
         self._load_config()
 
     def _load_config(self):
         if self.config_path.exists():
             try:
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path) as f:
                     data = yaml.safe_load(f)
                     if data:
-                        for model_data in data.get('models', []):
+                        for model_data in data.get("models", []):
                             model = ModelEntry.from_dict(model_data)
                             self.models[model.model_id] = model
 
-                        if 'policy' in data:
-                            self.policy = RoutingPolicy.from_dict(data['policy'])
+                        if "policy" in data:
+                            self.policy = RoutingPolicy.from_dict(data["policy"])
             except Exception as e:
                 logger.error("Error loading model config: %s", e)
 
@@ -255,7 +256,7 @@ class ModelRelay:
                 latency_hint="fast",
                 privacy_level="local",
                 memory_requirements_gb=8,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
             ),
             ModelEntry(
                 model_id="qwen2.5-72b",
@@ -266,7 +267,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
             ),
             ModelEntry(
                 model_id="llama-3.3-70b",
@@ -277,7 +278,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions"
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
             ),
             ModelEntry(
                 model_id="gpt-4o",
@@ -288,7 +289,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="public",
                 cost_per_1k_tokens=0.005,
-                endpoint="https://api.openai.com/v1/chat/completions"
+                endpoint="https://api.openai.com/v1/chat/completions",
             ),
         ]
 
@@ -299,13 +300,13 @@ class ModelRelay:
         self.models.clear()
         self._load_config()
 
-    def get_available_models(self) -> List[ModelEntry]:
+    def get_available_models(self) -> list[ModelEntry]:
         return [m for m in self.models.values() if m.status == ModelStatus.AVAILABLE.value]
 
-    def get_model(self, model_id: str) -> Optional[ModelEntry]:
+    def get_model(self, model_id: str) -> ModelEntry | None:
         return self.models.get(model_id)
 
-    def get_all_models(self) -> List[ModelEntry]:
+    def get_all_models(self) -> list[ModelEntry]:
         return list(self.models.values())
 
     def get_policy(self) -> RoutingPolicy:
@@ -316,15 +317,12 @@ class ModelRelay:
         self._save_config()
 
     def _save_config(self):
-        data = {
-            'models': [m.to_dict() for m in self.models.values()],
-            'policy': self.policy.to_dict()
-        }
+        data = {"models": [m.to_dict() for m in self.models.values()], "policy": self.policy.to_dict()}
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             yaml.dump(data, f)
 
-    def pick_model_for_task(self, task_type: str = None, context: dict = None) -> ModelSelection:
+    def pick_model_for_task(self, task_type: str | None = None, context: dict | None = None) -> ModelSelection:
         available = self.get_available_models()
 
         if not available:
@@ -334,7 +332,7 @@ class ModelRelay:
                 endpoint="",
                 reasoning="No available models",
                 confidence=0.0,
-                latency_estimate="unknown"
+                latency_estimate="unknown",
             )
 
         required_caps = []
@@ -368,7 +366,7 @@ class ModelRelay:
                 endpoint="",
                 reasoning="No suitable model found",
                 confidence=0.0,
-                latency_estimate="unknown"
+                latency_estimate="unknown",
             )
 
         return ModelSelection(
@@ -377,7 +375,7 @@ class ModelRelay:
             endpoint=best.endpoint,
             reasoning=self._get_selection_reason(best, task_type),
             confidence=0.9 if best.privacy_level == "local" else 0.7,
-            latency_estimate=best.latency_hint
+            latency_estimate=best.latency_hint,
         )
 
     def _score_model(self, model: ModelEntry) -> float:
@@ -392,14 +390,12 @@ class ModelRelay:
             cost = max(0, 1.0 - (model.cost_per_1k_tokens * 100))
 
         score = (
-            privacy * self.policy.privacy_weight +
-            latency * self.policy.latency_weight +
-            cost * self.policy.cost_weight
+            privacy * self.policy.privacy_weight + latency * self.policy.latency_weight + cost * self.policy.cost_weight
         )
 
         return score
 
-    def _get_selection_reason(self, model: ModelEntry, task_type: str = None) -> str:
+    def _get_selection_reason(self, model: ModelEntry, task_type: str | None = None) -> str:
         reasons = []
         if model.privacy_level == "local":
             reasons.append("local model selected")
@@ -427,7 +423,8 @@ class ModelRelay:
 # Public API — singletons and helpers
 # ---------------------------------------------------------------------------
 
-def get_model_relay() -> "ModelRelay":
+
+def get_model_relay() -> ModelRelay:
     """Return the singleton ModelRelay (yaml-backed catalog).
 
     Deprecated: new code should use get_model_router() from

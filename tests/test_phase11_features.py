@@ -2,24 +2,22 @@
 Tests for Phase 11 remaining features: File Tool, Git Tool, Sandbox Enforcement.
 """
 
-import os
 import json
 import shutil
-import tempfile
 import subprocess
-import sys
+import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # File Tool tests
 # ---------------------------------------------------------------------------
-
 from vetinari.tools.file_tool import (
+    FileInfo,
     FileOperations,
     FileOperationsTool,
-    FileInfo,
     _safe_resolve,
 )
 
@@ -35,19 +33,19 @@ class TestSafeResolve(unittest.TestCase):
 
     def test_normal_path(self):
         result = _safe_resolve("foo/bar.txt", self.root)
-        self.assertTrue(str(result).startswith(str(self.root.resolve())))
+        assert str(result).startswith(str(self.root.resolve()))
 
     def test_traversal_blocked(self):
-        with self.assertRaises(PermissionError):
+        with pytest.raises(PermissionError):
             _safe_resolve("../../etc/passwd", self.root)
 
     def test_absolute_path_outside_blocked(self):
-        with self.assertRaises(PermissionError):
+        with pytest.raises(PermissionError):
             _safe_resolve("/tmp/evil.txt", self.root)
 
     def test_dot_stays_in_root(self):
         result = _safe_resolve(".", self.root)
-        self.assertEqual(result, self.root.resolve())
+        assert result == self.root.resolve()
 
 
 class TestFileOperations(unittest.TestCase):
@@ -63,32 +61,32 @@ class TestFileOperations(unittest.TestCase):
     def test_write_and_read(self):
         self.ops.write_file("hello.txt", "Hello, World!")
         content = self.ops.read_file("hello.txt")
-        self.assertEqual(content, "Hello, World!")
+        assert content == "Hello, World!"
 
     def test_write_creates_parents(self):
         self.ops.write_file("a/b/c/deep.txt", "deep")
-        self.assertTrue((self.root / "a" / "b" / "c" / "deep.txt").exists())
+        assert (self.root / "a" / "b" / "c" / "deep.txt").exists()
 
     def test_read_nonexistent_raises(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             self.ops.read_file("nonexistent.txt")
 
     def test_file_exists(self):
-        self.assertFalse(self.ops.file_exists("nope.txt"))
+        assert not self.ops.file_exists("nope.txt")
         self.ops.write_file("yep.txt", "yes")
-        self.assertTrue(self.ops.file_exists("yep.txt"))
+        assert self.ops.file_exists("yep.txt")
 
     def test_get_file_info(self):
         self.ops.write_file("info.txt", "data")
         info = self.ops.get_file_info("info.txt")
-        self.assertIsInstance(info, FileInfo)
-        self.assertTrue(info.is_file)
-        self.assertFalse(info.is_dir)
-        self.assertGreater(info.size_bytes, 0)
-        self.assertEqual(info.name, "info.txt")
+        assert isinstance(info, FileInfo)
+        assert info.is_file
+        assert not info.is_dir
+        assert info.size_bytes > 0
+        assert info.name == "info.txt"
 
     def test_get_file_info_nonexistent(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             self.ops.get_file_info("missing.txt")
 
     def test_list_directory(self):
@@ -97,50 +95,50 @@ class TestFileOperations(unittest.TestCase):
         self.ops.create_directory("sub")
         entries = self.ops.list_directory(".")
         names = [e.name for e in entries]
-        self.assertIn("a.txt", names)
-        self.assertIn("b.txt", names)
-        self.assertIn("sub", names)
+        assert "a.txt" in names
+        assert "b.txt" in names
+        assert "sub" in names
 
     def test_list_directory_not_a_dir(self):
         self.ops.write_file("file.txt", "x")
-        with self.assertRaises(NotADirectoryError):
+        with pytest.raises(NotADirectoryError):
             self.ops.list_directory("file.txt")
 
     def test_create_directory(self):
         self.ops.create_directory("new/nested/dir")
-        self.assertTrue((self.root / "new" / "nested" / "dir").is_dir())
+        assert (self.root / "new" / "nested" / "dir").is_dir()
 
     def test_move_file(self):
         self.ops.write_file("src.txt", "content")
         self.ops.move_file("src.txt", "dst.txt")
-        self.assertFalse((self.root / "src.txt").exists())
-        self.assertTrue((self.root / "dst.txt").exists())
-        self.assertEqual(self.ops.read_file("dst.txt"), "content")
+        assert not (self.root / "src.txt").exists()
+        assert (self.root / "dst.txt").exists()
+        assert self.ops.read_file("dst.txt") == "content"
 
     def test_move_nonexistent_raises(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             self.ops.move_file("missing.txt", "dst.txt")
 
     def test_delete_file(self):
         self.ops.write_file("del.txt", "gone")
-        self.assertTrue(self.ops.delete_file("del.txt"))
-        self.assertFalse((self.root / "del.txt").exists())
+        assert self.ops.delete_file("del.txt")
+        assert not (self.root / "del.txt").exists()
 
     def test_delete_nonexistent_returns_false(self):
-        self.assertFalse(self.ops.delete_file("nope.txt"))
+        assert not self.ops.delete_file("nope.txt")
 
     def test_delete_directory(self):
         self.ops.create_directory("subdir")
         self.ops.write_file("subdir/file.txt", "x")
-        self.assertTrue(self.ops.delete_file("subdir"))
-        self.assertFalse((self.root / "subdir").exists())
+        assert self.ops.delete_file("subdir")
+        assert not (self.root / "subdir").exists()
 
     def test_traversal_on_write(self):
-        with self.assertRaises(PermissionError):
+        with pytest.raises(PermissionError):
             self.ops.write_file("../../evil.txt", "bad")
 
     def test_traversal_on_read(self):
-        with self.assertRaises(PermissionError):
+        with pytest.raises(PermissionError):
             self.ops.read_file("../../etc/passwd")
 
 
@@ -156,24 +154,24 @@ class TestFileOperationsTool(unittest.TestCase):
 
     def test_write_and_read_via_tool(self):
         result = self.tool.execute(operation="write", path="test.txt", content="hello")
-        self.assertTrue(result.success)
+        assert result.success
         result = self.tool.execute(operation="read", path="test.txt")
-        self.assertTrue(result.success)
-        self.assertEqual(result.output, "hello")
+        assert result.success
+        assert result.output == "hello"
 
     def test_exists_via_tool(self):
         result = self.tool.execute(operation="exists", path="nope.txt")
-        self.assertTrue(result.success)
-        self.assertFalse(result.output)
+        assert result.success
+        assert not result.output
 
     def test_unknown_operation(self):
         result = self.tool.execute(operation="explode", path=".")
-        self.assertFalse(result.success)
+        assert not result.success
 
     def test_traversal_via_tool(self):
         result = self.tool.execute(operation="read", path="../../etc/passwd")
-        self.assertFalse(result.success)
-        self.assertIn("traversal", result.error.lower())
+        assert not result.success
+        assert "traversal" in result.error.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -204,32 +202,32 @@ class TestGitOperations(unittest.TestCase):
 
     def test_status_empty_repo(self):
         r = self.git.status()
-        self.assertTrue(r.success)
+        assert r.success
 
     def test_add_and_commit(self):
         (self.repo / "file.txt").write_text("hello")
         r = self.git.add(["file.txt"])
-        self.assertTrue(r.success)
+        assert r.success
         r = self.git.commit("initial commit")
-        self.assertTrue(r.success)
+        assert r.success
 
     def test_log(self):
         (self.repo / "file.txt").write_text("hello")
         self.git.add(["file.txt"])
         self.git.commit("initial commit")
         r = self.git.log(n=5)
-        self.assertTrue(r.success)
-        self.assertIn("initial commit", r.stdout)
+        assert r.success
+        assert "initial commit" in r.stdout
 
     def test_create_branch_and_checkout(self):
         (self.repo / "file.txt").write_text("hello")
         self.git.add(["file.txt"])
         self.git.commit("initial")
         r = self.git.create_branch("feature")
-        self.assertTrue(r.success)
+        assert r.success
         r = self.git.current_branch()
-        self.assertTrue(r.success)
-        self.assertEqual(r.stdout, "feature")
+        assert r.success
+        assert r.stdout == "feature"
         # Switch back; accept either master or main
         r = self.git.checkout("master")
         if not r.success:
@@ -241,8 +239,8 @@ class TestGitOperations(unittest.TestCase):
         self.git.commit("initial")
         (self.repo / "file.txt").write_text("changed")
         r = self.git.diff()
-        self.assertTrue(r.success)
-        self.assertIn("changed", r.stdout)
+        assert r.success
+        assert "changed" in r.stdout
 
     def test_stash(self):
         (self.repo / "file.txt").write_text("hello")
@@ -251,15 +249,15 @@ class TestGitOperations(unittest.TestCase):
         (self.repo / "file.txt").write_text("changed")
         self.git.add(["file.txt"])
         r = self.git.stash()
-        self.assertTrue(r.success)
+        assert r.success
         r = self.git.stash(pop=True)
-        self.assertTrue(r.success)
+        assert r.success
 
     def test_git_result_to_dict(self):
         r = GitResult(success=True, stdout="ok", stderr="", return_code=0)
         d = r.to_dict()
-        self.assertTrue(d["success"])
-        self.assertEqual(d["stdout"], "ok")
+        assert d["success"]
+        assert d["stdout"] == "ok"
 
 
 class TestGitOperationsTool(unittest.TestCase):
@@ -283,26 +281,26 @@ class TestGitOperationsTool(unittest.TestCase):
 
     def test_status_via_tool(self):
         result = self.tool.execute(operation="status")
-        self.assertTrue(result.success)
+        assert result.success
 
     def test_commit_requires_message(self):
         result = self.tool.execute(operation="commit")
-        self.assertFalse(result.success)
-        self.assertIn("message", result.error)
+        assert not result.success
+        assert "message" in result.error
 
     def test_unknown_operation(self):
         result = self.tool.execute(operation="rebase")
-        self.assertFalse(result.success)
+        assert not result.success
 
     def test_full_workflow(self):
         (self.repo / "f.txt").write_text("data")
         r = self.tool.execute(operation="add", files=["f.txt"])
-        self.assertTrue(r.success)
+        assert r.success
         r = self.tool.execute(operation="commit", message="add file")
-        self.assertTrue(r.success)
+        assert r.success
         r = self.tool.execute(operation="log", n=1)
-        self.assertTrue(r.success)
-        self.assertIn("add file", r.output)
+        assert r.success
+        assert "add file" in r.output
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +321,7 @@ def _sandbox_output(result: ExecutionResult) -> str:
         try:
             data = json.loads(raw[start:end].strip())
             return data.get("output", "") + data.get("errors", "")
-        except json.JSONDecodeError:
+        except json.JSONDecodeError:  # noqa: VET022
             pass
     return raw
 
@@ -340,17 +338,17 @@ class TestSandboxModuleRestrictions(unittest.TestCase):
     def test_blocked_module_raises_import_error(self):
         result = self.sandbox.execute_python("import subprocess")
         output = _sandbox_output(result)
-        self.assertIn("blocked", output.lower())
+        assert "blocked" in output.lower()
 
     def test_allowed_module_works(self):
         result = self.sandbox.execute_python("import math\nprint(math.pi)")
         output = _sandbox_output(result)
-        self.assertIn("3.14", output)
+        assert "3.14" in output
 
     def test_network_blocked_by_default(self):
         result = self.sandbox.execute_python("import socket")
         output = _sandbox_output(result)
-        self.assertIn("blocked", output.lower())
+        assert "blocked" in output.lower()
 
     def test_network_allowed_when_configured(self):
         sandbox = CodeSandbox(
@@ -361,7 +359,7 @@ class TestSandboxModuleRestrictions(unittest.TestCase):
         try:
             result = sandbox.execute_python("import socket\nprint('ok')")
             output = _sandbox_output(result)
-            self.assertIn("ok", output)
+            assert "ok" in output
         finally:
             sandbox.cleanup()
 
@@ -373,7 +371,7 @@ class TestSandboxModuleRestrictions(unittest.TestCase):
         try:
             result = sandbox.execute_python("import csv")
             output = _sandbox_output(result)
-            self.assertIn("blocked", output.lower())
+            assert "blocked" in output.lower()
         finally:
             sandbox.cleanup()
 
@@ -382,13 +380,13 @@ class TestSandboxModuleRestrictions(unittest.TestCase):
             "import time\ntime.sleep(30)",
             timeout=2,
         )
-        self.assertFalse(result.success)
-        self.assertIn("timed out", result.error.lower())
+        assert not result.success
+        assert "timed out" in result.error.lower()
 
     def test_basic_execution_still_works(self):
         result = self.sandbox.execute_python("x = 2 + 3\nprint(x)")
         output = _sandbox_output(result)
-        self.assertIn("5", output)
+        assert "5" in output
 
 
 class TestSandboxExecutionResult(unittest.TestCase):
@@ -397,13 +395,13 @@ class TestSandboxExecutionResult(unittest.TestCase):
     def test_to_dict(self):
         r = ExecutionResult(success=True, output="hello", error="")
         d = r.to_dict()
-        self.assertTrue(d["success"])
-        self.assertEqual(d["output"], "hello")
+        assert d["success"]
+        assert d["output"] == "hello"
 
     def test_default_fields(self):
         r = ExecutionResult(success=False, output="")
-        self.assertEqual(r.return_code, 0)
-        self.assertEqual(r.files_created, [])
+        assert r.return_code == 0
+        assert r.files_created == []
 
 
 # ---------------------------------------------------------------------------
@@ -414,8 +412,8 @@ class TestFileInfo(unittest.TestCase):
     def test_to_dict(self):
         info = FileInfo(path="a.txt", name="a.txt", is_file=True, is_dir=False, size_bytes=42)
         d = info.to_dict()
-        self.assertEqual(d["size_bytes"], 42)
-        self.assertTrue(d["is_file"])
+        assert d["size_bytes"] == 42
+        assert d["is_file"]
 
 
 if __name__ == "__main__":

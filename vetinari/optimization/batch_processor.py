@@ -11,16 +11,16 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_FLUSH_INTERVAL: float = 0.5  # seconds
 _DEFAULT_MAX_BATCH_SIZE: int = 10
 
-_instance: Optional[BatchProcessor] = None
+_instance: BatchProcessor | None = None
 _instance_lock: threading.Lock = threading.Lock()
 
 
@@ -57,7 +57,7 @@ class BatchRequest:
     prompt: str
     system_prompt: str = ""
     priority: Priority = Priority.NORMAL
-    callback: Optional[Callable[[BatchResult], None]] = field(default=None, repr=False)
+    callback: Callable[[BatchResult], None] | None = field(default=None, repr=False)
 
 
 @dataclass
@@ -229,7 +229,7 @@ def make_request(
     model_id: str = "default",
     system_prompt: str = "",
     priority: Priority = Priority.NORMAL,
-    callback: Optional[Callable[[BatchResult], None]] = None,
+    callback: Callable[[BatchResult], None] | None = None,
 ) -> BatchRequest:
     """Create a :class:`BatchRequest` with an auto-generated ID.
 

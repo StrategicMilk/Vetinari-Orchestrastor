@@ -8,28 +8,27 @@ This module provides pluggable adapters for different LLM providers:
 - Google Gemini (cloud)
 """
 
-from .base import (
-    ProviderAdapter, ProviderConfig, ProviderType, ModelInfo, 
-    InferenceRequest, InferenceResponse
-)
+from __future__ import annotations
+
+from .anthropic_adapter import AnthropicProviderAdapter
+from .base import InferenceRequest, InferenceResponse, ModelInfo, ProviderAdapter, ProviderConfig, ProviderType
+from .cohere_adapter import CohereProviderAdapter
+from .gemini_adapter import GeminiProviderAdapter
 from .lmstudio_adapter import LMStudioProviderAdapter
 from .openai_adapter import OpenAIProviderAdapter
-from .cohere_adapter import CohereProviderAdapter
-from .anthropic_adapter import AnthropicProviderAdapter
-from .gemini_adapter import GeminiProviderAdapter
 from .registry import AdapterRegistry
 
 __all__ = [
-    "ProviderAdapter",
-    "ProviderConfig",
-    "ProviderType",
-    "ModelInfo",
+    "AdapterRegistry",
+    "AnthropicProviderAdapter",
+    "CohereProviderAdapter",
+    "GeminiProviderAdapter",
     "InferenceRequest",
     "InferenceResponse",
     "LMStudioProviderAdapter",
+    "ModelInfo",
     "OpenAIProviderAdapter",
-    "CohereProviderAdapter",
-    "AnthropicProviderAdapter",
-    "GeminiProviderAdapter",
-    "AdapterRegistry",
+    "ProviderAdapter",
+    "ProviderConfig",
+    "ProviderType",
 ]

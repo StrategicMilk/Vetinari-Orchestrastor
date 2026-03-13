@@ -1,5 +1,4 @@
-"""
-Batch Processor — vetinari.adapters.batch_processor
+"""Batch Processor — vetinari.adapters.batch_processor.
 
 Queues non-urgent inference requests and flushes them in batches to provider
 batch endpoints (typically 50% cost discount vs. synchronous API calls).
@@ -43,7 +42,7 @@ import time
 import uuid
 from concurrent.futures import Future
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,23 +55,26 @@ _BATCH_ENABLED = os.environ.get("BATCH_ENABLED", "1").lower() not in ("0", "fals
 # Data types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BatchItem:
     """A single queued inference request."""
+
     item_id: str
     provider: str
-    request: Any                        # vetinari.adapters.base.InferenceRequest
-    future: "Future[Any]"
+    request: Any  # vetinari.adapters.base.InferenceRequest
+    future: Future[Any]
     enqueued_at: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class BatchResult:
     """Result for a single batch item."""
+
     item_id: str
-    response: Optional[Any]             # vetinari.adapters.base.InferenceResponse
-    error: Optional[str] = None
+    response: Any | None  # vetinari.adapters.base.InferenceResponse
+    error: str | None = None
     cached: bool = False
 
     @property
@@ -84,6 +86,7 @@ class BatchResult:
 # Provider batch backends
 # ---------------------------------------------------------------------------
 
+
 class _AnthropicBatchBackend:
     """Submits batches to Anthropic /v1/messages/batches."""
 
@@ -92,7 +95,7 @@ class _AnthropicBatchBackend:
         self._api_version = api_version
         self._base_url = "https://api.anthropic.com/v1"
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "x-api-key": self._api_key,
             "anthropic-version": self._api_version,
@@ -100,14 +103,14 @@ class _AnthropicBatchBackend:
             "Content-Type": "application/json",
         }
 
-    def submit(self, items: List[BatchItem]) -> Dict[str, BatchResult]:
+    def submit(self, items: list[BatchItem]) -> dict[str, BatchResult]:
         """Submit batch to Anthropic. Returns mapping item_id -> BatchResult."""
         import requests as _req  # local import to avoid module-level dependency
 
         batch_requests = []
         for item in items:
             req = item.request
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "model": req.model_id,
                 "max_tokens": req.max_tokens,
                 "messages": [{"role": "user", "content": req.prompt}],
@@ -120,10 +123,12 @@ class _AnthropicBatchBackend:
             if req.stop_sequences:
                 payload["stop_sequences"] = req.stop_sequences
 
-            batch_requests.append({
-                "custom_id": item.item_id,
-                "params": payload,
-            })
+            batch_requests.append(
+                {
+                    "custom_id": item.item_id,
+                    "params": payload,
+                }
+            )
 
         try:
             response = _req.post(
@@ -144,13 +149,11 @@ class _AnthropicBatchBackend:
         except Exception as exc:
             logger.error("[Anthropic] Batch submission failed: %s — falling back to sync", exc)
             # Return error results for all items
-            return {
-                item.item_id: BatchResult(item_id=item.item_id, response=None, error=str(exc))
-                for item in items
-            }
+            return {item.item_id: BatchResult(item_id=item.item_id, response=None, error=str(exc)) for item in items}
 
-    def _poll_results(self, batch_id: str, item_ids: set,
-                      poll_interval: float = 5.0, timeout: float = 600.0) -> Dict[str, BatchResult]:
+    def _poll_results(
+        self, batch_id: str, item_ids: set, poll_interval: float = 5.0, timeout: float = 600.0
+    ) -> dict[str, BatchResult]:
         """Poll Anthropic batch until complete."""
         import requests as _req
 
@@ -175,9 +178,10 @@ class _AnthropicBatchBackend:
                         timeout=60,
                     )
                     results_resp.raise_for_status()
-                    batch_results: Dict[str, BatchResult] = {}
+                    batch_results: dict[str, BatchResult] = {}
                     for line in results_resp.text.strip().splitlines():
                         import json
+
                         item_result = json.loads(line)
                         item_id = item_result.get("custom_id", "")
                         if item_result.get("result", {}).get("type") == "succeeded":
@@ -185,9 +189,8 @@ class _AnthropicBatchBackend:
                             output = ""
                             if msg.get("content"):
                                 output = msg["content"][0].get("text", "")
-                            tokens = (
-                                msg.get("usage", {}).get("input_tokens", 0)
-                                + msg.get("usage", {}).get("output_tokens", 0)
+                            tokens = msg.get("usage", {}).get("input_tokens", 0) + msg.get("usage", {}).get(
+                                "output_tokens", 0
                             )
                             cached = msg.get("usage", {}).get("cache_read_input_tokens", 0) > 0
                             inf_resp = InferenceResponse(
@@ -197,14 +200,10 @@ class _AnthropicBatchBackend:
                                 tokens_used=tokens,
                                 status="ok",
                             )
-                            batch_results[item_id] = BatchResult(
-                                item_id=item_id, response=inf_resp, cached=cached
-                            )
+                            batch_results[item_id] = BatchResult(item_id=item_id, response=inf_resp, cached=cached)
                         else:
                             err = str(item_result.get("result", {}).get("error", "unknown"))
-                            batch_results[item_id] = BatchResult(
-                                item_id=item_id, response=None, error=err
-                            )
+                            batch_results[item_id] = BatchResult(item_id=item_id, response=None, error=err)
                     return batch_results
             except Exception as poll_exc:
                 logger.warning("[Anthropic] Batch poll error: %s", poll_exc)
@@ -213,8 +212,7 @@ class _AnthropicBatchBackend:
 
         # Timeout
         return {
-            item_id: BatchResult(item_id=item_id, response=None, error="Batch poll timeout")
-            for item_id in item_ids
+            item_id: BatchResult(item_id=item_id, response=None, error="Batch poll timeout") for item_id in item_ids
         }
 
 
@@ -225,16 +223,17 @@ class _OpenAIBatchBackend:
         self._api_key = api_key
         self._base_url = "https://api.openai.com/v1"
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
 
-    def submit(self, items: List[BatchItem]) -> Dict[str, BatchResult]:
+    def submit(self, items: list[BatchItem]) -> dict[str, BatchResult]:
         """Submit batch to OpenAI. Returns mapping item_id -> BatchResult."""
         import io
         import json
+
         import requests as _req
 
         # Build JSONL file
@@ -246,7 +245,7 @@ class _OpenAIBatchBackend:
                 messages.append({"role": "system", "content": req.system_prompt})
             messages.append({"role": "user", "content": req.prompt})
 
-            body: Dict[str, Any] = {
+            body: dict[str, Any] = {
                 "model": req.model_id,
                 "messages": messages,
                 "temperature": req.temperature,
@@ -256,12 +255,16 @@ class _OpenAIBatchBackend:
             if req.stop_sequences:
                 body["stop"] = req.stop_sequences[:4]
 
-            jsonl_lines.append(json.dumps({
-                "custom_id": item.item_id,
-                "method": "POST",
-                "url": "/v1/chat/completions",
-                "body": body,
-            }))
+            jsonl_lines.append(
+                json.dumps(
+                    {
+                        "custom_id": item.item_id,
+                        "method": "POST",
+                        "url": "/v1/chat/completions",
+                        "body": body,
+                    }
+                )
+            )
 
         jsonl_content = "\n".join(jsonl_lines).encode("utf-8")
 
@@ -296,16 +299,16 @@ class _OpenAIBatchBackend:
 
         except Exception as exc:
             logger.error("[OpenAI] Batch submission failed: %s — falling back to sync", exc)
-            return {
-                item.item_id: BatchResult(item_id=item.item_id, response=None, error=str(exc))
-                for item in items
-            }
+            return {item.item_id: BatchResult(item_id=item.item_id, response=None, error=str(exc)) for item in items}
 
-    def _poll_results(self, batch_id: str, item_ids: set,
-                      poll_interval: float = 10.0, timeout: float = 86400.0) -> Dict[str, BatchResult]:
+    def _poll_results(
+        self, batch_id: str, item_ids: set, poll_interval: float = 10.0, timeout: float = 86400.0
+    ) -> dict[str, BatchResult]:
         """Poll OpenAI batch until complete."""
         import json
+
         import requests as _req
+
         from vetinari.adapters.base import InferenceResponse
 
         deadline = time.time() + timeout
@@ -332,7 +335,7 @@ class _OpenAIBatchBackend:
                     )
                     file_resp.raise_for_status()
 
-                    batch_results: Dict[str, BatchResult] = {}
+                    batch_results: dict[str, BatchResult] = {}
                     for line in file_resp.text.strip().splitlines():
                         item_result = json.loads(line)
                         item_id = item_result.get("custom_id", "")
@@ -340,9 +343,9 @@ class _OpenAIBatchBackend:
                         if resp_body.get("choices"):
                             output = resp_body["choices"][0].get("message", {}).get("content", "")
                             tokens = resp_body.get("usage", {}).get("total_tokens", 0)
-                            cached = resp_body.get("usage", {}).get(
-                                "prompt_tokens_details", {}
-                            ).get("cached_tokens", 0) > 0
+                            cached = (
+                                resp_body.get("usage", {}).get("prompt_tokens_details", {}).get("cached_tokens", 0) > 0
+                            )
                             inf_resp = InferenceResponse(
                                 model_id=resp_body.get("model", ""),
                                 output=output,
@@ -350,14 +353,10 @@ class _OpenAIBatchBackend:
                                 tokens_used=tokens,
                                 status="ok",
                             )
-                            batch_results[item_id] = BatchResult(
-                                item_id=item_id, response=inf_resp, cached=cached
-                            )
+                            batch_results[item_id] = BatchResult(item_id=item_id, response=inf_resp, cached=cached)
                         else:
                             err = str(item_result.get("error", "unknown"))
-                            batch_results[item_id] = BatchResult(
-                                item_id=item_id, response=None, error=err
-                            )
+                            batch_results[item_id] = BatchResult(item_id=item_id, response=None, error=err)
                     return batch_results
 
                 elif status in ("failed", "expired", "cancelled"):
@@ -378,9 +377,9 @@ class _OpenAIBatchBackend:
 # BatchProcessor
 # ---------------------------------------------------------------------------
 
+
 class BatchProcessor:
-    """
-    Queues non-urgent inference requests and flushes them in batches.
+    """Queues non-urgent inference requests and flushes them in batches.
 
     Batching provides ~50% cost discount on supported providers.
     For unsupported providers, falls back to sequential sync calls.
@@ -398,15 +397,17 @@ class BatchProcessor:
         self.max_batch_size = max_batch_size
         self.enabled = enabled
 
-        self._queue: Dict[str, List[BatchItem]] = {}   # provider -> items
+        self._queue: dict[str, list[BatchItem]] = {}  # provider -> items
         self._lock = threading.Lock()
-        self._flush_thread: Optional[threading.Thread] = None
+        self._flush_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
-        self._backends: Dict[str, Any] = {}
+        self._backends: dict[str, Any] = {}
 
         logger.info(
             "BatchProcessor initialized (enabled=%s, flush_interval=%.0fs, max_batch=%d)",
-            enabled, flush_interval, max_batch_size,
+            enabled,
+            flush_interval,
+            max_batch_size,
         )
 
     def register_backend(self, provider: str, backend: Any) -> None:
@@ -422,10 +423,8 @@ class BatchProcessor:
         """Convenience method to register OpenAI batch backend."""
         self.register_backend("openai", _OpenAIBatchBackend(api_key))
 
-    def enqueue(self, request: Any, provider: str = "anthropic",
-                metadata: Optional[Dict[str, Any]] = None) -> "Future[Any]":
-        """
-        Enqueue a request for batch processing.
+    def enqueue(self, request: Any, provider: str = "anthropic", metadata: dict[str, Any] | None = None) -> Future[Any]:
+        """Enqueue a request for batch processing.
 
         Args:
             request: InferenceRequest to process.
@@ -467,9 +466,8 @@ class BatchProcessor:
 
         return future
 
-    def flush(self, provider: Optional[str] = None) -> int:
-        """
-        Flush queued requests immediately.
+    def flush(self, provider: str | None = None) -> int:
+        """Flush queued requests immediately.
 
         Args:
             provider: Specific provider to flush, or None for all.
@@ -515,40 +513,48 @@ class BatchProcessor:
                     err = result.error if result else "No result returned"
                     # Return error response rather than exception so callers can handle gracefully
                     from vetinari.adapters.base import InferenceResponse
-                    item.future.set_result(InferenceResponse(
-                        model_id=item.request.model_id,
-                        output="",
-                        latency_ms=0,
-                        tokens_used=0,
-                        status="error",
-                        error=err,
-                    ))
+
+                    item.future.set_result(
+                        InferenceResponse(
+                            model_id=item.request.model_id,
+                            output="",
+                            latency_ms=0,
+                            tokens_used=0,
+                            status="error",
+                            error=err,
+                        )
+                    )
         except Exception as exc:
             logger.error("Batch flush failed for %s: %s", provider, exc)
             from vetinari.adapters.base import InferenceResponse
+
             for item in items:
                 if not item.future.done():
-                    item.future.set_result(InferenceResponse(
-                        model_id=item.request.model_id,
-                        output="",
-                        latency_ms=0,
-                        tokens_used=0,
-                        status="error",
-                        error=str(exc),
-                    ))
+                    item.future.set_result(
+                        InferenceResponse(
+                            model_id=item.request.model_id,
+                            output="",
+                            latency_ms=0,
+                            tokens_used=0,
+                            status="error",
+                            error=str(exc),
+                        )
+                    )
 
         return len(items)
 
-    def _execute_sync(self, request: Any, provider: str, future: "Future[Any]") -> None:
+    def _execute_sync(self, request: Any, provider: str, future: Future[Any]) -> None:
         """Execute a single request synchronously and resolve the future."""
         try:
             from vetinari.adapter_manager import get_adapter_manager
+
             manager = get_adapter_manager()
             adapter = manager.get_adapter(provider)
             if adapter:
                 response = adapter.infer(request)
             else:
                 from vetinari.adapters.base import InferenceResponse
+
                 response = InferenceResponse(
                     model_id=request.model_id,
                     output="",
@@ -560,14 +566,17 @@ class BatchProcessor:
             future.set_result(response)
         except Exception as exc:
             from vetinari.adapters.base import InferenceResponse
-            future.set_result(InferenceResponse(
-                model_id=getattr(request, "model_id", "unknown"),
-                output="",
-                latency_ms=0,
-                tokens_used=0,
-                status="error",
-                error=str(exc),
-            ))
+
+            future.set_result(
+                InferenceResponse(
+                    model_id=getattr(request, "model_id", "unknown"),
+                    output="",
+                    latency_ms=0,
+                    tokens_used=0,
+                    status="error",
+                    error=str(exc),
+                )
+            )
 
     def _ensure_flush_thread(self) -> None:
         """Start background flush thread if not already running."""
@@ -596,7 +605,7 @@ class BatchProcessor:
         # Final flush
         self.flush()
 
-    def get_queue_stats(self) -> Dict[str, Any]:
+    def get_queue_stats(self) -> dict[str, Any]:
         """Return current queue statistics."""
         with self._lock:
             return {
@@ -614,7 +623,7 @@ class BatchProcessor:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_batch_processor: Optional[BatchProcessor] = None
+_batch_processor: BatchProcessor | None = None
 _bp_lock = threading.Lock()
 
 

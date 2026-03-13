@@ -9,14 +9,11 @@ Covers the three core learning subsystems that had 0% test coverage:
 Also tests the integration chain: Score → Feedback → Sampling
 """
 
-import json
 import os
 import random
-import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # QualityScorer Tests
@@ -132,7 +129,7 @@ class TestQualityScorer:
 
     def test_score_persistence(self, scorer, tmp_path):
         """Verify scores persist to SQLite."""
-        score = scorer.score(
+        scorer.score(
             task_id="persist1", model_id="m1", task_type="coding",
             task_description="test", output="def foo(): pass",
             use_llm=False,
@@ -439,7 +436,7 @@ class TestThompsonSamplingSelector:
 
         def update_arm(model_id, n):
             try:
-                for i in range(n):
+                for _i in range(n):
                     selector.update(model_id, "coding", random.random(), random.random() > 0.3)
             except Exception as e:
                 errors.append(e)
@@ -469,9 +466,9 @@ class TestLearningChainIntegration:
 
     def test_full_chain(self, tmp_path):
         """Simulate the chain: QualityScorer → FeedbackLoop → ThompsonSampling."""
-        from vetinari.learning.quality_scorer import QualityScorer
         from vetinari.learning.feedback_loop import FeedbackLoop
         from vetinari.learning.model_selector import ThompsonSamplingSelector
+        from vetinari.learning.quality_scorer import QualityScorer
 
         os.environ["VETINARI_STATE_DIR"] = str(tmp_path / ".vetinari")
         db_path = str(tmp_path / "quality.db")
@@ -519,8 +516,8 @@ class TestLearningChainIntegration:
 
     def test_chain_convergence(self, tmp_path):
         """After many iterations, good models should be strongly preferred."""
-        from vetinari.learning.quality_scorer import QualityScorer
         from vetinari.learning.model_selector import ThompsonSamplingSelector
+        from vetinari.learning.quality_scorer import QualityScorer
 
         os.environ["VETINARI_STATE_DIR"] = str(tmp_path / ".vetinari")
         db_path = str(tmp_path / "quality.db")

@@ -1,6 +1,5 @@
 """Coverage tests for vetinari/plan_api.py Flask blueprint — Phase 7D"""
 import json
-import os
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -8,6 +7,7 @@ from unittest.mock import MagicMock, patch
 def _make_app():
     """Create a minimal Flask app with the plan_api blueprint registered."""
     from flask import Flask
+
     from vetinari.plan_api import plan_api
     app = Flask(__name__)
     app.register_blueprint(plan_api)
@@ -26,7 +26,7 @@ class TestRequireAdminToken(unittest.TestCase):
         r = self.client.post("/api/plan/generate",
                              data=json.dumps({"goal": "test"}),
                              content_type="application/json")
-        self.assertEqual(r.status_code, 401)
+        assert r.status_code == 401
 
     @patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", "")
     def test_no_token_required_when_empty(self):
@@ -35,7 +35,7 @@ class TestRequireAdminToken(unittest.TestCase):
                                  data=json.dumps({"goal": "test"}),
                                  content_type="application/json")
             # 400/503 because plan mode disabled — but not 401
-            self.assertNotEqual(r.status_code, 401)
+            assert r.status_code != 401
 
     @patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", "tok")
     def test_correct_bearer_token_allowed(self):
@@ -44,7 +44,7 @@ class TestRequireAdminToken(unittest.TestCase):
                                  headers={"Authorization": "Bearer tok"},
                                  data=json.dumps({"goal": "test"}),
                                  content_type="application/json")
-            self.assertNotEqual(r.status_code, 401)
+            assert r.status_code != 401
 
 
 class TestCheckPlanModeEnabled(unittest.TestCase):
@@ -53,15 +53,15 @@ class TestCheckPlanModeEnabled(unittest.TestCase):
         with patch("vetinari.plan_api.PLAN_MODE_ENABLE", True):
             from vetinari.plan_api import check_plan_mode_enabled
             enabled, err = check_plan_mode_enabled()
-            self.assertTrue(enabled)
-            self.assertIsNone(err)
+            assert enabled
+            assert err is None
 
     def test_disabled(self):
         with patch("vetinari.plan_api.PLAN_MODE_ENABLE", False):
             from vetinari.plan_api import check_plan_mode_enabled
             enabled, err = check_plan_mode_enabled()
-            self.assertFalse(enabled)
-            self.assertIsNotNone(err)
+            assert not enabled
+            assert err is not None
 
 
 class TestPlanGenerateEndpoint(unittest.TestCase):
@@ -77,7 +77,7 @@ class TestPlanGenerateEndpoint(unittest.TestCase):
                              data=json.dumps({"goal": "test goal"}),
                              content_type="application/json")
         # 400 = plan mode disabled, 403 = auth required, 503 = unavailable
-        self.assertIn(r.status_code, [400, 403, 503])
+        assert r.status_code in [400, 403, 503]
 
     @patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", "")
     @patch("vetinari.plan_api.PLAN_MODE_ENABLE", True)
@@ -85,7 +85,7 @@ class TestPlanGenerateEndpoint(unittest.TestCase):
         r = self.client.post("/api/plan/generate",
                              data=json.dumps({}),
                              content_type="application/json")
-        self.assertEqual(r.status_code, 400)
+        assert r.status_code == 400
 
     @patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", "")
     @patch("vetinari.plan_api.PLAN_MODE_ENABLE", True)
@@ -100,7 +100,7 @@ class TestPlanGenerateEndpoint(unittest.TestCase):
                 data=json.dumps({"goal": "build something"}),
                 content_type="application/json",
             )
-            self.assertIn(r.status_code, [200, 500])
+            assert r.status_code in [200, 500]
 
 
 class TestPlanStatusEndpoint(unittest.TestCase):
@@ -112,7 +112,7 @@ class TestPlanStatusEndpoint(unittest.TestCase):
     @patch("vetinari.plan_api.PLAN_ADMIN_TOKEN", "")
     def test_get_nonexistent_plan(self):
         r = self.client.get("/api/plan/nonexistent-plan-id/status")
-        self.assertIn(r.status_code, [404, 200, 500])
+        assert r.status_code in [404, 200, 500]
 
 
 class TestPlanListEndpoint(unittest.TestCase):
@@ -125,10 +125,10 @@ class TestPlanListEndpoint(unittest.TestCase):
     def test_list_plans_returns_list(self):
         r = self.client.get("/api/plan/list")
         # 200 (OK), 404 (no plans), or 500 (environment permission issue e.g. read-only filesystem)
-        self.assertIn(r.status_code, [200, 404, 500])
+        assert r.status_code in [200, 404, 500]
         if r.status_code == 200:
             data = json.loads(r.data)
-            self.assertIn("plans", data)
+            assert "plans" in data
 
 
 if __name__ == "__main__":

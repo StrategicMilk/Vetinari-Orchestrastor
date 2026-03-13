@@ -17,6 +17,8 @@ Usage::
     app.register_blueprint(log_stream_bp)
 """
 
+from __future__ import annotations
+
 import logging
 import queue
 
@@ -54,7 +56,7 @@ def stream_logs():
                 except queue.Empty:
                     # Keepalive comment to prevent proxy / browser timeout
                     yield ": keepalive\n\n"
-        except GeneratorExit:
+        except GeneratorExit:  # noqa: VET022
             pass
         finally:
             backend.remove_client(q)

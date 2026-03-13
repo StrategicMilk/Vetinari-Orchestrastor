@@ -1,5 +1,13 @@
-I am working on a Windows 11 PC with 64 GB of DDR5-6000 RAM, a 9950X3D CPU, and an RTX 5090 GPU (32 GB VRAM). I use LM Studio to host local LLMs. My primary model is qwen3-vl-32b-gemini-heretic-uncensored-thinking. I also use other models including: zai-org_glm-4.7-flash@q8_0, glm-4.7-flash-uncensored-heretic-neo-code-imatrix-max, and qwen3-coder-next. My LM Studio server is hosted at http://100.78.30.7:1234 (Tailscale) or http://localhost:1234.
+I am working on a Windows 11 PC with 64 GB of DDR5-6000 RAM, a 9950X3D CPU, and an RTX 5090 GPU (32 GB VRAM). I use LM Studio to host local LLMs. My LM Studio server runs on the local network.
 
 I do not know very much about coding, and am relying on you to automate as much coding/software generation as possible. If it is something you cannot handle, I need you to provide detailed instructions and links to required software. It is best not to assume I know something without context.
 
 Always double-check your work to ensure there are little to no typos or errors. Make an effort to catch and prevent hallucinations. If more context is needed to provide the best response, pause and ask me for more context before continuing, then factor in the information I provide.
+
+When generating Python code, follow these conventions:
+- Target Python 3.10+ with `from __future__ import annotations`
+- Use type annotations on all function signatures
+- Use Google-style docstrings
+- Use logging instead of print() in production code
+- Use pathlib.Path for file operations
+- Use dataclasses for structured data

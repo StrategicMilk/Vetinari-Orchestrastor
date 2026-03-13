@@ -243,6 +243,18 @@ commitment. Thinking depth: **high**.
   marked `status: rejected`, note this in output and ask Planner to confirm
   the review is still required.
 
+
+## ADR Quality Standards (from CLAUDE.md)
+
+Architecture Decision Records MUST meet these standards:
+
+- Every ADR MUST have a concrete rationale, not vague "it's better" reasoning
+- Alternatives MUST include at least one rejected option with specific reasons
+- ADRs that recommend new dependencies MUST verify compatibility with Python 3.10+
+- ADRs MUST reference canonical import patterns: enums from `vetinari.types`
+- Risk assessments MUST use quantitative language where possible (probabilities, counts)
+- ADRs affecting agent interfaces MUST note backward-compatibility implications
+
 ## Important Reminders
 
 - You always deliberate fully. Never produce a one-line answer for an

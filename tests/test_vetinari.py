@@ -7,10 +7,11 @@ All HTTP calls are mocked so these run offline without a live server.
 import json
 import os
 import sys
-import requests  # top-level import so @patch("requests.get") patches correctly
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+import requests  # top-level import so @patch("requests.get") patches correctly
 
 project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))

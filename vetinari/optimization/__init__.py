@@ -1,11 +1,16 @@
 """Vetinari optimization module — cost reduction and performance."""
 
-from vetinari.optimization.prompt_cache import get_prompt_cache, PromptCache
-from vetinari.optimization.batch_processor import get_batch_processor, BatchProcessor
-from vetinari.optimization.semantic_cache import get_semantic_cache, SemanticCache
+from __future__ import annotations
+
+from vetinari.optimization.batch_processor import BatchProcessor, get_batch_processor
+from vetinari.optimization.prompt_cache import PromptCache, get_prompt_cache
+from vetinari.optimization.semantic_cache import SemanticCache, get_semantic_cache
 
 __all__ = [
-    "get_prompt_cache", "PromptCache",
-    "get_batch_processor", "BatchProcessor",
-    "get_semantic_cache", "SemanticCache",
+    "BatchProcessor",
+    "PromptCache",
+    "SemanticCache",
+    "get_batch_processor",
+    "get_prompt_cache",
+    "get_semantic_cache",
 ]

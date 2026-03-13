@@ -1,5 +1,5 @@
-"""
-Central Integration Wiring for Vetinari
+"""Central Integration Wiring for Vetinari.
+
 ========================================
 
 Connects the previously-disconnected subsystems together:
@@ -21,7 +21,7 @@ Usage
 
     manager = get_integration_manager()
     manager.wire_all()
-    print(manager.get_status())
+    logger.debug(manager.get_status())
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import importlib
 import inspect
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +38,10 @@ logger = logging.getLogger(__name__)
 class IntegrationManager:
     """Wires all Vetinari subsystems together."""
 
-    _instance: Optional["IntegrationManager"] = None
+    _instance: IntegrationManager | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "IntegrationManager":
+    def __new__(cls) -> IntegrationManager:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -51,8 +51,8 @@ class IntegrationManager:
 
     def _setup(self) -> None:
         self._wired = False
-        self._wiring_results: Dict[str, str] = {}  # subsystem -> status
-        self._registered_skills: List[str] = []
+        self._wiring_results: dict[str, str] = {}  # subsystem -> status
+        self._registered_skills: list[str] = []
         self._drift_pre_check = None  # Set by _wire_drift_to_orchestration
 
     # ------------------------------------------------------------------
@@ -83,6 +83,7 @@ class IntegrationManager:
         """Ensure learning API blueprint is importable and ready."""
         try:
             from vetinari.web.learning_api import learning_bp  # noqa: F401
+
             self._wiring_results["learning_to_dashboard"] = "ok"
             logger.info("Integration: learning -> dashboard wired")
         except Exception as e:
@@ -101,6 +102,7 @@ class IntegrationManager:
         """
         try:
             from vetinari.drift.monitor import get_drift_monitor
+
             monitor = get_drift_monitor()
 
             # Expose a lightweight pre-check function that orchestration
@@ -114,7 +116,7 @@ class IntegrationManager:
             self._wiring_results["drift_to_orchestration"] = f"error: {e}"
             logger.warning("Integration: drift -> orchestration failed: %s", e)
 
-    def run_drift_pre_check(self) -> Dict[str, Any]:
+    def run_drift_pre_check(self) -> dict[str, Any]:
         """Run a lightweight drift pre-check if wired.
 
         Returns a dict with ``is_clean`` and optional ``issues``.
@@ -131,6 +133,7 @@ class IntegrationManager:
         """Ensure analytics API blueprint is importable and ready."""
         try:
             from vetinari.web.analytics_api import analytics_bp  # noqa: F401
+
             self._wiring_results["analytics_to_dashboard"] = "ok"
             logger.info("Integration: analytics -> dashboard wired")
         except Exception as e:
@@ -153,17 +156,17 @@ class IntegrationManager:
         try:
             from vetinari.security import get_secret_scanner
             from vetinari.validation.verification import (
-                get_verifier_pipeline,
                 SecurityVerifier as _ExistingSecurityVerifier,
+            )
+            from vetinari.validation.verification import (
+                get_verifier_pipeline,
             )
 
             pipeline = get_verifier_pipeline()
             scanner = get_secret_scanner()
 
             # Check if a SecurityVerifier is already present
-            has_security = any(
-                v.name == "security" for v in pipeline.verifiers
-            )
+            has_security = any(v.name == "security" for v in pipeline.verifiers)
 
             if not has_security:
                 # Re-add the built-in SecurityVerifier
@@ -193,7 +196,7 @@ class IntegrationManager:
             from vetinari.tool_interface import Tool, get_tool_registry
 
             registry = get_tool_registry()
-            registered: List[str] = []
+            registered: list[str] = []
 
             skill_modules = [
                 "vetinari.tools.builder_skill",
@@ -230,7 +233,9 @@ class IntegrationManager:
                             except Exception as inst_err:
                                 logger.debug(
                                     "Could not instantiate %s from %s: %s",
-                                    _attr_name, mod_name, inst_err,
+                                    _attr_name,
+                                    mod_name,
+                                    inst_err,
                                 )
                 except Exception as mod_err:
                     logger.debug("Could not import skill module %s: %s", mod_name, mod_err)
@@ -249,7 +254,7 @@ class IntegrationManager:
     # Status / introspection
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return integration health status."""
         return {
             "wired": self._wired,
@@ -258,7 +263,7 @@ class IntegrationManager:
             "registered_skill_count": len(self._registered_skills),
         }
 
-    def get_registered_skills(self) -> List[str]:
+    def get_registered_skills(self) -> list[str]:
         """Return list of auto-registered skill names."""
         return list(self._registered_skills)
 
@@ -267,10 +272,11 @@ class IntegrationManager:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_drift_pre_check(monitor):
     """Return a callable that performs a lightweight drift status check."""
 
-    def _pre_check() -> Dict[str, Any]:
+    def _pre_check() -> dict[str, Any]:
         try:
             last = monitor.get_last_report()
             if last is not None:
@@ -289,6 +295,7 @@ def _make_drift_pre_check(monitor):
 # ---------------------------------------------------------------------------
 # Singleton helpers
 # ---------------------------------------------------------------------------
+
 
 def get_integration_manager() -> IntegrationManager:
     """Return the global IntegrationManager singleton."""

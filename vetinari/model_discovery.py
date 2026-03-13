@@ -4,12 +4,15 @@ Merges ``vetinari.model_search`` and ``vetinari.live_model_search`` into a
 single implementation.  Both legacy modules are now thin shims that re-export
 from here.
 """
+
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -29,12 +32,13 @@ _CACHE_TTL_DAYS = 7
 # Data classes
 # ---------------------------------------------------------------------------
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field  # noqa: E402
 
 
 @dataclass
 class ModelSource:
-    """Provenance record – kept for backward compat with model_search callers."""
+    """Provenance record -- kept for backward compat with model_search callers."""
+
     source_type: str
     url: str
     last_checked: str = ""
@@ -46,7 +50,7 @@ class ModelCandidate:
     id: str
     name: str
     source_type: str
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
     memory_gb: int = 2
     context_len: int = 2048
     version: str = ""
@@ -56,21 +60,23 @@ class ModelCandidate:
     sentiment_score: float = 0.0
     recency_score: float = 1.0
     final_score: float = 0.0
-    provenance: List[Any] = field(default_factory=list)  # List[Dict] or List[ModelSource]
+    provenance: list[Any] = field(default_factory=list)  # List[Dict] or List[ModelSource]
     short_rationale: str = ""
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         provenance_out = []
         for p in self.provenance:
             if isinstance(p, dict):
                 provenance_out.append(p)
             else:
-                provenance_out.append({
-                    "source_type": p.source_type,
-                    "url": p.url,
-                    "last_checked": p.last_checked,
-                    "confidence": p.confidence,
-                })
+                provenance_out.append(
+                    {
+                        "source_type": p.source_type,
+                        "url": p.url,
+                        "last_checked": p.last_checked,
+                        "confidence": p.confidence,
+                    }
+                )
         return {
             "id": self.id,
             "name": self.name,
@@ -94,7 +100,8 @@ class ModelCandidate:
 # Cache helpers
 # ---------------------------------------------------------------------------
 
-def _load_from_cache(cache_file: Path) -> Optional[List[ModelCandidate]]:
+
+def _load_from_cache(cache_file: Path) -> list[ModelCandidate] | None:
     """Return cached candidates if file exists and is fresh, else None."""
     if not cache_file.exists():
         return None
@@ -110,7 +117,7 @@ def _load_from_cache(cache_file: Path) -> Optional[List[ModelCandidate]]:
         return None
 
 
-def _save_to_cache(cache_file: Path, candidates: List[ModelCandidate]) -> None:
+def _save_to_cache(cache_file: Path, candidates: list[ModelCandidate]) -> None:
     try:
         with open(cache_file, "w") as f:
             json.dump([c.to_dict() for c in candidates], f)
@@ -122,6 +129,7 @@ def _save_to_cache(cache_file: Path, candidates: List[ModelCandidate]) -> None:
 # Source adapters
 # ---------------------------------------------------------------------------
 
+
 class HuggingFaceAdapter:
     def __init__(self):
         self.api_url = HF_API_URL
@@ -131,7 +139,7 @@ class HuggingFaceAdapter:
             self.session.headers.update({"Authorization": f"Bearer {self.token}"})
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
-    def search_models(self, query: str, limit: int = 10) -> List[ModelCandidate]:
+    def search_models(self, query: str, limit: int = 10) -> list[ModelCandidate]:
         candidates = []
         try:
             response = self.session.get(
@@ -149,7 +157,7 @@ class HuggingFaceAdapter:
             logger.error("HF search error: %s", e)
         return candidates
 
-    def _parse_model(self, model: Dict) -> ModelCandidate:
+    def _parse_model(self, model: dict) -> ModelCandidate:
         model_id = model.get("id", "")
         last_modified = model.get("lastModified", "")
         metrics = model.get("metrics", [])
@@ -174,12 +182,14 @@ class HuggingFaceAdapter:
             hard_data_score=hard_data,
             benchmark_score=0.7,
             sentiment_score=min(0.5 + (model.get("likes", 0) / 1000), 1.0),
-            provenance=[{
-                "source_type": "huggingface",
-                "url": f"https://huggingface.co/{model_id}",
-                "last_checked": datetime.now().isoformat(),
-                "confidence": 0.9,
-            }],
+            provenance=[
+                {
+                    "source_type": "huggingface",
+                    "url": f"https://huggingface.co/{model_id}",
+                    "last_checked": datetime.now().isoformat(),
+                    "confidence": 0.9,
+                }
+            ],
             short_rationale=(
                 f"HF model with {model.get('likes', 0)} likes, "
                 f"{model.get('downloads', 0)} downloads. "
@@ -196,8 +206,8 @@ class RedditAdapter:
         if self.token:
             self.session.headers.update({"Authorization": f"Bearer {self.token}"})
 
-    def search_local_llm_posts(self, query: str, limit: int = 10) -> List[ModelCandidate]:
-        candidates: List[ModelCandidate] = []
+    def search_local_llm_posts(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        candidates: list[ModelCandidate] = []
         for subreddit in ["LocalLLaMA", "MachineLearning", "LLM", "LanguageTechnology"]:
             try:
                 response = self.session.get(
@@ -215,7 +225,7 @@ class RedditAdapter:
                 logger.warning("Reddit search error for %s: %s", subreddit, e)
         return candidates[:limit]
 
-    def _parse_post(self, post: Dict, subreddit: str) -> Optional[ModelCandidate]:
+    def _parse_post(self, post: dict, subreddit: str) -> ModelCandidate | None:
         title = post.get("title", "")
         score = post.get("score", 0)
         num_comments = post.get("num_comments", 0)
@@ -242,19 +252,31 @@ class RedditAdapter:
             hard_data_score=0.3,
             benchmark_score=0.4,
             sentiment_score=sentiment,
-            provenance=[{
-                "source_type": "reddit",
-                "url": f"https://reddit.com{post.get('permalink', '')}",
-                "last_checked": datetime.now().isoformat(),
-                "confidence": 0.6,
-            }],
+            provenance=[
+                {
+                    "source_type": "reddit",
+                    "url": f"https://reddit.com{post.get('permalink', '')}",
+                    "last_checked": datetime.now().isoformat(),
+                    "confidence": 0.6,
+                }
+            ],
             short_rationale=f"Mentioned in r/{subreddit}: {score} upvotes, {num_comments} comments",
         )
 
-    def _extract_model_mentions(self, text: str) -> List[str]:
+    def _extract_model_mentions(self, text: str) -> list[str]:
         known_models = [
-            "Qwen", "Llama", "Mistral", "DeepSeek", "CodeLlama", "Gemma",
-            "Phi", "Yi", "StarCoder", "Mixtral", "Command-R", "Haiku",
+            "Qwen",
+            "Llama",
+            "Mistral",
+            "DeepSeek",
+            "CodeLlama",
+            "Gemma",
+            "Phi",
+            "Yi",
+            "StarCoder",
+            "Mixtral",
+            "Command-R",
+            "Haiku",
         ]
         text_lower = text.lower()
         return [m for m in known_models if m.lower() in text_lower]
@@ -269,7 +291,7 @@ class GitHubAdapter:
             self.session.headers.update({"Authorization": f"token {self.token}"})
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
-    def search_repos(self, query: str, limit: int = 10) -> List[ModelCandidate]:
+    def search_repos(self, query: str, limit: int = 10) -> list[ModelCandidate]:
         candidates = []
         try:
             response = self.session.get(
@@ -287,7 +309,7 @@ class GitHubAdapter:
             logger.error("GitHub search error: %s", e)
         return candidates
 
-    def _parse_repo(self, repo: Dict) -> ModelCandidate:
+    def _parse_repo(self, repo: dict) -> ModelCandidate:
         full_name = repo.get("full_name", "")
         name = full_name.split("/")[-1] if "/" in full_name else repo.get("name", "")
         stars = repo.get("stargazers_count", 0)
@@ -308,12 +330,14 @@ class GitHubAdapter:
             hard_data_score=0.4,
             benchmark_score=0.5,
             sentiment_score=min(0.4 + (stars / 5000), 1.0),
-            provenance=[{
-                "source_type": "github",
-                "url": repo.get("html_url", ""),
-                "last_checked": datetime.now().isoformat(),
-                "confidence": 0.7,
-            }],
+            provenance=[
+                {
+                    "source_type": "github",
+                    "url": repo.get("html_url", ""),
+                    "last_checked": datetime.now().isoformat(),
+                    "confidence": 0.7,
+                }
+            ],
             short_rationale=f"GitHub repo with {stars} stars, updated {updated[:10] if updated else 'recently'}",
         )
 
@@ -324,12 +348,10 @@ class PapersWithCodeAdapter:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
-    def search_papers(self, query: str, limit: int = 10) -> List[ModelCandidate]:
+    def search_papers(self, query: str, limit: int = 10) -> list[ModelCandidate]:
         candidates = []
         try:
-            response = self.session.get(
-                f"{self.api_url}/papers/", params={"search": query}, timeout=30
-            )
+            response = self.session.get(f"{self.api_url}/papers/", params={"search": query}, timeout=30)
             if response.status_code == 200:
                 for paper in response.json().get("results", [])[:limit]:
                     try:
@@ -340,7 +362,7 @@ class PapersWithCodeAdapter:
             logger.error("PapersWithCode search error: %s", e)
         return candidates
 
-    def _parse_paper(self, paper: Dict) -> ModelCandidate:
+    def _parse_paper(self, paper: dict) -> ModelCandidate:
         title = paper.get("title", "")
         arxiv_id = paper.get("arxiv_id", "")
         benchmarks = paper.get("benchmarks", [])
@@ -363,12 +385,14 @@ class PapersWithCodeAdapter:
             hard_data_score=0.9,
             benchmark_score=0.85,
             sentiment_score=0.7,
-            provenance=[{
-                "source_type": "paperswithcode",
-                "url": f"https://paperswithcode.com/paper/{arxiv_id}" if arxiv_id else "",
-                "last_checked": datetime.now().isoformat(),
-                "confidence": 0.9,
-            }],
+            provenance=[
+                {
+                    "source_type": "paperswithcode",
+                    "url": f"https://paperswithcode.com/paper/{arxiv_id}" if arxiv_id else "",
+                    "last_checked": datetime.now().isoformat(),
+                    "confidence": 0.9,
+                }
+            ],
             short_rationale=rationale,
         )
 
@@ -391,7 +415,7 @@ def _calculate_score(candidate: ModelCandidate) -> float:
         try:
             updated = datetime.fromisoformat(candidate.last_updated)
             recency_days = (datetime.now() - updated).days
-        except (ValueError, TypeError):
+        except (ValueError, TypeError):  # noqa: VET022
             pass
     recency_score = max(0.5, 1.0 - (recency_days / 365))
     candidate.recency_score = recency_score
@@ -425,7 +449,7 @@ def _generate_rationale(candidate: ModelCandidate, recency_score: float) -> str:
     return "; ".join(parts[:2]) + "."
 
 
-def _lmstudio_candidate(model: Dict) -> ModelCandidate:
+def _lmstudio_candidate(model: dict) -> ModelCandidate:
     return ModelCandidate(
         id=model.get("id", model.get("name", "")),
         name=model.get("name", model.get("id", "")),
@@ -438,12 +462,14 @@ def _lmstudio_candidate(model: Dict) -> ModelCandidate:
         hard_data_score=0.8,
         benchmark_score=0.7,
         sentiment_score=0.7,
-        provenance=[{
-            "source_type": "lm_studio",
-            "url": f"lmstudio://model/{model.get('id', '')}",
-            "last_checked": datetime.now().isoformat(),
-            "confidence": 0.9,
-        }],
+        provenance=[
+            {
+                "source_type": "lm_studio",
+                "url": f"lmstudio://model/{model.get('id', '')}",
+                "last_checked": datetime.now().isoformat(),
+                "confidence": 0.9,
+            }
+        ],
         short_rationale="Local model available in LM Studio",
     )
 
@@ -452,22 +478,22 @@ def _lmstudio_candidate(model: Dict) -> ModelCandidate:
 # Unified discovery class
 # ---------------------------------------------------------------------------
 
+
 class ModelDiscovery:
-    """Unified model discovery.  Replaces both ``ModelSearchEngine`` and
+    """Unified model discovery.  Replaces both ``ModelSearchEngine`` and.
+
     ``LiveModelSearchAdapter``.
 
     Compatible API surface:
-    - ``search(query, lm_studio_models)`` – main entry point
-    - ``search_for_task(task_description, lm_studio_models)`` – alias (ModelSearchEngine compat)
+    - ``search(query, lm_studio_models)`` -- main entry point
+    - ``search_for_task(task_description, lm_studio_models)`` -- alias (ModelSearchEngine compat)
     - ``refresh_all_caches()``
     - ``get_cached_candidates()``
     """
 
-    def __init__(self, cache_dir: str = None):
+    def __init__(self, cache_dir: str | None = None):
         self.cache_dir = (
-            Path(cache_dir)
-            if cache_dir
-            else Path.home() / ".lmstudio" / "projects" / "Vetinari" / "model_cache"
+            Path(cache_dir) if cache_dir else Path.home() / ".lmstudio" / "projects" / "Vetinari" / "model_cache"
         )
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.hf_adapter = HuggingFaceAdapter()
@@ -477,8 +503,8 @@ class ModelDiscovery:
 
     # -- main search ---------------------------------------------------------
 
-    def search(self, query: str, lm_studio_models: List[Dict] = None) -> List[ModelCandidate]:
-        all_candidates: List[ModelCandidate] = []
+    def search(self, query: str, lm_studio_models: list[dict] | None = None) -> list[ModelCandidate]:
+        all_candidates: list[ModelCandidate] = []
 
         if lm_studio_models:
             all_candidates.extend(_lmstudio_candidate(m) for m in lm_studio_models)
@@ -488,12 +514,12 @@ class ModelDiscovery:
         external = self._search_external_sources(query)
         all_candidates.extend(external)
 
-        # cloud providers (no cache – key-gated)
+        # cloud providers (no cache -- key-gated)
         all_candidates.extend(self._search_cloud_providers(query))
 
         # de-duplicate
         seen: set = set()
-        unique: List[ModelCandidate] = []
+        unique: list[ModelCandidate] = []
         for c in all_candidates:
             if c.id not in seen:
                 seen.add(c.id)
@@ -510,15 +536,15 @@ class ModelDiscovery:
 
     # Backward-compat alias for ModelSearchEngine callers
     def search_for_task(
-        self, task_description: str, lm_studio_models: List[Dict] = None
-    ) -> List[ModelCandidate]:
+        self, task_description: str, lm_studio_models: list[dict] | None = None
+    ) -> list[ModelCandidate]:
         return self.search(task_description, lm_studio_models)
 
     # -- source groupings (kept for backward compat / patchability) ----------
 
-    def _search_external_sources(self, query: str) -> List[ModelCandidate]:
+    def _search_external_sources(self, query: str) -> list[ModelCandidate]:
         """Search HF, Reddit, GitHub, and PapersWithCode with caching."""
-        candidates: List[ModelCandidate] = []
+        candidates: list[ModelCandidate] = []
 
         hf = self._cached_search("hf", query, lambda q: self.hf_adapter.search_models(q, limit=8))
         candidates.extend(hf)
@@ -540,8 +566,8 @@ class ModelDiscovery:
 
     # -- cache helpers -------------------------------------------------------
 
-    def _cached_search(self, prefix: str, query: str, fetch_fn) -> List[ModelCandidate]:
-        cache_key = hashlib.md5(query.encode("utf-8")).hexdigest()
+    def _cached_search(self, prefix: str, query: str, fetch_fn) -> list[ModelCandidate]:
+        cache_key = hashlib.md5(query.encode("utf-8")).hexdigest()  # noqa: S324
         cache_file = self.cache_dir / f"{prefix}_{cache_key}.json"
         cached = _load_from_cache(cache_file)
         if cached is not None:
@@ -556,8 +582,8 @@ class ModelDiscovery:
             cache_file.unlink()
         logger.info("Model cache cleared")
 
-    def get_cached_candidates(self) -> List[ModelCandidate]:
-        candidates: List[ModelCandidate] = []
+    def get_cached_candidates(self) -> list[ModelCandidate]:
+        candidates: list[ModelCandidate] = []
         for cache_file in self.cache_dir.glob("*.json"):
             cached = _load_from_cache(cache_file)
             if cached:
@@ -566,14 +592,15 @@ class ModelDiscovery:
 
     # -- cloud providers -----------------------------------------------------
 
-    def _search_cloud_providers(self, query: str) -> List[ModelCandidate]:
-        candidates: List[ModelCandidate] = []
+    def _search_cloud_providers(self, query: str) -> list[ModelCandidate]:
+        candidates: list[ModelCandidate] = []
         candidates.extend(self._search_claude(query))
         candidates.extend(self._search_gemini(query))
         return candidates
 
-    def _search_claude(self, query: str) -> List[ModelCandidate]:
+    def _search_claude(self, query: str) -> list[ModelCandidate]:
         import os
+
         api_key = os.environ.get("CLAUDE_API_KEY")
         if not api_key:
             return []
@@ -585,32 +612,41 @@ class ModelDiscovery:
         ]
         candidates = []
         for model_id, model_name, context_len in models:
-            relevance = 0.85 if any(k in ["reasoning", "think", "analyze"] for k in keywords) \
-                else 0.75 if any(k in ["code", "program", "develop"] for k in keywords) \
+            relevance = (
+                0.85
+                if any(k in ["reasoning", "think", "analyze"] for k in keywords)
+                else 0.75
+                if any(k in ["code", "program", "develop"] for k in keywords)
                 else 0.5
-            candidates.append(ModelCandidate(
-                id=f"claude:{model_id}",
-                name=model_name,
-                source_type="claude",
-                metrics={"query": query, "relevance": relevance},
-                memory_gb=0,
-                context_len=context_len,
-                version=model_id,
-                last_updated=datetime.now().isoformat(),
-                hard_data_score=0.9,
-                benchmark_score=0.92,
-                sentiment_score=0.88,
-                provenance=[{
-                    "source_type": "claude",
-                    "url": f"https://console.anthropic.com/{model_id}",
-                    "last_checked": datetime.now().isoformat(),
-                    "confidence": 0.9,
-                }],
-            ))
+            )
+            candidates.append(
+                ModelCandidate(
+                    id=f"claude:{model_id}",
+                    name=model_name,
+                    source_type="claude",
+                    metrics={"query": query, "relevance": relevance},
+                    memory_gb=0,
+                    context_len=context_len,
+                    version=model_id,
+                    last_updated=datetime.now().isoformat(),
+                    hard_data_score=0.9,
+                    benchmark_score=0.92,
+                    sentiment_score=0.88,
+                    provenance=[
+                        {
+                            "source_type": "claude",
+                            "url": f"https://console.anthropic.com/{model_id}",
+                            "last_checked": datetime.now().isoformat(),
+                            "confidence": 0.9,
+                        }
+                    ],
+                )
+            )
         return candidates
 
-    def _search_gemini(self, query: str) -> List[ModelCandidate]:
+    def _search_gemini(self, query: str) -> list[ModelCandidate]:
         import os
+
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return []
@@ -622,29 +658,38 @@ class ModelDiscovery:
         ]
         candidates = []
         for model_id, model_name, context_len in models:
-            relevance = 0.8 if any(k in ["reasoning", "think", "analyze"] for k in keywords) \
-                else 0.82 if any(k in ["creative", "write", "story"] for k in keywords) \
-                else 0.75 if any(k in ["code", "program", "develop"] for k in keywords) \
+            relevance = (
+                0.8
+                if any(k in ["reasoning", "think", "analyze"] for k in keywords)
+                else 0.82
+                if any(k in ["creative", "write", "story"] for k in keywords)
+                else 0.75
+                if any(k in ["code", "program", "develop"] for k in keywords)
                 else 0.5
-            candidates.append(ModelCandidate(
-                id=f"gemini:{model_id}",
-                name=model_name,
-                source_type="gemini",
-                metrics={"query": query, "relevance": relevance},
-                memory_gb=0,
-                context_len=context_len,
-                version=model_id,
-                last_updated=datetime.now().isoformat(),
-                hard_data_score=0.85,
-                benchmark_score=0.88,
-                sentiment_score=0.82,
-                provenance=[{
-                    "source_type": "gemini",
-                    "url": f"https://aistudio.google.com/app/{model_id}",
-                    "last_checked": datetime.now().isoformat(),
-                    "confidence": 0.85,
-                }],
-            ))
+            )
+            candidates.append(
+                ModelCandidate(
+                    id=f"gemini:{model_id}",
+                    name=model_name,
+                    source_type="gemini",
+                    metrics={"query": query, "relevance": relevance},
+                    memory_gb=0,
+                    context_len=context_len,
+                    version=model_id,
+                    last_updated=datetime.now().isoformat(),
+                    hard_data_score=0.85,
+                    benchmark_score=0.88,
+                    sentiment_score=0.82,
+                    provenance=[
+                        {
+                            "source_type": "gemini",
+                            "url": f"https://aistudio.google.com/app/{model_id}",
+                            "last_checked": datetime.now().isoformat(),
+                            "confidence": 0.85,
+                        }
+                    ],
+                )
+            )
         return candidates
 
 
@@ -652,7 +697,8 @@ class ModelDiscovery:
 # Keyword helper (shared)
 # ---------------------------------------------------------------------------
 
-def _extract_keywords(text: str) -> List[str]:
+
+def _extract_keywords(text: str) -> list[str]:
     keywords = []
     text_lower = text.lower()
     categories = {

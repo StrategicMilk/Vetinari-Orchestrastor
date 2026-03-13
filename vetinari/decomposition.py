@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.planning.decomposition
+"""Backward-compat shim. Canonical: vetinari.planning.decomposition.
 
 All new code should import from vetinari.planning.decomposition directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

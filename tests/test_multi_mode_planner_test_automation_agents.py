@@ -8,21 +8,18 @@ All external dependencies are stubbed so the tests run in isolation without
 any real LLM, filesystem (where controllable), or third-party services.
 """
 
-import sys
-import types
 import importlib.util
 import os
-import json
-import pytest
-import re
-import uuid
-import tempfile
+import sys
+import types
 import unittest
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch, call, mock_open
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Root of the worktree (where vetinari/ lives)
@@ -93,7 +90,6 @@ def _build_stubs():
         # Fallback: define minimal types
         types_mod = mod("vetinari.types")
 
-    from enum import Enum
 
     # Grab real enums from types_mod
     AgentType = getattr(types_mod, "AgentType", None)
@@ -123,9 +119,9 @@ def _build_stubs():
     class Task:
         id: str
         description: str
-        inputs: List[str] = field(default_factory=list)
-        outputs: List[str] = field(default_factory=list)
-        dependencies: List[str] = field(default_factory=list)
+        inputs: list[str] = field(default_factory=list)
+        outputs: list[str] = field(default_factory=list)
+        dependencies: list[str] = field(default_factory=list)
         assigned_agent: Any = None
         model_override: str = ""
         depth: int = 0
@@ -158,8 +154,8 @@ def _build_stubs():
         error: str = ""
         started_at: str = ""
         completed_at: str = ""
-        dependencies: List[str] = field(default_factory=list)
-        context: Dict[str, Any] = field(default_factory=dict)
+        dependencies: list[str] = field(default_factory=list)
+        context: dict[str, Any] = field(default_factory=dict)
 
         def __post_init__(self):
             if self.status is None:
@@ -188,10 +184,10 @@ def _build_stubs():
         version: str = "v0.1.0"
         goal: str = ""
         phase: int = 0
-        tasks: List[Any] = field(default_factory=list)
-        model_scores: List[Dict] = field(default_factory=list)
+        tasks: list[Any] = field(default_factory=list)
+        model_scores: list[dict] = field(default_factory=list)
         notes: str = ""
-        warnings: List[str] = field(default_factory=list)
+        warnings: list[str] = field(default_factory=list)
         needs_context: bool = False
         follow_up_question: str = ""
         final_delivery_path: str = ""
@@ -216,9 +212,9 @@ def _build_stubs():
     class AgentResult:
         success: bool
         output: Any
-        metadata: Dict[str, Any] = field(default_factory=dict)
-        errors: List[str] = field(default_factory=list)
-        provenance: List[Dict] = field(default_factory=list)
+        metadata: dict[str, Any] = field(default_factory=dict)
+        errors: list[str] = field(default_factory=list)
+        provenance: list[dict] = field(default_factory=list)
 
         def to_dict(self):
             return {"success": self.success, "output": self.output,
@@ -227,8 +223,8 @@ def _build_stubs():
     @dataclass
     class VerificationResult:
         passed: bool
-        issues: List[Dict[str, Any]] = field(default_factory=list)
-        suggestions: List[str] = field(default_factory=list)
+        issues: list[dict[str, Any]] = field(default_factory=list)
+        suggestions: list[str] = field(default_factory=list)
         score: float = 0.0
 
         def to_dict(self):
@@ -352,13 +348,13 @@ def _build_stubs():
     class InferenceRequest:
         model_id: str = ""
         prompt: str = ""
-        system_prompt: Optional[str] = None
+        system_prompt: str | None = None
         max_tokens: int = 4096
         temperature: float = 0.3
         top_p: float = 0.9
         top_k: int = 40
-        stop_sequences: List[str] = field(default_factory=list)
-        metadata: Dict[str, Any] = field(default_factory=dict)
+        stop_sequences: list[str] = field(default_factory=list)
+        metadata: dict[str, Any] = field(default_factory=dict)
 
     mod("vetinari.adapters.base", InferenceRequest=InferenceRequest)
 
@@ -460,23 +456,23 @@ class TestMultiModeAgentInit(unittest.TestCase):
 
     def test_init_sets_agent_type(self):
         agent = _ConcreteMultiMode()
-        self.assertEqual(agent.agent_type, AgentType.QUALITY)
+        assert agent.agent_type == AgentType.QUALITY
 
     def test_init_current_mode_is_none(self):
         agent = _ConcreteMultiMode()
-        self.assertIsNone(agent.current_mode)
+        assert agent.current_mode is None
 
     def test_init_with_config(self):
         agent = _ConcreteMultiMode(config={"key": "val"})
-        self.assertEqual(agent._config.get("key"), "val")
+        assert agent._config.get("key") == "val"
 
     def test_init_without_config(self):
         agent = _ConcreteMultiMode()
-        self.assertIsInstance(agent._config, dict)
+        assert isinstance(agent._config, dict)
 
     def test_available_modes(self):
         agent = _ConcreteMultiMode()
-        self.assertEqual(set(agent.available_modes), {"analyze", "build", "review"})
+        assert set(agent.available_modes) == {"analyze", "build", "review"}
 
     def test_available_modes_empty_for_base(self):
         """A direct MultiModeAgent subclass with no MODES returns []."""
@@ -484,17 +480,17 @@ class TestMultiModeAgentInit(unittest.TestCase):
             MODES = {}
             def get_system_prompt(self): return ""
         agent = EmptyModes(AgentType.QUALITY)
-        self.assertEqual(agent.available_modes, [])
+        assert agent.available_modes == []
 
     def test_get_capabilities_returns_mode_names(self):
         agent = _ConcreteMultiMode()
         caps = agent.get_capabilities()
-        self.assertEqual(set(caps), {"analyze", "build", "review"})
+        assert set(caps) == {"analyze", "build", "review"}
 
     def test_current_mode_property(self):
         agent = _ConcreteMultiMode()
         agent._current_mode = "build"
-        self.assertEqual(agent.current_mode, "build")
+        assert agent.current_mode == "build"
 
 
 class TestMultiModeResolveMode(unittest.TestCase):
@@ -506,54 +502,54 @@ class TestMultiModeResolveMode(unittest.TestCase):
     def test_explicit_mode_in_context(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "build"})
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_explicit_mode_invalid_falls_through(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "nonexistent"})
         mode = self.agent._resolve_mode(task)
         # Should not be "nonexistent" since it's not in MODES
-        self.assertNotEqual(mode, "nonexistent")
+        assert mode != "nonexistent"
 
     def test_legacy_type_mapping(self):
         task = _make_task(AgentType.QUALITY, context={"legacy_agent_type": "EXPLORER"})
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")
+        assert mode == "analyze"
 
     def test_legacy_type_builder(self):
         task = _make_task(AgentType.QUALITY, context={"legacy_agent_type": "BUILDER"})
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_legacy_type_evaluator(self):
         task = _make_task(AgentType.QUALITY, context={"legacy_agent_type": "EVALUATOR"})
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "review")
+        assert mode == "review"
 
     def test_keyword_matching_analyze(self):
         task = _make_task(AgentType.QUALITY, description="Please analyze this code")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")
+        assert mode == "analyze"
 
     def test_keyword_matching_build(self):
         task = _make_task(AgentType.QUALITY, description="Build and implement the feature")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_keyword_matching_review(self):
         task = _make_task(AgentType.QUALITY, description="Review and evaluate the code")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "review")
+        assert mode == "review"
 
     def test_keyword_matching_best_score_wins(self):
         task = _make_task(AgentType.QUALITY,
                           description="build create implement code something")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_default_mode_fallback(self):
         task = _make_task(AgentType.QUALITY, description="do something unrelated")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")  # DEFAULT_MODE
+        assert mode == "analyze"  # DEFAULT_MODE
 
     def test_no_modes_no_default_returns_empty(self):
         class NoModes(MultiModeAgent):
@@ -564,25 +560,25 @@ class TestMultiModeResolveMode(unittest.TestCase):
         agent = NoModes(AgentType.QUALITY)
         task = _make_task(AgentType.QUALITY)
         mode = agent._resolve_mode(task)
-        self.assertEqual(mode, "")
+        assert mode == ""
 
     def test_agent_type_on_task_used_for_legacy_mapping(self):
         """If task.agent_type matches a legacy mapping key, use that."""
         task = _make_task(AgentType.EXPLORER, description="explore something")
         # EXPLORER -> "analyze"
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")
+        assert mode == "analyze"
 
     def test_none_description_falls_to_default(self):
         task = _make_task(AgentType.QUALITY, description="")
         task.description = None
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")
+        assert mode == "analyze"
 
     def test_empty_description_falls_to_default(self):
         task = _make_task(AgentType.QUALITY, description="")
         mode = self.agent._resolve_mode(task)
-        self.assertEqual(mode, "analyze")
+        assert mode == "analyze"
 
 
 class TestMultiModeExecute(unittest.TestCase):
@@ -594,26 +590,26 @@ class TestMultiModeExecute(unittest.TestCase):
     def test_execute_routes_to_analyze(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "analyze"})
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertEqual(result.output["mode"], "analyze")
-        self.assertEqual(self.agent.current_mode, "analyze")
+        assert result.success
+        assert result.output["mode"] == "analyze"
+        assert self.agent.current_mode == "analyze"
 
     def test_execute_routes_to_build(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "build"})
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertEqual(result.output["mode"], "build")
+        assert result.success
+        assert result.output["mode"] == "build"
 
     def test_execute_routes_to_review(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "review"})
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertEqual(result.output["mode"], "review")
+        assert result.success
+        assert result.output["mode"] == "review"
 
     def test_execute_sets_current_mode(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "build"})
         self.agent.execute(task)
-        self.assertEqual(self.agent.current_mode, "build")
+        assert self.agent.current_mode == "build"
 
     def test_execute_unknown_mode_returns_error(self):
         """If mode resolves to empty string with no handler, return error."""
@@ -633,7 +629,7 @@ class TestMultiModeExecute(unittest.TestCase):
         result = agent.execute(task)
         # With DEFAULT_MODE="" the fallback to first key "valid" succeeds
         # so the result depends on whether fallback logic triggers
-        self.assertIsNotNone(result)
+        assert result is not None
 
     def test_execute_handler_not_implemented(self):
         """B5: init-time validation catches missing handler methods."""
@@ -642,9 +638,9 @@ class TestMultiModeExecute(unittest.TestCase):
             DEFAULT_MODE = "alpha"
             MODE_KEYWORDS = {}
             def get_system_prompt(self): return ""
-        with self.assertRaises(TypeError) as ctx:
+        with pytest.raises(TypeError) as ctx:
             MissingHandler(AgentType.QUALITY)
-        self.assertIn("_nonexistent_method", str(ctx.exception))
+        assert "_nonexistent_method" in str(ctx.value)
 
     def test_execute_handler_raises_exception(self):
         class FailingAgent(_ConcreteMultiMode):
@@ -653,20 +649,20 @@ class TestMultiModeExecute(unittest.TestCase):
         agent = FailingAgent()
         task = _make_task(AgentType.QUALITY, context={"mode": "analyze"})
         result = agent.execute(task)
-        self.assertFalse(result.success)
-        self.assertTrue(any("exploded" in e for e in result.errors))
+        assert not result.success
+        assert any("exploded" in e for e in result.errors)
 
     def test_execute_completes_task(self):
         task = _make_task(AgentType.QUALITY, context={"mode": "build"})
         self.agent.execute(task)
-        self.assertNotEqual(task.completed_at, "")
+        assert task.completed_at != ""
 
     def test_execute_keyword_routing(self):
         task = _make_task(AgentType.QUALITY,
                           description="review and evaluate all code changes")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertEqual(result.output["mode"], "review")
+        assert result.success
+        assert result.output["mode"] == "review"
 
 
 class TestMultiModeVerify(unittest.TestCase):
@@ -677,34 +673,34 @@ class TestMultiModeVerify(unittest.TestCase):
 
     def test_verify_none_output_fails(self):
         result = self.agent.verify(None)
-        self.assertFalse(result.passed)
-        self.assertEqual(result.score, 0.0)
-        self.assertTrue(len(result.issues) > 0)
+        assert not result.passed
+        assert result.score == 0.0
+        assert len(result.issues) > 0
 
     def test_verify_valid_output_passes(self):
         result = self.agent.verify({"data": "something"})
-        self.assertTrue(result.passed)
-        self.assertEqual(result.score, 0.7)
+        assert result.passed
+        assert result.score == 0.7
 
     def test_verify_string_output_passes(self):
         result = self.agent.verify("some string")
-        self.assertTrue(result.passed)
+        assert result.passed
 
     def test_verify_empty_dict_passes(self):
         result = self.agent.verify({})
-        self.assertTrue(result.passed)
+        assert result.passed
 
     def test_verify_empty_list_passes(self):
         result = self.agent.verify([])
-        self.assertTrue(result.passed)
+        assert result.passed
 
     def test_verify_zero_passes(self):
         result = self.agent.verify(0)
-        self.assertTrue(result.passed)
+        assert result.passed
 
     def test_verify_false_passes(self):
         result = self.agent.verify(False)
-        self.assertTrue(result.passed)
+        assert result.passed
 
 
 class TestMultiModeSystemPrompt(unittest.TestCase):
@@ -717,20 +713,20 @@ class TestMultiModeSystemPrompt(unittest.TestCase):
         prompt = self.agent.get_system_prompt()
         # _current_mode is None, DEFAULT_MODE="analyze" but _get_mode_system_prompt
         # returns "" so falls to _get_base_system_prompt which uses _current_mode or "default"
-        self.assertIn("default", prompt.lower() if prompt else "")
+        assert "default" in (prompt.lower() if prompt else "")
 
     def test_get_system_prompt_with_current_mode(self):
         self.agent._current_mode = "build"
         prompt = self.agent.get_system_prompt()
-        self.assertIn("build", prompt.lower())
+        assert "build" in prompt.lower()
 
     def test_get_base_system_prompt(self):
         prompt = self.agent._get_base_system_prompt()
-        self.assertIn(self.agent.name, prompt)
+        assert self.agent.name in prompt
 
     def test_get_mode_system_prompt_default_empty(self):
         result = self.agent._get_mode_system_prompt("analyze")
-        self.assertEqual(result, "")
+        assert result == ""
 
     def test_get_system_prompt_custom_override(self):
         class CustomPrompt(_ConcreteMultiMode):
@@ -741,7 +737,7 @@ class TestMultiModeSystemPrompt(unittest.TestCase):
         agent = CustomPrompt()
         agent._current_mode = "build"
         prompt = agent.get_system_prompt()
-        self.assertEqual(prompt, "Custom builder prompt")
+        assert prompt == "Custom builder prompt"
 
 
 # ###########################################################################
@@ -753,51 +749,51 @@ class TestPlannerAgentInit(unittest.TestCase):
 
     def test_init_default_config(self):
         agent = PlannerAgent()
-        self.assertEqual(agent.agent_type, AgentType.PLANNER)
-        self.assertEqual(agent._max_depth, 14)
-        self.assertEqual(agent._min_tasks, 5)
-        self.assertEqual(agent._max_tasks, 15)
+        assert agent.agent_type == AgentType.PLANNER
+        assert agent._max_depth == 14
+        assert agent._min_tasks == 5
+        assert agent._max_tasks == 15
 
     def test_init_custom_config(self):
         agent = PlannerAgent(config={"max_depth": 5, "min_tasks": 2, "max_tasks": 8})
-        self.assertEqual(agent._max_depth, 5)
-        self.assertEqual(agent._min_tasks, 2)
-        self.assertEqual(agent._max_tasks, 8)
+        assert agent._max_depth == 5
+        assert agent._min_tasks == 2
+        assert agent._max_tasks == 8
 
     def test_agent_type(self):
         agent = PlannerAgent()
-        self.assertEqual(agent.agent_type, AgentType.PLANNER)
+        assert agent.agent_type == AgentType.PLANNER
 
     def test_get_capabilities(self):
         agent = PlannerAgent()
         caps = agent.get_capabilities()
-        self.assertIn("plan_generation", caps)
-        self.assertIn("task_decomposition", caps)
-        self.assertIn("dependency_mapping", caps)
-        self.assertIn("resource_estimation", caps)
-        self.assertIn("risk_assessment", caps)
-        self.assertGreaterEqual(len(caps), 5)
+        assert "plan_generation" in caps
+        assert "task_decomposition" in caps
+        assert "dependency_mapping" in caps
+        assert "resource_estimation" in caps
+        assert "risk_assessment" in caps
+        assert len(caps) >= 5
 
     def test_get_system_prompt_nonempty(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
-        self.assertIn("Planning Master", prompt)
-        self.assertIn("JSON", prompt)
+        assert "Planning Master" in prompt
+        assert "JSON" in prompt
 
     def test_system_prompt_mentions_consolidated_agents(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
-        self.assertIn("BUILDER", prompt)
-        self.assertIn("RESEARCHER", prompt)
-        self.assertIn("QUALITY", prompt)
-        self.assertIn("OPERATIONS", prompt)
+        assert "BUILDER" in prompt
+        assert "RESEARCHER" in prompt
+        assert "QUALITY" in prompt
+        assert "OPERATIONS" in prompt
 
     def test_system_prompt_mentions_legacy_agents(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
         # v0.4.0: consolidated prompt lists RESEARCHER/BUILDER etc, no legacy names
-        self.assertIn("RESEARCHER", prompt)
-        self.assertIn("BUILDER", prompt)
+        assert "RESEARCHER" in prompt
+        assert "BUILDER" in prompt
 
 
 class TestPlannerAgentExecute(unittest.TestCase):
@@ -810,7 +806,7 @@ class TestPlannerAgentExecute(unittest.TestCase):
         task = _make_task(AgentType.BUILDER, description="build something")
         result = self.agent.execute(task)
         # v0.4.0: PlannerAgent handles multiple modes, may succeed via fallback
-        self.assertIsNotNone(result)
+        assert result is not None
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_execute_with_keyword_fallback(self, mock_infer):
@@ -818,12 +814,12 @@ class TestPlannerAgentExecute(unittest.TestCase):
                           description="Build a web application with user authentication",
                           prompt="Build a web application with user authentication")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
+        assert result.success
         plan_dict = result.output
-        self.assertIn("plan_id", plan_dict)
-        self.assertIn("tasks", plan_dict)
-        self.assertIn("goal", plan_dict)
-        self.assertTrue(len(plan_dict["tasks"]) > 0)
+        assert "plan_id" in plan_dict
+        assert "tasks" in plan_dict
+        assert "goal" in plan_dict
+        assert len(plan_dict["tasks"]) > 0
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_execute_sets_metadata(self, mock_infer):
@@ -831,10 +827,10 @@ class TestPlannerAgentExecute(unittest.TestCase):
                           description="Implement a REST API",
                           prompt="Implement a REST API")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertIn("plan_id", result.metadata)
-        self.assertIn("task_count", result.metadata)
-        self.assertIn("goal", result.metadata)
+        assert result.success
+        assert "plan_id" in result.metadata
+        assert "task_count" in result.metadata
+        assert "goal" in result.metadata
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_execute_vague_goal_needs_context(self, mock_infer):
@@ -842,24 +838,24 @@ class TestPlannerAgentExecute(unittest.TestCase):
                           description="help me",
                           prompt="help me")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
+        assert result.success
         plan_dict = result.output
-        self.assertTrue(plan_dict.get("needs_context", False))
-        self.assertNotEqual(plan_dict.get("follow_up_question", ""), "")
+        assert plan_dict.get("needs_context", False)
+        assert plan_dict.get("follow_up_question", "") != ""
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_execute_very_short_goal_vague(self, mock_infer):
         task = _make_task(AgentType.PLANNER, description="hi", prompt="hi")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertTrue(result.output.get("needs_context", False))
+        assert result.success
+        assert result.output.get("needs_context", False)
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_execute_goal_with_special_chars_only(self, mock_infer):
         task = _make_task(AgentType.PLANNER, description="!@#$%", prompt="!@#$%")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
-        self.assertTrue(result.output.get("needs_context", False))
+        assert result.success
+        assert result.output.get("needs_context", False)
 
     def test_execute_exception_returns_failure(self):
         """If _generate_plan raises, execute catches and returns failure."""
@@ -868,8 +864,8 @@ class TestPlannerAgentExecute(unittest.TestCase):
                           prompt="Build something complex")
         with patch.object(self.agent, '_generate_plan', side_effect=RuntimeError("boom")):
             result = self.agent.execute(task)
-        self.assertFalse(result.success)
-        self.assertIn("boom", result.errors[0])
+        assert not result.success
+        assert "boom" in result.errors[0]
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_execute_uses_prompt_over_description(self, mock_infer):
@@ -878,9 +874,9 @@ class TestPlannerAgentExecute(unittest.TestCase):
                           description="Some desc",
                           prompt="Build a web dashboard with data visualization")
         result = self.agent.execute(task)
-        self.assertTrue(result.success)
+        assert result.success
         # The goal should be the prompt (first choice)
-        self.assertEqual(result.metadata.get("goal"), "Build a web dashboard with data visualization")
+        assert result.metadata.get("goal") == "Build a web dashboard with data visualization"
 
 
 class TestPlannerAgentVerify(unittest.TestCase):
@@ -891,16 +887,16 @@ class TestPlannerAgentVerify(unittest.TestCase):
 
     def test_verify_non_dict_fails(self):
         result = self.agent.verify("not a dict")
-        self.assertFalse(result.passed)
+        assert not result.passed
 
     def test_verify_none_fails(self):
         result = self.agent.verify(None)
-        self.assertFalse(result.passed)
+        assert not result.passed
 
     def test_verify_empty_dict_missing_fields(self):
         result = self.agent.verify({})
         # Missing plan_id, goal, tasks => three -0.2 deductions = 0.4, fail
-        self.assertFalse(result.passed)
+        assert not result.passed
 
     def test_verify_valid_plan_with_deps_passes(self):
         plan = {
@@ -915,8 +911,8 @@ class TestPlannerAgentVerify(unittest.TestCase):
             ],
         }
         result = self.agent.verify(plan)
-        self.assertTrue(result.passed)
-        self.assertGreaterEqual(result.score, 0.7)
+        assert result.passed
+        assert result.score >= 0.7
 
     def test_verify_too_few_tasks(self):
         plan = {
@@ -927,7 +923,7 @@ class TestPlannerAgentVerify(unittest.TestCase):
             ],
         }
         result = self.agent.verify(plan)
-        self.assertTrue(any(i["type"] == "insufficient_tasks" for i in result.issues))
+        assert any(i["type"] == "insufficient_tasks" for i in result.issues)
 
     def test_verify_no_dependencies_warning(self):
         plan = {
@@ -939,30 +935,30 @@ class TestPlannerAgentVerify(unittest.TestCase):
             ],
         }
         result = self.agent.verify(plan)
-        self.assertTrue(any(i["type"] == "no_dependencies" for i in result.issues))
+        assert any(i["type"] == "no_dependencies" for i in result.issues)
 
     def test_verify_missing_plan_id(self):
         plan = {"goal": "test", "tasks": []}
         result = self.agent.verify(plan)
-        self.assertTrue(any("plan_id" in i["message"] for i in result.issues))
+        assert any("plan_id" in i["message"] for i in result.issues)
 
     def test_verify_missing_goal(self):
         plan = {"plan_id": "p1", "tasks": []}
         result = self.agent.verify(plan)
-        self.assertTrue(any("goal" in i["message"] for i in result.issues))
+        assert any("goal" in i["message"] for i in result.issues)
 
     def test_verify_missing_tasks_key(self):
         plan = {"plan_id": "p1", "goal": "test"}
         result = self.agent.verify(plan)
-        self.assertTrue(any("tasks" in i["message"] for i in result.issues))
+        assert any("tasks" in i["message"] for i in result.issues)
 
     def test_verify_list_fails(self):
         result = self.agent.verify([1, 2, 3])
-        self.assertFalse(result.passed)
+        assert not result.passed
 
     def test_verify_score_clamped_to_zero(self):
         result = self.agent.verify({})
-        self.assertGreaterEqual(result.score, 0)
+        assert result.score >= 0
 
 
 class TestPlannerGeneratePlan(unittest.TestCase):
@@ -974,29 +970,29 @@ class TestPlannerGeneratePlan(unittest.TestCase):
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_vague_goal_something(self, mock_infer):
         plan = self.agent._generate_plan("do something", {})
-        self.assertTrue(plan.needs_context)
-        self.assertNotEqual(plan.follow_up_question, "")
+        assert plan.needs_context
+        assert plan.follow_up_question != ""
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_vague_goal_fix_it(self, mock_infer):
         plan = self.agent._generate_plan("fix it", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_vague_goal_two_words(self, mock_infer):
         plan = self.agent._generate_plan("build", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_non_alphanumeric_goal(self, mock_infer):
         plan = self.agent._generate_plan("!!!", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_clear_goal_uses_keyword_fallback(self, mock_infer):
         plan = self.agent._generate_plan("Build a REST API with user authentication and database", {})
-        self.assertFalse(plan.needs_context)
-        self.assertTrue(len(plan.tasks) > 0)
+        assert not plan.needs_context
+        assert len(plan.tasks) > 0
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_decomposition_used_when_available(self, mock_infer):
@@ -1007,14 +1003,14 @@ class TestPlannerGeneratePlan(unittest.TestCase):
              "outputs": ["code"], "dependencies": ["t1"], "assigned_agent": "BUILDER"},
         ]
         plan = self.agent._generate_plan("Implement a microservices architecture for e-commerce", {})
-        self.assertFalse(plan.needs_context)
-        self.assertEqual(len(plan.tasks), 2)
+        assert not plan.needs_context
+        assert len(plan.tasks) == 2
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_returns_empty_falls_to_keyword(self, mock_infer):
         mock_infer.return_value = []
         plan = self.agent._generate_plan("Build a web application with user login", {})
-        self.assertTrue(len(plan.tasks) > 0)
+        assert len(plan.tasks) > 0
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_too_many_tasks_adds_warning(self, mock_infer):
@@ -1025,8 +1021,8 @@ class TestPlannerGeneratePlan(unittest.TestCase):
             for i in range(20)
         ]
         plan = self.agent._generate_plan("Massive project with everything under the sun", {})
-        self.assertTrue(len(plan.warnings) > 0)
-        self.assertIn("20", plan.warnings[0])
+        assert len(plan.warnings) > 0
+        assert "20" in plan.warnings[0]
 
 
 class TestPlannerDecomposeGoalLLM(unittest.TestCase):
@@ -1038,12 +1034,12 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_llm_returns_none(self, mock_infer):
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(tasks, [])
+        assert tasks == []
 
     @patch.object(PlannerAgent, '_infer_json', return_value="not a list")
     def test_llm_returns_non_list(self, mock_infer):
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(tasks, [])
+        assert tasks == []
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_returns_valid_tasks(self, mock_infer):
@@ -1054,9 +1050,9 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
              "outputs": ["code"], "dependencies": ["t1"], "assigned_agent": "BUILDER"},
         ]
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(len(tasks), 2)
-        self.assertEqual(tasks[0].id, "t1")
-        self.assertEqual(tasks[1].id, "t2")
+        assert len(tasks) == 2
+        assert tasks[0].id == "t1"
+        assert tasks[1].id == "t2"
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_invalid_agent_type_defaults_to_builder(self, mock_infer):
@@ -1064,8 +1060,8 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
             {"id": "t1", "description": "Do stuff", "assigned_agent": "NONEXISTENT_AGENT"},
         ]
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(len(tasks), 1)
-        self.assertEqual(tasks[0].assigned_agent, AgentType.BUILDER)
+        assert len(tasks) == 1
+        assert tasks[0].assigned_agent == AgentType.BUILDER
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_missing_fields_uses_defaults(self, mock_infer):
@@ -1073,8 +1069,8 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
             {"description": "Minimal task"},
         ]
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(len(tasks), 1)
-        self.assertEqual(tasks[0].id, "t1")  # auto-generated
+        assert len(tasks) == 1
+        assert tasks[0].id == "t1"  # auto-generated
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_skips_non_dict_items(self, mock_infer):
@@ -1084,7 +1080,7 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
             {"id": "t1", "description": "Valid"},
         ]
         tasks = self.agent._decompose_goal_llm("Build something", {})
-        self.assertEqual(len(tasks), 1)
+        assert len(tasks) == 1
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_dag_depth_calculation(self, mock_infer):
@@ -1094,9 +1090,9 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
             {"id": "t3", "description": "Third", "dependencies": ["t2"]},
         ]
         tasks = self.agent._decompose_goal_llm("Build app", {})
-        self.assertEqual(tasks[0].depth, 0)
-        self.assertEqual(tasks[1].depth, 1)
-        self.assertEqual(tasks[2].depth, 2)
+        assert tasks[0].depth == 0
+        assert tasks[1].depth == 1
+        assert tasks[2].depth == 2
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_dag_depth_with_cycle_guard(self, mock_infer):
@@ -1106,7 +1102,7 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
         ]
         tasks = self.agent._decompose_goal_llm("Build app", {})
         # Should not hang due to cycle guard
-        self.assertEqual(len(tasks), 2)
+        assert len(tasks) == 2
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_context_passed_to_prompt(self, mock_infer):
@@ -1114,7 +1110,7 @@ class TestPlannerDecomposeGoalLLM(unittest.TestCase):
         self.agent._decompose_goal_llm("Build app", {"key": "value"})
         call_args = mock_infer.call_args
         prompt = call_args[0][0] if call_args[0] else call_args[1].get("prompt", "")
-        self.assertIn("key", prompt)
+        assert "key" in prompt
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_empty_context(self, mock_infer):
@@ -1135,16 +1131,16 @@ class TestPlannerSingleton(unittest.TestCase):
 
     def test_get_planner_agent_returns_instance(self):
         agent = get_planner_agent()
-        self.assertIsInstance(agent, PlannerAgent)
+        assert isinstance(agent, PlannerAgent)
 
     def test_get_planner_agent_singleton(self):
         a1 = get_planner_agent()
         a2 = get_planner_agent()
-        self.assertIs(a1, a2)
+        assert a1 is a2
 
     def test_get_planner_agent_with_config(self):
         agent = get_planner_agent(config={"max_tasks": 10})
-        self.assertEqual(agent._max_tasks, 10)
+        assert agent._max_tasks == 10
 
 
 # ###########################################################################
@@ -1160,7 +1156,7 @@ class TestCrossAgentInteractions(unittest.TestCase):
         tasks = planner._decompose_goal_keyword("Build a code application", {})
         # v0.4.0: TEST_AUTOMATION consolidated into QUALITY
         test_tasks = [t for t in tasks if t.assigned_agent == AgentType.QUALITY]
-        self.assertTrue(len(test_tasks) > 0)
+        assert len(test_tasks) > 0
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     @patch.object(TestAutomationAgent, '_infer_json')
@@ -1172,35 +1168,35 @@ class TestCrossAgentInteractions(unittest.TestCase):
                                description="Build a Python CLI tool",
                                prompt="Build a Python CLI tool")
         plan_result = planner.execute(plan_task)
-        self.assertTrue(plan_result.success)
+        assert plan_result.success
 
         test_agent = TestAutomationAgent()
         test_task = _make_task(AgentType.TEST_AUTOMATION,
                                description="Generate tests for CLI tool",
                                context={"features": ["cli"], "code": "def main(): pass"})
         test_result = test_agent.execute(test_task)
-        self.assertTrue(test_result.success)
+        assert test_result.success
 
     def test_multi_mode_and_planner_coexist(self):
         multi = _ConcreteMultiMode()
         planner = PlannerAgent()
-        self.assertNotEqual(multi.agent_type, planner.agent_type)
-        self.assertTrue(len(multi.get_capabilities()) > 0)
-        self.assertTrue(len(planner.get_capabilities()) > 0)
+        assert multi.agent_type != planner.agent_type
+        assert len(multi.get_capabilities()) > 0
+        assert len(planner.get_capabilities()) > 0
 
     def test_all_agents_have_system_prompts(self):
         agents = [_ConcreteMultiMode(), PlannerAgent(), TestAutomationAgent()]
         for agent in agents:
             prompt = agent.get_system_prompt()
-            self.assertIsInstance(prompt, str)
-            self.assertTrue(len(prompt) > 0)
+            assert isinstance(prompt, str)
+            assert len(prompt) > 0
 
     def test_all_agents_have_capabilities(self):
         agents = [_ConcreteMultiMode(), PlannerAgent(), TestAutomationAgent()]
         for agent in agents:
             caps = agent.get_capabilities()
-            self.assertIsInstance(caps, list)
-            self.assertTrue(len(caps) > 0)
+            assert isinstance(caps, list)
+            assert len(caps) > 0
 
 
 # ###########################################################################
@@ -1219,11 +1215,11 @@ class TestMultiModeEdgeCases(unittest.TestCase):
         agent = EmptyAgent(AgentType.QUALITY)
         task = _make_task(AgentType.QUALITY)
         result = agent.execute(task)
-        self.assertFalse(result.success)
+        assert not result.success
 
     def test_get_capabilities_matches_modes(self):
         agent = _ConcreteMultiMode()
-        self.assertEqual(sorted(agent.get_capabilities()), sorted(agent.available_modes))
+        assert sorted(agent.get_capabilities()) == sorted(agent.available_modes)
 
     def test_mode_resolution_priority_explicit_over_keyword(self):
         """Explicit mode in context beats keyword matching."""
@@ -1232,7 +1228,7 @@ class TestMultiModeEdgeCases(unittest.TestCase):
                           description="review and evaluate everything",
                           context={"mode": "build"})
         mode = agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_mode_resolution_priority_legacy_over_keyword(self):
         """Legacy type mapping beats keyword matching."""
@@ -1241,17 +1237,17 @@ class TestMultiModeEdgeCases(unittest.TestCase):
                           description="review everything",
                           context={"legacy_agent_type": "BUILDER"})
         mode = agent._resolve_mode(task)
-        self.assertEqual(mode, "build")
+        assert mode == "build"
 
     def test_multiple_executions_update_mode(self):
         agent = _ConcreteMultiMode()
         task1 = _make_task(AgentType.QUALITY, context={"mode": "analyze"})
         agent.execute(task1)
-        self.assertEqual(agent.current_mode, "analyze")
+        assert agent.current_mode == "analyze"
 
         task2 = _make_task(AgentType.QUALITY, context={"mode": "build"})
         agent.execute(task2)
-        self.assertEqual(agent.current_mode, "build")
+        assert agent.current_mode == "build"
 
 
 class TestPlannerEdgeCases(unittest.TestCase):
@@ -1262,13 +1258,13 @@ class TestPlannerEdgeCases(unittest.TestCase):
         agent = PlannerAgent()
         p1 = agent._generate_plan("Build a web app with user management", {})
         p2 = agent._generate_plan("Build another web app with features", {})
-        self.assertNotEqual(p1.plan_id, p2.plan_id)
+        assert p1.plan_id != p2.plan_id
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_plan_stores_goal(self, _):
         agent = PlannerAgent()
         plan = agent._generate_plan("Build a magnificent space station", {})
-        self.assertEqual(plan.goal, "Build a magnificent space station")
+        assert plan.goal == "Build a magnificent space station"
 
     def test_verify_score_boundary(self):
         agent = PlannerAgent()
@@ -1283,14 +1279,14 @@ class TestPlannerEdgeCases(unittest.TestCase):
         }
         result = agent.verify(plan)
         # 1.0 - 0.1 (too few tasks < 5) - 0.1 (no deps) = 0.8
-        self.assertTrue(result.passed)
+        assert result.passed
 
     def test_verify_just_below_threshold(self):
         agent = PlannerAgent()
         plan = {"plan_id": "p1", "tasks": []}  # missing goal
         result = agent.verify(plan)
         # 1.0 - 0.2 (missing goal) - 0.1 (too few tasks) - 0.1 (no deps) = 0.6
-        self.assertFalse(result.passed)
+        assert not result.passed
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_task_with_acceptance_criteria(self, mock_infer):
@@ -1300,7 +1296,7 @@ class TestPlannerEdgeCases(unittest.TestCase):
         ]
         agent = PlannerAgent()
         tasks = agent._decompose_goal_llm("Build app", {})
-        self.assertEqual(len(tasks), 1)
+        assert len(tasks) == 1
 
     @patch.object(PlannerAgent, '_infer_json')
     def test_llm_parallel_tasks_have_same_depth(self, mock_infer):
@@ -1312,44 +1308,44 @@ class TestPlannerEdgeCases(unittest.TestCase):
         ]
         agent = PlannerAgent()
         tasks = agent._decompose_goal_llm("Build app", {})
-        self.assertEqual(tasks[0].depth, 0)
-        self.assertEqual(tasks[1].depth, 1)
-        self.assertEqual(tasks[2].depth, 1)
-        self.assertEqual(tasks[3].depth, 2)
+        assert tasks[0].depth == 0
+        assert tasks[1].depth == 1
+        assert tasks[2].depth == 1
+        assert tasks[3].depth == 2
 
 
 class TestMultiModeInheritance(unittest.TestCase):
     """Test that MultiModeAgent properly extends BaseAgent."""
 
     def test_is_subclass_of_base_agent(self):
-        self.assertTrue(issubclass(MultiModeAgent, BaseAgent))
+        assert issubclass(MultiModeAgent, BaseAgent)
 
     def test_concrete_is_subclass(self):
-        self.assertTrue(issubclass(_ConcreteMultiMode, MultiModeAgent))
-        self.assertTrue(issubclass(_ConcreteMultiMode, BaseAgent))
+        assert issubclass(_ConcreteMultiMode, MultiModeAgent)
+        assert issubclass(_ConcreteMultiMode, BaseAgent)
 
     def test_agent_has_metadata(self):
         agent = _ConcreteMultiMode()
         meta = agent.get_metadata()
-        self.assertIn("agent_type", meta)
-        self.assertIn("capabilities", meta)
-        self.assertIn("name", meta)
+        assert "agent_type" in meta
+        assert "capabilities" in meta
+        assert "name" in meta
 
     def test_agent_repr(self):
         agent = _ConcreteMultiMode()
         r = repr(agent)
-        self.assertIn("_ConcreteMultiMode", r)
+        assert "_ConcreteMultiMode" in r
 
     def test_planner_has_metadata(self):
         agent = PlannerAgent()
         meta = agent.get_metadata()
-        self.assertEqual(meta["agent_type"], AgentType.PLANNER.value)
+        assert meta["agent_type"] == AgentType.PLANNER.value
 
     def test_test_automation_has_metadata(self):
         agent = TestAutomationAgent()
         meta = agent.get_metadata()
         # v0.4.0: TestAutomationAgent consolidated into QualityAgent
-        self.assertEqual(meta["agent_type"], AgentType.QUALITY.value)
+        assert meta["agent_type"] == AgentType.QUALITY.value
 
 
 class TestPlannerVagueGoalDetection(unittest.TestCase):
@@ -1361,49 +1357,49 @@ class TestPlannerVagueGoalDetection(unittest.TestCase):
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_single_word_is_vague(self, _):
         plan = self.agent._generate_plan("hello", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_two_words_is_vague(self, _):
         plan = self.agent._generate_plan("do it", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_help_me_is_vague(self, _):
         plan = self.agent._generate_plan("help me please", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_create_something_is_vague(self, _):
         plan = self.agent._generate_plan("create something now", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_build_something_is_vague(self, _):
         plan = self.agent._generate_plan("build something", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_clear_goal_is_not_vague(self, _):
         plan = self.agent._generate_plan(
             "Implement a REST API using FastAPI with authentication and database integration", {})
-        self.assertFalse(plan.needs_context)
+        assert not plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_medium_length_without_vague_words_is_not_vague(self, _):
         plan = self.agent._generate_plan(
             "Deploy the application to production servers", {})
-        self.assertFalse(plan.needs_context)
+        assert not plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_empty_string_is_vague(self, _):
         plan = self.agent._generate_plan("", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
     @patch.object(PlannerAgent, '_infer_json', return_value=None)
     def test_whitespace_only_is_vague(self, _):
         plan = self.agent._generate_plan("   ", {})
-        self.assertTrue(plan.needs_context)
+        assert plan.needs_context
 
 
 if __name__ == "__main__":

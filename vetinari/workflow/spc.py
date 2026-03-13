@@ -1,5 +1,5 @@
-"""
-Statistical Process Control (SPC) & Manufacturing Controls
+"""Statistical Process Control (SPC) & Manufacturing Controls.
+
 ===========================================================
 Provides:
 
@@ -15,7 +15,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # =========================================================================
 # SPC -- Statistical Process Control
 # =========================================================================
+
 
 @dataclass
 class SPCAlert:
@@ -47,17 +48,17 @@ class ControlChart:
     """
 
     metric_name: str
-    values: List[float] = field(default_factory=list)
-    timestamps: List[str] = field(default_factory=list)
+    values: list[float] = field(default_factory=list)
+    timestamps: list[str] = field(default_factory=list)
     window_size: int = 30
     sigma_multiplier: float = 3.0
 
     # -- derived statistics -------------------------------------------------
 
     @property
-    def _window(self) -> List[float]:
+    def _window(self) -> list[float]:
         """Return the most recent *window_size* values."""
-        return self.values[-self.window_size:]
+        return self.values[-self.window_size :]
 
     @property
     def mean(self) -> float:
@@ -92,9 +93,9 @@ class ControlChart:
 
     def get_cpk(
         self,
-        spec_upper: Optional[float] = None,
-        spec_lower: Optional[float] = None,
-    ) -> Optional[float]:
+        spec_upper: float | None = None,
+        spec_lower: float | None = None,
+    ) -> float | None:
         """Process capability index.
 
         * Cpk > 1.33  -- capable process
@@ -108,7 +109,7 @@ class ControlChart:
             return None
         m = self.mean
 
-        cpk_values: List[float] = []
+        cpk_values: list[float] = []
         if spec_upper is not None:
             cpk_values.append((spec_upper - m) / (3 * s))
         if spec_lower is not None:
@@ -126,7 +127,7 @@ class ControlChart:
             return True
         return self.lcl <= value <= self.ucl
 
-    def add_value(self, value: float, timestamp: Optional[str] = None) -> None:
+    def add_value(self, value: float, timestamp: str | None = None) -> None:
         """Append an observation to the chart."""
         self.values.append(value)
         self.timestamps.append(timestamp or datetime.now().isoformat())
@@ -159,6 +160,7 @@ class ControlChart:
 # SPC Monitor
 # =========================================================================
 
+
 class SPCMonitor:
     """Multi-metric SPC monitor with alert generation.
 
@@ -167,20 +169,20 @@ class SPCMonitor:
         monitor = SPCMonitor()
         alert = monitor.update("quality_score", 0.92)
         if alert:
-            print(f"Out of control: {alert.alert_type}")
+            logger.debug(f"Out of control: {alert.alert_type}")
     """
 
     DEFAULT_METRICS = ["quality_score", "latency_ms", "token_count", "drift_score"]
 
     def __init__(self, window_size: int = 30, sigma_multiplier: float = 3.0):
-        self._charts: Dict[str, ControlChart] = {}
-        self._alerts: List[SPCAlert] = []
+        self._charts: dict[str, ControlChart] = {}
+        self._alerts: list[SPCAlert] = []
         self._window_size = window_size
         self._sigma_multiplier = sigma_multiplier
 
     # -- public API ---------------------------------------------------------
 
-    def update(self, metric_name: str, value: float) -> Optional[SPCAlert]:
+    def update(self, metric_name: str, value: float) -> SPCAlert | None:
         """Record a new observation and return an alert if out of control."""
         chart = self._get_or_create_chart(metric_name)
 
@@ -194,23 +196,27 @@ class SPCMonitor:
             self._alerts.append(alert)
             logger.warning(
                 "SPC alert for %s: %s (value=%.4f, UCL=%.4f, LCL=%.4f)",
-                metric_name, alert.alert_type, value, chart.ucl, chart.lcl,
+                metric_name,
+                alert.alert_type,
+                value,
+                chart.ucl,
+                chart.lcl,
             )
         return alert
 
-    def get_chart(self, metric_name: str) -> Optional[ControlChart]:
+    def get_chart(self, metric_name: str) -> ControlChart | None:
         """Return the control chart for *metric_name*, or ``None``."""
         return self._charts.get(metric_name)
 
-    def get_alerts(self, metric_name: Optional[str] = None) -> List[SPCAlert]:
+    def get_alerts(self, metric_name: str | None = None) -> list[SPCAlert]:
         """Return alerts, optionally filtered by metric name."""
         if metric_name is None:
             return list(self._alerts)
         return [a for a in self._alerts if a.metric_name == metric_name]
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Return a summary dict of all monitored metrics."""
-        summary: Dict[str, Any] = {}
+        summary: dict[str, Any] = {}
         for name, chart in self._charts.items():
             summary[name] = {
                 "count": len(chart.values),
@@ -234,7 +240,7 @@ class SPCMonitor:
             )
         return self._charts[metric_name]
 
-    def _check_control(self, chart: ControlChart, value: float) -> Optional[SPCAlert]:
+    def _check_control(self, chart: ControlChart, value: float) -> SPCAlert | None:
         """Check whether *value* is out of control on *chart*."""
         # Basic limit check
         if value > chart.ucl:
@@ -286,14 +292,15 @@ class SPCMonitor:
 # Andon System
 # =========================================================================
 
+
 @dataclass
 class AndonSignal:
     """Stop-the-line alert for critical failures."""
 
-    source: str           # Which gate / stage triggered it
-    severity: str         # "warning", "critical", "emergency"
+    source: str  # Which gate / stage triggered it
+    severity: str  # "warning", "critical", "emergency"
     message: str
-    affected_tasks: List[str] = field(default_factory=list)
+    affected_tasks: list[str] = field(default_factory=list)
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     acknowledged: bool = False
 
@@ -309,7 +316,7 @@ class AndonSystem:
     PAUSE_SEVERITIES = frozenset({"critical", "emergency"})
 
     def __init__(self) -> None:
-        self._signals: List[AndonSignal] = []
+        self._signals: list[AndonSignal] = []
         self._paused: bool = False
 
     # -- public API ---------------------------------------------------------
@@ -319,7 +326,7 @@ class AndonSystem:
         source: str,
         severity: str,
         message: str,
-        affected_tasks: Optional[List[str]] = None,
+        affected_tasks: list[str] | None = None,
     ) -> AndonSignal:
         """Raise an Andon signal.
 
@@ -338,12 +345,17 @@ class AndonSystem:
             self._paused = True
             logger.critical(
                 "ANDON %s from %s: %s (tasks: %s)",
-                severity.upper(), source, message, affected_tasks or [],
+                severity.upper(),
+                source,
+                message,
+                affected_tasks or [],
             )
         else:
             logger.warning(
                 "ANDON %s from %s: %s",
-                severity.upper(), source, message,
+                severity.upper(),
+                source,
+                message,
             )
 
         return signal
@@ -362,10 +374,7 @@ class AndonSystem:
         self._signals[signal_index].acknowledged = True
 
         # Check whether we can unpause
-        still_critical = any(
-            not s.acknowledged and s.severity in self.PAUSE_SEVERITIES
-            for s in self._signals
-        )
+        still_critical = any(not s.acknowledged and s.severity in self.PAUSE_SEVERITIES for s in self._signals)
         if not still_critical:
             self._paused = False
             logger.info("Andon system resumed -- all critical signals acknowledged")
@@ -376,11 +385,11 @@ class AndonSystem:
         """Return ``True`` while unacknowledged critical/emergency signals exist."""
         return self._paused
 
-    def get_active_signals(self) -> List[AndonSignal]:
+    def get_active_signals(self) -> list[AndonSignal]:
         """Return all signals that have **not** been acknowledged."""
         return [s for s in self._signals if not s.acknowledged]
 
-    def get_all_signals(self) -> List[AndonSignal]:
+    def get_all_signals(self) -> list[AndonSignal]:
         """Return every signal (acknowledged or not)."""
         return list(self._signals)
 
@@ -388,6 +397,7 @@ class AndonSystem:
 # =========================================================================
 # WIP Limits
 # =========================================================================
+
 
 @dataclass
 class WIPConfig:
@@ -400,17 +410,19 @@ class WIPConfig:
     * Generic fallback is 4 concurrent tasks.
     """
 
-    limits: Dict[str, int] = field(default_factory=lambda: {
-        "BUILDER": 2,
-        "TESTER": 3,
-        "RESEARCHER": 2,
-        "PLANNER": 1,
-        "ARCHITECT": 1,
-        "DOCUMENTER": 2,
-        "RESILIENCE": 1,
-        "META": 1,
-        "default": 4,
-    })
+    limits: dict[str, int] = field(
+        default_factory=lambda: {
+            "BUILDER": 2,
+            "TESTER": 3,
+            "RESEARCHER": 2,
+            "PLANNER": 1,
+            "ARCHITECT": 1,
+            "DOCUMENTER": 2,
+            "RESILIENCE": 1,
+            "META": 1,
+            "default": 4,
+        }
+    )
 
     def get_limit(self, agent_type: str) -> int:
         """Return the WIP limit for *agent_type*."""
@@ -429,10 +441,10 @@ class WIPTracker:
             tracker.enqueue("BUILDER", "task-42")
     """
 
-    def __init__(self, config: Optional[WIPConfig] = None) -> None:
+    def __init__(self, config: WIPConfig | None = None) -> None:
         self._config = config or WIPConfig()
-        self._active: Dict[str, List[str]] = {}   # agent_type -> [task_ids]
-        self._queued: List[Dict[str, Any]] = []    # waiting for capacity
+        self._active: dict[str, list[str]] = {}  # agent_type -> [task_ids]
+        self._queued: list[dict[str, Any]] = []  # waiting for capacity
 
     # -- queries ------------------------------------------------------------
 
@@ -450,11 +462,11 @@ class WIPTracker:
         """Return the total number of queued (waiting) tasks."""
         return len(self._queued)
 
-    def get_utilization(self) -> Dict[str, Dict[str, Any]]:
+    def get_utilization(self) -> dict[str, dict[str, Any]]:
         """Return utilization info for every known agent type."""
         types = set(self._config.limits.keys()) | set(self._active.keys())
         types.discard("default")
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         for agent_type in sorted(types):
             limit = self._config.get_limit(agent_type)
             active = len(self._active.get(agent_type, []))
@@ -473,7 +485,9 @@ class WIPTracker:
         if not self.can_start(agent_type):
             logger.warning(
                 "WIP limit reached for %s (limit=%d) -- cannot start %s",
-                agent_type, self._config.get_limit(agent_type), task_id,
+                agent_type,
+                self._config.get_limit(agent_type),
+                task_id,
             )
             return False
 
@@ -481,7 +495,7 @@ class WIPTracker:
         logger.debug("WIP started %s for %s", task_id, agent_type)
         return True
 
-    def complete_task(self, agent_type: str, task_id: str) -> Optional[Dict[str, Any]]:
+    def complete_task(self, agent_type: str, task_id: str) -> dict[str, Any] | None:
         """Mark a task as complete and pull the next queued task (if any).
 
         Returns the dequeued task dict, or ``None`` if the queue is empty.
@@ -499,7 +513,8 @@ class WIPTracker:
                 self._active.setdefault(agent_type, []).append(pulled["task_id"])
                 logger.info(
                     "WIP pulled %s from queue for %s",
-                    pulled["task_id"], agent_type,
+                    pulled["task_id"],
+                    agent_type,
                 )
                 return pulled
 
@@ -507,7 +522,7 @@ class WIPTracker:
 
     def enqueue(self, agent_type: str, task_id: str, **extra: Any) -> None:
         """Place a task in the waiting queue."""
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "agent_type": agent_type,
             "task_id": task_id,
             "enqueued_at": datetime.now().isoformat(),

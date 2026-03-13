@@ -1,15 +1,16 @@
-"""
-Execution Graph — Layer 1 data structures for the Two-Layer Orchestration System.
+"""Execution Graph — Layer 1 data structures for the Two-Layer Orchestration System.
 
 Contains the DAG (Directed Acyclic Graph) of tasks used for plan execution.
 This is distinct from :class:`~vetinari.orchestration.agent_graph.TaskNode`
 which represents agent-level graph nodes.
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from vetinari.types import PlanStatus, TaskStatus
 
@@ -23,29 +24,29 @@ class TaskNode:
     task_type: str = "general"
 
     # Dependencies
-    depends_on: List[str] = field(default_factory=list)
-    depended_by: List[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+    depended_by: list[str] = field(default_factory=list)
 
     # Execution
     status: TaskStatus = TaskStatus.PENDING
     assigned_model: str = ""
 
     # Results
-    input_data: Dict[str, Any] = field(default_factory=dict)
-    output_data: Dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] = field(default_factory=dict)
+    output_data: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
     # Metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    started_at: str | None = None
+    completed_at: str | None = None
     retry_count: int = 0
     max_retries: int = 3
 
     # Checkpoint
     checkpoint_id: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "description": self.description,
@@ -66,7 +67,7 @@ class TaskNode:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "TaskNode":
+    def from_dict(cls, data: dict) -> TaskNode:
         return cls(
             id=data["id"],
             description=data["description"],
@@ -89,8 +90,7 @@ class TaskNode:
 
 @dataclass
 class ExecutionGraph:
-    """
-    Directed Acyclic Graph (DAG) of tasks for execution.
+    """Directed Acyclic Graph (DAG) of tasks for execution.
 
     Supports:
     - Parallel execution of independent tasks
@@ -103,7 +103,7 @@ class ExecutionGraph:
     goal: str
 
     # Nodes in the graph
-    nodes: Dict[str, TaskNode] = field(default_factory=dict)
+    nodes: dict[str, TaskNode] = field(default_factory=dict)
 
     # Graph metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -120,8 +120,8 @@ class ExecutionGraph:
         task_id: str,
         description: str,
         task_type: str = "general",
-        depends_on: List[str] = None,
-        input_data: Dict[str, Any] = None,
+        depends_on: list[str] | None = None,
+        input_data: dict[str, Any] | None = None,
     ) -> TaskNode:
         """Add a task to the graph."""
         node = TaskNode(
@@ -141,49 +141,37 @@ class ExecutionGraph:
         self.updated_at = datetime.now().isoformat()
         return node
 
-    def get_ready_tasks(self) -> List[TaskNode]:
+    def get_ready_tasks(self) -> list[TaskNode]:
         """Get tasks that are ready to execute (all dependencies completed)."""
         ready = []
         for node in self.nodes.values():
             if node.status != TaskStatus.PENDING:
                 continue
             deps_met = all(
-                self.nodes.get(dep_id, TaskNode(id=dep_id, description="")).status
-                == TaskStatus.COMPLETED
+                self.nodes.get(dep_id, TaskNode(id=dep_id, description="")).status == TaskStatus.COMPLETED
                 for dep_id in node.depends_on
             )
             if deps_met:
                 ready.append(node)
         return ready
 
-    def get_next_layer(self) -> List[List["TaskNode"]]:
-        """
-        Get the full execution schedule as layers of parallel tasks.
+    def get_next_layer(self) -> list[list[TaskNode]]:
+        """Get the full execution schedule as layers of parallel tasks.
 
         Uses a simulation pass: tasks are "virtually completed" after being
         placed in a layer so that subsequent layers correctly detect their
         dependencies as satisfied.
         """
-        layers: List[List[TaskNode]] = []
-        simulated_completed: Set[str] = {
-            nid
-            for nid, n in self.nodes.items()
-            if n.status == TaskStatus.COMPLETED
-        }
-        remaining = {
-            nid: n
-            for nid, n in self.nodes.items()
-            if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED)
-        }
+        layers: list[list[TaskNode]] = []
+        simulated_completed: set[str] = {nid for nid, n in self.nodes.items() if n.status == TaskStatus.COMPLETED}
+        remaining = {nid: n for nid, n in self.nodes.items() if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED)}
 
         while remaining:
-            current_layer: List[TaskNode] = []
-            to_remove: List[str] = []
+            current_layer: list[TaskNode] = []
+            to_remove: list[str] = []
 
             for task_id, node in remaining.items():
-                deps_met = all(
-                    dep_id in simulated_completed for dep_id in node.depends_on
-                )
+                deps_met = all(dep_id in simulated_completed for dep_id in node.depends_on)
                 if deps_met:
                     current_layer.append(node)
                     to_remove.append(task_id)
@@ -198,7 +186,7 @@ class ExecutionGraph:
 
         return layers
 
-    def get_execution_order(self) -> List[List[TaskNode]]:
+    def get_execution_order(self) -> list[list[TaskNode]]:
         """Get full execution order as layers."""
         return self.get_next_layer()
 
@@ -209,19 +197,19 @@ class ExecutionGraph:
         node = self.nodes[task_id]
         return node.retry_count < node.max_retries
 
-    def get_blocked_tasks(self) -> List[TaskNode]:
+    def get_blocked_tasks(self) -> list[TaskNode]:
         """Get tasks that are blocked waiting for dependencies."""
         return [n for n in self.nodes.values() if n.status == TaskStatus.BLOCKED]
 
-    def get_failed_tasks(self) -> List[TaskNode]:
+    def get_failed_tasks(self) -> list[TaskNode]:
         """Get all failed tasks."""
         return [n for n in self.nodes.values() if n.status == TaskStatus.FAILED]
 
-    def get_completed_tasks(self) -> List[TaskNode]:
+    def get_completed_tasks(self) -> list[TaskNode]:
         """Get all completed tasks."""
         return [n for n in self.nodes.values() if n.status == TaskStatus.COMPLETED]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
             "goal": self.goal,

@@ -301,6 +301,18 @@ Thinking depth: **low**.
   do not silently skip involved files.
 - **RAG index stale**: Log a warning in output. Fall back to direct file search.
 
+
+## Output Standards (from CLAUDE.md)
+
+All research output MUST follow these conventions:
+
+- File paths MUST be verified with Glob/Read before inclusion -- never guess paths
+- Code snippets in findings MUST use modern typing (`list`, `dict`, `X | None`)
+- Import recommendations MUST follow canonical sources: enums from `vetinari.types`
+- When reporting code patterns, include file:line references
+- API recommendations MUST note whether the dependency exists in `pyproject.toml`
+- Architecture findings go to Oracle for decision -- Researcher provides evidence only
+
 ## Important Reminders
 
 - You are read-only for production source files. Finding code to fix is your

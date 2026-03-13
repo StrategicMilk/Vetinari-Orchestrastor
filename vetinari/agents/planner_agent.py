@@ -1,5 +1,4 @@
-"""
-Vetinari Planner Agent (v0.4.0)
+"""Vetinari Planner Agent (v0.4.0).
 
 The Planner is the central planning and user interaction agent. It generates
 dynamic plans from goals, coordinates agent assignment, and handles user
@@ -15,20 +14,18 @@ import json
 import logging
 import os
 import sys
-import uuid
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
-from vetinari.agents.multi_mode_agent import MultiModeAgent
 from vetinari.agents.contracts import (
     AgentResult,
     AgentTask,
-    AgentType,
     Plan,
     Task,
-    TaskStatus,
     VerificationResult,
-    get_enabled_agents,
 )
+from vetinari.agents.multi_mode_agent import MultiModeAgent
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -65,19 +62,18 @@ class PlannerAgent(MultiModeAgent):
 
     _MAX_ENTRIES_FOR_CONSOLIDATION = 50
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.PLANNER, config)
         self._max_depth = self._config.get("max_depth", 14)
         self._min_tasks = self._config.get("min_tasks", 5)
         self._max_tasks = self._config.get("max_tasks", 15)
         # Orchestrator state (absorbed)
         self._interaction_mode = (config or {}).get("mode", "interactive")
-        self._callback: Optional[Callable] = None
-        self._pending_questions: List[Dict[str, Any]] = []
-        self._gathered_context: Dict[str, Any] = {}
+        self._callback: Callable | None = None
+        self._pending_questions: list[dict[str, Any]] = []
+        self._gathered_context: dict[str, Any] = {}
         self._max_context_tokens = int(
-            (config or {}).get("max_context_tokens",
-                              os.environ.get("VETINARI_MAX_CONTEXT_TOKENS", "4096"))
+            (config or {}).get("max_context_tokens", os.environ.get("VETINARI_MAX_CONTEXT_TOKENS", "4096"))
         )
 
     def _get_base_system_prompt(self) -> str:
@@ -148,17 +144,17 @@ class PlannerAgent(MultiModeAgent):
                 "  image/logo/icon/diagram/mockup -> BUILDER\n\n"
                 "FEW-SHOT EXAMPLE 1 — Build a REST API:\n"
                 'Input: "Build a REST API for user authentication with JWT"\n'
-                'Output tasks: t1=CONSOLIDATED_RESEARCHER(research JWT libraries), '
-                't2=CONSOLIDATED_ORACLE(architecture decision: monolith vs microservice), '
-                't3=BUILDER(scaffold API, depends t1,t2), '
-                't4=QUALITY(security audit, depends t3), '
-                't5=QUALITY(generate tests, depends t3), '
-                't6=OPERATIONS(write API docs, depends t3)\n\n'
+                "Output tasks: t1=CONSOLIDATED_RESEARCHER(research JWT libraries), "
+                "t2=CONSOLIDATED_ORACLE(architecture decision: monolith vs microservice), "
+                "t3=BUILDER(scaffold API, depends t1,t2), "
+                "t4=QUALITY(security audit, depends t3), "
+                "t5=QUALITY(generate tests, depends t3), "
+                "t6=OPERATIONS(write API docs, depends t3)\n\n"
                 "FEW-SHOT EXAMPLE 2 — Research and report:\n"
                 'Input: "Research Python async frameworks and recommend one"\n'
-                'Output tasks: t1=CONSOLIDATED_RESEARCHER(domain research: asyncio vs trio vs anyio), '
-                't2=CONSOLIDATED_ORACLE(contrarian review of options, depends t1), '
-                't3=OPERATIONS(synthesise findings into report, depends t1,t2)\n\n'
+                "Output tasks: t1=CONSOLIDATED_RESEARCHER(domain research: asyncio vs trio vs anyio), "
+                "t2=CONSOLIDATED_ORACLE(contrarian review of options, depends t1), "
+                "t3=OPERATIONS(synthesise findings into report, depends t1,t2)\n\n"
                 "FEW-SHOT EXAMPLE 3 — Vague goal:\n"
                 'Input: "make something cool"\n'
                 'Output: needs_context=true, follow_up_question="What domain or problem area interests you?"\n\n'
@@ -213,21 +209,21 @@ class PlannerAgent(MultiModeAgent):
                 "5. Is the goal fewer than 5 words? -> Ask for elaboration\n\n"
                 "FEW-SHOT EXAMPLE 1 — Technical ambiguity:\n"
                 'Input: "Build an API"\n'
-                'Output: is_ambiguous=true, ambiguity_score=0.85,\n'
-                'questions=[\n'
+                "Output: is_ambiguous=true, ambiguity_score=0.85,\n"
+                "questions=[\n"
                 '  {question: "What data or service should this API expose?", information_value: "high", category: "scope"},\n'
                 '  {question: "What technology stack (Python/FastAPI, Node/Express, etc.)?", information_value: "medium", category: "technology"},\n'
                 '  {question: "Should it include authentication?", information_value: "medium", category: "constraints"}\n'
                 "]\n\n"
                 "FEW-SHOT EXAMPLE 2 — Sufficient context:\n"
                 'Input: "Create a FastAPI endpoint that accepts JSON and stores it in PostgreSQL"\n'
-                'Output: is_ambiguous=false, ambiguity_score=0.15,\n'
-                'can_proceed_with_assumptions=true,\n'
+                "Output: is_ambiguous=false, ambiguity_score=0.15,\n"
+                "can_proceed_with_assumptions=true,\n"
                 'inferred_context={framework: "FastAPI", database: "PostgreSQL", language: "Python"}\n\n'
                 "FEW-SHOT EXAMPLE 3 — Timeline ambiguity:\n"
                 'Input: "Help me write a report on AI trends soon"\n'
-                'Output: is_ambiguous=true, ambiguity_score=0.5,\n'
-                'questions=[\n'
+                "Output: is_ambiguous=true, ambiguity_score=0.5,\n"
+                "questions=[\n"
                 '  {question: "What is the target length and format (pages, slides, bullets)?", information_value: "high", category: "format"},\n'
                 '  {question: "What is the deadline?", information_value: "medium", category: "timeline"}\n'
                 "]\n\n"
@@ -338,13 +334,13 @@ class PlannerAgent(MultiModeAgent):
                 "4. Was a decision made that constrains future work? -> key_decisions\n"
                 "5. Is something preventing forward progress? -> blockers\n\n"
                 "FEW-SHOT EXAMPLE 1 — Productive session:\n"
-                'History: 20 messages about building a FastAPI service\n'
+                "History: 20 messages about building a FastAPI service\n"
                 'Output: session_summary="Built FastAPI authentication service with JWT. All core endpoints implemented and tested.",\n'
                 'goals_achieved=["JWT auth endpoints (POST /login, POST /refresh, DELETE /logout)"],\n'
                 'next_steps=["Deploy to staging", "Add rate limiting"],\n'
                 'session_health="completed"\n\n'
                 "FEW-SHOT EXAMPLE 2 — Blocked session:\n"
-                'History: Attempts to connect to database failing\n'
+                "History: Attempts to connect to database failing\n"
                 'Output: session_summary="Database integration stalled due to connection refused errors.",\n'
                 'blockers=["PostgreSQL not reachable at localhost:5432"],\n'
                 'next_steps=["Verify DB is running: systemctl status postgresql"],\n'
@@ -406,8 +402,8 @@ class PlannerAgent(MultiModeAgent):
                 'Output: retain=[{entry:"Tech stack: Python 3.11", relevance_score:0.9, retention_reason:"most specific version statement"}],\n'
                 'stale=[{entry:"Use Python", prune_reason:"superseded"}, {entry:"We are using Python...", prune_reason:"duplicate"}]\n\n'
                 "FEW-SHOT EXAMPLE 2 — Budget constraint:\n"
-                'max_tokens=1000, 30 entries present, estimated 2000 tokens\n'
-                'Output: retain the 15 highest-relevance entries, prune 15 lowest\n\n'
+                "max_tokens=1000, 30 entries present, estimated 2000 tokens\n"
+                "Output: retain the 15 highest-relevance entries, prune 15 lowest\n\n"
                 "ERROR HANDLING:\n"
                 "- If entries is empty, return all counts as 0 with empty arrays\n"
                 "- If all entries are critical (relevance_score > 0.8), retain all and note budget exceeded\n"
@@ -474,7 +470,7 @@ class PlannerAgent(MultiModeAgent):
                 'key_knowledge=[{fact:"Backend: FastAPI + PostgreSQL + JWT auth",confidence:0.95,category:"technical"}]\n\n'
                 "FEW-SHOT EXAMPLE 2 — Business constraint:\n"
                 'Input: "The system must handle 10,000 concurrent users and comply with GDPR."\n'
-                'Output: key_knowledge=[\n'
+                "Output: key_knowledge=[\n"
                 '  {fact:"Concurrency requirement: 10,000 concurrent users",confidence:0.99,category:"constraint"},\n'
                 '  {fact:"Compliance requirement: GDPR",confidence:0.99,category:"constraint"}\n'
                 "]\n\n"
@@ -504,9 +500,7 @@ class PlannerAgent(MultiModeAgent):
     def verify(self, output: Any) -> VerificationResult:
         """Verify output — mode-aware."""
         if not isinstance(output, dict):
-            return VerificationResult(
-                passed=False, issues=[{"message": "Output must be a dict"}], score=0.0
-            )
+            return VerificationResult(passed=False, issues=[{"message": "Output must be a dict"}], score=0.0)
 
         mode = self._current_mode or self.DEFAULT_MODE
         if mode == "plan":
@@ -528,12 +522,19 @@ class PlannerAgent(MultiModeAgent):
 
         return VerificationResult(passed=True, score=0.8)
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "plan_generation", "task_decomposition", "dependency_mapping",
-            "resource_estimation", "risk_assessment",
-            "ambiguity_detection", "clarification_generation", "context_gathering",
-            "memory_consolidation", "session_summarisation", "context_pruning",
+            "plan_generation",
+            "task_decomposition",
+            "dependency_mapping",
+            "resource_estimation",
+            "risk_assessment",
+            "ambiguity_detection",
+            "clarification_generation",
+            "context_gathering",
+            "memory_consolidation",
+            "session_summarisation",
+            "context_pruning",
             "knowledge_extraction",
         ]
 
@@ -556,7 +557,7 @@ class PlannerAgent(MultiModeAgent):
             },
         )
 
-    def _generate_plan(self, goal: str, context: Dict[str, Any]) -> Plan:
+    def _generate_plan(self, goal: str, context: dict[str, Any]) -> Plan:
         """Generate a plan from the goal using LLM-powered decomposition.
 
         Falls back to keyword-based decomposition if the LLM is unavailable.
@@ -565,18 +566,25 @@ class PlannerAgent(MultiModeAgent):
 
         # Step 1: Heuristic vagueness check
         vague_indicators = [
-            "something", "stuff", "things", "create something", "make it work",
-            "fix it", "do something", "help me", "build something",
+            "something",
+            "stuff",
+            "things",
+            "create something",
+            "make it work",
+            "fix it",
+            "do something",
+            "help me",
+            "build something",
         ]
         goal_lower = goal.lower().strip()
         goal_words = goal_lower.split()
 
         is_vague = False
-        if len(goal_words) < 3:
-            is_vague = True
-        elif len(goal_words) < 5 and any(v in goal_lower for v in vague_indicators):
-            is_vague = True
-        elif not any(c.isalnum() for c in goal):
+        if (
+            len(goal_words) < 3
+            or (len(goal_words) < 5 and any(v in goal_lower for v in vague_indicators))
+            or not any(c.isalnum() for c in goal)
+        ):
             is_vague = True
 
         if is_vague:
@@ -595,12 +603,16 @@ class PlannerAgent(MultiModeAgent):
 
         return plan
 
-    def _decompose_goal_llm(self, goal: str, context: Dict[str, Any]) -> List[Task]:
+    def _decompose_goal_llm(self, goal: str, context: dict[str, Any]) -> list[Task]:
         """Use LLM to intelligently decompose a goal into ordered tasks."""
         # Only the 6 active consolidated agents
         available_agents = [
-            "PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
-            "BUILDER", "QUALITY", "OPERATIONS",
+            "PLANNER",
+            "CONSOLIDATED_RESEARCHER",
+            "CONSOLIDATED_ORACLE",
+            "BUILDER",
+            "QUALITY",
+            "OPERATIONS",
         ]
         context_str = ""
         if context:
@@ -608,7 +620,7 @@ class PlannerAgent(MultiModeAgent):
 
         decomp_prompt = f"""Goal: {goal}{context_str}
 
-Available agents: {', '.join(available_agents)}
+Available agents: {", ".join(available_agents)}
 
 Break this goal into 3-{self._max_tasks} discrete, ordered tasks.
 For each task specify: id (t1,t2,...), description, inputs (list), outputs (list),
@@ -636,7 +648,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
                 except KeyError:
                     agent_type = AgentType.BUILDER
                 t = Task(
-                    id=item.get("id", f"t{len(tasks)+1}"),
+                    id=item.get("id", f"t{len(tasks) + 1}"),
                     description=item.get("description", "Task"),
                     inputs=item.get("inputs", []),
                     outputs=item.get("outputs", []),
@@ -645,7 +657,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
                     depth=0,
                 )
                 tasks.append(t)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
         # Recalculate actual DAG depths
@@ -666,95 +678,183 @@ Output valid JSON array of task objects only — no prose, no markdown:
 
         return tasks
 
-    def _decompose_goal_keyword(self, goal: str, context: Dict[str, Any]) -> List[Task]:
+    def _decompose_goal_keyword(self, goal: str, context: dict[str, Any]) -> list[Task]:
         """Keyword-based fallback decomposition when LLM is unavailable."""
         goal_lower = goal.lower()
         tasks = []
         task_counter = [1]
 
-        def next_id(prefix='t'):
+        def next_id(prefix="t"):
             tid = f"{prefix}{task_counter[0]}"
             task_counter[0] += 1
             return tid
 
         # Analysis task always first
         t1 = Task(
-            id=next_id(), description="Analyze requirements and create detailed specification",
-            inputs=["goal"], outputs=["requirements_spec", "architecture_doc"],
-            dependencies=[], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=0,
+            id=next_id(),
+            description="Analyze requirements and create detailed specification",
+            inputs=["goal"],
+            outputs=["requirements_spec", "architecture_doc"],
+            dependencies=[],
+            assigned_agent=AgentType.CONSOLIDATED_RESEARCHER,
+            depth=0,
         )
         tasks.append(t1)
 
-        is_code_heavy = any(kw in goal_lower for kw in [
-            "code", "implement", "build", "create", "program", "agent",
-            "script", "app", "web", "software",
-        ])
-        is_ui_needed = any(kw in goal_lower for kw in [
-            "ui", "frontend", "interface", "web", "app", "dashboard", "website",
-        ])
-        is_research = any(kw in goal_lower for kw in [
-            "research", "analyze", "investigate", "study", "review",
-        ])
-        is_data = any(kw in goal_lower for kw in [
-            "data", "database", "sql", "query", "schema",
-        ])
+        is_code_heavy = any(
+            kw in goal_lower
+            for kw in [
+                "code",
+                "implement",
+                "build",
+                "create",
+                "program",
+                "agent",
+                "script",
+                "app",
+                "web",
+                "software",
+            ]
+        )
+        is_ui_needed = any(
+            kw in goal_lower
+            for kw in [
+                "ui",
+                "frontend",
+                "interface",
+                "web",
+                "app",
+                "dashboard",
+                "website",
+            ]
+        )
+        is_research = any(
+            kw in goal_lower
+            for kw in [
+                "research",
+                "analyze",
+                "investigate",
+                "study",
+                "review",
+            ]
+        )
+        is_data = any(
+            kw in goal_lower
+            for kw in [
+                "data",
+                "database",
+                "sql",
+                "query",
+                "schema",
+            ]
+        )
 
         t2 = Task(
-            id=next_id(), description="Set up project structure and dependencies",
-            inputs=["requirements_spec"], outputs=["project_structure", "package_files"],
-            dependencies=[t1.id], assigned_agent=AgentType.BUILDER, depth=1,
+            id=next_id(),
+            description="Set up project structure and dependencies",
+            inputs=["requirements_spec"],
+            outputs=["project_structure", "package_files"],
+            dependencies=[t1.id],
+            assigned_agent=AgentType.BUILDER,
+            depth=1,
         )
         tasks.append(t2)
 
         if is_research:
-            tasks.append(Task(
-                id=next_id(), description="Conduct domain research and competitor analysis",
-                inputs=["goal"], outputs=["research_report"],
-                dependencies=[t1.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=1,
-            ))
+            tasks.append(
+                Task(
+                    id=next_id(),
+                    description="Conduct domain research and competitor analysis",
+                    inputs=["goal"],
+                    outputs=["research_report"],
+                    dependencies=[t1.id],
+                    assigned_agent=AgentType.CONSOLIDATED_RESEARCHER,
+                    depth=1,
+                )
+            )
 
         if is_code_heavy:
             t_impl = Task(
-                id=next_id(), description="Implement core business logic and data models",
-                inputs=["requirements_spec", "project_structure"], outputs=["core_modules"],
-                dependencies=[t2.id], assigned_agent=AgentType.BUILDER, depth=1,
+                id=next_id(),
+                description="Implement core business logic and data models",
+                inputs=["requirements_spec", "project_structure"],
+                outputs=["core_modules"],
+                dependencies=[t2.id],
+                assigned_agent=AgentType.BUILDER,
+                depth=1,
             )
             tasks.append(t_impl)
             if is_ui_needed:
-                tasks.append(Task(
-                    id=next_id(), description="Implement user interface and interactions",
-                    inputs=["core_modules"], outputs=["ui_components"],
-                    dependencies=[t_impl.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=2,
-                ))
-            tasks.append(Task(
-                id=next_id(), description="Write unit tests and integration tests",
-                inputs=["core_modules"], outputs=["test_files"],
-                dependencies=[t_impl.id], assigned_agent=AgentType.QUALITY, depth=2,
-            ))
+                tasks.append(
+                    Task(
+                        id=next_id(),
+                        description="Implement user interface and interactions",
+                        inputs=["core_modules"],
+                        outputs=["ui_components"],
+                        dependencies=[t_impl.id],
+                        assigned_agent=AgentType.CONSOLIDATED_RESEARCHER,
+                        depth=2,
+                    )
+                )
+            tasks.append(
+                Task(
+                    id=next_id(),
+                    description="Write unit tests and integration tests",
+                    inputs=["core_modules"],
+                    outputs=["test_files"],
+                    dependencies=[t_impl.id],
+                    assigned_agent=AgentType.QUALITY,
+                    depth=2,
+                )
+            )
 
         if is_data:
-            tasks.append(Task(
-                id=next_id(), description="Set up database schema and data layer",
-                inputs=["requirements_spec"], outputs=["schema_files"],
-                dependencies=[t1.id], assigned_agent=AgentType.CONSOLIDATED_RESEARCHER, depth=1,
-            ))
+            tasks.append(
+                Task(
+                    id=next_id(),
+                    description="Set up database schema and data layer",
+                    inputs=["requirements_spec"],
+                    outputs=["schema_files"],
+                    dependencies=[t1.id],
+                    assigned_agent=AgentType.CONSOLIDATED_RESEARCHER,
+                    depth=1,
+                )
+            )
 
         last = tasks[-1]
-        tasks.append(Task(
-            id=next_id(), description="Code quality review and refinement",
-            inputs=[last.outputs[0] if last.outputs else "result"], outputs=["code_review"],
-            dependencies=[last.id], assigned_agent=AgentType.QUALITY, depth=2,
-        ))
-        tasks.append(Task(
-            id=next_id(), description="Generate documentation and final summary",
-            inputs=["code_review"], outputs=["documentation"],
-            dependencies=[tasks[-1].id], assigned_agent=AgentType.OPERATIONS, depth=3,
-        ))
-        tasks.append(Task(
-            id=next_id(), description="Security review and compliance check",
-            inputs=["documentation"], outputs=["security_report"],
-            dependencies=[tasks[-1].id], assigned_agent=AgentType.QUALITY, depth=4,
-        ))
+        tasks.append(
+            Task(
+                id=next_id(),
+                description="Code quality review and refinement",
+                inputs=[last.outputs[0] if last.outputs else "result"],
+                outputs=["code_review"],
+                dependencies=[last.id],
+                assigned_agent=AgentType.QUALITY,
+                depth=2,
+            )
+        )
+        tasks.append(
+            Task(
+                id=next_id(),
+                description="Generate documentation and final summary",
+                inputs=["code_review"],
+                outputs=["documentation"],
+                dependencies=[tasks[-1].id],
+                assigned_agent=AgentType.OPERATIONS,
+                depth=3,
+            )
+        )
+        tasks.append(
+            Task(
+                id=next_id(),
+                description="Security review and compliance check",
+                inputs=["documentation"],
+                outputs=["security_report"],
+                dependencies=[tasks[-1].id],
+                assigned_agent=AgentType.QUALITY,
+                depth=4,
+            )
+        )
         return tasks
 
     # ------------------------------------------------------------------
@@ -770,7 +870,8 @@ Output valid JSON array of task objects only — no prose, no markdown:
 
         if not is_ambiguous or not questions:
             return AgentResult(
-                success=True, output=existing_context,
+                success=True,
+                output=existing_context,
                 metadata={"questions_asked": 0, "ambiguous": False},
             )
 
@@ -784,8 +885,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
         else:
             return AgentResult(
                 success=True,
-                output={"pending_questions": questions, "needs_user_input": True,
-                        "existing_context": existing_context},
+                output={"pending_questions": questions, "needs_user_input": True, "existing_context": existing_context},
                 metadata={"questions_asked": len(questions), "needs_user_input": True},
             )
 
@@ -795,11 +895,12 @@ Output valid JSON array of task objects only — no prose, no markdown:
         self._gathered_context = enriched
 
         return AgentResult(
-            success=True, output=enriched,
+            success=True,
+            output=enriched,
             metadata={"questions_asked": len(questions), "responses_gathered": len(responses)},
         )
 
-    def _detect_ambiguity(self, goal: str, context: Dict) -> tuple:
+    def _detect_ambiguity(self, goal: str, context: dict) -> tuple:
         prompt = (
             f'Analyze this goal for ambiguity: "{goal}"\n'
             f"Context available: {list(context.keys())}\n\n"
@@ -818,16 +919,16 @@ Output valid JSON array of task objects only — no prose, no markdown:
             questions.append("Could you provide more details about what you want to accomplish?")
         if any(w in g for w in ["something", "stuff", "things", "it"]):
             questions.append("Can you be more specific about what 'it' refers to?")
-        if any(w in g for w in ["build", "create", "make"]):
+        if any(w in g for w in ["build", "create", "make"]):  # noqa: SIM102
             if not any(w in g for w in ["python", "javascript", "web", "api", "cli"]):
                 questions.append("What technology stack should be used?")
         return len(questions) > 0, questions
 
-    def _interactive_prompt(self, questions: List[str]) -> List[str]:
+    def _interactive_prompt(self, questions: list[str]) -> list[str]:
         responses = []
-        print("\n[Vetinari] Additional context needed:")
+        logger.info("Additional context needed:")
         for i, q in enumerate(questions, 1):
-            print(f"\n{i}. {q}")
+            logger.info("%d. %s", i, q)
             try:
                 r = input("   > ").strip() if sys.stdin.isatty() else sys.stdin.readline().strip()
                 responses.append(r or "(no response)")
@@ -835,7 +936,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
                 responses.append("(skipped)")
         return responses
 
-    def _callback_prompt(self, goal: str, questions: List[str]) -> List[str]:
+    def _callback_prompt(self, goal: str, questions: list[str]) -> list[str]:
         if not self._callback:
             return ["(no callback)"] * len(questions)
         try:
@@ -844,7 +945,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
         except Exception:
             return ["(callback error)"] * len(questions)
 
-    def set_interaction_mode(self, mode: str, callback: Callable = None) -> None:
+    def set_interaction_mode(self, mode: str, callback: Callable | None = None) -> None:
         """Set the interaction mode for clarify operations."""
         self._interaction_mode = mode
         self._callback = callback
@@ -861,24 +962,26 @@ Output valid JSON array of task objects only — no prose, no markdown:
 
         if not entries:
             return AgentResult(
-                success=True, output=self._fallback_consolidation(task, []),
+                success=True,
+                output=self._fallback_consolidation(task, []),
                 metadata={"operation": "consolidate", "entries_processed": 0},
             )
 
-        entries_text = json.dumps(entries[:self._MAX_ENTRIES_FOR_CONSOLIDATION], indent=2)[:6000]
+        entries_text = json.dumps(entries[: self._MAX_ENTRIES_FOR_CONSOLIDATION], indent=2)[:6000]
         prompt = (
             f"Consolidate the following {len(entries)} memory entries. "
             f"Extract key knowledge, identify patterns, create concise summary.\n\n"
             f"## Entries\n{entries_text}\n\n"
-            '## Output (JSON)\n'
+            "## Output (JSON)\n"
             '{"consolidated_summary": "...", "key_knowledge": [{"fact": "...", "confidence": 0.9}], '
-            '"patterns_identified": [...], "entries_processed": ' + str(len(entries)) + '}'
+            '"patterns_identified": [...], "entries_processed": ' + str(len(entries)) + "}"
         )
         result = self._infer_json(prompt, fallback=self._fallback_consolidation(task, entries))
         if result and isinstance(result, dict):
             result.setdefault("entries_processed", len(entries))
             return AgentResult(
-                success=True, output=result,
+                success=True,
+                output=result,
                 metadata={"operation": "consolidate", "entries_processed": len(entries)},
             )
         fb = self._fallback_consolidation(task, entries)
@@ -893,9 +996,9 @@ Output valid JSON array of task objects only — no prose, no markdown:
         prompt = (
             f"Summarise {len(history)} session entries for an AI orchestration system.\n\n"
             f"## History\n{json.dumps(history[:30], indent=2)[:4000]}\n\n"
-            '## Output (JSON)\n'
+            "## Output (JSON)\n"
             '{"session_summary": "...", "goals_achieved": [...], "next_steps": [...], '
-            '"entries_processed": ' + str(len(history)) + '}'
+            '"entries_processed": ' + str(len(history)) + "}"
         )
         result = self._infer_json(prompt, fallback=self._fallback_consolidation(task, history))
         if result and isinstance(result, dict):
@@ -909,16 +1012,20 @@ Output valid JSON array of task objects only — no prose, no markdown:
         max_tokens = ctx.get("max_tokens", self._max_context_tokens)
 
         if not entries:
-            return AgentResult(success=True, output={
-                "consolidated_summary": "No entries to prune",
-                "pruned_count": 0, "entries_processed": 0,
-            })
+            return AgentResult(
+                success=True,
+                output={
+                    "consolidated_summary": "No entries to prune",
+                    "pruned_count": 0,
+                    "entries_processed": 0,
+                },
+            )
 
         prompt = (
             f"Prune context to fit within {max_tokens} tokens. "
             f"Keep highest relevance entries.\n\n"
             f"## Entries ({len(entries)})\n{json.dumps(entries[:40], indent=2)[:4000]}\n\n"
-            '## Output (JSON)\n'
+            "## Output (JSON)\n"
             '{"entries_to_retain": [...], "stale_entries": [...], "pruned_count": 0}'
         )
         result = self._infer_json(prompt, fallback={"pruned_count": 0, "entries_processed": len(entries)})
@@ -930,7 +1037,7 @@ Output valid JSON array of task objects only — no prose, no markdown:
         text = task.context.get("text", "") or task.description or ""
         prompt = (
             f"Extract structured knowledge from:\n{text[:4000]}\n\n"
-            '## Output (JSON)\n'
+            "## Output (JSON)\n"
             '{"key_knowledge": [{"fact": "...", "confidence": 0.9}], '
             '"entities_discovered": [{"name": "...", "type": "..."}]}'
         )
@@ -943,39 +1050,42 @@ Output valid JSON array of task objects only — no prose, no markdown:
     # Memory helpers (absorbed from OrchestratorAgent)
     # ------------------------------------------------------------------
 
-    def _load_memory_entries(self, session_id: str, project_id: str) -> List[Dict]:
+    def _load_memory_entries(self, session_id: str, project_id: str) -> list[dict]:
         entries = []
         try:
             from vetinari.memory.dual_memory import get_dual_memory_store
+
             store = get_dual_memory_store()
             if hasattr(store, "search"):
                 results = store.search("", limit=50)
-                for r in (results or []):
+                for r in results or []:
                     entries.append(r.to_dict() if hasattr(r, "to_dict") else r)
         except Exception:
             logger.debug("Failed to load memory entries from dual_memory store", exc_info=True)
         try:
             from vetinari.shared_memory import shared_memory
-            for e in (shared_memory.get_all(limit=30) or []):
+
+            for e in shared_memory.get_all(limit=30) or []:
                 entries.append(e.to_dict() if hasattr(e, "to_dict") else e)
         except Exception:
             logger.debug("Failed to load entries from shared_memory", exc_info=True)
         return entries
 
-    def _fallback_consolidation(self, task: AgentTask, entries: List) -> Dict[str, Any]:
+    def _fallback_consolidation(self, task: AgentTask, entries: list) -> dict[str, Any]:
         return {
             "consolidated_summary": f"Context consolidation for: {(task.description or 'session')[:100]}",
             "session_summary": f"Processed {len(entries)} entries. LLM unavailable.",
-            "key_knowledge": [], "entries_processed": len(entries),
+            "key_knowledge": [],
+            "entries_processed": len(entries),
             "retrieval_recommendations": [{"query_type": "semantic", "strategy": "hybrid"}],
         }
 
 
 # Singleton instance
-_planner_agent: Optional[PlannerAgent] = None
+_planner_agent: PlannerAgent | None = None
 
 
-def get_planner_agent(config: Optional[Dict[str, Any]] = None) -> PlannerAgent:
+def get_planner_agent(config: dict[str, Any] | None = None) -> PlannerAgent:
     """Get the singleton Planner agent instance."""
     global _planner_agent
     if _planner_agent is None:

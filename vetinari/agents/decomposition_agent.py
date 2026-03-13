@@ -1,22 +1,23 @@
-"""
-Decomposition Agent Interface
+"""Decomposition Agent Interface.
+
 ==============================
 Provides the decomposition_agent singleton and RECURSION_KNOBS used by
 the Decomposition Lab API endpoints.
 """
 
+from __future__ import annotations
+
 import logging
-import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Recursion control knobs
 RECURSION_KNOBS = {
-    "breadth_first_weight": 0.6,   # Prefer breadth over depth
-    "min_subtask_words": 5,         # Min words in subtask description
-    "max_subtasks_per_level": 8,    # Max subtasks per decomposition level
-    "quality_threshold": 0.65,      # Minimum quality score to accept a subtask
+    "breadth_first_weight": 0.6,  # Prefer breadth over depth
+    "min_subtask_words": 5,  # Min words in subtask description
+    "max_subtasks_per_level": 8,  # Max subtasks per decomposition level
+    "quality_threshold": 0.65,  # Minimum quality score to accept a subtask
 }
 
 SEED_RATE = 0.3
@@ -27,20 +28,19 @@ MAX_MAX_DEPTH = 16
 
 
 class DecompositionAgent:
-    """
-    Agent responsible for recursively decomposing plans via the PlannerAgent.
+    """Agent responsible for recursively decomposing plans via the PlannerAgent.
+
     Provides the `decompose_from_prompt` interface used by the Decomp Lab.
     """
 
-    def decompose_from_prompt(
-        self, plan: Any, prompt: str
-    ) -> Dict[str, Any]:
-        """
-        Decompose a prompt in the context of an existing plan.
+    def decompose_from_prompt(self, plan: Any, prompt: str) -> dict[str, Any]:
+        """Decompose a prompt in the context of an existing plan.
+
         Returns a dict with tasks, depth info, and metadata.
         """
         try:
             from vetinari.decomposition import decomposition_engine
+
             subtasks = decomposition_engine.decompose_task(
                 task_prompt=prompt,
                 parent_task_id=getattr(plan, "plan_id", "root"),

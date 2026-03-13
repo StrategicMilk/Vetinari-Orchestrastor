@@ -1,5 +1,5 @@
-"""
-Vetinari Dynamic Prompt Assembler
+"""Vetinari Dynamic Prompt Assembler.
+
 ===================================
 Builds optimised prompts from modular components selected by agent type
 and task type.  Replaces monolithic system prompts with composable pieces:
@@ -31,9 +31,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Role definitions (short, per agent — loaded lazily from existing SKILL.md)
 # ---------------------------------------------------------------------------
 
-_ROLE_DEFS: Dict[str, str] = {
+_ROLE_DEFS: dict[str, str] = {
     "PLANNER": "You are Vetinari's Planner. Decompose goals into precise, dependency-aware task DAGs.",
     "BUILDER": "You are Vetinari's Builder. Generate production-quality code scaffolds and implementation.",
     # Consolidated agents (Phase 3)
@@ -55,7 +54,7 @@ _ROLE_DEFS: Dict[str, str] = {
 }
 
 # Task-type-specific instructions (injected after role def)
-_TASK_INSTRUCTIONS: Dict[str, str] = {
+_TASK_INSTRUCTIONS: dict[str, str] = {
     "coding": (
         "Generate clean, well-documented Python code. "
         "Include type hints, docstrings, error handling, and logging. "
@@ -65,26 +64,19 @@ _TASK_INSTRUCTIONS: Dict[str, str] = {
         "Cite sources where possible. Distinguish between established facts and your inference. "
         "Structure findings in sections with clear headings."
     ),
-    "analysis": (
-        "Be specific and evidence-based. Quantify where possible. "
-        "Separate facts from recommendations."
-    ),
+    "analysis": ("Be specific and evidence-based. Quantify where possible. Separate facts from recommendations."),
     "planning": (
         "Produce a concrete, actionable plan. Each step must have clear inputs, outputs, "
         "and success criteria. Identify dependencies and risks."
     ),
     "review": (
-        "Be constructive and specific. For each issue, explain WHY it is a problem "
-        "and provide a corrected example."
+        "Be constructive and specific. For each issue, explain WHY it is a problem and provide a corrected example."
     ),
     "documentation": (
-        "Write for the target audience. Include examples for every non-trivial concept. "
-        "Use consistent terminology throughout."
+        "Write clear, accurate documentation for the target audience. Include examples for every "
+        "non-trivial concept. Use consistent terminology and keep it DRY — don't repeat code verbatim."
     ),
-    "general": (
-        "Be precise and complete. If you are unsure about anything, say so explicitly "
-        "rather than guessing."
-    ),
+    "general": ("Be precise and complete. If you are unsure about anything, say so explicitly rather than guessing."),
     "security": (
         "Identify all vulnerabilities with CWE IDs, severity levels (critical/high/medium/low), "
         "and provide concrete remediation code. Never approve code with critical issues."
@@ -97,10 +89,6 @@ _TASK_INSTRUCTIONS: Dict[str, str] = {
         "Use appropriate data types and constraints. Include both up and down migration scripts. "
         "Consider indexing, partitioning, and performance implications."
     ),
-    "documentation": (
-        "Write clear, accurate documentation with examples. Target the appropriate audience. "
-        "Keep it DRY — don't repeat code from the codebase verbatim."
-    ),
     "image": (
         "Produce optimized Stable Diffusion prompts. Be specific about style, composition, "
         "and technical quality. Provide SVG fallbacks for simple geometric designs."
@@ -108,7 +96,7 @@ _TASK_INSTRUCTIONS: Dict[str, str] = {
 }
 
 # Output format templates by task type
-_OUTPUT_FORMATS: Dict[str, str] = {
+_OUTPUT_FORMATS: dict[str, str] = {
     "coding": 'Return ONLY valid JSON:\n{"scaffold_code": "...", "tests": [...], "artifacts": [...], "implementation_notes": [...]}',
     "planning": 'Return ONLY valid JSON:\n{"tasks": [...], "dependencies": {...}, "risks": [...], "notes": "..."}',
     "research": 'Return ONLY valid JSON:\n{"summary": "...", "findings": [...], "sources": [...], "recommendations": [...]}',
@@ -122,6 +110,7 @@ _OUTPUT_FORMATS: Dict[str, str] = {
 # Assembler
 # ---------------------------------------------------------------------------
 
+
 class PromptAssembler:
     """Builds modular, context-window-aware prompts for any agent/task combo."""
 
@@ -134,8 +123,8 @@ class PromptAssembler:
     BUDGET_TASK = 1.0 - 0.05 - 0.08 - 0.05 - 0.05 - 0.15  # ~62%
 
     def __init__(self):
-        self._examples_cache: Dict[str, List[Dict]] = {}
-        self._rules_cache: Dict[str, List[str]] = {}
+        self._examples_cache: dict[str, list[dict]] = {}
+        self._rules_cache: dict[str, list[str]] = {}
 
     def build(
         self,
@@ -145,9 +134,9 @@ class PromptAssembler:
         context_budget: int = 28000,
         include_examples: bool = True,
         include_rules: bool = True,
-        project_id: Optional[str] = None,
-        model_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        project_id: str | None = None,
+        model_id: str | None = None,
+    ) -> dict[str, Any]:
         """Build a complete prompt dict for the given agent and task.
 
         Args:
@@ -169,10 +158,9 @@ class PromptAssembler:
         rules_prefix = ""
         try:
             from vetinari.rules_manager import get_rules_manager
+
             rm = get_rules_manager()
-            rules_prefix = rm.build_system_prompt_prefix(
-                project_id=project_id, model_id=model_id
-            )
+            rules_prefix = rm.build_system_prompt_prefix(project_id=project_id, model_id=model_id)
         except Exception:
             logger.debug("Failed to load rules prefix for prompt assembly", exc_info=True)
 
@@ -204,8 +192,7 @@ class PromptAssembler:
             examples = self._get_examples(agent_type, task_type, task_description)
             if examples:
                 examples_text = "EXAMPLES:\n" + "\n---\n".join(
-                    f"Task: {e.get('task', '')[:200]}\nOutput: {e.get('output', '')[:400]}"
-                    for e in examples
+                    f"Task: {e.get('task', '')[:200]}\nOutput: {e.get('output', '')[:400]}" for e in examples
                 )
             examples_text = self._truncate(examples_text, int(budget * self.BUDGET_EXAMPLES))
 
@@ -240,14 +227,15 @@ class PromptAssembler:
     def _get_format(self, task_type: str) -> str:
         return _OUTPUT_FORMATS.get(task_type.lower(), _OUTPUT_FORMATS["general"])
 
-    def _get_rules(self, agent_type: str, task_type: str) -> List[str]:
+    def _get_rules(self, agent_type: str, task_type: str) -> list[str]:
         """Load learned failure-pattern rules from WorkflowLearner."""
         cache_key = f"{agent_type}:{task_type}"
         if cache_key in self._rules_cache:
             return self._rules_cache[cache_key]
-        rules: List[str] = []
+        rules: list[str] = []
         try:
             from vetinari.learning.workflow_learner import get_workflow_learner
+
             learner = get_workflow_learner()
             domain = self._task_to_domain(task_type)
             rec = learner.get_recommendations(domain)
@@ -263,7 +251,7 @@ class PromptAssembler:
         agent_type: str,
         task_type: str,
         task_description: str,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Return 1-3 few-shot examples relevant to this task.
 
         Falls back to static template examples when the training corpus
@@ -271,6 +259,7 @@ class PromptAssembler:
         """
         try:
             from vetinari.learning.episode_memory import get_episode_memory
+
             memory = get_episode_memory()
             episodes = memory.recall(task_description, k=3, min_score=0.7)
             if episodes:
@@ -279,12 +268,7 @@ class PromptAssembler:
             logger.debug("Failed to recall few-shot examples from episode memory", exc_info=True)
 
         # Static examples from template files
-        tmpl_path = (
-            Path(__file__).parent.parent.parent
-            / "templates"
-            / "v1"
-            / f"{agent_type.lower()}.json"
-        )
+        tmpl_path = Path(__file__).parent.parent.parent / "templates" / "v1" / f"{agent_type.lower()}.json"
         if tmpl_path.exists():
             try:
                 with open(tmpl_path, encoding="utf-8") as f:
@@ -313,7 +297,7 @@ class PromptAssembler:
             return ""
         if len(text) <= max_chars:
             return text
-        return text[:max(max_chars - 3, 0)] + "..."
+        return text[: max(max_chars - 3, 0)] + "..."
 
     @staticmethod
     def _task_to_domain(task_type: str) -> str:
@@ -335,7 +319,7 @@ class PromptAssembler:
 # Module-level accessor
 # ---------------------------------------------------------------------------
 
-_assembler: Optional[PromptAssembler] = None
+_assembler: PromptAssembler | None = None
 _assembler_lock = __import__("threading").Lock()
 
 

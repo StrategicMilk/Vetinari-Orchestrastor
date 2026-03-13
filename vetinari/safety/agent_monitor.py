@@ -68,7 +68,7 @@ class AgentMonitor:
     _instance: AgentMonitor | None = None
     _class_lock = threading.Lock()
 
-    def __new__(cls) -> "AgentMonitor":
+    def __new__(cls) -> AgentMonitor:
         if cls._instance is None:
             with cls._class_lock:
                 if cls._instance is None:
@@ -172,8 +172,7 @@ class AgentMonitor:
             if state.step_count > state.max_steps:
                 self._total_step_limit_violations += 1
                 raise StepLimitExceeded(
-                    f"Agent {agent_id!r} exceeded step limit of {state.max_steps} "
-                    f"(current step: {state.step_count})",
+                    f"Agent {agent_id!r} exceeded step limit of {state.max_steps} (current step: {state.step_count})",
                     agent_id=agent_id,
                     step_count=state.step_count,
                     max_steps=state.max_steps,
@@ -201,12 +200,14 @@ class AgentMonitor:
                 elapsed = now - state.last_heartbeat
                 if elapsed > state.timeout_seconds:
                     self._total_timeouts_detected += 1
-                    unhealthy.append({
-                        "agent_id": agent_id,
-                        "reason": "no_heartbeat",
-                        "last_heartbeat_ago": elapsed,
-                        "timeout_seconds": state.timeout_seconds,
-                    })
+                    unhealthy.append(
+                        {
+                            "agent_id": agent_id,
+                            "reason": "no_heartbeat",
+                            "last_heartbeat_ago": elapsed,
+                            "timeout_seconds": state.timeout_seconds,
+                        }
+                    )
                     logger.warning(
                         "Agent %r appears stuck — no heartbeat for %.1fs (limit %.1fs)",
                         agent_id,

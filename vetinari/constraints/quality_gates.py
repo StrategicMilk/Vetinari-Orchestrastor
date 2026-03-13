@@ -1,5 +1,5 @@
-"""
-Quality Gates
+"""Quality Gates.
+
 ==============
 Defines per-agent quality thresholds that MUST be met before output is
 accepted.  Currently ``VerificationResult.score`` exists but is never used
@@ -15,15 +15,14 @@ Enforcement point: ``base_agent.complete_task()``
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
 
 
 @dataclass
 class QualityGate:
     """Quality threshold for a specific agent (optionally per-mode)."""
 
-    agent_type: str                        # AgentType.value
-    mode: Optional[str] = None             # If None, applies to all modes
+    agent_type: str  # AgentType.value
+    mode: str | None = None  # If None, applies to all modes
     min_verification_score: float = 0.5
     min_heuristic_score: float = 0.3
     max_retry_on_failure: int = 2
@@ -35,7 +34,7 @@ class QualityGate:
 # Default quality gates per agent
 # ---------------------------------------------------------------------------
 
-QUALITY_GATES: Dict[str, QualityGate] = {
+QUALITY_GATES: dict[str, QualityGate] = {
     # Building — higher bar, must pass verification
     "BUILDER": QualityGate(
         agent_type="BUILDER",
@@ -55,9 +54,7 @@ QUALITY_GATES: Dict[str, QualityGate] = {
         min_verification_score=0.5,
         max_retry_on_failure=2,
     ),
-
     # --- Consolidated agents ---
-
     "ORCHESTRATOR": QualityGate(
         agent_type="ORCHESTRATOR",
         min_verification_score=0.5,
@@ -119,22 +116,20 @@ _DEFAULT_GATE = QualityGate(agent_type="DEFAULT", min_verification_score=0.4)
 # Criticality-based adaptive quality thresholds
 # ---------------------------------------------------------------------------
 
-QUALITY_GATES_BY_CRITICALITY: Dict[str, Dict] = {
+QUALITY_GATES_BY_CRITICALITY: dict[str, dict] = {
     "critical": {"min_score": 0.85, "require_human_review": True, "max_retries": 1},
-    "high":     {"min_score": 0.75, "require_human_review": False, "max_retries": 2},
-    "medium":   {"min_score": 0.60, "require_human_review": False, "max_retries": 2},
-    "low":      {"min_score": 0.40, "require_human_review": False, "max_retries": 3},
+    "high": {"min_score": 0.75, "require_human_review": False, "max_retries": 2},
+    "medium": {"min_score": 0.60, "require_human_review": False, "max_retries": 2},
+    "low": {"min_score": 0.40, "require_human_review": False, "max_retries": 3},
 }
 
 
-def get_criticality_gate(criticality: str) -> Dict:
+def get_criticality_gate(criticality: str) -> dict:
     """Get quality gate thresholds for a given task criticality level."""
-    return QUALITY_GATES_BY_CRITICALITY.get(
-        criticality.lower(), QUALITY_GATES_BY_CRITICALITY["medium"]
-    )
+    return QUALITY_GATES_BY_CRITICALITY.get(criticality.lower(), QUALITY_GATES_BY_CRITICALITY["medium"])
 
 
-def get_quality_gate(agent_type: str, mode: Optional[str] = None) -> QualityGate:
+def get_quality_gate(agent_type: str, mode: str | None = None) -> QualityGate:
     """Get the quality gate for an agent (optionally for a specific mode).
 
     Mode-specific gates take priority over agent-level gates.
@@ -147,9 +142,7 @@ def get_quality_gate(agent_type: str, mode: Optional[str] = None) -> QualityGate
     return QUALITY_GATES.get(agent_type, _DEFAULT_GATE)
 
 
-def check_quality_gate(
-    agent_type: str, score: float, mode: Optional[str] = None
-) -> Tuple[bool, str]:
+def check_quality_gate(agent_type: str, score: float, mode: str | None = None) -> tuple[bool, str]:
     """Check if an output score passes the quality gate.
 
     Returns ``(passed, reason)``.
@@ -157,7 +150,4 @@ def check_quality_gate(
     gate = get_quality_gate(agent_type, mode)
     if score >= gate.min_verification_score:
         return True, f"score {score:.2f} >= threshold {gate.min_verification_score:.2f}"
-    return False, (
-        f"score {score:.2f} below threshold {gate.min_verification_score:.2f} "
-        f"for {agent_type}"
-    )
+    return False, (f"score {score:.2f} below threshold {gate.min_verification_score:.2f} for {agent_type}")

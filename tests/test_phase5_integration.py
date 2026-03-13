@@ -10,7 +10,7 @@ Tests that the analytics modules are properly wired into the live pipeline:
 
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Remove incomplete stubs left by earlier test files so real modules load
 for _stubname in (
@@ -21,13 +21,16 @@ for _stubname in (
     sys.modules.pop(_stubname, None)
 
 from vetinari.adapters.base import (
-    InferenceRequest, InferenceResponse, ProviderAdapter,
-    ProviderConfig, ProviderType, ModelInfo,
+    InferenceRequest,
+    InferenceResponse,
+    ProviderAdapter,
+    ProviderConfig,
+    ProviderType,
 )
-from vetinari.analytics.cost import get_cost_tracker, reset_cost_tracker, CostEntry
-from vetinari.analytics.sla import get_sla_tracker, reset_sla_tracker, SLOTarget, SLOType
-from vetinari.analytics.forecasting import get_forecaster, reset_forecaster
 from vetinari.analytics.anomaly import get_anomaly_detector, reset_anomaly_detector
+from vetinari.analytics.cost import get_cost_tracker, reset_cost_tracker
+from vetinari.analytics.forecasting import get_forecaster, reset_forecaster
+from vetinari.analytics.sla import SLOTarget, SLOType, get_sla_tracker, reset_sla_tracker
 
 
 class ConcreteAdapter(ProviderAdapter):
@@ -249,8 +252,8 @@ class TestOrchestratorAutoTuner(unittest.TestCase):
 
     def test_auto_tuner_applies_max_concurrent(self):
         try:
-            from vetinari.orchestrator import Orchestrator
             from vetinari.learning.auto_tuner import get_auto_tuner
+            from vetinari.orchestrator import Orchestrator
         except ImportError:
             self.skipTest("orchestrator or auto_tuner not available")
 

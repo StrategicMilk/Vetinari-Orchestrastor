@@ -881,7 +881,7 @@ class TestMakerChecker(unittest.TestCase):
         from vetinari.orchestration.agent_graph import AgentGraph
         src = inspect.getsource(AgentGraph._execute_task_node)
         self.assertIn("_apply_maker_checker", src)
-        self.assertIn("BUILDER", src)
+        self.assertIn("_quality_reviewed_agents", src)
 
     def test_maker_checker_skips_without_quality(self):
         """Without QUALITY agent, maker-checker returns original result."""

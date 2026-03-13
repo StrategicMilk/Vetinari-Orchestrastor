@@ -1,5 +1,5 @@
-"""
-SLM/LLM Hybrid Model Router (C3)
+"""SLM/LLM Hybrid Model Router (C3).
+
 ==================================
 Routes tasks to appropriately-sized models based on complexity heuristics.
 
@@ -9,7 +9,7 @@ tasks to the cheapest tier that meets the quality threshold.
 
 Tier classification:
   small  — ≤7B params   (routine extraction, formatting, simple Q&A)
-  medium — 8B–32B params (code review, summarisation, moderate reasoning)
+  medium — 8B-32B params (code review, summarisation, moderate reasoning)
   large  — >32B params   (architecture, deep analysis, complex generation)
 """
 
@@ -22,13 +22,14 @@ import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class ModelTier(Enum):
     """Model size tiers."""
+
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
@@ -37,6 +38,7 @@ class ModelTier(Enum):
 @dataclass
 class ModelInfo:
     """Discovered model metadata."""
+
     model_id: str
     tier: ModelTier = ModelTier.MEDIUM
     param_count_b: float = 0.0  # billions
@@ -48,31 +50,54 @@ class ModelInfo:
 
 # ── Task complexity heuristics ────────────────────────────────────────
 
-_COMPLEXITY_KEYWORDS: Dict[str, List[str]] = {
+_COMPLEXITY_KEYWORDS: dict[str, list[str]] = {
     "high": [
-        "architect", "design system", "security audit", "deep analysis",
-        "refactor entire", "complex", "multi-step", "ontological",
-        "contrarian", "risk assessment", "lateral thinking",
+        "architect",
+        "design system",
+        "security audit",
+        "deep analysis",
+        "refactor entire",
+        "complex",
+        "multi-step",
+        "ontological",
+        "contrarian",
+        "risk assessment",
+        "lateral thinking",
     ],
     "medium": [
-        "review", "summarize", "test generation", "code review",
-        "document", "implement", "build", "database", "devops",
+        "review",
+        "summarize",
+        "test generation",
+        "code review",
+        "document",
+        "implement",
+        "build",
+        "database",
+        "devops",
     ],
     "low": [
-        "format", "extract", "simple", "list", "convert", "rename",
-        "classify", "tag", "label", "count",
+        "format",
+        "extract",
+        "simple",
+        "list",
+        "convert",
+        "rename",
+        "classify",
+        "tag",
+        "label",
+        "count",
     ],
 }
 
 # Maps task complexity → minimum model tier
-_COMPLEXITY_TO_TIER: Dict[str, ModelTier] = {
+_COMPLEXITY_TO_TIER: dict[str, ModelTier] = {
     "high": ModelTier.LARGE,
     "medium": ModelTier.MEDIUM,
     "low": ModelTier.SMALL,
 }
 
 # Maps agent type → default tier (can be overridden by task complexity)
-_AGENT_DEFAULT_TIER: Dict[str, ModelTier] = {
+_AGENT_DEFAULT_TIER: dict[str, ModelTier] = {
     "PLANNER": ModelTier.LARGE,
     "CONSOLIDATED_RESEARCHER": ModelTier.MEDIUM,
     "CONSOLIDATED_ORACLE": ModelTier.LARGE,
@@ -126,19 +151,17 @@ class ModelRouter:
 
     def __init__(
         self,
-        lmstudio_host: Optional[str] = None,
+        lmstudio_host: str | None = None,
         refresh_interval: float = 300.0,  # 5 minutes
         enabled: bool = True,
     ):
-        self._host = lmstudio_host or os.environ.get(
-            "LM_STUDIO_HOST", "http://localhost:1234"
-        )
+        self._host = lmstudio_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
         self._refresh_interval = refresh_interval
         self._enabled = enabled
-        self._models: Dict[str, ModelInfo] = {}
+        self._models: dict[str, ModelInfo] = {}
         self._last_refresh: float = 0.0
         self._lock = threading.Lock()
-        self._tier_preference: Dict[ModelTier, List[str]] = {
+        self._tier_preference: dict[ModelTier, list[str]] = {
             ModelTier.SMALL: [],
             ModelTier.MEDIUM: [],
             ModelTier.LARGE: [],
@@ -149,7 +172,7 @@ class ModelRouter:
         return self._enabled
 
     @property
-    def available_models(self) -> Dict[str, ModelInfo]:
+    def available_models(self) -> dict[str, ModelInfo]:
         self._maybe_refresh()
         return dict(self._models)
 
@@ -157,8 +180,8 @@ class ModelRouter:
         self,
         agent_type: str,
         task_description: str = "",
-        preferred_tier: Optional[ModelTier] = None,
-    ) -> Optional[str]:
+        preferred_tier: ModelTier | None = None,
+    ) -> str | None:
         """Select the best model for an agent + task combination.
 
         Args:
@@ -190,7 +213,9 @@ class ModelRouter:
         if model_id:
             logger.info(
                 "ModelRouter selected %s (tier=%s) for %s",
-                model_id, tier.value, agent_type,
+                model_id,
+                tier.value,
+                agent_type,
             )
             return model_id
 
@@ -199,7 +224,8 @@ class ModelRouter:
             fallback = next(iter(self._models))
             logger.warning(
                 "ModelRouter falling back to %s (no %s tier model available)",
-                fallback, tier.value,
+                fallback,
+                tier.value,
             )
             return fallback
 
@@ -214,10 +240,10 @@ class ModelRouter:
         param_count = _extract_param_count(model_id)
         return _classify_tier(param_count)
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Dashboard-friendly summary."""
         self._maybe_refresh()
-        tiers: Dict[str, List[str]] = {"small": [], "medium": [], "large": []}
+        tiers: dict[str, list[str]] = {"small": [], "medium": [], "large": []}
         for mid, info in self._models.items():
             tiers[info.tier.value].append(mid)
         return {
@@ -229,12 +255,9 @@ class ModelRouter:
 
     # ── Internal ──────────────────────────────────────────────────────
 
-    def _find_model_in_tier(self, tier: ModelTier, agent_type: str) -> Optional[str]:
+    def _find_model_in_tier(self, tier: ModelTier, agent_type: str) -> str | None:
         """Find a model in the given tier, preferring coder models for BUILDER/QUALITY."""
-        candidates = [
-            (mid, info) for mid, info in self._models.items()
-            if info.tier == tier
-        ]
+        candidates = [(mid, info) for mid, info in self._models.items() if info.tier == tier]
         if not candidates:
             # Try adjacent tiers (prefer larger)
             tier_order = [ModelTier.SMALL, ModelTier.MEDIUM, ModelTier.LARGE]
@@ -243,10 +266,7 @@ class ModelRouter:
                 adj_idx = idx + offset
                 if 0 <= adj_idx < len(tier_order):
                     adj_tier = tier_order[adj_idx]
-                    candidates = [
-                        (mid, info) for mid, info in self._models.items()
-                        if info.tier == adj_tier
-                    ]
+                    candidates = [(mid, info) for mid, info in self._models.items() if info.tier == adj_tier]
                     if candidates:
                         break
 
@@ -278,13 +298,14 @@ class ModelRouter:
         """Query LM Studio /v1/models and update the model registry."""
         try:
             import requests
+
             url = f"{self._host}/v1/models"
             resp = requests.get(url, timeout=5)
             resp.raise_for_status()
             data = resp.json()
 
             models_list = data.get("data", [])
-            new_models: Dict[str, ModelInfo] = {}
+            new_models: dict[str, ModelInfo] = {}
 
             for m in models_list:
                 model_id = m.get("id", "")
@@ -317,7 +338,7 @@ class ModelRouter:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_model_router: Optional[ModelRouter] = None
+_model_router: ModelRouter | None = None
 
 
 def get_model_router() -> ModelRouter:

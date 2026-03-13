@@ -1,5 +1,4 @@
-"""
-Builder Skill Tool Wrapper
+"""Builder Skill Tool Wrapper.
 
 Migrates the builder skill to the Tool interface, providing code implementation,
 refactoring, and testing capabilities as a standardized Vetinari tool.
@@ -13,27 +12,32 @@ The builder skill specializes in:
 - Debugging
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Literal
-import logging
-import json
-from enum import Enum
+from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
 
 class BuilderCapability(str, Enum):
     """Capabilities of the builder skill."""
+
     FEATURE_IMPLEMENTATION = "feature_implementation"
     REFACTORING = "refactoring"
     TEST_WRITING = "test_writing"
@@ -45,13 +49,14 @@ class BuilderCapability(str, Enum):
 @dataclass
 class ImplementationRequest:
     """Request structure for builder operations."""
+
     capability: BuilderCapability
     description: str
-    context: Optional[str] = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
-    requirements: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    requirements: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "capability": self.capability.value,
@@ -65,14 +70,15 @@ class ImplementationRequest:
 @dataclass
 class ImplementationResult:
     """Result of a builder operation."""
+
     success: bool
-    code: Optional[str] = None
-    explanation: Optional[str] = None
-    files_affected: List[str] = field(default_factory=list)
+    code: str | None = None
+    explanation: str | None = None
+    files_affected: list[str] = field(default_factory=list)
     tests_added: int = 0
-    warnings: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "success": self.success,
@@ -85,22 +91,21 @@ class ImplementationResult:
 
 
 class BuilderSkillTool(Tool):
-    """
-    Tool wrapper for the builder skill.
-    
+    """Tool wrapper for the builder skill.
+
     Provides code implementation, refactoring, and testing capabilities
     through a standardized Tool interface.
-    
+
     Permissions:
     - FILE_READ: Read existing code for analysis
     - FILE_WRITE: Create/modify implementation files
     - MODEL_INFERENCE: Use LLM for code generation
-    
+
     Allowed Modes:
     - EXECUTION: Full implementation with all capabilities
     - PLANNING: Analysis only, no code generation
     """
-    
+
     def __init__(self):
         """Initialize the builder skill tool."""
         metadata = ToolMetadata(
@@ -163,18 +168,17 @@ class BuilderSkillTool(Tool):
             ],
         )
         super().__init__(metadata)
-    
-    def execute(self, **kwargs) -> ToolResult:
-        """
-        Execute a builder operation.
-        
+
+    def execute(self, **kwargs) -> ToolResult:  # noqa: D417
+        """Execute a builder operation.
+
         Args:
             capability: BuilderCapability to use
             description: What to implement/refactor/test
             context: Existing code context (optional)
             thinking_mode: Implementation approach (default: medium)
             requirements: List of requirements (optional)
-            
+
         Returns:
             ToolResult with implementation details
         """
@@ -185,7 +189,7 @@ class BuilderSkillTool(Tool):
             context = kwargs.get("context")
             thinking_mode_str = kwargs.get("thinking_mode", "medium")
             requirements = kwargs.get("requirements", [])
-            
+
             # Convert to enums
             try:
                 capability = BuilderCapability(capability_str)
@@ -195,7 +199,7 @@ class BuilderSkillTool(Tool):
                     output=None,
                     error=f"Invalid capability: {capability_str}",
                 )
-            
+
             try:
                 thinking_mode = ThinkingMode(thinking_mode_str)
             except ValueError:
@@ -204,7 +208,7 @@ class BuilderSkillTool(Tool):
                     output=None,
                     error=f"Invalid thinking_mode: {thinking_mode_str}",
                 )
-            
+
             # Create request
             request = ImplementationRequest(
                 capability=capability,
@@ -213,14 +217,14 @@ class BuilderSkillTool(Tool):
                 thinking_mode=thinking_mode,
                 requirements=requirements,
             )
-            
+
             # Get execution mode to determine capabilities
             ctx = self._context_manager.current_context
             execution_mode = ctx.mode
-            
+
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -231,32 +235,31 @@ class BuilderSkillTool(Tool):
                     "execution_mode": execution_mode.value,
                 },
             )
-        
+
         except Exception as e:
             logger.error("Builder tool execution failed: %s", e, exc_info=True)
             return ToolResult(
                 success=False,
                 output=None,
-                error=f"Builder tool execution failed: {str(e)}",
+                error=f"Builder tool execution failed: {e!s}",
             )
-    
+
     def _execute_capability(
         self,
         request: ImplementationRequest,
         execution_mode: ExecutionMode,
     ) -> ImplementationResult:
-        """
-        Execute a specific builder capability.
-        
+        """Execute a specific builder capability.
+
         Args:
             request: The implementation request
             execution_mode: Current execution mode
-            
+
         Returns:
             ImplementationResult with operation details
         """
         capability = request.capability
-        
+
         if capability == BuilderCapability.FEATURE_IMPLEMENTATION:
             return self._implement_feature(request, execution_mode)
         elif capability == BuilderCapability.REFACTORING:
@@ -274,7 +277,7 @@ class BuilderSkillTool(Tool):
                 success=False,
                 explanation=f"Unknown capability: {capability.value}",
             )
-    
+
     def _implement_feature(
         self,
         request: ImplementationRequest,
@@ -282,7 +285,7 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Implement a new feature."""
         logger.info("Implementing feature: %s", request.description)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -292,42 +295,36 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
+
         # In EXECUTION mode, we would generate code
         # For now, return a structured response
         explanation = (
             f"Feature Implementation (Thinking Mode: {request.thinking_mode.value})\n"
             f"Description: {request.description}\n"
         )
-        
+
         if request.requirements:
             explanation += f"Requirements: {', '.join(request.requirements)}\n"
-        
+
         if request.context:
             explanation += f"Context: {request.context}\n"
-        
+
         # Determine approach based on thinking mode
         if request.thinking_mode == ThinkingMode.LOW:
             explanation += "Approach: Quick implementation with minimal code\n"
         elif request.thinking_mode == ThinkingMode.MEDIUM:
-            explanation += (
-                "Approach: Full feature with basic tests and error handling\n"
-            )
+            explanation += "Approach: Full feature with basic tests and error handling\n"
         elif request.thinking_mode == ThinkingMode.HIGH:
-            explanation += (
-                "Approach: Complete implementation with comprehensive error handling\n"
-            )
+            explanation += "Approach: Complete implementation with comprehensive error handling\n"
         else:  # XHIGH
-            explanation += (
-                "Approach: Production-ready with full test coverage and edge cases\n"
-            )
-        
+            explanation += "Approach: Production-ready with full test coverage and edge cases\n"
+
         return ImplementationResult(
             success=True,
             explanation=explanation,
             files_affected=[],
         )
-    
+
     def _refactor_code(
         self,
         request: ImplementationRequest,
@@ -335,14 +332,14 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Refactor existing code."""
         logger.info("Refactoring code: %s", request.description)
-        
+
         if not request.context:
             return ImplementationResult(
                 success=False,
                 explanation="Refactoring requires context (existing code) to be provided",
                 warnings=["Missing required context parameter"],
             )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -353,7 +350,7 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - refactoring disabled"],
             )
-        
+
         explanation = (
             f"Code Refactoring\n"
             f"Description: {request.description}\n"
@@ -364,13 +361,13 @@ class BuilderSkillTool(Tool):
             f"3. Apply refactoring patterns\n"
             f"4. Verify tests still pass\n"
         )
-        
+
         return ImplementationResult(
             success=True,
             explanation=explanation,
             files_affected=[],
         )
-    
+
     def _write_tests(
         self,
         request: ImplementationRequest,
@@ -378,14 +375,14 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Write tests for code."""
         logger.info("Writing tests: %s", request.description)
-        
+
         if not request.context:
             return ImplementationResult(
                 success=False,
                 explanation="Test writing requires context (code to test) to be provided",
                 warnings=["Missing required context parameter"],
             )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -396,7 +393,7 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - test generation disabled"],
             )
-        
+
         explanation = (
             f"Test Writing\n"
             f"Target: {request.description}\n"
@@ -406,11 +403,11 @@ class BuilderSkillTool(Tool):
             f"3. Mock external dependencies\n"
             f"4. Achieve target coverage based on thinking mode\n"
         )
-        
+
         if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
             explanation += "5. Include integration tests\n"
             explanation += "6. Performance/stress tests\n"
-        
+
         test_count = 4  # Base: happy path, edge cases, errors, coverage
         if request.thinking_mode in [ThinkingMode.HIGH, ThinkingMode.XHIGH]:
             test_count = 6  # + integration tests + performance/stress tests
@@ -421,7 +418,7 @@ class BuilderSkillTool(Tool):
             tests_added=test_count,
             files_affected=[],
         )
-    
+
     def _handle_errors(
         self,
         request: ImplementationRequest,
@@ -429,14 +426,14 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Add error handling to code."""
         logger.info("Adding error handling: %s", request.description)
-        
+
         if not request.context:
             return ImplementationResult(
                 success=False,
                 explanation="Error handling requires context (code to enhance) to be provided",
                 warnings=["Missing required context parameter"],
             )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -447,7 +444,7 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
+
         explanation = (
             f"Error Handling Implementation\n"
             f"Target: {request.description}\n"
@@ -458,13 +455,13 @@ class BuilderSkillTool(Tool):
             f"4. Add logging for debugging\n"
             f"5. Create error boundary patterns\n"
         )
-        
+
         return ImplementationResult(
             success=True,
             explanation=explanation,
             files_affected=[],
         )
-    
+
     def _generate_code(
         self,
         request: ImplementationRequest,
@@ -472,7 +469,7 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Generate code from specification."""
         logger.info("Generating code: %s", request.description)
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -482,7 +479,7 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - code generation disabled"],
             )
-        
+
         explanation = (
             f"Code Generation\n"
             f"Specification: {request.description}\n"
@@ -493,16 +490,16 @@ class BuilderSkillTool(Tool):
             f"4. Add type definitions\n"
             f"5. Include basic documentation\n"
         )
-        
+
         if request.requirements:
             explanation += f"6. Ensure requirements met: {', '.join(request.requirements)}\n"
-        
+
         return ImplementationResult(
             success=True,
             explanation=explanation,
             files_affected=[],
         )
-    
+
     def _debug_code(
         self,
         request: ImplementationRequest,
@@ -510,14 +507,14 @@ class BuilderSkillTool(Tool):
     ) -> ImplementationResult:
         """Debug and fix code issues."""
         logger.info("Debugging code: %s", request.description)
-        
+
         if not request.context:
             return ImplementationResult(
                 success=False,
                 explanation="Debugging requires context (code to debug) to be provided",
                 warnings=["Missing required context parameter"],
             )
-        
+
         if execution_mode == ExecutionMode.PLANNING:
             return ImplementationResult(
                 success=True,
@@ -528,7 +525,7 @@ class BuilderSkillTool(Tool):
                 ),
                 warnings=["Running in PLANNING mode - debugging disabled"],
             )
-        
+
         explanation = (
             f"Code Debugging\n"
             f"Issue: {request.description}\n"
@@ -540,7 +537,7 @@ class BuilderSkillTool(Tool):
             f"5. Test the fix\n"
             f"6. Verify no regressions\n"
         )
-        
+
         return ImplementationResult(
             success=True,
             explanation=explanation,

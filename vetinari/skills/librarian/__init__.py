@@ -1,5 +1,4 @@
-"""
-Librarian Skill Tool Wrapper
+"""Librarian Skill Tool Wrapper.
 
 Migrates the librarian skill to the Tool interface, providing library research,
 documentation lookup, and example finding capabilities as a standardized Vetinari tool.
@@ -16,20 +15,25 @@ The librarian skill specializes in:
    Will be removed in a future release.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-import logging
-from enum import Enum
+from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 # Note: Web fetching capabilities are provided by the system environment
 
@@ -38,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 class LibrarianCapability(str, Enum):
     """Capabilities of the librarian skill."""
+
     DOCS_LOOKUP = "docs_lookup"
     GITHUB_EXAMPLES = "github_examples"
     API_REFERENCE = "api_reference"
@@ -48,13 +53,14 @@ class LibrarianCapability(str, Enum):
 @dataclass
 class ResearchRequest:
     """Request structure for librarian operations."""
+
     capability: LibrarianCapability
     query: str
-    context: Optional[str] = None
+    context: str | None = None
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
-    focus_areas: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    focus_areas: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "capability": self.capability.value,
@@ -68,14 +74,15 @@ class ResearchRequest:
 @dataclass
 class ResearchResult:
     """Result of a librarian operation."""
+
     success: bool
-    summary: Optional[str] = None
-    documentation_url: Optional[str] = None
-    code_example: Optional[str] = None
-    best_practices: List[str] = field(default_factory=list)
-    citations: List[str] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    summary: str | None = None
+    documentation_url: str | None = None
+    code_example: str | None = None
+    best_practices: list[str] = field(default_factory=list)
+    citations: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "success": self.success,
@@ -88,28 +95,27 @@ class ResearchResult:
 
 
 class LibrarianSkillTool(Tool):
-    """
-    Tool wrapper for the librarian skill.
-    
+    """Tool wrapper for the librarian skill.
+
     Provides library research, documentation lookup, and example finding
     through a standardized Tool interface.
-    
+
     Permissions:
     - WEB_FETCH: To retrieve external documentation and examples
     - MODEL_INFERENCE: To summarize and synthesize research
     - FILE_READ: To read local reference materials (e.g., doc_sources.md)
-    
+
     Allowed Modes:
     - EXECUTION: Full research capabilities (including web fetching)
     - PLANNING: Analysis only, no external calls
     """
-    
+
     def __init__(self):
         """Initialize the librarian skill tool."""
         import warnings
+
         warnings.warn(
-            "LibrarianSkillTool is deprecated since v1.1.0. "
-            "Use ConsolidatedResearcherAgent instead.",
+            "LibrarianSkillTool is deprecated since v1.1.0. Use ConsolidatedResearcherAgent instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -120,7 +126,7 @@ class LibrarianSkillTool(Tool):
                 "Use when user asks about libraries, APIs, frameworks, or needs "
                 "real-world code examples."
             ),
-            category=ToolCategory.SEARCH_ANALYSIS, # Closest fit for research
+            category=ToolCategory.SEARCH_ANALYSIS,  # Closest fit for research
             version="1.0.0",
             author="Vetinari",
             parameters=[
@@ -161,7 +167,7 @@ class LibrarianSkillTool(Tool):
             required_permissions=[
                 ToolPermission.NETWORK_REQUEST,
                 ToolPermission.MODEL_INFERENCE,
-                ToolPermission.FILE_READ, # For accessing internal guides
+                ToolPermission.FILE_READ,  # For accessing internal guides
             ],
             allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
             tags=[
@@ -173,18 +179,17 @@ class LibrarianSkillTool(Tool):
             ],
         )
         super().__init__(metadata)
-    
-    def execute(self, **kwargs) -> ToolResult:
-        """
-        Execute a librarian operation (research/lookup).
-        
+
+    def execute(self, **kwargs) -> ToolResult:  # noqa: D417
+        """Execute a librarian operation (research/lookup).
+
         Args:
             capability: LibrarianCapability to use
             query: What to research
             context: Additional context (optional)
             thinking_mode: Research depth (default: medium)
             focus_areas: Areas to focus on (optional)
-            
+
         Returns:
             ToolResult with research findings
         """
@@ -195,7 +200,7 @@ class LibrarianSkillTool(Tool):
             context = kwargs.get("context")
             thinking_mode_str = kwargs.get("thinking_mode", "medium")
             focus_areas = kwargs.get("focus_areas", [])
-            
+
             # Validate required parameters
             if not query:
                 return ToolResult(
@@ -203,7 +208,7 @@ class LibrarianSkillTool(Tool):
                     output=None,
                     error="Query parameter is required for librarian operations",
                 )
-            
+
             # Convert to enums
             try:
                 capability = LibrarianCapability(capability_str)
@@ -213,7 +218,7 @@ class LibrarianSkillTool(Tool):
                     output=None,
                     error=f"Invalid capability: {capability_str}",
                 )
-            
+
             try:
                 thinking_mode = ThinkingMode(thinking_mode_str)
             except ValueError:
@@ -222,7 +227,7 @@ class LibrarianSkillTool(Tool):
                     output=None,
                     error=f"Invalid thinking_mode: {thinking_mode_str}",
                 )
-            
+
             # Create request
             request = ResearchRequest(
                 capability=capability,
@@ -231,14 +236,14 @@ class LibrarianSkillTool(Tool):
                 thinking_mode=thinking_mode,
                 focus_areas=focus_areas,
             )
-            
+
             # Get execution mode
             ctx = self._context_manager.current_context
             execution_mode = ctx.mode
-            
+
             # Execute based on capability
             result = self._execute_capability(request, execution_mode)
-            
+
             return ToolResult(
                 success=result.success,
                 output=result.to_dict(),
@@ -250,25 +255,23 @@ class LibrarianSkillTool(Tool):
                     "source_used": "webfetch" if execution_mode == ExecutionMode.EXECUTION else "none",
                 },
             )
-        
+
         except Exception as e:
             logger.error("Librarian tool execution failed: %s", e, exc_info=True)
             return ToolResult(
                 success=False,
                 output=None,
-                error=f"Librarian tool execution failed: {str(e)}",
+                error=f"Librarian tool execution failed: {e!s}",
             )
-    
+
     def _execute_capability(
         self,
         request: ResearchRequest,
         execution_mode: ExecutionMode,
     ) -> ResearchResult:
-        """
-        Execute a specific librarian capability.
-        """
+        """Execute a specific librarian capability."""
         capability = request.capability
-        
+
         if capability == LibrarianCapability.DOCS_LOOKUP:
             return self._lookup_documentation(request, execution_mode)
         elif capability == LibrarianCapability.GITHUB_EXAMPLES:
@@ -284,11 +287,12 @@ class LibrarianSkillTool(Tool):
                 success=False,
                 summary=f"Unknown capability: {capability.value}",
             )
-    
-    def _infer_via_llm(self, prompt: str, system_prompt: str, max_tokens: int = 1024) -> Optional[str]:
+
+    def _infer_via_llm(self, prompt: str, system_prompt: str, max_tokens: int = 1024) -> str | None:
         """Try LLM inference, return None if unavailable."""
         try:
             from vetinari.adapter_manager import get_adapter_manager
+
             adapter = get_adapter_manager()
             response = adapter.infer(
                 prompt=prompt,
@@ -318,8 +322,8 @@ class LibrarianSkillTool(Tool):
         try:
             llm_result = self._infer_via_llm(
                 prompt=f"Provide a concise documentation summary for '{request.query}'. "
-                       f"Include: key API methods, configuration options, and a short code example. "
-                       f"Depth level: {request.thinking_mode.value}.",
+                f"Include: key API methods, configuration options, and a short code example. "
+                f"Depth level: {request.thinking_mode.value}.",
                 system_prompt="You are a technical librarian. Provide accurate, concise documentation summaries.",
             )
             if llm_result:
@@ -338,7 +342,7 @@ class LibrarianSkillTool(Tool):
             best_practices=["Keep dependencies up to date"],
             citations=[f"Fallback summary for: {request.query}"],
         )
-            
+
     def _find_github_examples(
         self,
         request: ResearchRequest,
@@ -356,7 +360,7 @@ class LibrarianSkillTool(Tool):
         try:
             llm_result = self._infer_via_llm(
                 prompt=f"Provide a realistic code example for '{request.query}'. "
-                       f"Include imports, setup, and a working usage pattern. Depth: {request.thinking_mode.value}.",
+                f"Include imports, setup, and a working usage pattern. Depth: {request.thinking_mode.value}.",
                 system_prompt="You are a code example curator. Provide idiomatic, working code examples.",
             )
             if llm_result:
@@ -396,7 +400,7 @@ class LibrarianSkillTool(Tool):
         try:
             llm_result = self._infer_via_llm(
                 prompt=f"Provide a concise API reference for '{request.query}'. "
-                       f"Include: method signatures, parameters, return types, and common usage patterns.",
+                f"Include: method signatures, parameters, return types, and common usage patterns.",
                 system_prompt="You are a technical API reference writer. Provide accurate, structured API documentation.",
             )
             if llm_result:
@@ -435,7 +439,7 @@ class LibrarianSkillTool(Tool):
         try:
             llm_result = self._infer_via_llm(
                 prompt=f"Provide package information for '{package_name}': "
-                       f"description, latest version (if known), key dependencies, and license.",
+                f"description, latest version (if known), key dependencies, and license.",
                 system_prompt="You are a package registry expert. Provide accurate package metadata.",
                 max_tokens=512,
             )
@@ -473,14 +477,14 @@ class LibrarianSkillTool(Tool):
         try:
             llm_result = self._infer_via_llm(
                 prompt=f"List 5 best practices for '{request.query}'. Be specific and actionable. "
-                       f"Focus areas: {', '.join(request.focus_areas) if request.focus_areas else 'general'}.",
+                f"Focus areas: {', '.join(request.focus_areas) if request.focus_areas else 'general'}.",
                 system_prompt="You are a software engineering best practices expert. Provide actionable, specific advice.",
                 max_tokens=512,
             )
             if llm_result:
                 # Parse bullet points from LLM response
-                lines = [l.strip().lstrip("-*•").strip() for l in llm_result.split("\n") if l.strip()]
-                practices = [l for l in lines if len(l) > 5][:5] or [llm_result[:200]]
+                lines = [l.strip().lstrip("-*•").strip() for l in llm_result.split("\n") if l.strip()]  # noqa: E741
+                practices = [l for l in lines if len(l) > 5][:5] or [llm_result[:200]]  # noqa: E741
                 return ResearchResult(
                     success=True,
                     summary=f"Best practices for: {request.query}.",

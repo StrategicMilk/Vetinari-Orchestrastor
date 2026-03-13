@@ -1,7 +1,10 @@
-"""Backward-compat shim. Canonical: vetinari.adapters.lmstudio_adapter
+"""Backward-compat shim. Canonical: vetinari.adapters.lmstudio_adapter.
 
 All new code should import from vetinari.adapters.lmstudio_adapter directly.
 """
+
+from __future__ import annotations
+
 import importlib as _importlib
 import sys as _sys
 

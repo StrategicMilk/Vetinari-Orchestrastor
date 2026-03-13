@@ -7,29 +7,32 @@ Does NOT use the watchdog library (to avoid extra dependencies).
 Uses polling-based file monitoring with configurable intervals.
 """
 
+from __future__ import annotations
+
 import logging
-import os
 import re
-import time
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Patterns for vetinari directives in comments
 DIRECTIVE_PATTERNS = [
-    re.compile(r'#\s*@vetinari\s+(.+)', re.IGNORECASE),
-    re.compile(r'//\s*@vetinari\s+(.+)', re.IGNORECASE),
-    re.compile(r'/\*\s*@vetinari\s+(.+?)\s*\*/', re.IGNORECASE),
+    re.compile(r"#\s*@vetinari\s+(.+)", re.IGNORECASE),
+    re.compile(r"//\s*@vetinari\s+(.+)", re.IGNORECASE),
+    re.compile(r"/\*\s*@vetinari\s+(.+?)\s*\*/", re.IGNORECASE),
 ]
 
 
 @dataclass
 class FileChange:
     """A detected file change."""
+
     path: str
     change_type: str  # "modified", "created", "deleted"
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -39,6 +42,7 @@ class FileChange:
 @dataclass
 class VetinariDirective:
     """A @vetinari directive found in source code."""
+
     file_path: str
     line_number: int
     directive: str  # The command after @vetinari
@@ -60,12 +64,20 @@ class VetinariDirective:
 @dataclass
 class WatchConfig:
     """Configuration for watch mode."""
+
     watch_dir: str = "."
     poll_interval: float = 2.0  # seconds
-    include_patterns: List[str] = field(default_factory=lambda: ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx"])
-    exclude_patterns: List[str] = field(default_factory=lambda: [
-        "__pycache__", ".git", "node_modules", ".venv", "*.pyc", ".vetinari",
-    ])
+    include_patterns: list[str] = field(default_factory=lambda: ["*.py", "*.js", "*.ts", "*.jsx", "*.tsx"])
+    exclude_patterns: list[str] = field(
+        default_factory=lambda: [
+            "__pycache__",
+            ".git",
+            "node_modules",
+            ".venv",
+            "*.pyc",
+            ".vetinari",
+        ]
+    )
     max_file_size: int = 1_000_000  # 1MB max for scanning
     scan_directives: bool = True
 
@@ -75,19 +87,19 @@ class FileWatcher:
 
     def __init__(self, config: WatchConfig = None):
         self._config = config or WatchConfig()
-        self._file_states: Dict[str, float] = {}  # path -> mtime
+        self._file_states: dict[str, float] = {}  # path -> mtime
         self._running = False
-        self._callbacks: List[Callable[[List[FileChange]], None]] = []
-        self._thread: Optional[threading.Thread] = None
+        self._callbacks: list[Callable[[list[FileChange]], None]] = []
+        self._thread: threading.Thread | None = None
 
-    def on_change(self, callback: Callable[[List[FileChange]], None]) -> None:
+    def on_change(self, callback: Callable[[list[FileChange]], None]) -> None:
         """Register a callback for file changes."""
         self._callbacks.append(callback)
 
-    def scan(self) -> List[FileChange]:
+    def scan(self) -> list[FileChange]:
         """Scan for file changes since last scan."""
-        changes: List[FileChange] = []
-        current_files: Set[str] = set()
+        changes: list[FileChange] = []
+        current_files: set[str] = set()
 
         watch_path = Path(self._config.watch_dir)
         for pattern in self._config.include_patterns:
@@ -122,10 +134,7 @@ class FileWatcher:
 
     def _is_excluded(self, path: str) -> bool:
         """Check if a path matches any exclusion pattern."""
-        for pattern in self._config.exclude_patterns:
-            if pattern in path:
-                return True
-        return False
+        return any(pattern in path for pattern in self._config.exclude_patterns)
 
     def start(self) -> None:
         """Start watching in a background thread."""
@@ -167,7 +176,7 @@ class DirectiveScanner:
     def __init__(self, max_file_size: int = 1_000_000):
         self._max_file_size = max_file_size
 
-    def scan_file(self, file_path: str) -> List[VetinariDirective]:
+    def scan_file(self, file_path: str) -> list[VetinariDirective]:
         """Scan a single file for directives."""
         directives = []
         try:
@@ -175,22 +184,24 @@ class DirectiveScanner:
             if path.stat().st_size > self._max_file_size:
                 return []
 
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 for line_num, line in enumerate(f, 1):
                     for pattern in DIRECTIVE_PATTERNS:
                         match = pattern.search(line)
                         if match:
-                            directives.append(VetinariDirective(
-                                file_path=file_path,
-                                line_number=line_num,
-                                directive=match.group(1).strip(),
-                                full_line=line.strip(),
-                            ))
+                            directives.append(
+                                VetinariDirective(
+                                    file_path=file_path,
+                                    line_number=line_num,
+                                    directive=match.group(1).strip(),
+                                    full_line=line.strip(),
+                                )
+                            )
         except (OSError, UnicodeDecodeError) as e:
             logger.debug("Could not scan %s: %s", file_path, e)
         return directives
 
-    def scan_changes(self, changes: List[FileChange]) -> List[VetinariDirective]:
+    def scan_changes(self, changes: list[FileChange]) -> list[VetinariDirective]:
         """Scan changed files for directives."""
         directives = []
         for change in changes:
@@ -206,8 +217,8 @@ class WatchMode:
         self._config = config or WatchConfig()
         self._watcher = FileWatcher(self._config)
         self._scanner = DirectiveScanner(self._config.max_file_size)
-        self._directive_handlers: Dict[str, Callable] = {}
-        self._history: List[Dict[str, Any]] = []
+        self._directive_handlers: dict[str, Callable] = {}
+        self._history: list[dict[str, Any]] = []
 
         # Register default handlers
         self._register_defaults()
@@ -244,7 +255,7 @@ class WatchMode:
     def is_running(self) -> bool:
         return self._watcher.is_running
 
-    def _handle_changes(self, changes: List[FileChange]) -> None:
+    def _handle_changes(self, changes: list[FileChange]) -> None:
         """Process file changes."""
         event = {
             "timestamp": datetime.now().isoformat(),
@@ -255,12 +266,14 @@ class WatchMode:
         if self._config.scan_directives:
             directives = self._scanner.scan_changes(changes)
             for d in directives:
-                event["directives"].append({
-                    "file": d.file_path,
-                    "line": d.line_number,
-                    "action": d.action,
-                    "target": d.target,
-                })
+                event["directives"].append(
+                    {
+                        "file": d.file_path,
+                        "line": d.line_number,
+                        "action": d.action,
+                        "target": d.target,
+                    }
+                )
                 self._dispatch_directive(d)
 
         self._history.append(event)
@@ -295,6 +308,6 @@ class WatchMode:
     def _handle_review(self, d: VetinariDirective) -> None:
         logger.info("Review directive: %s (line %d in %s)", d.target, d.line_number, d.file_path)
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Get watch event history."""
         return list(self._history)

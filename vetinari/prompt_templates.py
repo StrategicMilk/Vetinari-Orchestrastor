@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -198,6 +200,7 @@ Provide a concise summary covering:
 This will be injected into the agent's context.
 """
 
+
 def get_prompt(prompt_type: str, **kwargs) -> str:
     """Get a prompt template with variables filled in."""
     prompts = {
@@ -210,16 +213,16 @@ def get_prompt(prompt_type: str, **kwargs) -> str:
         "orchestration": ORCHESTRATION_PROMPT,
         "memory_search": MEMORY_SEARCH_PROMPT,
         "memory_store": MEMORY_STORE_PROMPT,
-        "context_summary": CONTEXT_SUMMARY_PROMPT
+        "context_summary": CONTEXT_SUMMARY_PROMPT,
     }
-    
+
     template = prompts.get(prompt_type, "")
-    
+
     if kwargs:
         try:
             return template.format(**kwargs)
         except KeyError as e:
             logger.warning("Missing prompt variable: %s", e)
             return template
-    
+
     return template

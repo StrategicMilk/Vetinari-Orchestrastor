@@ -1,15 +1,17 @@
-"""Data Engineer Skill Tool Wrapper
+"""Data Engineer Skill Tool Wrapper.
 
 .. deprecated:: 1.1.0
    DEPRECATED: Superseded by ArchitectSkillTool (vetinari.skills.architect_skill).
    Will be removed in a future release.
 """
 
-import logging
-from typing import Any, Dict, Optional
+from __future__ import annotations
 
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
+import logging
+
+from vetinari.execution_context import ToolPermission
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ class DataEngineerSkill(Tool):
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "DataEngineerSkill is deprecated since v1.1.0. "
             "Use ArchitectSkillTool (vetinari.skills.architect_skill) instead.",
@@ -46,6 +49,7 @@ class DataEngineerSkill(Tool):
         if self._agent is None:
             try:
                 from vetinari.agents.consolidated.researcher_agent import get_consolidated_researcher_agent
+
                 self._agent = get_consolidated_researcher_agent()
             except Exception as e:
                 logger.warning("DataEngineerAgent unavailable: %s", e)
@@ -56,7 +60,9 @@ class DataEngineerSkill(Tool):
         if agent is None:
             return ToolResult(success=False, output=None, error="DataEngineerAgent not available")
         try:
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.agents.contracts import AgentTask
+            from vetinari.types import AgentType
+
             task = AgentTask(
                 task_id="data-eng",
                 agent_type=AgentType.DATA_ENGINEER,
@@ -64,7 +70,8 @@ class DataEngineerSkill(Tool):
                 context=kwargs,
             )
             result = agent.execute(task)
-            return ToolResult(success=result.success, output=result.output,
-                              error="; ".join(result.errors) if result.errors else None)
+            return ToolResult(
+                success=result.success, output=result.output, error="; ".join(result.errors) if result.errors else None
+            )
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

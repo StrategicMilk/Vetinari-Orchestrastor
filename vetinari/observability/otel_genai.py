@@ -24,13 +24,17 @@ logger = logging.getLogger(__name__)
 # ── Optional OpenTelemetry import ────────────────────────────────────────────
 
 _OTEL_AVAILABLE = False
+_otel_trace = None  # type: ignore[assignment]
 try:
-    from opentelemetry import trace as _otel_trace  # type: ignore[import]
+    from opentelemetry import trace as _otel_trace  # type: ignore[import-untyped]
 
     _OTEL_AVAILABLE = True
     logger.debug("opentelemetry available — GenAI tracer will emit real spans")
 except ImportError:
     logger.debug("opentelemetry not installed — using in-process GenAI tracer")
+
+# OTel tracer name following GenAI semantic conventions
+_OTEL_TRACER_NAME = "vetinari.genai"
 
 
 # ── GenAI attribute name constants ───────────────────────────────────────────
@@ -156,6 +160,9 @@ class GenAITracer:
     ) -> SpanContext:
         """Open a new agent span.
 
+        When OpenTelemetry is available, also starts a real OTel span that
+        will be exported via the configured OTel exporter.
+
         Args:
             agent_name: Logical agent name (e.g. ``"builder"``).
             operation: GenAI operation (e.g. ``"chat"``, ``"embeddings"``).
@@ -180,14 +187,25 @@ class GenAITracer:
             start_time=time.monotonic(),
             attributes=attrs,
         )
+
+        # Bridge to real OTel spans when SDK is available
+        if _OTEL_AVAILABLE and _otel_trace is not None:
+            tracer = _otel_trace.get_tracer(_OTEL_TRACER_NAME)
+            otel_span = tracer.start_span(
+                f"gen_ai.{operation}",
+                attributes={k: str(v) for k, v in attrs.items()},
+            )
+            ctx._otel_span = otel_span  # type: ignore[attr-defined]
+
         with self._lock:
             self._active[span_id] = ctx
 
         logger.debug(
-            "GenAI span started: agent=%s op=%s span_id=%s",
+            "GenAI span started: agent=%s op=%s span_id=%s otel=%s",
             agent_name,
             operation,
             span_id,
+            _OTEL_AVAILABLE,
         )
         return ctx
 
@@ -199,6 +217,8 @@ class GenAITracer:
     ) -> None:
         """Close a span and move it to the completed list.
 
+        Also ends the corresponding OTel span if one was created.
+
         Args:
             span: The :class:`SpanContext` returned by :meth:`start_agent_span`.
             status: Completion status — ``"ok"`` or ``"error"``.
@@ -209,6 +229,14 @@ class GenAITracer:
             return
 
         span._close(status=status, tokens_used=tokens_used)
+
+        # End the real OTel span if one was attached
+        otel_span = getattr(span, "_otel_span", None)
+        if otel_span is not None:
+            if tokens_used:
+                otel_span.set_attribute(ATTR_OUTPUT_TOKENS, tokens_used)
+            otel_span.set_attribute(ATTR_SPAN_STATUS, status)
+            otel_span.end()
 
         with self._lock:
             self._active.pop(span.span_id, None)

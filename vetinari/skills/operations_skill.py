@@ -1,5 +1,5 @@
-"""
-Unified Operations Skill Tool
+"""Unified Operations Skill Tool.
+
 ================================
 Consolidated skill tool for the OPERATIONS agent role.
 
@@ -15,26 +15,32 @@ Unifies capabilities from 7 legacy agents:
 Plus creative_writing mode.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-import logging
-from enum import Enum
+from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
 from vetinari.tool_interface import (
     Tool,
-    ToolMetadata,
-    ToolResult,
-    ToolParameter,
     ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
 )
-from vetinari.execution_context import ToolPermission, ExecutionMode
-from vetinari.types import ThinkingMode  # canonical enum from types.py
+from vetinari.types import (
+    ExecutionMode,
+    ThinkingMode,  # canonical enum from types.py
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OperationsMode(str, Enum):
     """Modes of the unified operations skill."""
+
     DOCUMENTATION = "documentation"
     CREATIVE_WRITING = "creative_writing"
     COST_ANALYSIS = "cost_analysis"
@@ -47,6 +53,7 @@ class OperationsMode(str, Enum):
 
 class OutputFormat(str, Enum):
     """Output format options."""
+
     MARKDOWN = "markdown"
     HTML = "html"
     PLAIN = "plain"
@@ -56,13 +63,14 @@ class OutputFormat(str, Enum):
 @dataclass
 class OperationsRequest:
     """Request structure for operations."""
+
     mode: OperationsMode
     content: str
-    context: Optional[str] = None
+    context: str | None = None
     output_format: OutputFormat = OutputFormat.MARKDOWN
     thinking_mode: ThinkingMode = ThinkingMode.MEDIUM
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "mode": self.mode.value,
             "content": self.content,
@@ -75,26 +83,28 @@ class OperationsRequest:
 @dataclass
 class Section:
     """A section of generated content."""
+
     title: str
     content: str
     order: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"title": self.title, "content": self.content, "order": self.order}
 
 
 @dataclass
 class OperationsResult:
     """Result of an operations task."""
-    success: bool
-    content: Optional[str] = None
-    content_type: Optional[str] = None
-    output_format: OutputFormat = OutputFormat.MARKDOWN
-    sections: List[Section] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    warnings: List[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    success: bool
+    content: str | None = None
+    content_type: str | None = None
+    output_format: OutputFormat = OutputFormat.MARKDOWN
+    sections: list[Section] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "content": self.content,
@@ -107,8 +117,7 @@ class OperationsResult:
 
 
 class OperationsSkillTool(Tool):
-    """
-    Unified tool for the OPERATIONS consolidated agent.
+    """Unified tool for the OPERATIONS consolidated agent.
 
     Replaces: SynthesizerSkillTool, DocumentationSkill, CostPlannerSkill,
               ExperimentationManagerSkill, ImprovementSkill,
@@ -130,31 +139,38 @@ class OperationsSkillTool(Tool):
             author="Vetinari",
             parameters=[
                 ToolParameter(
-                    name="mode", type=str,
+                    name="mode",
+                    type=str,
                     description="Operations mode to use",
                     required=True,
                     allowed_values=[m.value for m in OperationsMode],
                 ),
                 ToolParameter(
-                    name="content", type=str,
+                    name="content",
+                    type=str,
                     description="Input content to process",
                     required=True,
                 ),
                 ToolParameter(
-                    name="context", type=str,
+                    name="context",
+                    type=str,
                     description="Additional context",
                     required=False,
                 ),
                 ToolParameter(
-                    name="output_format", type=str,
+                    name="output_format",
+                    type=str,
                     description="Output format (markdown/html/plain/json)",
-                    required=False, default="markdown",
+                    required=False,
+                    default="markdown",
                     allowed_values=[f.value for f in OutputFormat],
                 ),
                 ToolParameter(
-                    name="thinking_mode", type=str,
+                    name="thinking_mode",
+                    type=str,
                     description="Operations depth (low/medium/high/xhigh)",
-                    required=False, default="medium",
+                    required=False,
+                    default="medium",
                     allowed_values=[m.value for m in ThinkingMode],
                 ),
             ],
@@ -165,8 +181,13 @@ class OperationsSkillTool(Tool):
             ],
             allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
             tags=[
-                "documentation", "creative", "operations",
-                "cost", "recovery", "synthesis", "improvement",
+                "documentation",
+                "creative",
+                "operations",
+                "cost",
+                "recovery",
+                "synthesis",
+                "improvement",
             ],
         )
         super().__init__(metadata)
@@ -199,8 +220,11 @@ class OperationsSkillTool(Tool):
                 thinking_mode = ThinkingMode.MEDIUM
 
             request = OperationsRequest(
-                mode=mode, content=content, context=context,
-                output_format=output_format, thinking_mode=thinking_mode,
+                mode=mode,
+                content=content,
+                context=context,
+                output_format=output_format,
+                thinking_mode=thinking_mode,
             )
 
             result = self._run_mode(request)

@@ -1,5 +1,5 @@
-"""
-Cost Tracker (C8)
+"""Cost Tracker (C8).
+
 ==================
 SQLite-backed cost tracking for every LLM inference call.
 
@@ -13,11 +13,10 @@ import logging
 import os
 import sqlite3
 import threading
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ _DB_PATH = os.environ.get("VETINARI_COST_DB", "./vetinari_costs.db")
 
 # ── Model pricing (per 1K tokens) ────────────────────────────────────
 
-MODEL_COST_PER_1K: Dict[str, float] = {
+MODEL_COST_PER_1K: dict[str, float] = {
     # Local models — free
     "qwen2.5-coder-7b": 0.0,
     "qwen2.5-coder-14b": 0.0,
@@ -51,6 +50,7 @@ MODEL_COST_PER_1K: Dict[str, float] = {
 @dataclass
 class CostRecord:
     """A single cost tracking record."""
+
     timestamp: str
     model_id: str
     agent_type: str
@@ -142,9 +142,18 @@ class CostTracker:
                        (timestamp, model_id, agent_type, mode, input_tokens,
                         output_tokens, total_tokens, estimated_cost, task_id, duration_ms)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (record.timestamp, model_id, agent_type, mode,
-                     input_tokens, output_tokens, total_tokens,
-                     estimated_cost, task_id, duration_ms),
+                    (
+                        record.timestamp,
+                        model_id,
+                        agent_type,
+                        mode,
+                        input_tokens,
+                        output_tokens,
+                        total_tokens,
+                        estimated_cost,
+                        task_id,
+                        duration_ms,
+                    ),
                 )
                 conn.commit()
                 conn.close()
@@ -161,7 +170,7 @@ class CostTracker:
         """Get total tokens used."""
         return self._total_tokens
 
-    def get_cost_by_model(self, hours: int = 24) -> Dict[str, float]:
+    def get_cost_by_model(self, hours: int = 24) -> dict[str, float]:
         """Get cost breakdown by model for the last N hours."""
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         with self._lock:
@@ -179,7 +188,7 @@ class CostTracker:
                 logger.warning("Cost query failed: %s", e)
                 return {}
 
-    def get_cost_by_agent(self, hours: int = 24) -> Dict[str, float]:
+    def get_cost_by_agent(self, hours: int = 24) -> dict[str, float]:
         """Get cost breakdown by agent type for the last N hours."""
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         with self._lock:
@@ -192,15 +201,12 @@ class CostTracker:
                     (since,),
                 ).fetchall()
                 conn.close()
-                return {
-                    r[0]: {"cost": r[1], "tokens": r[2], "calls": r[3]}
-                    for r in rows
-                }
+                return {r[0]: {"cost": r[1], "tokens": r[2], "calls": r[3]} for r in rows}
             except Exception as e:
                 logger.warning("Cost query failed: %s", e)
                 return {}
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Dashboard-friendly summary."""
         return {
             "total_cost": self._total_cost,
@@ -212,7 +218,7 @@ class CostTracker:
 
 # ── Singleton ─────────────────────────────────────────────────────────
 
-_cost_tracker: Optional[CostTracker] = None
+_cost_tracker: CostTracker | None = None
 
 
 def get_cost_tracker() -> CostTracker:

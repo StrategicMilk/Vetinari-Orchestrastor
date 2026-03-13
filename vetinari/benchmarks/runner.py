@@ -24,14 +24,13 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-import time
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,76 +39,81 @@ logger = logging.getLogger(__name__)
 # Enums and constants
 # ============================================================
 
+
 class BenchmarkLayer(Enum):
     """Three-layer testing hierarchy."""
-    AGENT = 1          # Individual agent tool-calling
+
+    AGENT = 1  # Individual agent tool-calling
     ORCHESTRATION = 2  # Multi-agent tool chains
-    PIPELINE = 3       # Full end-to-end
+    PIPELINE = 3  # Full end-to-end
 
 
 class BenchmarkTier(Enum):
     """Speed tier for benchmark scheduling."""
-    FAST = "fast"        # seconds
-    MEDIUM = "medium"    # minutes
-    SLOW = "slow"        # hours
+
+    FAST = "fast"  # seconds
+    MEDIUM = "medium"  # minutes
+    SLOW = "slow"  # hours
 
 
 # ============================================================
 # Data classes
 # ============================================================
 
+
 @dataclass
 class BenchmarkCase:
     """A single benchmark test case."""
+
     case_id: str
     suite_name: str
     description: str
-    input_data: Dict[str, Any]
-    expected: Optional[Dict[str, Any]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    tags: List[str] = field(default_factory=list)
+    input_data: dict[str, Any]
+    expected: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
 class BenchmarkResult:
     """Result from running a single benchmark case."""
+
     case_id: str
     suite_name: str
     run_id: str
     passed: bool
-    score: float                          # 0.0 - 1.0
+    score: float  # 0.0 - 1.0
     latency_ms: float = 0.0
     tokens_consumed: int = 0
     cost_usd: float = 0.0
     error_recovery_count: int = 0
-    output: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    output: dict[str, Any] | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
 class BenchmarkReport:
     """Aggregated report for a benchmark suite run."""
+
     run_id: str
     suite_name: str
     layer: BenchmarkLayer
     tier: BenchmarkTier
-    results: List[BenchmarkResult]
+    results: list[BenchmarkResult]
     started_at: str
     finished_at: str = ""
     total_cases: int = 0
     passed_cases: int = 0
-    pass_at_1: float = 0.0               # fraction passing on first try
-    pass_k: float = 0.0                   # consistency (Tau-bench style)
+    pass_at_1: float = 0.0  # fraction passing on first try
+    pass_k: float = 0.0  # consistency (Tau-bench style)
     avg_score: float = 0.0
     avg_latency_ms: float = 0.0
     total_tokens: int = 0
     total_cost_usd: float = 0.0
     error_recovery_rate: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def compute_aggregates(self) -> None:
         """Recompute aggregate metrics from individual results."""
@@ -119,20 +123,14 @@ class BenchmarkReport:
         self.passed_cases = sum(1 for r in self.results if r.passed)
         self.pass_at_1 = self.passed_cases / self.total_cases
         self.avg_score = sum(r.score for r in self.results) / self.total_cases
-        self.avg_latency_ms = (
-            sum(r.latency_ms for r in self.results) / self.total_cases
-        )
+        self.avg_latency_ms = sum(r.latency_ms for r in self.results) / self.total_cases
         self.total_tokens = sum(r.tokens_consumed for r in self.results)
         self.total_cost_usd = sum(r.cost_usd for r in self.results)
         recoveries = sum(r.error_recovery_count for r in self.results)
-        errors_possible = sum(
-            1 for r in self.results if r.error_recovery_count > 0 or r.error
-        )
-        self.error_recovery_rate = (
-            recoveries / errors_possible if errors_possible > 0 else 0.0
-        )
+        errors_possible = sum(1 for r in self.results if r.error_recovery_count > 0 or r.error)
+        self.error_recovery_rate = recoveries / errors_possible if errors_possible > 0 else 0.0
 
-    def summary_dict(self) -> Dict[str, Any]:
+    def summary_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable summary."""
         return {
             "run_id": self.run_id,
@@ -154,6 +152,7 @@ class BenchmarkReport:
 @dataclass
 class ComparisonReport:
     """Comparison between two benchmark runs."""
+
     run_a: str
     run_b: str
     suite_name: str
@@ -162,13 +161,14 @@ class ComparisonReport:
     delta_avg_latency_ms: float = 0.0
     delta_total_tokens: int = 0
     delta_cost_usd: float = 0.0
-    regressions: List[str] = field(default_factory=list)
-    improvements: List[str] = field(default_factory=list)
+    regressions: list[str] = field(default_factory=list)
+    improvements: list[str] = field(default_factory=list)
 
 
 # ============================================================
 # Abstract base: BenchmarkSuiteAdapter
 # ============================================================
+
 
 class BenchmarkSuiteAdapter(ABC):
     """
@@ -188,19 +188,19 @@ class BenchmarkSuiteAdapter(ABC):
     tier: BenchmarkTier = BenchmarkTier.FAST
 
     @abstractmethod
-    def load_cases(self, limit: Optional[int] = None) -> List[BenchmarkCase]:
+    def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
         """Load benchmark cases. Optional limit for quick runs."""
-        ...
+        ...  # noqa: VET032
 
     @abstractmethod
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
         """Execute a single benchmark case and return its result."""
-        ...
+        ...  # noqa: VET032
 
     @abstractmethod
     def evaluate(self, result: BenchmarkResult) -> float:
         """Score a result from 0.0 to 1.0."""
-        ...
+        ...  # noqa: VET032
 
     def description(self) -> str:
         """Human-readable description of this benchmark suite."""
@@ -217,7 +217,7 @@ _DEFAULT_DB = Path("vetinari_benchmark_metrics.db")
 class MetricStore:
     """Persists benchmark results and reports to SQLite."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self._db_path = db_path or _DEFAULT_DB
         self._ensure_schema()
 
@@ -327,17 +327,15 @@ class MetricStore:
                     ),
                 )
 
-    def load_report(self, run_id: str) -> Optional[Dict[str, Any]]:
+    def load_report(self, run_id: str) -> dict[str, Any] | None:
         """Load a benchmark run summary by run_id."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM benchmark_runs WHERE run_id = ?", (run_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM benchmark_runs WHERE run_id = ?", (run_id,)).fetchone()
             if row is None:
                 return None
             return dict(row)
 
-    def load_results(self, run_id: str) -> List[Dict[str, Any]]:
+    def load_results(self, run_id: str) -> list[dict[str, Any]]:
         """Load individual results for a run."""
         with self._connect() as conn:
             rows = conn.execute(
@@ -346,9 +344,7 @@ class MetricStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def list_runs(
-        self, suite_name: Optional[str] = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def list_runs(self, suite_name: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         """List recent benchmark runs."""
         with self._connect() as conn:
             if suite_name:
@@ -366,7 +362,7 @@ class MetricStore:
                 ).fetchall()
             return [dict(r) for r in rows]
 
-    def last_two_run_ids(self, suite_name: str) -> List[str]:
+    def last_two_run_ids(self, suite_name: str) -> list[str]:
         """Return the two most recent run IDs for a suite."""
         with self._connect() as conn:
             rows = conn.execute(
@@ -382,12 +378,13 @@ class MetricStore:
 # BenchmarkRunner — main entry point
 # ============================================================
 
+
 class BenchmarkRunner:
     """Run benchmarks against Vetinari's orchestration pipeline."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self._store = MetricStore(db_path)
-        self._suites: Dict[str, BenchmarkSuiteAdapter] = {}
+        self._suites: dict[str, BenchmarkSuiteAdapter] = {}
 
     # -- Registry --
 
@@ -395,7 +392,7 @@ class BenchmarkRunner:
         """Register a benchmark suite adapter."""
         self._suites[adapter.name] = adapter
 
-    def list_suites(self) -> List[Dict[str, str]]:
+    def list_suites(self) -> list[dict[str, str]]:
         """Return metadata for all registered suites."""
         return [
             {
@@ -412,7 +409,7 @@ class BenchmarkRunner:
     def run_suite(
         self,
         suite_name: str,
-        limit: Optional[int] = None,
+        limit: int | None = None,
         trials: int = 1,
     ) -> BenchmarkReport:
         """Run a named benchmark suite.
@@ -427,21 +424,18 @@ class BenchmarkRunner:
         """
         adapter = self._suites.get(suite_name)
         if adapter is None:
-            raise ValueError(
-                f"Unknown suite '{suite_name}'. "
-                f"Available: {list(self._suites.keys())}"
-            )
+            raise ValueError(f"Unknown suite '{suite_name}'. Available: {list(self._suites.keys())}")
 
         run_id = f"{suite_name}-{uuid.uuid4().hex[:8]}"
         started = datetime.now(timezone.utc).isoformat()
         cases = adapter.load_cases(limit=limit)
 
-        all_results: List[BenchmarkResult] = []
-        pass_counts: Dict[str, int] = {}  # case_id -> pass count across trials
+        all_results: list[BenchmarkResult] = []
+        pass_counts: dict[str, int] = {}  # case_id -> pass count across trials
 
         for case in cases:
             pass_counts[case.case_id] = 0
-            for trial in range(trials):
+            for _trial in range(trials):
                 try:
                     result = adapter.run_case(case, run_id)
                     result.score = adapter.evaluate(result)
@@ -463,9 +457,7 @@ class BenchmarkRunner:
 
         # Compute pass^k: fraction of cases that passed ALL k trials
         if trials > 0 and cases:
-            fully_passed = sum(
-                1 for c in cases if pass_counts[c.case_id] == trials
-            )
+            fully_passed = sum(1 for c in cases if pass_counts[c.case_id] == trials)
             pass_k = fully_passed / len(cases)
         else:
             pass_k = 0.0
@@ -488,9 +480,7 @@ class BenchmarkRunner:
     def run_single(self, benchmark_id: str) -> BenchmarkResult:
         """Run a single benchmark case by its ID (suite:case_id format)."""
         if ":" not in benchmark_id:
-            raise ValueError(
-                "benchmark_id must be 'suite_name:case_id' format"
-            )
+            raise ValueError("benchmark_id must be 'suite_name:case_id' format")
         suite_name, case_id = benchmark_id.split(":", 1)
         adapter = self._suites.get(suite_name)
         if adapter is None:
@@ -499,9 +489,7 @@ class BenchmarkRunner:
         cases = adapter.load_cases()
         case = next((c for c in cases if c.case_id == case_id), None)
         if case is None:
-            raise ValueError(
-                f"Case '{case_id}' not found in suite '{suite_name}'"
-            )
+            raise ValueError(f"Case '{case_id}' not found in suite '{suite_name}'")
 
         run_id = f"{suite_name}-single-{uuid.uuid4().hex[:8]}"
         result = adapter.run_case(case, run_id)
@@ -522,41 +510,23 @@ class BenchmarkRunner:
 
         suite = a.get("suite_name", b.get("suite_name", "unknown"))
         comp = ComparisonReport(run_a=run_a, run_b=run_b, suite_name=suite)
-        comp.delta_pass_at_1 = (
-            (b.get("pass_at_1", 0) or 0) - (a.get("pass_at_1", 0) or 0)
-        )
-        comp.delta_avg_score = (
-            (b.get("avg_score", 0) or 0) - (a.get("avg_score", 0) or 0)
-        )
-        comp.delta_avg_latency_ms = (
-            (b.get("avg_latency", 0) or 0) - (a.get("avg_latency", 0) or 0)
-        )
-        comp.delta_total_tokens = (
-            (b.get("total_tokens", 0) or 0) - (a.get("total_tokens", 0) or 0)
-        )
-        comp.delta_cost_usd = (
-            (b.get("total_cost", 0) or 0) - (a.get("total_cost", 0) or 0)
-        )
+        comp.delta_pass_at_1 = (b.get("pass_at_1", 0) or 0) - (a.get("pass_at_1", 0) or 0)
+        comp.delta_avg_score = (b.get("avg_score", 0) or 0) - (a.get("avg_score", 0) or 0)
+        comp.delta_avg_latency_ms = (b.get("avg_latency", 0) or 0) - (a.get("avg_latency", 0) or 0)
+        comp.delta_total_tokens = (b.get("total_tokens", 0) or 0) - (a.get("total_tokens", 0) or 0)
+        comp.delta_cost_usd = (b.get("total_cost", 0) or 0) - (a.get("total_cost", 0) or 0)
 
         # Identify regressions and improvements
         THRESHOLD = 0.05
         if comp.delta_avg_score < -THRESHOLD:
-            comp.regressions.append(
-                f"avg_score dropped by {abs(comp.delta_avg_score):.4f}"
-            )
+            comp.regressions.append(f"avg_score dropped by {abs(comp.delta_avg_score):.4f}")
         elif comp.delta_avg_score > THRESHOLD:
-            comp.improvements.append(
-                f"avg_score improved by {comp.delta_avg_score:.4f}"
-            )
+            comp.improvements.append(f"avg_score improved by {comp.delta_avg_score:.4f}")
 
         if comp.delta_pass_at_1 < -THRESHOLD:
-            comp.regressions.append(
-                f"pass@1 dropped by {abs(comp.delta_pass_at_1):.4f}"
-            )
+            comp.regressions.append(f"pass@1 dropped by {abs(comp.delta_pass_at_1):.4f}")
         elif comp.delta_pass_at_1 > THRESHOLD:
-            comp.improvements.append(
-                f"pass@1 improved by {comp.delta_pass_at_1:.4f}"
-            )
+            comp.improvements.append(f"pass@1 improved by {comp.delta_pass_at_1:.4f}")
 
         return comp
 
@@ -566,13 +536,11 @@ class BenchmarkRunner:
         """Persist a benchmark report to SQLite."""
         self._store.save_report(report)
 
-    def list_runs(
-        self, suite_name: Optional[str] = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def list_runs(self, suite_name: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         """List recent benchmark runs from the metric store."""
         return self._store.list_runs(suite_name, limit)
 
-    def get_last_comparison(self, suite_name: str) -> Optional[ComparisonReport]:
+    def get_last_comparison(self, suite_name: str) -> ComparisonReport | None:
         """Compare the two most recent runs for a suite."""
         ids = self._store.last_two_run_ids(suite_name)
         if len(ids) < 2:
@@ -584,37 +552,43 @@ class BenchmarkRunner:
 # Convenience: default runner with all adapters registered
 # ============================================================
 
-def get_default_runner(db_path: Optional[Path] = None) -> BenchmarkRunner:
+
+def get_default_runner(db_path: Path | None = None) -> BenchmarkRunner:
     """Create a BenchmarkRunner with all built-in adapters registered."""
     runner = BenchmarkRunner(db_path=db_path)
 
     # Import adapters lazily to avoid circular imports
     try:
         from vetinari.benchmarks.swe_bench import SWEBenchAdapter
+
         runner.register_suite(SWEBenchAdapter())
     except Exception as exc:
         logger.debug(f"Could not load SWE-bench adapter: {exc}")
 
     try:
         from vetinari.benchmarks.tau_bench import TauBenchAdapter
+
         runner.register_suite(TauBenchAdapter())
     except Exception as exc:
         logger.debug(f"Could not load Tau-bench adapter: {exc}")
 
     try:
         from vetinari.benchmarks.toolbench import ToolBenchAdapter
+
         runner.register_suite(ToolBenchAdapter())
     except Exception as exc:
         logger.debug(f"Could not load ToolBench adapter: {exc}")
 
     try:
         from vetinari.benchmarks.taskbench import TaskBenchAdapter
+
         runner.register_suite(TaskBenchAdapter())
     except Exception as exc:
         logger.debug(f"Could not load TaskBench adapter: {exc}")
 
     try:
         from vetinari.benchmarks.api_bank import APIBankAdapter
+
         runner.register_suite(APIBankAdapter())
     except Exception as exc:
         logger.debug(f"Could not load API-Bank adapter: {exc}")

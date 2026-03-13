@@ -1,13 +1,16 @@
-"""Cost Planner Skill Tool Wrapper
+"""Cost Planner Skill Tool Wrapper.
 
 .. deprecated:: 1.1.0
    DEPRECATED: Superseded by OperationsSkillTool (vetinari.skills.operations_skill).
    Will be removed in a future release.
 """
 
+from __future__ import annotations
+
 import logging
-from vetinari.tool_interface import Tool, ToolMetadata, ToolResult, ToolParameter, ToolCategory
-from vetinari.execution_context import ToolPermission, ExecutionMode
+
+from vetinari.tool_interface import Tool, ToolCategory, ToolMetadata, ToolParameter, ToolResult
+from vetinari.types import ExecutionMode
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +20,7 @@ class CostPlannerSkill(Tool):
 
     def __init__(self):
         import warnings
+
         warnings.warn(
             "CostPlannerSkill is deprecated since v1.1.0. "
             "Use OperationsSkillTool (vetinari.skills.operations_skill) instead.",
@@ -43,6 +47,7 @@ class CostPlannerSkill(Tool):
         if self._agent is None:
             try:
                 from vetinari.agents.cost_planner_agent import get_cost_planner_agent
+
                 self._agent = get_cost_planner_agent()
             except Exception as e:
                 logger.warning("CostPlannerAgent unavailable: %s", e)
@@ -54,6 +59,7 @@ class CostPlannerSkill(Tool):
             # Fallback: use the cost optimizer directly
             try:
                 from vetinari.learning.cost_optimizer import get_cost_optimizer
+
                 optimizer = get_cost_optimizer()
                 task_types = kwargs.get("task_types", ["coding", "research", "analysis"])
                 forecast = optimizer.get_budget_forecast(
@@ -66,7 +72,9 @@ class CostPlannerSkill(Tool):
                 return ToolResult(success=False, output=None, error=str(e))
 
         try:
-            from vetinari.agents.contracts import AgentTask, AgentType
+            from vetinari.agents.contracts import AgentTask
+            from vetinari.types import AgentType
+
             task = AgentTask(
                 task_id="cost-plan",
                 agent_type=AgentType.COST_PLANNER,
@@ -74,7 +82,8 @@ class CostPlannerSkill(Tool):
                 context=kwargs,
             )
             result = agent.execute(task)
-            return ToolResult(success=result.success, output=result.output,
-                              error="; ".join(result.errors) if result.errors else None)
+            return ToolResult(
+                success=result.success, output=result.output, error="; ".join(result.errors) if result.errors else None
+            )
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

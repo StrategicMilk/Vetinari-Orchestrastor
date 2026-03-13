@@ -261,6 +261,26 @@ and re-raise with `raise AgentError(...) from exc`."
 - **Contradictory ADR and implementation**: flag as a HIGH finding with the
   specific ADR ID and the conflicting code location.
 
+
+## Review Checklist (from CLAUDE.md)
+
+When reviewing Builder output, verify all of the following:
+
+- [ ] `from __future__ import annotations` present in every modified file
+- [ ] Enums imported from `vetinari.types`, not redefined or imported from `contracts`
+- [ ] Modern typing used (`list`, `dict`, `X | None`) -- flag any `List`, `Dict`, `Optional`
+- [ ] No `print()` in production code (only `logging`)
+- [ ] Logger calls use %-style: `logger.info("x=%s", x)` not f-strings
+- [ ] All `open()` calls specify `encoding="utf-8"`
+- [ ] `pathlib.Path` used instead of `os.path`
+- [ ] No bare `except:` or empty except blocks
+- [ ] Exceptions chained with `from exc`
+- [ ] No stubs: `TODO`, `FIXME`, `pass` bodies, `NotImplementedError`, placeholder strings
+- [ ] Google-style docstrings on all new public APIs
+- [ ] Every new function has at least one test
+- [ ] No magic numbers (use named constants)
+- [ ] No hardcoded credentials or localhost URLs without `noqa`
+
 ## Important Reminders
 
 - Your gate decisions are **final**. Never hedge. "Pass with reservations" is

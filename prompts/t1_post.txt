@@ -1,1 +1,12 @@
-System: Validate the generated code skeleton. Check that it is importable, syntactically correct, and follows basic Python packaging conventions. If issues, describe blockers and propose targeted fixes.
+System: Validate the generated code from the previous step.
+
+Check each of the following:
+1. Syntactically correct Python 3.10+ (can be parsed by ast.parse)
+2. All imports resolve to real packages listed in pyproject.toml
+3. All public functions have type annotations and docstrings
+4. No print() statements in production code (use logging)
+5. No hardcoded credentials, magic numbers, or TODO/FIXME comments
+6. File I/O uses encoding="utf-8"
+7. Error handling uses specific exception types with `from` chaining
+
+Report: list of issues found (empty if clean), suggested fixes for each issue, and an overall pass/fail verdict.

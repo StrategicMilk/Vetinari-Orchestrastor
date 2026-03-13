@@ -1,5 +1,4 @@
-"""
-Thompson Sampling Model Selector - Vetinari Self-Improvement Subsystem
+"""Thompson Sampling Model Selector - Vetinari Self-Improvement Subsystem.
 
 Implements Bayesian bandit-style model selection that naturally balances
 exploration (trying less-used models) with exploitation (using proven ones).
@@ -11,13 +10,15 @@ Each model+task_type pair maintains a Beta distribution:
 When selecting a model, we sample from each distribution and pick the highest.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import random
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BetaArm:
     """Beta distribution arm for a model+task_type pair."""
+
     model_id: str
     task_type: str
-    alpha: float = 2.0      # Successes (quality-weighted); Beta(2,2) slightly skeptical prior
-    beta: float = 2.0       # Failures; accelerates convergence vs naive Beta(1,1)
+    alpha: float = 2.0  # Successes (quality-weighted); Beta(2,2) slightly skeptical prior
+    beta: float = 2.0  # Failures; accelerates convergence vs naive Beta(1,1)
     total_pulls: int = 0
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -49,16 +51,15 @@ class BetaArm:
     def update(self, quality_score: float, success: bool) -> None:
         """Update the arm based on observed outcome."""
         if success:
-            self.alpha += quality_score       # Weight by quality
+            self.alpha += quality_score  # Weight by quality
         else:
-            self.beta += (1.0 - quality_score)
+            self.beta += 1.0 - quality_score
         self.total_pulls += 1
         self.last_updated = datetime.now().isoformat()
 
 
 class ThompsonSamplingSelector:
-    """
-    Thompson Sampling model selector for exploration-exploitation balance.
+    """Thompson Sampling model selector for exploration-exploitation balance.
 
     Automatically:
     - Explores new/untested models (slightly skeptical Beta(2,2) prior)
@@ -67,12 +68,12 @@ class ThompsonSamplingSelector:
     - Persists arm states to survive restarts
     """
 
-    COST_WEIGHT = 0.15   # How much to penalize expensive models
+    COST_WEIGHT = 0.15  # How much to penalize expensive models
     MIN_ARMS = 1
 
     def __init__(self):
         # Key: "model_id:task_type"
-        self._arms: Dict[str, BetaArm] = {}
+        self._arms: dict[str, BetaArm] = {}
         self._lock = threading.Lock()
         self._load_state()
 
@@ -83,11 +84,10 @@ class ThompsonSamplingSelector:
     def select_model(
         self,
         task_type: str,
-        candidate_models: List[str],
-        cost_per_model: Optional[Dict[str, float]] = None,
+        candidate_models: list[str],
+        cost_per_model: dict[str, float] | None = None,
     ) -> str:
-        """
-        Select the best model for a task type using Thompson Sampling.
+        """Select the best model for a task type using Thompson Sampling.
 
         Args:
             task_type: Task type string.
@@ -137,8 +137,7 @@ class ThompsonSamplingSelector:
         quality_score: float,
         success: bool,
     ) -> None:
-        """
-        Update the arm after observing an outcome.
+        """Update the arm after observing an outcome.
 
         Args:
             model_id: The model that was used.
@@ -161,8 +160,7 @@ class ThompsonSamplingSelector:
         n_trials: int,
         task_type: str = "general",
     ) -> None:
-        """
-        Update Thompson Sampling arms from benchmark results.
+        """Update Thompson Sampling arms from benchmark results.
 
         Benchmark results are weighted 3x (BENCHMARK_WEIGHT_MULTIPLIER) because
         they are more reliable than single-task outcomes -- they aggregate over
@@ -193,15 +191,13 @@ class ThompsonSamplingSelector:
         )
         self._save_state()
 
-    def get_rankings(self, task_type: str) -> List[Tuple[str, float]]:
+    def get_rankings(self, task_type: str) -> list[tuple[str, float]]:
         """Get model rankings for a task type (by expected value)."""
-        arms = [(k.split(":")[0], arm.mean)
-                for k, arm in self._arms.items()
-                if k.endswith(f":{task_type}")]
+        arms = [(k.split(":")[0], arm.mean) for k, arm in self._arms.items() if k.endswith(f":{task_type}")]
         arms.sort(key=lambda x: x[1], reverse=True)
         return arms
 
-    def get_arm_state(self, model_id: str, task_type: str) -> Dict[str, Any]:
+    def get_arm_state(self, model_id: str, task_type: str) -> dict[str, Any]:
         """Get the current state of a Beta arm."""
         arm = self._get_or_create_arm(model_id, task_type)
         return {
@@ -222,8 +218,10 @@ class ThompsonSamplingSelector:
         if key not in self._arms:
             alpha, beta = self._get_informed_prior(model_id, task_type)
             self._arms[key] = BetaArm(
-                model_id=model_id, task_type=task_type,
-                alpha=alpha, beta=beta,
+                model_id=model_id,
+                task_type=task_type,
+                alpha=alpha,
+                beta=beta,
             )
         return self._arms[key]
 
@@ -231,6 +229,7 @@ class ThompsonSamplingSelector:
         """Get informed prior from BenchmarkSeeder, fallback to Beta(1,1)."""
         try:
             from vetinari.learning.benchmark_seeder import get_benchmark_seeder
+
             return get_benchmark_seeder().get_prior(model_id, task_type)
         except Exception:
             return (1.0, 1.0)
@@ -238,6 +237,7 @@ class ThompsonSamplingSelector:
     def _get_state_dir(self) -> str:
         """Get the .vetinari state directory, using project root or env var."""
         import os
+
         # Allow override via env var
         state_dir = os.environ.get("VETINARI_STATE_DIR", "")
         if not state_dir:
@@ -250,9 +250,10 @@ class ThompsonSamplingSelector:
         """Load persisted arm states from memory/disk."""
         try:
             import json
+
             state_file = os.path.join(self._get_state_dir(), "thompson_state.json")
             if os.path.exists(state_file):
-                with open(state_file, "r") as f:
+                with open(state_file) as f:
                     data = json.load(f)
                 for key, d in data.items():
                     self._arms[key] = BetaArm(**d)
@@ -265,6 +266,7 @@ class ThompsonSamplingSelector:
         try:
             import json
             from dataclasses import asdict
+
             state_dir = self._get_state_dir()
             os.makedirs(state_dir, exist_ok=True)
             state_file = os.path.join(state_dir, "thompson_state.json")
@@ -275,7 +277,7 @@ class ThompsonSamplingSelector:
 
 
 # Singleton
-_thompson_selector: Optional[ThompsonSamplingSelector] = None
+_thompson_selector: ThompsonSamplingSelector | None = None
 
 
 def get_thompson_selector() -> ThompsonSamplingSelector:

@@ -1,14 +1,15 @@
 """Anthropic provider adapter."""
 
+from __future__ import annotations
+
 import logging
 import os
-import requests
 import time
-from typing import Dict, List, Any, Optional
-from .base import (
-    ProviderAdapter, ProviderConfig, ProviderType, ModelInfo,
-    InferenceRequest, InferenceResponse
-)
+from typing import Any
+
+import requests
+
+from .base import InferenceRequest, InferenceResponse, ModelInfo, ProviderAdapter, ProviderConfig, ProviderType
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class AnthropicProviderAdapter(ProviderAdapter):
     ]
 
     # Map from friendly/config model IDs to real Anthropic API model IDs
-    MODEL_ID_MAP: Dict[str, str] = {
+    MODEL_ID_MAP: dict[str, str] = {
         "claude-sonnet-4": "claude-sonnet-4-5",
         "claude-opus-4": "claude-opus-4-5",
         "claude-haiku-3": "claude-3-5-haiku-20241022",
@@ -82,29 +83,29 @@ class AnthropicProviderAdapter(ProviderAdapter):
         """Resolve a config model ID to the real Anthropic API model ID."""
         return self.MODEL_ID_MAP.get(model_id, model_id)
 
-    def _load_model_definitions(self) -> List[Dict[str, Any]]:
+    def _load_model_definitions(self) -> list[dict[str, Any]]:
         """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
         try:
             config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                '..', 'config', 'provider_models.yaml'
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "provider_models.yaml"
             )
             import yaml
+
             with open(config_path) as f:
                 config = yaml.safe_load(f)
-            provider_models = config.get('providers', {}).get('anthropic', {}).get('models', [])
+            provider_models = config.get("providers", {}).get("anthropic", {}).get("models", [])
             if provider_models:
                 return provider_models
         except Exception:
             logger.debug("Config file not available, using hardcoded models")
         return self._HARDCODED_MODELS
 
-    def discover_models(self) -> List[ModelInfo]:
+    def discover_models(self) -> list[ModelInfo]:
         """Discover available models from Anthropic."""
         try:
             # Load model list from config file (falls back to hardcoded if unavailable)
             models_data = self._load_model_definitions()
-            
+
             discovered = []
             for m in models_data:
                 model_info = ModelInfo(
@@ -121,7 +122,7 @@ class AnthropicProviderAdapter(ProviderAdapter):
                     tags=["cloud", "anthropic", "commercial"],
                 )
                 discovered.append(model_info)
-            
+
             self.models = discovered
             logger.info("[Anthropic] Discovered %s models", len(discovered))
             return discovered
@@ -130,7 +131,7 @@ class AnthropicProviderAdapter(ProviderAdapter):
             logger.error("[Anthropic] Model discovery failed: %s", e)
             return []
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Check Anthropic API health."""
         try:
             headers = {
@@ -138,23 +139,22 @@ class AnthropicProviderAdapter(ProviderAdapter):
                 "anthropic-version": self.api_version,
                 "Content-Type": "application/json",
             }
-            
+
             # Try a simple request
             payload = {
                 "model": "claude-3-haiku-20240307",
                 "max_tokens": 1,
                 "messages": [{"role": "user", "content": "test"}],
             }
-            
+
             response = self.session.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=payload,
-                timeout=5
+                "https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=5
             )
             return {
                 "healthy": response.status_code == 200,
-                "reason": "Anthropic API responding" if response.status_code == 200 else f"Status {response.status_code}",
+                "reason": "Anthropic API responding"
+                if response.status_code == 200
+                else f"Status {response.status_code}",
                 "timestamp": time.time(),
                 "endpoint": "https://api.anthropic.com/v1",
             }
@@ -176,7 +176,7 @@ class AnthropicProviderAdapter(ProviderAdapter):
                 "anthropic-version": self.api_version,
                 "Content-Type": "application/json",
             }
-            
+
             messages = [{"role": "user", "content": request.prompt}]
 
             resolved_model = self._resolve_model_id(request.model_id)
@@ -188,16 +188,13 @@ class AnthropicProviderAdapter(ProviderAdapter):
                 "temperature": request.temperature,
                 "top_p": request.top_p,
             }
-            
+
             # Add system prompt if provided (Anthropic has a system field)
             if request.system_prompt:
                 payload["system"] = request.system_prompt
 
             response = self.session.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=payload,
-                timeout=self.timeout_seconds
+                "https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=self.timeout_seconds
             )
             response.raise_for_status()
             data = response.json()
@@ -240,6 +237,6 @@ class AnthropicProviderAdapter(ProviderAdapter):
             self._record_telemetry(request, resp)
             return resp
 
-    def get_capabilities(self) -> Dict[str, List[str]]:
+    def get_capabilities(self) -> dict[str, list[str]]:
         """Get capabilities of all models."""
         return {m.id: m.capabilities for m in self.models}
