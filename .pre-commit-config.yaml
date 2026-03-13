@@ -42,3 +42,13 @@ repos:
         args: [-c, pyproject.toml]
         additional_dependencies: ['bandit[toml]']
         exclude: ^tests/
+
+  - repo: local
+    hooks:
+      - id: vetinari-rules
+        name: Vetinari project rules (custom lint)
+        entry: python scripts/check_vetinari_rules.py --errors-only
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

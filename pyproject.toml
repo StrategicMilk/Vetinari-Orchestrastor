@@ -102,6 +102,13 @@ select = [
     "SIM",  # flake8-simplify
     "PIE",  # flake8-pie
     "RUF",  # ruff-specific
+    "C4",   # flake8-comprehensions (unnecessary list/dict/set calls)
+    "PT",   # flake8-pytest-style (test conventions)
+    "ERA",  # eradicate (commented-out code detection)
+    "TID",  # flake8-tidy-imports (banned imports enforcement)
+    "T20",  # flake8-print (print statement detection)
+    "S",    # flake8-bandit (security, supplements standalone bandit)
+    "D",    # pydocstyle (docstring conventions — Google style)
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
@@ -110,10 +117,38 @@ ignore = [
     "SIM108", # ternary operator (readability preference)
     "RUF012", # mutable class variables (dataclass pattern)
     "UP007",  # Use X | Y for union types - defer until full migration
+    "ERA001", # commented-out code (use VET036 custom rule instead — fewer false positives)
+    "S101",   # assert in non-test code (handled per-file)
+    "D100",   # missing module docstring (use VET095 custom rule instead — smarter exemptions)
+    "D101",   # missing class docstring (use VET090 custom rule — smarter exemptions)
+    "D102",   # missing method docstring (use VET090 custom rule — smarter exemptions)
+    "D103",   # missing function docstring (use VET090 custom rule — smarter exemptions)
+    "D104",   # missing public package docstring (__init__.py)
+    "D105",   # missing magic method docstring (dunder methods)
+    "D106",   # missing nested class docstring
+    "D107",   # missing __init__ docstring
+    "D203",   # one blank line before class docstring (conflicts with D211)
+    "D213",   # multi-line docstring summary on second line (conflicts with D212)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "T20", "ERA", "D"]  # assert ok, print ok, commented code ok, docstrings relaxed in tests
+"scripts/*" = ["T20", "D"]               # print ok, docstrings relaxed in scripts
+"vetinari/__main__.py" = ["T20"]          # print ok in entry point
+"vetinari/benchmarks/*" = ["T20", "D"]   # print ok, docstrings relaxed in benchmarks
+"conftest.py" = ["S101", "D"]            # assert ok, docstrings relaxed in conftest
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"vetinari.agents.contracts.AgentType".msg = "Import AgentType from vetinari.types instead"
+"vetinari.agents.contracts.TaskStatus".msg = "Import TaskStatus from vetinari.types instead"
+"vetinari.agents.contracts.ExecutionMode".msg = "Import ExecutionMode from vetinari.types instead"
+"vetinari.agents.contracts.PlanStatus".msg = "Import PlanStatus from vetinari.types instead"
 
 [tool.ruff.lint.isort]
 known-first-party = ["vetinari"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"
