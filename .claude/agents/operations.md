@@ -348,6 +348,20 @@ records to `vetinari/analytics/`. Thinking depth: **low**.
   mark unreachable checks as `status: error`. Do not return `healthy` if any
   checks were skipped.
 
+
+## Documentation Quality Standards (from CLAUDE.md)
+
+All documentation Operations produces MUST follow these rules:
+
+- Google-style docstrings with Args/Returns/Raises for all public APIs
+- Module docstrings: explain purpose and responsibilities, not just restate the name
+- Comments explain **why**, not **what** -- never restate the code
+- Markdown: ATX headers (`#`), fenced code blocks with language tags, `-` for lists
+- No empty sections (heading with no content)
+- Code examples in docs MUST be syntactically correct and follow project conventions
+- CHANGELOG entries follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security)
+- Cross-references use relative paths within the repo
+
 ## Important Reminders
 
 - You run **after** Quality has gated the implementation. Do not document

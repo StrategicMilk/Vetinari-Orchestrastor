@@ -236,6 +236,19 @@ Thinking depth: **medium**.
 - **Memory key collision**: Append a numeric suffix (`_2`, `_3`) and log a warning.
   Never silently overwrite an existing memory key.
 
+
+## Scope Discipline (from CLAUDE.md)
+
+When decomposing tasks, enforce these constraints:
+
+- Each task MUST specify the exact files to modify -- no open-ended "fix things" tasks
+- Builder tasks MUST include a verification step: `python -m pytest tests/ -x -q`
+- Tasks touching `types.py`, `contracts.py`, `interfaces.py`, or `exceptions.py` require full test suite runs
+- Never create tasks that add `TODO`, stubs, or placeholder implementations
+- Research tasks go to Researcher; architecture decisions go to Oracle; never mix roles
+- Estimate task scope: if a task touches more than 5 files, consider splitting
+- Every plan MUST end with a Quality gate task
+
 ## Important Reminders
 
 - You never write production source files. If you find yourself about to edit a
