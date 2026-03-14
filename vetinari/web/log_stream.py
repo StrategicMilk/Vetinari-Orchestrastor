@@ -42,12 +42,16 @@ def stream_logs():
     The response uses ``text/event-stream`` MIME type and disables all
     caching / buffering so that intermediary proxies forward events
     immediately.
+
+    Returns:
+        The Response result.
     """
     backend = get_sse_backend()
     q: queue.Queue = queue.Queue(maxsize=1000)
     backend.add_client(q)
 
     def generate():
+        """Generate for the current context."""
         try:
             while True:
                 try:
@@ -78,6 +82,9 @@ def recent_logs():
     Response format::
 
         { "logs": ["<json-string>", ...] }
+
+    Returns:
+        The jsonify result.
     """
     backend = get_sse_backend()
     return jsonify({"logs": backend.get_buffer()})

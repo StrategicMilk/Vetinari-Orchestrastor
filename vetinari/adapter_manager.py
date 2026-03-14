@@ -364,7 +364,11 @@ _adapter_manager: AdapterManager | None = None
 
 
 def get_adapter_manager() -> AdapterManager:
-    """Get or create the global adapter manager."""
+    """Get or create the global adapter manager.
+
+    Returns:
+        The AdapterManager result.
+    """
     global _adapter_manager
     if _adapter_manager is None:
         _adapter_manager = AdapterManager()

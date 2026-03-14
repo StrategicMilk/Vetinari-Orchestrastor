@@ -12,6 +12,7 @@ import logging
 import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,11 @@ class WorkflowLearner:
         self._load_patterns()
 
     def infer_domain(self, goal: str) -> str:
-        """Classify goal into a domain category."""
+        """Classify goal into a domain category.
+
+        Returns:
+            The result string.
+        """
         g = goal.lower()
         if any(k in g for k in ["code", "implement", "build", "program", "app", "software"]):
             return "coding"
@@ -298,7 +303,11 @@ class WorkflowLearner:
         return defaults.get(domain, ["CONSOLIDATED_RESEARCHER", "BUILDER"])
 
     def get_all_patterns(self) -> list[dict[str, Any]]:
-        """Get all learned patterns."""
+        """Get all learned patterns.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return [asdict(p) for p in self._patterns.values()]
 
@@ -306,11 +315,9 @@ class WorkflowLearner:
         try:
             import os
 
-            path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari", "workflow_patterns.json"
-            )
+            path = str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari" / "workflow_patterns.json")
             if os.path.exists(path):
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 for item in data:
                     p = WorkflowPattern(**item)
@@ -323,10 +330,10 @@ class WorkflowLearner:
         try:
             import os
 
-            state_dir = os.path.join(os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari")
+            state_dir = str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari")
             os.makedirs(state_dir, exist_ok=True)
-            path = os.path.join(state_dir, "workflow_patterns.json")
-            with open(path, "w") as f:
+            path = str(Path(state_dir) / "workflow_patterns.json")
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump([asdict(p) for p in self._patterns.values()], f, indent=2)
         except Exception as e:
             logger.debug("Could not save workflow patterns: %s", e)
@@ -336,6 +343,11 @@ _workflow_learner: WorkflowLearner | None = None
 
 
 def get_workflow_learner() -> WorkflowLearner:
+    """Get workflow learner.
+
+    Returns:
+        The WorkflowLearner result.
+    """
     global _workflow_learner
     if _workflow_learner is None:
         _workflow_learner = WorkflowLearner()

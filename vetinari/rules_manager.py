@@ -88,7 +88,11 @@ class RulesManager:
     # ─── Global rules ────────────────────────────────────────────────────────
 
     def get_global_rules(self) -> list[str]:
-        """Return the global rules list."""
+        """Return the global rules list.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._data.get("global", []))
 
@@ -99,7 +103,11 @@ class RulesManager:
             self._save()
 
     def get_global_system_prompt(self) -> str:
-        """Return the global system prompt override."""
+        """Return the global system prompt override.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return self._data.get("global_system_prompt", "")
 
@@ -112,12 +120,21 @@ class RulesManager:
     # ─── Project rules ───────────────────────────────────────────────────────
 
     def get_project_rules(self, project_id: str) -> list[str]:
-        """Return rules for a specific project."""
+        """Return rules for a specific project.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._data.get("projects", {}).get(project_id, []))
 
     def set_project_rules(self, project_id: str, rules: list[str]) -> None:
-        """Set rules for a specific project."""
+        """Set rules for a specific project.
+
+        Args:
+            project_id: The project id.
+            rules: The rules.
+        """
         with self._lock:
             if "projects" not in self._data:
                 self._data["projects"] = {}
@@ -127,12 +144,21 @@ class RulesManager:
     # ─── Model rules ─────────────────────────────────────────────────────────
 
     def get_model_rules(self, model_id: str) -> list[str]:
-        """Return rules for a specific model."""
+        """Return rules for a specific model.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._data.get("models", {}).get(model_id, []))
 
     def set_model_rules(self, model_id: str, rules: list[str]) -> None:
-        """Set rules for a specific model."""
+        """Set rules for a specific model.
+
+        Args:
+            model_id: The model id.
+            rules: The rules.
+        """
         with self._lock:
             if "models" not in self._data:
                 self._data["models"] = {}
@@ -151,11 +177,19 @@ class RulesManager:
         global → project → model → project+model (combined).
 
         Returns deduplicated list preserving order.
+
+        Args:
+            project_id: The project id.
+            model_id: The model id.
+
+        Returns:
+            The result string.
         """
         rules: list[str] = []
         seen: set = set()
 
         def add(r_list: list[str]) -> None:
+            """Add for the current context."""
             for r in r_list:
                 if r and r not in seen:
                     rules.append(r)
@@ -181,6 +215,13 @@ class RulesManager:
         """Format applicable rules as a string for injection into system prompts.
 
         Returns empty string if no rules are defined.
+
+        Args:
+            project_id: The project id.
+            model_id: The model id.
+
+        Returns:
+            The result string.
         """
         rules = self.get_rules(project_id=project_id, model_id=model_id)
         if not rules:
@@ -196,6 +237,13 @@ class RulesManager:
         """Build the full system prompt prefix to prepend to every agent's system prompt.
 
         Includes: global system prompt + formatted rules.
+
+        Args:
+            project_id: The project id.
+            model_id: The model id.
+
+        Returns:
+            The result string.
         """
         parts = []
         gsp = self.get_global_system_prompt()
@@ -207,7 +255,11 @@ class RulesManager:
         return "\n\n".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize rules to dict for API responses."""
+        """Serialize rules to dict for API responses.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return dict(self._data)
 
@@ -219,7 +271,11 @@ _rules_lock = threading.Lock()
 
 
 def get_rules_manager() -> RulesManager:
-    """Get the singleton RulesManager instance."""
+    """Get the singleton RulesManager instance.
+
+    Returns:
+        The RulesManager result.
+    """
     global _rules_manager
     if _rules_manager is None:
         with _rules_lock:

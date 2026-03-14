@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 @bp.route("/api/generate-image", methods=["POST"])
 def api_generate_image():
-    """Generate an image asset via the ImageGeneratorAgent."""
+    """Generate an image asset via the ImageGeneratorAgent.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -32,7 +36,7 @@ def api_generate_image():
 
         agent = get_image_generator_agent(
             {
-                "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),
+                "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),  # noqa: VET041
                 "sd_enabled": data.get("sd_enabled", True),
                 "width": data.get("width", 512),
                 "height": data.get("height", 512),
@@ -61,13 +65,17 @@ def api_generate_image():
 
 @bp.route("/api/sd-status", methods=["GET"])
 def api_sd_status():
-    """Check Stable Diffusion WebUI connection status."""
+    """Check Stable Diffusion WebUI connection status.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         import requests as _req
 
         from vetinari.web_ui import current_config
 
-        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))
+        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))  # noqa: VET041
         resp = _req.get(f"{host}/sdapi/v1/options", timeout=5)
         if resp.status_code == 200:
             return jsonify({"status": "connected", "host": host})
@@ -78,7 +86,11 @@ def api_sd_status():
 
 @bp.route("/api/training/stats", methods=["GET"])
 def api_training_stats():
-    """Get training data statistics."""
+    """Get training data statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.training_data import get_training_collector
 
@@ -91,7 +103,11 @@ def api_training_stats():
 
 @bp.route("/api/training/export", methods=["POST"])
 def api_training_export():
-    """Export training data for a given format."""
+    """Export training data for a given format.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -121,7 +137,11 @@ def api_training_export():
 
 @bp.route("/api/training/start", methods=["POST"])
 def api_training_start():
-    """Start a training run (async)."""
+    """Start a training run (async).
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:

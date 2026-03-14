@@ -1,3 +1,5 @@
+"""Plan Mode module."""
+
 from __future__ import annotations
 
 import json
@@ -364,6 +366,9 @@ class PlanModeEngine:
 
         This creates multiple plan candidates, evaluates them, and returns
         a Plan object ready for approval or execution.
+
+        Returns:
+            The Plan result.
         """
         logger.info("Generating plan for goal: %s...", request.goal[:100])
 
@@ -641,7 +646,14 @@ class PlanModeEngine:
         return success
 
     def approve_plan(self, request: PlanApprovalRequest) -> Plan:
-        """Approve or reject a plan."""
+        """Approve or reject a plan.
+
+        Returns:
+            The Plan result.
+
+        Raises:
+            ValueError: If the operation fails.
+        """
         plan_data_list = self.memory.query_plan_history(plan_id=request.plan_id)
 
         if not plan_data_list:
@@ -667,7 +679,11 @@ class PlanModeEngine:
         return plan
 
     def get_plan(self, plan_id: str) -> Plan | None:
-        """Retrieve a plan by ID."""
+        """Retrieve a plan by ID.
+
+        Returns:
+            The Plan | None result.
+        """
         plan_data_list = self.memory.query_plan_history(plan_id=plan_id)
 
         if not plan_data_list:
@@ -680,14 +696,28 @@ class PlanModeEngine:
         return self.memory.query_plan_history(goal_contains=goal_contains, limit=limit)
 
     def get_subtasks(self, plan_id: str) -> list[Subtask]:
-        """Get all subtasks for a plan."""
+        """Get all subtasks for a plan.
+
+        Returns:
+            List of results.
+        """
         subtask_data = self.memory.query_subtasks(plan_id=plan_id)
         return [Subtask.from_dict(s) for s in subtask_data]
 
     def update_subtask_status(
         self, plan_id: str, subtask_id: str, status: SubtaskStatus, outcome: str | None = None
     ) -> bool:
-        """Update a subtask's status."""
+        """Update a subtask's status.
+
+        Args:
+            plan_id: The plan id.
+            subtask_id: The subtask id.
+            status: The status.
+            outcome: The outcome.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         subtask_data_list = self.memory.query_subtasks(subtask_id=subtask_id)
 
         if not subtask_data_list:
@@ -715,6 +745,13 @@ class PlanModeEngine:
 
         In Plan mode: coding tasks require human approval
         In Build mode: coding tasks proceed without approval (but still logged)
+
+        Args:
+            subtask: The subtask.
+            plan_mode: The plan mode.
+
+        Returns:
+            True if successful, False otherwise.
         """
         if not plan_mode:
             return False
@@ -722,7 +759,16 @@ class PlanModeEngine:
         return subtask.domain == TaskDomain.CODING
 
     def check_subtask_approval_required(self, plan: Plan, subtask_id: str, plan_mode: bool = True) -> dict[str, Any]:
-        """Check if a subtask requires approval and get approval status."""
+        """Check if a subtask requires approval and get approval status.
+
+        Args:
+            plan: The plan.
+            subtask_id: The subtask id.
+            plan_mode: The plan mode.
+
+        Returns:
+            The result string.
+        """
         subtask = plan.get_subtask(subtask_id)
         if not subtask:
             return {"requires_approval": False, "error": "Subtask not found"}
@@ -741,7 +787,19 @@ class PlanModeEngine:
     def log_approval_decision(
         self, plan_id: str, subtask_id: str, approved: bool, approver: str, reason: str = "", risk_score: float = 0.0
     ) -> bool:
-        """Log an approval decision to memory."""
+        """Log an approval decision to memory.
+
+        Args:
+            plan_id: The plan id.
+            subtask_id: The subtask id.
+            approved: The approved.
+            approver: The approver.
+            reason: The reason.
+            risk_score: The risk score.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             # Use module-level import so mocks applied via @patch work correctly
             import vetinari.plan_mode as _self_mod
@@ -782,7 +840,15 @@ class PlanModeEngine:
             return False
 
     def auto_approve_if_low_risk(self, plan: Plan, subtask: Subtask) -> bool:
-        """Auto-approve a subtask if it's low risk and in appropriate mode."""
+        """Auto-approve a subtask if it's low risk and in appropriate mode.
+
+        Args:
+            plan: The plan.
+            subtask: The subtask.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not plan.dry_run:
             return False
 
@@ -807,6 +873,13 @@ class PlanModeEngine:
 
         This integrates the in-process coding agent with plan execution.
         Returns the generated artifact info.
+
+        Args:
+            plan: The plan.
+            subtask: The subtask.
+
+        Returns:
+            The result string.
         """
         try:
             from vetinari.coding_agent import CodeTask, CodingTaskType, get_coding_agent
@@ -863,7 +936,15 @@ class PlanModeEngine:
             return {"success": False, "error": str(e)}
 
     def execute_multi_step_coding(self, plan: Plan, subtasks: list[Subtask]) -> list[dict[str, Any]]:
-        """Execute multiple coding tasks in sequence (scaffold + module + tests)."""
+        """Execute multiple coding tasks in sequence (scaffold + module + tests).
+
+        Args:
+            plan: The plan.
+            subtasks: The subtasks.
+
+        Returns:
+            The result string.
+        """
         results = []
 
         for subtask in subtasks:
@@ -880,7 +961,11 @@ _plan_engine: PlanModeEngine | None = None
 
 
 def get_plan_engine() -> PlanModeEngine:
-    """Get or create the global plan engine instance."""
+    """Get or create the global plan engine instance.
+
+    Returns:
+        The PlanModeEngine result.
+    """
     global _plan_engine
     if _plan_engine is None:
         _plan_engine = PlanModeEngine()
@@ -888,7 +973,11 @@ def get_plan_engine() -> PlanModeEngine:
 
 
 def init_plan_engine(memory_store: MemoryStore = None) -> PlanModeEngine:
-    """Initialize a new plan engine instance."""
+    """Initialize a new plan engine instance.
+
+    Returns:
+        The PlanModeEngine result.
+    """
     global _plan_engine
     _plan_engine = PlanModeEngine(memory_store=memory_store)
     return _plan_engine

@@ -111,6 +111,9 @@ def estimate_complexity(description: str) -> str:
     """Estimate task complexity from description keywords.
 
     Returns ``"high"``, ``"medium"``, or ``"low"``.
+
+    Returns:
+        The result string.
     """
     desc_lower = description.lower()
     for level in ("high", "medium", "low"):
@@ -155,7 +158,7 @@ class ModelRouter:
         refresh_interval: float = 300.0,  # 5 minutes
         enabled: bool = True,
     ):
-        self._host = lmstudio_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        self._host = lmstudio_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         self._refresh_interval = refresh_interval
         self._enabled = enabled
         self._models: dict[str, ModelInfo] = {}
@@ -232,7 +235,11 @@ class ModelRouter:
         return None
 
     def get_model_tier(self, model_id: str) -> ModelTier:
-        """Get the tier of a specific model."""
+        """Get the tier of a specific model.
+
+        Returns:
+            The ModelTier result.
+        """
         info = self._models.get(model_id)
         if info:
             return info.tier
@@ -241,7 +248,11 @@ class ModelRouter:
         return _classify_tier(param_count)
 
     def get_summary(self) -> dict[str, Any]:
-        """Dashboard-friendly summary."""
+        """Dashboard-friendly summary.
+
+        Returns:
+            The result string.
+        """
         self._maybe_refresh()
         tiers: dict[str, list[str]] = {"small": [], "medium": [], "large": []}
         for mid, info in self._models.items():
@@ -342,7 +353,11 @@ _model_router: ModelRouter | None = None
 
 
 def get_model_router() -> ModelRouter:
-    """Get or create the global model router."""
+    """Get or create the global model router.
+
+    Returns:
+        The ModelRouter result.
+    """
     global _model_router
     if _model_router is None:
         _model_router = ModelRouter()

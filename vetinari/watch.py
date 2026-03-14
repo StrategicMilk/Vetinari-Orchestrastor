@@ -97,7 +97,11 @@ class FileWatcher:
         self._callbacks.append(callback)
 
     def scan(self) -> list[FileChange]:
-        """Scan for file changes since last scan."""
+        """Scan for file changes since last scan.
+
+        Returns:
+            List of results.
+        """
         changes: list[FileChange] = []
         current_files: set[str] = set()
 
@@ -177,7 +181,11 @@ class DirectiveScanner:
         self._max_file_size = max_file_size
 
     def scan_file(self, file_path: str) -> list[VetinariDirective]:
-        """Scan a single file for directives."""
+        """Scan a single file for directives.
+
+        Returns:
+            List of results.
+        """
         directives = []
         try:
             path = Path(file_path)
@@ -202,7 +210,11 @@ class DirectiveScanner:
         return directives
 
     def scan_changes(self, changes: list[FileChange]) -> list[VetinariDirective]:
-        """Scan changed files for directives."""
+        """Scan changed files for directives.
+
+        Returns:
+            List of results.
+        """
         directives = []
         for change in changes:
             if change.change_type != "deleted":
@@ -238,7 +250,12 @@ class WatchMode:
         }
 
     def register_handler(self, action: str, handler: Callable) -> None:
-        """Register a custom directive handler."""
+        """Register a custom directive handler.
+
+        Args:
+            action: The action.
+            handler: The handler.
+        """
         self._directive_handlers[action.lower()] = handler
 
     def start(self) -> None:

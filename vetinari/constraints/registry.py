@@ -53,7 +53,11 @@ class AgentConstraints:
     quality_gate: QualityGate | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize for injection into task context."""
+        """Serialize for injection into task context.
+
+        Returns:
+            The result string.
+        """
         result: dict[str, Any] = {"agent_type": self.agent_type, "mode": self.mode}
         if self.resources:
             result["max_tokens"] = self.resources.max_tokens
@@ -104,21 +108,47 @@ class ConstraintRegistry:
         return get_resource_constraint(agent_type)
 
     def validate_delegation(self, from_agent: str, to_agent: str, depth: int = 0) -> tuple[bool, str]:
-        """Check if delegation is allowed by architecture constraints."""
+        """Check if delegation is allowed by architecture constraints.
+
+        Args:
+            from_agent: The from agent.
+            to_agent: The to agent.
+            depth: The depth.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         allowed, reason = validate_delegation(from_agent, to_agent, depth)
         if not allowed:
             self._record_violation("delegation", from_agent, reason)
         return allowed, reason
 
     def check_quality_gate(self, agent_type: str, score: float, mode: str | None = None) -> tuple[bool, str]:
-        """Check if output passes quality gate. Returns (passed, reason)."""
+        """Check if output passes quality gate. Returns (passed, reason).
+
+        Args:
+            agent_type: The agent type.
+            score: The score.
+            mode: The mode.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         passed, reason = check_quality_gate(agent_type, score, mode)
         if not passed:
             self._record_violation("quality_gate", agent_type, reason)
         return passed, reason
 
     def validate_mode(self, agent_type: str, mode: str) -> tuple[bool, str]:
-        """Check if a mode is valid for an agent type."""
+        """Check if a mode is valid for an agent type.
+
+        Args:
+            agent_type: The agent type.
+            mode: The mode.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         constraint = self.architecture.get(agent_type)
         if constraint is None:
             return True, "no architecture constraint defined"
@@ -130,7 +160,15 @@ class ConstraintRegistry:
         return False, f"mode '{mode}' not allowed for {agent_type}"
 
     def validate_task_type(self, agent_type: str, task_type: str) -> tuple[bool, str]:
-        """Check if a task type is valid for an agent."""
+        """Check if a task type is valid for an agent.
+
+        Args:
+            agent_type: The agent type.
+            task_type: The task type.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         constraint = self.architecture.get(agent_type)
         if constraint is None:
             return True, "no architecture constraint defined"
@@ -165,12 +203,20 @@ class ConstraintRegistry:
         logger.warning("[Constraint violation] %s: %s", constraint_type, details)
 
     def get_violations(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Return recent constraint violations."""
+        """Return recent constraint violations.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._violations[-limit:])
 
     def get_violation_stats(self) -> dict[str, int]:
-        """Return violation counts by type."""
+        """Return violation counts by type.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             stats: dict[str, int] = {}
             for v in self._violations:
@@ -193,7 +239,11 @@ _registry_lock = threading.Lock()
 
 
 def get_constraint_registry() -> ConstraintRegistry:
-    """Get or create the global constraint registry singleton."""
+    """Get or create the global constraint registry singleton.
+
+    Returns:
+        The result string.
+    """
     global _registry
     if _registry is None:
         with _registry_lock:

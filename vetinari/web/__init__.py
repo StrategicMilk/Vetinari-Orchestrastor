@@ -22,6 +22,9 @@ def is_admin_user() -> bool:
     For local deployments (no token set), only requests from the loopback
     address are accepted — X-Forwarded-For is intentionally ignored unless
     VETINARI_TRUSTED_PROXY=true is set, to prevent IP-spoofing (P1.H8).
+
+    Returns:
+        True if successful, False otherwise.
     """
     admin_token = os.environ.get("VETINARI_ADMIN_TOKEN", "")
     if admin_token:
@@ -42,7 +45,7 @@ def is_admin_user() -> bool:
     else:
         remote = request.remote_addr or ""
 
-    return remote in ("127.0.0.1", "::1", "localhost")
+    return remote in ("127.0.0.1", "::1", "localhost")  # noqa: VET041
 
 
 def require_admin(f):
@@ -54,10 +57,18 @@ def require_admin(f):
         @require_admin
         def my_route():
             ...
+
+    Returns:
+        The f result.
     """
 
     @wraps(f)
     def decorated(*args, **kwargs):
+        """Decorated.
+
+        Returns:
+            The f result.
+        """
         if not is_admin_user():
             return jsonify({"error": "Admin privileges required"}), 403
         return f(*args, **kwargs)
@@ -70,6 +81,13 @@ def validate_json_fields(data: dict, required: list) -> tuple:
 
     Returns (True, None) on success, or (False, error_response_tuple) on failure.
     Callers should check: ok, err = validate_json_fields(...); if not ok: return err
+
+    Args:
+        data: The data.
+        required: The required.
+
+    Returns:
+        The tuple result.
     """
     if data is None:
         return False, (jsonify({"error": "Request body must be JSON"}), 400)

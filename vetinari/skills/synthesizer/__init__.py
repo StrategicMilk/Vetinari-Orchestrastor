@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class SynthesizerCapability(str, Enum):
+    """Synthesizer capability."""
     RESULT_COMBINATION = "result_combination"
     SUMMARIZATION = "summarization"
     REPORT_GENERATION = "report_generation"
@@ -37,6 +38,7 @@ class SynthesizerCapability(str, Enum):
 
 @dataclass
 class SynthesisRequest:
+    """Synthesis request."""
     capability: SynthesizerCapability
     content: str
     context: str | None = None
@@ -53,6 +55,7 @@ class SynthesisRequest:
 
 @dataclass
 class SynthesisResult:
+    """Synthesis result."""
     success: bool
     summary: str | None = None
     insights: list[str] = field(default_factory=list)
@@ -63,6 +66,7 @@ class SynthesisResult:
 
 
 class SynthesizerSkillTool(Tool):
+    """Synthesizer skill tool."""
     def __init__(self):
         import warnings
 
@@ -104,6 +108,11 @@ class SynthesizerSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             cap_str = kwargs.get("capability")
             content = kwargs.get("content")

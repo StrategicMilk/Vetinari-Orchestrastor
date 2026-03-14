@@ -1,3 +1,5 @@
+"""Web Ui module."""
+
 from __future__ import annotations
 
 import json
@@ -108,16 +110,16 @@ def _add_security_headers(response):
 
 # ── CORS restriction (P1.H2) ─────────────────────────────────────────────────
 _ALLOWED_ORIGINS = {
-    "http://localhost",
+    "http://localhost",  # noqa: VET041
     "http://127.0.0.1",
-    "http://localhost:5000",
-    "http://127.0.0.1:5000",
+    "http://localhost:5000",  # noqa: VET041
+    "http://127.0.0.1:5000",  # noqa: VET041
 }
 
 
 @app.after_request
 def _restrict_cors(response):
-    """Restrict CORS to localhost origins only — no wildcard (P1.H2)."""
+    """Restrict CORS to localhost origins only — no wildcard (P1.H2)."""  # noqa: VET041
     origin = request.headers.get("Origin", "")
     if origin in _ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
@@ -221,7 +223,7 @@ def _get_models_cached(force: bool = False) -> list:
 
 
 current_config = {
-    "host": os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),
+    "host": os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),  # noqa: VET041
     "config_path": "manifest/vetinari.yaml",
     "api_token": os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
     "default_models": ["qwen3-coder-next", "qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8"],
@@ -248,10 +250,11 @@ if _APSCHEDULER_AVAILABLE:
         scheduler = BackgroundScheduler()
         scheduler.start()
     except Exception as _sched_err:
-        logging.warning(f"[Vetinari] Could not start background scheduler: {_sched_err}")
+        logger.warning("[Vetinari] Could not start background scheduler: %s", _sched_err)
 
 
 def refresh_model_cache():
+    """Refresh model cache."""
     try:
         from vetinari.model_discovery import ModelDiscovery
 
@@ -272,10 +275,19 @@ if scheduler is not None:
             name="Monthly model cache refresh",
         )
     except Exception as _job_err:
-        logging.warning(f"[Vetinari] Could not add scheduler job: {_job_err}")
+        logger.warning("[Vetinari] Could not add scheduler job: %s", _job_err)
 
 
 def trigger_light_search(project_id: str, task_description: str):
+    """Trigger light search.
+
+    Args:
+        project_id: The project id.
+        task_description: The task description.
+
+    Returns:
+        List of results.
+    """
     try:
         from vetinari.model_discovery import ModelDiscovery
 
@@ -285,7 +297,7 @@ def trigger_light_search(project_id: str, task_description: str):
         try:
             from vetinari.model_pool import ModelPool
 
-            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))  # noqa: VET041
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception:
@@ -299,6 +311,11 @@ def trigger_light_search(project_id: str, task_description: str):
 
 
 def get_orchestrator():
+    """Get orchestrator.
+
+    Returns:
+        The result value.
+    """
     global orchestrator
     if orchestrator is None:
         # Import here to avoid circular imports
@@ -354,12 +371,17 @@ def api_status():
 # API: Server-Sent Events stream for real-time task updates
 @app.route("/api/project/<project_id>/stream")
 def api_project_stream(project_id):
-    """SSE endpoint — subscribe to real-time events for a project."""
+    """SSE endpoint — subscribe to real-time events for a project.
+
+    Returns:
+        The Response result.
+    """
     import json as _json
 
     from flask import Response, stream_with_context
 
     def generate():
+        """Generate for the current context."""
         q = _get_sse_queue(project_id)
         # Send an initial connected event
         yield f"data: {_json.dumps({'type': 'connected', 'project_id': project_id})}\n\n"
@@ -393,7 +415,11 @@ def api_project_stream(project_id):
 # API: Cancel a running project task
 @app.route("/api/project/<project_id>/cancel", methods=["POST"])
 def api_cancel_project(project_id):
-    """Cancel a running project execution."""
+    """Cancel a running project execution.
+
+    Returns:
+        The jsonify result.
+    """
     cancelled = _cancel_project_task(project_id)
     _push_sse_event(project_id, "cancelled", {"project_id": project_id, "status": "cancelled"})
 
@@ -416,7 +442,11 @@ def api_cancel_project(project_id):
 # API: Token usage statistics
 @app.route("/api/token-stats")
 def api_token_stats():
-    """Return token usage statistics from the analytics system."""
+    """Return token usage statistics from the analytics system.
+
+    Returns:
+        The jsonify result.
+    """
     stats = {
         "total_tokens_used": 0,
         "total_cost_usd": 0.0,
@@ -449,7 +479,11 @@ def api_token_stats():
 # API: Global search across projects and outputs
 @app.route("/api/search", methods=["GET"])
 def api_global_search():
-    """Search across project names, descriptions, and outputs."""
+    """Search across project names, descriptions, and outputs.
+
+    Returns:
+        The jsonify result.
+    """
     query = request.args.get("q", "").strip().lower()
     if not query:
         return jsonify({"results": [], "query": ""})
@@ -502,6 +536,11 @@ def api_global_search():
 # API: Get available models (uses TTL cache — does NOT block on every request)
 @app.route("/api/models")
 def api_models():
+    """Handle models API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         models = _get_models_cached()
         return jsonify({"models": models, "cached": True, "count": len(models)})
@@ -512,6 +551,11 @@ def api_models():
 # API: Force-refresh model discovery, bypassing the cache
 @app.route("/api/models/refresh", methods=["POST", "GET"])
 def api_models_refresh():
+    """Handle models refresh API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         models = _get_models_cached(force=True)
         return jsonify({"models": models, "cached": False, "count": len(models)})
@@ -522,6 +566,11 @@ def api_models_refresh():
 # API: Score models for a task
 @app.route("/api/score-models", methods=["POST"])
 def api_score_models():
+    """Handle score models API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         task_description = data.get("task_description", "")
@@ -598,10 +647,15 @@ def api_score_models():
 # API: Get tasks
 @app.route("/api/tasks")
 def api_tasks():
+    """Handle tasks API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         config_path = Path(PROJECT_ROOT) / current_config["config_path"]
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             tasks = config.get("tasks", [])
             return jsonify({"tasks": tasks})
@@ -613,6 +667,11 @@ def api_tasks():
 # API: Run a task
 @app.route("/api/run-task", methods=["POST"])
 def api_run_task():
+    """Handle run task API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -625,6 +684,7 @@ def api_run_task():
         orb = get_orchestrator()
 
         def run_task():
+            """Run task for the current context."""
             orb.run_task(task_id)
 
         thread = threading.Thread(target=run_task)
@@ -638,12 +698,18 @@ def api_run_task():
 # API: Run all tasks
 @app.route("/api/run-all", methods=["POST"])
 def api_run_all():
+    """Handle run all API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
         orb = get_orchestrator()
 
         def run_all():
+            """Run all for the current context."""
             orb.run_all()
 
         thread = threading.Thread(target=run_all)
@@ -657,6 +723,11 @@ def api_run_all():
 # API: Run custom prompt
 @app.route("/api/run-prompt", methods=["POST"])
 def api_run_prompt():
+    """Handle run prompt API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -729,6 +800,11 @@ def api_run_prompt():
 # API: Create a plan using the planning engine
 @app.route("/api/plan", methods=["POST"])
 def api_create_plan():
+    """Handle create plan API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -772,6 +848,11 @@ def api_create_plan():
 # API: Create new project from prompt - uses planning engine to create and execute tasks
 @app.route("/api/new-project", methods=["POST"])
 def api_new_project():
+    """Handle new project API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -857,7 +938,7 @@ def api_new_project():
                 rules_list = [r.strip() for r in project_rules.splitlines() if r.strip()]
                 rm.set_project_rules(project_dir.name, rules_list)
             except Exception as _re:
-                logging.warning(f"Could not save project rules: {_re}")
+                logger.warning("Could not save project rules: %s", _re)
 
         config_path = project_dir / "project.yaml"
         with open(config_path, "w", encoding="utf-8") as f:
@@ -957,6 +1038,7 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
             _get_sse_queue(_proj_id)  # Pre-create queue
 
             def run_tasks_background():
+                """Run tasks background."""
                 try:
                     # Update config to show running
                     project_config["status"] = "running"
@@ -1173,10 +1255,10 @@ Implement this task. Output the code as code blocks with filenames."""
 
                         logger.info("Final deliverable assembled: %s", final_report_path)
                     except Exception as assemble_err:
-                        logging.error(f"Error assembling final deliverable: {assemble_err}")
+                        logger.error("Error assembling final deliverable: %s", assemble_err)
 
                 except Exception as e:
-                    logging.error(f"Error running tasks: {e}")
+                    logger.error("Error running tasks: %s", e)
                     project_config["status"] = "error"
                     project_config["error"] = str(e)
                     with open(config_path, "w", encoding="utf-8") as f:
@@ -1210,6 +1292,11 @@ Implement this task. Output the code as code blocks with filenames."""
 # API: List all projects
 @app.route("/api/projects")
 def api_projects():
+    """Handle projects API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         include_archived = request.args.get("include_archived", "false").lower() == "true"
         projects_dir = PROJECT_ROOT / "projects"
@@ -1293,6 +1380,11 @@ def api_projects():
 # API: Get single project details
 @app.route("/api/project/<project_id>")
 def api_project(project_id):
+    """Handle project API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1385,6 +1477,11 @@ def api_project(project_id):
 # API: Send message to existing project
 @app.route("/api/project/<project_id>/message", methods=["POST"])
 def api_project_message(project_id):
+    """Handle project message API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1450,6 +1547,11 @@ def api_project_message(project_id):
 # API: Add task to project
 @app.route("/api/project/<project_id>/task", methods=["POST"])
 def api_add_task(project_id):
+    """Handle add task API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1500,6 +1602,15 @@ def api_add_task(project_id):
 # API: Update task
 @app.route("/api/project/<project_id>/task/<task_id>", methods=["PUT"])
 def api_update_task(project_id, task_id):
+    """Handle update task API endpoint.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1553,6 +1664,15 @@ def api_update_task(project_id, task_id):
 # API: Delete task
 @app.route("/api/project/<project_id>/task/<task_id>", methods=["DELETE"])
 def api_delete_task(project_id, task_id):
+    """Handle delete task API endpoint.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1591,6 +1711,11 @@ def api_delete_task(project_id, task_id):
 # API: Get project outputs for review
 @app.route("/api/project/<project_id>/review")
 def api_project_review(project_id):
+    """Handle project review API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1660,6 +1785,11 @@ def api_project_review(project_id):
 # API: Approve outputs and trigger merge
 @app.route("/api/project/<project_id>/approve", methods=["POST"])
 def api_approve_outputs(project_id):
+    """Handle approve outputs API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1682,6 +1812,11 @@ def api_approve_outputs(project_id):
 # API: Merge project to final project space
 @app.route("/api/project/<project_id>/merge", methods=["POST"])
 def api_merge_project(project_id):
+    """Handle merge project API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1784,6 +1919,11 @@ Run the generated code from the artifacts folder.
 # API: System prompts presets
 @app.route("/api/system-prompts")
 def api_system_prompts():
+    """Handle system prompts API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         prompts_dir = PROJECT_ROOT / "system_prompts"
         prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -1799,6 +1939,11 @@ def api_system_prompts():
 
 @app.route("/api/system-prompts", methods=["POST"])
 def api_save_system_prompt():
+    """Handle save system prompt API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1822,6 +1967,11 @@ def api_save_system_prompt():
 
 @app.route("/api/system-prompts/<name>", methods=["DELETE"])
 def api_delete_system_prompt(name):
+    """Handle delete system prompt API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -1837,6 +1987,11 @@ def api_delete_system_prompt(name):
 @app.route("/api/output/<task_id>")
 def api_output(task_id):
     # Try to find the task in any project
+    """Handle output API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     projects_dir = PROJECT_ROOT / "projects"
     if projects_dir.exists():
         for p in projects_dir.iterdir():
@@ -1857,6 +2012,11 @@ def api_output(task_id):
 # API: Get all tasks across all projects for output dropdown
 @app.route("/api/all-tasks")
 def api_all_tasks():
+    """Handle all tasks API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         projects_dir = PROJECT_ROOT / "projects"
         all_tasks = []
@@ -1889,6 +2049,15 @@ def api_all_tasks():
 # API: Get task output by project and task ID
 @app.route("/api/project/<project_id>/task/<task_id>/output")
 def api_task_output(project_id, task_id):
+    """Handle task output API endpoint.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1916,7 +2085,11 @@ def api_task_output(project_id, task_id):
 # API: Download a generated file from a project task
 @app.route("/api/download")
 def api_download():
-    """Download a generated file by project_id, task_id, and filename."""
+    """Download a generated file by project_id, task_id, and filename.
+
+    Returns:
+        The send_file result.
+    """
     from flask import abort as flask_abort
     from flask import send_file
 
@@ -1944,6 +2117,11 @@ def api_download():
 # API: Trigger model discovery and refresh the cache
 @app.route("/api/discover")
 def api_discover():
+    """Handle discover API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         models = _get_models_cached(force=True)
         return jsonify({"discovered": len(models), "models": models, "status": "ok"})
@@ -1954,6 +2132,11 @@ def api_discover():
 # API: Update configuration
 @app.route("/api/config", methods=["POST"])
 def api_config():
+    """Handle config API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     global orchestrator
@@ -1982,6 +2165,11 @@ def api_config():
 # API: Check for upgrades
 @app.route("/api/upgrade-check")
 def api_upgrade_check():
+    """Handle upgrade check API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         orb = get_orchestrator()
         upgrades = orb.upgrader.check_for_upgrades()
@@ -1993,6 +2181,11 @@ def api_upgrade_check():
 # API: Get workflow tree (returns projects with tasks for workflow view)
 @app.route("/api/workflow")
 def api_workflow():
+    """Handle workflow API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         include_archived = request.args.get("include_archived", "false").lower() == "true"
         search_query = request.args.get("search", "").lower()
@@ -2095,6 +2288,11 @@ def api_model_config():
 # API: Update model configuration
 @app.route("/api/model-config", methods=["POST"])
 def api_update_model_config():
+    """Handle update model config API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -2122,6 +2320,11 @@ def api_update_model_config():
 # API: Swap to a different model (per-project)
 @app.route("/api/swap-model", methods=["POST"])
 def api_swap_model():
+    """Handle swap model API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -2158,6 +2361,11 @@ def api_swap_model():
 # API: Rename a project
 @app.route("/api/project/<project_id>/rename", methods=["POST"])
 def api_rename_project(project_id):
+    """Handle rename project API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -2196,6 +2404,11 @@ def api_rename_project(project_id):
 # API: Archive/unarchive a project
 @app.route("/api/project/<project_id>/archive", methods=["POST"])
 def api_archive_project(project_id):
+    """Handle archive project API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     data = request.json
@@ -2224,6 +2437,11 @@ def api_archive_project(project_id):
 # API: Delete a project
 @app.route("/api/project/<project_id>", methods=["DELETE"])
 def api_delete_project(project_id):
+    """Handle delete project API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2245,6 +2463,11 @@ def api_delete_project(project_id):
 # API: Assemble final deliverable from task outputs
 @app.route("/api/project/<project_id>/assemble", methods=["POST"])
 def api_project_assemble(project_id):
+    """Handle project assemble API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2343,6 +2566,11 @@ def api_project_assemble(project_id):
 # API: Get build artifacts
 @app.route("/api/artifacts")
 def api_artifacts():
+    """Handle artifacts API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     build_dir = PROJECT_ROOT / "build" / "artifacts"
     artifacts = []
     if build_dir.exists():
@@ -2355,6 +2583,11 @@ def api_artifacts():
 # API: Safe file read for agent (OpenCode-like)
 @app.route("/api/project/<project_id>/files/read", methods=["POST"])
 def api_read_file(project_id):
+    """Handle read file API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         file_path = data.get("path", "")
@@ -2406,6 +2639,11 @@ def api_read_file(project_id):
 # API: Safe file write for agent (OpenCode-like)
 @app.route("/api/project/<project_id>/files/write", methods=["POST"])
 def api_write_file(project_id):
+    """Handle write file API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2451,6 +2689,11 @@ def api_write_file(project_id):
 # API: List workspace files
 @app.route("/api/project/<project_id>/files/list")
 def api_list_files(project_id):
+    """Handle list files API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
@@ -2494,7 +2737,7 @@ def _is_admin_user() -> bool:
         remote = (forwarded.split(",")[0].strip() if forwarded else request.remote_addr) or ""
     else:
         remote = request.remote_addr or ""
-    return remote in ("127.0.0.1", "::1", "localhost")
+    return remote in ("127.0.0.1", "::1", "localhost")  # noqa: VET041
 
 
 def _project_external_model_enabled(project_dir) -> bool:
@@ -2505,7 +2748,7 @@ def _project_external_model_enabled(project_dir) -> bool:
     try:
         config_file = Path(project_dir) / "project.yaml"
         if config_file.exists():
-            with open(config_file) as f:
+            with open(config_file, encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
             return cfg.get("enable_external_model_discovery", ENABLE_EXTERNAL_DISCOVERY)
     except Exception:
@@ -2515,6 +2758,11 @@ def _project_external_model_enabled(project_dir) -> bool:
 
 @app.route("/api/project/<project_id>/model-search", methods=["POST"])
 def api_model_search(project_id):
+    """Handle model search API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
@@ -2538,7 +2786,7 @@ def api_model_search(project_id):
         try:
             from vetinari.model_pool import ModelPool
 
-            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))  # noqa: VET041
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception as e:
@@ -2553,6 +2801,15 @@ def api_model_search(project_id):
 
 @app.route("/api/project/<project_id>/task/<task_id>/override", methods=["POST"])
 def api_task_override(project_id, task_id):
+    """Handle task override API endpoint.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json or {}
         model_id = data.get("model_id", "")
@@ -2563,7 +2820,7 @@ def api_task_override(project_id, task_id):
         if not config_file.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         tasks = config.get("tasks", [])
@@ -2572,7 +2829,7 @@ def api_task_override(project_id, task_id):
                 task["model_override"] = model_id
                 break
 
-        with open(config_file, "w") as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False)
 
         return jsonify({"status": "ok", "task_id": task_id, "model_override": model_id})
@@ -2582,6 +2839,11 @@ def api_task_override(project_id, task_id):
 
 @app.route("/api/project/<project_id>/refresh-models", methods=["POST"])
 def api_refresh_models(project_id):
+    """Handle refresh models API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_discovery import ModelDiscovery  # noqa: F401
 
@@ -2596,6 +2858,11 @@ def api_refresh_models(project_id):
 # Agent orchestration endpoints
 @app.route("/api/agents/status", methods=["GET"])
 def api_agents_status():
+    """Handle agents status API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -2612,6 +2879,11 @@ def api_agents_status():
 
 @app.route("/api/agents/initialize", methods=["POST"])
 def api_agents_initialize():
+    """Handle agents initialize API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -2630,6 +2902,11 @@ def api_agents_initialize():
 
 @app.route("/api/agents/active", methods=["GET"])
 def api_agents_active():
+    """Handle agents active API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -2678,6 +2955,11 @@ def api_agents_active():
 
 @app.route("/api/agents/tasks", methods=["GET"])
 def api_agents_tasks():
+    """Handle agents tasks API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -2705,6 +2987,11 @@ def api_agents_tasks():
 # Shared memory endpoints
 @app.route("/api/memory", methods=["GET"])
 def api_memory():
+    """Handle memory API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.shared_memory import SharedMemory
 
@@ -2720,6 +3007,11 @@ def api_memory():
 # Decision endpoints
 @app.route("/api/decisions/pending", methods=["GET"])
 def api_decisions_pending():
+    """Handle decisions pending API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.shared_memory import SharedMemory
 
@@ -2746,6 +3038,11 @@ def api_decisions_pending():
 
 @app.route("/api/decisions", methods=["POST"])
 def api_decisions_submit():
+    """Handle decisions submit API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         decision_id = data.get("decision_id")
@@ -2767,6 +3064,11 @@ def api_decisions_submit():
 
 @app.route("/api/plans", methods=["POST"])
 def api_plan_create():
+    """Handle plan create API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2788,6 +3090,11 @@ def api_plan_create():
 
 @app.route("/api/plans", methods=["GET"])
 def api_plans_list():
+    """Handle plans list API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -2804,6 +3111,11 @@ def api_plans_list():
 
 @app.route("/api/plans/<plan_id>", methods=["GET"])
 def api_plan_get(plan_id):
+    """Handle plan get API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -2819,6 +3131,11 @@ def api_plan_get(plan_id):
 
 @app.route("/api/plans/<plan_id>", methods=["PUT"])
 def api_plan_update(plan_id):
+    """Handle plan update API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2838,6 +3155,11 @@ def api_plan_update(plan_id):
 
 @app.route("/api/plans/<plan_id>", methods=["DELETE"])
 def api_plan_delete(plan_id):
+    """Handle plan delete API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2852,6 +3174,11 @@ def api_plan_delete(plan_id):
 
 @app.route("/api/plans/<plan_id>/start", methods=["POST"])
 def api_plan_start(plan_id):
+    """Handle plan start API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2869,6 +3196,11 @@ def api_plan_start(plan_id):
 
 @app.route("/api/plans/<plan_id>/pause", methods=["POST"])
 def api_plan_pause(plan_id):
+    """Handle plan pause API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2886,6 +3218,11 @@ def api_plan_pause(plan_id):
 
 @app.route("/api/plans/<plan_id>/resume", methods=["POST"])
 def api_plan_resume(plan_id):
+    """Handle plan resume API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2903,6 +3240,11 @@ def api_plan_resume(plan_id):
 
 @app.route("/api/plans/<plan_id>/cancel", methods=["POST"])
 def api_plan_cancel(plan_id):
+    """Handle plan cancel API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -2920,6 +3262,11 @@ def api_plan_cancel(plan_id):
 
 @app.route("/api/plans/<plan_id>/status", methods=["GET"])
 def api_plan_status(plan_id):
+    """Handle plan status API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -2949,7 +3296,11 @@ def api_plan_status(plan_id):
 
 @app.route("/api/model-catalog", methods=["GET"])
 def api_models_list():
-    """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery."""
+    """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -2962,6 +3313,11 @@ def api_models_list():
 
 @app.route("/api/models/<model_id>", methods=["GET"])
 def api_model_get(model_id):
+    """Handle model get API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -2977,6 +3333,11 @@ def api_model_get(model_id):
 
 @app.route("/api/models/select", methods=["POST"])
 def api_model_select():
+    """Handle model select API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -2991,6 +3352,11 @@ def api_model_select():
 
 @app.route("/api/models/policy", methods=["GET"])
 def api_model_policy_get():
+    """Handle model policy get API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -3003,6 +3369,11 @@ def api_model_policy_get():
 
 @app.route("/api/models/policy", methods=["PUT"])
 def api_model_policy_update():
+    """Handle model policy update API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -3020,6 +3391,11 @@ def api_model_policy_update():
 
 @app.route("/api/models/reload", methods=["POST"])
 def api_models_reload():
+    """Handle models reload API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -3038,6 +3414,11 @@ def api_models_reload():
 @app.route("/api/sandbox/execute", methods=["POST"])
 def api_sandbox_execute():
     # C2 security fix: require admin/localhost for code execution
+    """Handle sandbox execute API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Unauthorized: sandbox execution requires admin access"}), 403
     try:
@@ -3063,6 +3444,11 @@ def api_sandbox_execute():
 @app.route("/api/sandbox/status", methods=["GET"])
 def api_sandbox_status():
     # C2 security fix: require admin/localhost for sandbox status
+    """Handle sandbox status API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Unauthorized: sandbox access requires admin access"}), 403
     try:
@@ -3078,6 +3464,11 @@ def api_sandbox_status():
 @app.route("/api/sandbox/audit", methods=["GET"])
 def api_sandbox_audit():
     # C2 security fix: require admin/localhost for audit log
+    """Handle sandbox audit API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Unauthorized: sandbox access requires admin access"}), 403
     try:
@@ -3097,7 +3488,11 @@ def api_sandbox_audit():
 
 @app.route("/api/code-search", methods=["GET"])
 def api_code_search():
-    """Search within project code using CocoIndex/ripgrep backends."""
+    """Search within project code using CocoIndex/ripgrep backends.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -3121,6 +3516,11 @@ def api_code_search():
 
 @app.route("/api/search/index", methods=["POST"])
 def api_search_index():
+    """Handle search index API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -3143,6 +3543,11 @@ def api_search_index():
 
 @app.route("/api/search/status", methods=["GET"])
 def api_search_status():
+    """Handle search status API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -3171,6 +3576,11 @@ def api_search_status():
 
 @app.route("/api/subtasks/<plan_id>", methods=["GET"])
 def api_get_subtasks(plan_id):
+    """Handle get subtasks API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3188,6 +3598,11 @@ def api_get_subtasks(plan_id):
 
 @app.route("/api/subtasks/<plan_id>", methods=["POST"])
 def api_create_subtask(plan_id):
+    """Handle create subtask API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3231,6 +3646,15 @@ def api_create_subtask(plan_id):
 
 @app.route("/api/subtasks/<plan_id>/<subtask_id>", methods=["PUT"])
 def api_update_subtask(plan_id, subtask_id):
+    """Handle update subtask API endpoint.
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3248,6 +3672,11 @@ def api_update_subtask(plan_id, subtask_id):
 
 @app.route("/api/subtasks/<plan_id>/tree", methods=["GET"])
 def api_get_subtask_tree(plan_id):
+    """Handle get subtask tree API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3271,6 +3700,11 @@ def api_get_subtask_tree(plan_id):
 
 @app.route("/api/assignments/execute-pass", methods=["POST"])
 def api_assignment_execute_pass():
+    """Handle assignment execute pass API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.assignment_pass import execute_assignment_pass
 
@@ -3291,6 +3725,11 @@ def api_assignment_execute_pass():
 
 @app.route("/api/assignments/<plan_id>", methods=["GET"])
 def api_get_assignments(plan_id):
+    """Handle get assignments API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3316,6 +3755,15 @@ def api_get_assignments(plan_id):
 
 @app.route("/api/assignments/<plan_id>/<subtask_id>", methods=["PUT"])
 def api_override_assignment(plan_id, subtask_id):
+    """Handle override assignment API endpoint.
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -3342,6 +3790,11 @@ def api_override_assignment(plan_id, subtask_id):
 
 @app.route("/api/templates/versions", methods=["GET"])
 def api_template_versions():
+    """Handle template versions API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.template_loader import template_loader
 
@@ -3354,6 +3807,11 @@ def api_template_versions():
 
 @app.route("/api/templates", methods=["GET"])
 def api_templates():
+    """Handle templates API endpoint.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.template_loader import template_loader
 
@@ -3371,6 +3829,11 @@ def api_templates():
 
 @app.route("/api/plans/<plan_id>/migrate_templates", methods=["POST"])
 def api_migrate_templates(plan_id):
+    """Handle migrate templates API endpoint.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         from vetinari.planning import plan_manager
         from vetinari.template_loader import template_loader
@@ -3451,7 +3914,11 @@ def api_migrate_templates(plan_id):
 
 @app.route("/api/project/<project_id>/verify-goal", methods=["POST"])
 def api_verify_goal(project_id):
-    """Verify the final deliverable against the original project goal."""
+    """Verify the final deliverable against the original project goal.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.goal_verifier import get_goal_verifier
 
@@ -3471,7 +3938,7 @@ def api_verify_goal(project_id):
             if config_path.exists():
                 import yaml as _yaml
 
-                with open(config_path) as f:
+                with open(config_path, encoding="utf-8") as f:
                     proj_config = _yaml.safe_load(f) or {}
                 goal = proj_config.get("goal", proj_config.get("description", ""))
                 required_features = required_features or proj_config.get("required_features", [])
@@ -3513,7 +3980,11 @@ def api_verify_goal(project_id):
 
 @app.route("/api/preferences", methods=["GET"])
 def api_get_preferences():
-    """Get all user preferences."""
+    """Get all user preferences.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.web.preferences import get_preferences_manager
 
@@ -3525,7 +3996,11 @@ def api_get_preferences():
 
 @app.route("/api/preferences", methods=["PUT"])
 def api_set_preferences():
-    """Update one or more preferences."""
+    """Update one or more preferences.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.web.preferences import get_preferences_manager
 

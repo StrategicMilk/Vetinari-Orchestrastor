@@ -84,6 +84,11 @@ class MemoryEntry:
 
     @classmethod
     def from_dict(cls, data: dict) -> MemoryEntry:
+        """From dict.
+
+        Returns:
+            The MemoryEntry result.
+        """
         entry = cls(
             entry_id=data.get("entry_id"),
             content=data.get("content", ""),
@@ -140,7 +145,7 @@ class SemanticMemoryStore:
         if enable_embeddings:
             self._init_embedding_provider()
 
-        logger.info(f"SemanticMemoryStore initialized (db={self.db_path}, embeddings={enable_embeddings})")
+        logger.info("SemanticMemoryStore initialized (db=%s, embeddings=%s)", self.db_path, enable_embeddings)
 
     def _init_db(self):
         """Initialize the database schema."""
@@ -246,7 +251,11 @@ class SemanticMemoryStore:
         return [float(b) / 255.0 for b in hash_val[:32]]
 
     def store(self, entry: MemoryEntry) -> bool:
-        """Store a memory entry."""
+        """Store a memory entry.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             try:
                 # Get embedding if enabled
@@ -284,11 +293,15 @@ class SemanticMemoryStore:
                 return True
 
             except sqlite3.Error as e:
-                logger.error(f"Failed to store memory entry: {e}")
+                logger.error("Failed to store memory entry: %s", e)
                 return False
 
     def retrieve(self, entry_id: str) -> MemoryEntry | None:
-        """Retrieve a memory entry by ID."""
+        """Retrieve a memory entry by ID.
+
+        Returns:
+            The MemoryEntry | None result.
+        """
         with self._lock:
             cursor = self._conn.cursor()
             cursor.execute(
@@ -420,7 +433,16 @@ class SemanticMemoryStore:
     def get_recent(
         self, memory_type: MemoryType = None, since: datetime | None = None, limit: int = 20
     ) -> list[MemoryEntry]:
-        """Get recent memory entries."""
+        """Get recent memory entries.
+
+        Args:
+            memory_type: The memory type.
+            since: The since.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             cursor = self._conn.cursor()
 
@@ -445,7 +467,11 @@ class SemanticMemoryStore:
             return [self._row_to_entry(row) for row in cursor.fetchall()]
 
     def delete(self, entry_id: str) -> bool:
-        """Delete a memory entry."""
+        """Delete a memory entry.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             try:
                 cursor = self._conn.cursor()
@@ -453,11 +479,15 @@ class SemanticMemoryStore:
                 self._conn.commit()
                 return cursor.rowcount > 0
             except sqlite3.Error as e:
-                logger.error(f"Failed to delete memory entry: {e}")
+                logger.error("Failed to delete memory entry: %s", e)
                 return False
 
     def get_stats(self) -> dict[str, Any]:
-        """Get memory statistics."""
+        """Get memory statistics.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             cursor = self._conn.cursor()
 
@@ -483,7 +513,11 @@ class SemanticMemoryStore:
             }
 
     def prune(self, retention_days: int = 90) -> int:
-        """Prune old memory entries."""
+        """Prune old memory entries.
+
+        Returns:
+            The computed value.
+        """
         with self._lock:
             cutoff = datetime.now() - timedelta(days=retention_days)
 
@@ -499,7 +533,7 @@ class SemanticMemoryStore:
             deleted = cursor.rowcount
             self._conn.commit()
 
-            logger.info(f"Pruned {deleted} old memory entries")
+            logger.info("Pruned %s old memory entries", deleted)
             return deleted
 
     def close(self):
@@ -537,7 +571,12 @@ class ContextMemory:
         self._max_history = 100
 
     def set(self, key: str, value: Any):
-        """Set a context variable."""
+        """Set a context variable.
+
+        Args:
+            key: The key.
+            value: The value.
+        """
         self._context[key] = value
         self._history.append({"action": "set", "key": key, "value": value, "timestamp": datetime.now().isoformat()})
 
@@ -592,7 +631,18 @@ class MemoryManager:
         tags: list[str] | None = None,
         provenance: str = "",
     ) -> str:
-        """Store something in memory."""
+        """Store something in memory.
+
+        Args:
+            content: The content.
+            memory_type: The memory type.
+            metadata: The metadata.
+            tags: The tags.
+            provenance: The provenance.
+
+        Returns:
+            The result string.
+        """
         entry = MemoryEntry(
             content=content,
             memory_type=memory_type,
@@ -616,7 +666,17 @@ class MemoryManager:
         return self.semantic.search(query=query, memory_type=memory_type, tags=tags, limit=limit)
 
     def remember_decision(self, decision: str, rationale: str, context: str = "", tags: list[str] | None = None) -> str:
-        """Remember a decision made by the system."""
+        """Remember a decision made by the system.
+
+        Args:
+            decision: The decision.
+            rationale: The rationale.
+            context: The context.
+            tags: The tags.
+
+        Returns:
+            The result string.
+        """
         content = f"Decision: {decision}\nRationale: {rationale}"
         if context:
             content += f"\nContext: {context}"
@@ -631,7 +691,17 @@ class MemoryManager:
     def remember_task_result(
         self, task_id: str, result: Any, model_used: str = "", tags: list[str] | None = None
     ) -> str:
-        """Remember a task result."""
+        """Remember a task result.
+
+        Args:
+            task_id: The task id.
+            result: The result.
+            model_used: The model used.
+            tags: The tags.
+
+        Returns:
+            The result string.
+        """
         content = f"Task {task_id} completed"
         if isinstance(result, dict):
             content += f"\nResult: {json.dumps(result, indent=2)}"
@@ -655,7 +725,11 @@ class MemoryManager:
         )
 
     def get_context(self, key: str | None = None) -> Any:
-        """Get context variable."""
+        """Get context variable.
+
+        Returns:
+            The Any result.
+        """
         if key:
             return self.context.get(key)
         return self.context.get_all()
@@ -682,7 +756,11 @@ _memory_manager: MemoryManager | None = None
 
 
 def get_memory_manager() -> MemoryManager:
-    """Get or create the global memory manager."""
+    """Get or create the global memory manager.
+
+    Returns:
+        The MemoryManager result.
+    """
     global _memory_manager
     if _memory_manager is None:
         enable_semantic = os.environ.get("VETINARI_ENABLE_SEMANTIC_MEMORY", "false").lower() in ("1", "true", "yes")
@@ -692,7 +770,11 @@ def get_memory_manager() -> MemoryManager:
 
 
 def init_memory_manager(db_path: str | None = None, **kwargs) -> MemoryManager:
-    """Initialize a new memory manager."""
+    """Initialize a new memory manager.
+
+    Returns:
+        The MemoryManager result.
+    """
     global _memory_manager
     _memory_manager = MemoryManager(db_path=db_path, **kwargs)
     return _memory_manager
@@ -725,21 +807,21 @@ if __name__ == "__main__":
     logger.info("=== Recalling memories ===")
     results = mm.recall(query="Python", memory_type=MemoryType.KNOWLEDGE)
     for r in results:
-        logger.info(f"  - {r.content[:50]}...")
+        logger.info(f"  - {r.content[:50]}...")  # noqa: VET051 — complex expression
 
     # Search decisions
     logger.info("=== Recent decisions ===")
     decisions = mm.recall(memory_type=MemoryType.DECISION)
     for d in decisions:
-        logger.info(f"  - {d.content[:80]}...")
+        logger.info(f"  - {d.content[:80]}...")  # noqa: VET051 — complex expression
 
     # Context
     logger.info("=== Context ===")
-    logger.info(f"  Current task: {mm.get_context('current_task')}")
-    logger.info(f"  Goal: {mm.get_context('goal')}")
+    logger.info("  Current task: %s", mm.get_context("current_task"))
+    logger.info("  Goal: %s", mm.get_context("goal"))
 
     # Stats
     logger.info("=== Stats ===")
     stats = mm.get_stats()
-    logger.info(f"  Total entries: {stats['total_entries']}")
-    logger.info(f"  By type: {stats['by_type']}")
+    logger.info("  Total entries: %s", stats["total_entries"])
+    logger.info("  By type: %s", stats["by_type"])

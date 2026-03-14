@@ -16,7 +16,7 @@ Usage
     # Later — detect drift
     changed = reg.check_drift()
     for name, info in changed.items():
-        logger.debug(f"{name}: was {info['previous']}, now {info['current']}")
+        logger.debug("%s: was %s, now %s", name, info['previous'], info['current'])
 """
 
 from __future__ import annotations
@@ -117,7 +117,11 @@ class ContractRegistry:
         logger.info("Contract snapshot written to %s (%d entries)", p, len(payload["hashes"]))
 
     def load_snapshot(self, path: str | None = None) -> bool:
-        """Load a previously saved snapshot into ``_previous``."""
+        """Load a previously saved snapshot into ``_previous``.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         p = Path(path) if path else self._snapshot_path
         if not p.exists():
             logger.debug("No snapshot at %s; starting fresh.", p)
@@ -148,6 +152,12 @@ class ContractRegistry:
         Args:
             raise_on_drift: If True, raises ``ContractDriftError`` when drift
                             is found.
+
+        Returns:
+            The result string.
+
+        Raises:
+            ContractDriftError: If the operation fails.
         """
         with self._lock:
             current = dict(self._current)
@@ -182,14 +192,29 @@ class ContractRegistry:
     # ------------------------------------------------------------------
 
     def list_contracts(self) -> list[str]:
+        """List contracts.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return sorted(self._current.keys())
 
     def get_hash(self, name: str) -> str | None:
+        """Get hash.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return self._current.get(name)
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "registered": len(self._current),
@@ -198,6 +223,7 @@ class ContractRegistry:
             }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._current.clear()
             self._previous.clear()

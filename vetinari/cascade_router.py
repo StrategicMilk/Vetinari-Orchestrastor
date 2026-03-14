@@ -242,7 +242,11 @@ class CascadeRouter:
         return self
 
     def get_tiers(self) -> list[CascadeTier]:
-        """Return ordered list of tiers (cheapest first)."""
+        """Return ordered list of tiers (cheapest first).
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._tiers)
 
@@ -261,6 +265,9 @@ class CascadeRouter:
 
         Returns:
             CascadeResult with the accepted response and routing metadata.
+
+        Raises:
+            ValueError: If the operation fails.
         """
         with self._lock:
             tiers = list(self._tiers)
@@ -386,7 +393,11 @@ class CascadeRouter:
                 self._stats["accepted_at_tier"][key] = self._stats["accepted_at_tier"].get(key, 0) + 1
 
     def get_stats(self) -> dict[str, Any]:
-        """Return routing statistics."""
+        """Return routing statistics.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             stats = dict(self._stats)
             stats["tiers"] = [
@@ -472,7 +483,15 @@ def get_cascade_router(
     confidence_threshold: float = _CONFIDENCE_THRESHOLD,
     max_escalations: int = _MAX_ESCALATIONS,
 ) -> CascadeRouter:
-    """Get or create the global CascadeRouter instance."""
+    """Get or create the global CascadeRouter instance.
+
+    Args:
+        confidence_threshold: The confidence threshold.
+        max_escalations: The max escalations.
+
+    Returns:
+        The CascadeRouter result.
+    """
     global _cascade_router
     if _cascade_router is None:
         with _cr_lock:

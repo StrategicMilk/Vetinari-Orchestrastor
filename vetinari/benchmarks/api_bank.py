@@ -236,6 +236,11 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
     tier = BenchmarkTier.MEDIUM
 
     def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
+        """Load cases.
+
+        Returns:
+            List of results.
+        """
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
@@ -260,7 +265,15 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
-        """Run an API-Bank case."""
+        """Run an API-Bank case.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+
+        Returns:
+            The BenchmarkResult result.
+        """
         start = time.time()
 
         try:
@@ -290,6 +303,9 @@ class APIBankAdapter(BenchmarkSuiteAdapter):
           - 0.30: Parameter extraction accuracy
           - 0.20: Final answer correctness
           - 0.15: Chain completeness (all steps executed)
+
+        Returns:
+            The computed value.
         """
         if not result.output:
             return 0.0

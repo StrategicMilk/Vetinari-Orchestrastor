@@ -15,7 +15,7 @@ Usage::
     if scanner.available:
         result = scanner.scan_input("user prompt here")
         if not result.is_safe:
-            print(result.findings)
+            logger.warning(result.findings)
 """
 
 from __future__ import annotations
@@ -328,7 +328,11 @@ _scanner_lock = threading.Lock()
 
 
 def get_llm_guard_scanner() -> LLMGuardScanner:
-    """Return the process-global LLMGuardScanner singleton."""
+    """Return the process-global LLMGuardScanner singleton.
+
+    Returns:
+        The LLMGuardScanner result.
+    """
     global _scanner_instance
     if _scanner_instance is None:
         with _scanner_lock:

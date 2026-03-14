@@ -141,6 +141,11 @@ class TrainingManager:
         -------
         TrainingDataset
             Populated with records, format tag, and summary statistics.
+
+        Args:
+            min_score: The min score.
+            format: The format.
+            task_type: The task type.
         """
         collector = self._get_collector()
 
@@ -247,6 +252,15 @@ class TrainingManager:
             ``"qlora"`` (default) or ``"full"``.
         config:
             Override hyperparameters (merged with :meth:`get_training_config`).
+
+        Args:
+            model_id: The model id.
+            dataset: The dataset.
+            method: The method.
+            config: The config.
+
+        Returns:
+            The TrainingResult result.
         """
         start = time.monotonic()
 
@@ -290,7 +304,7 @@ class TrainingManager:
 
         # Unsloth is available but full training loop requires dataset prep — returns baseline metrics
         duration = round(time.monotonic() - start, 2)
-        logger.info(f"[TrainingManager] Local training started for {model_id} ({method})")
+        logger.info("[TrainingManager] Local training started for %s (%s)", model_id, method)
         return TrainingResult(
             success=True,
             model_path=f"./trained_models/{model_id.replace('/', '_')}",
@@ -325,6 +339,15 @@ class TrainingManager:
             ``"huggingface"`` (default) or another provider name.
         config:
             Optional provider-specific configuration overrides.
+
+        Args:
+            model_id: The model id.
+            dataset: The dataset.
+            provider: The provider.
+            config: The config.
+
+        Returns:
+            The TrainingJob result.
         """
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         job = TrainingJob(
@@ -341,7 +364,7 @@ class TrainingManager:
             try:
                 from huggingface_hub import HfApi  # noqa: F401
 
-                logger.info(f"[TrainingManager] Cloud job {job_id} submitted to HuggingFace")
+                logger.info("[TrainingManager] Cloud job %s submitted to HuggingFace", job_id)
             except ImportError:
                 logger.warning(
                     "[TrainingManager] huggingface_hub not installed. "
@@ -349,7 +372,7 @@ class TrainingManager:
                     f"Job {job_id} created in stub mode."
                 )
         else:
-            logger.info(f"[TrainingManager] Cloud job {job_id} created for provider '{provider}'")
+            logger.info("[TrainingManager] Cloud job %s created for provider '%s'", job_id, provider)
 
         return job
 
@@ -382,6 +405,13 @@ class TrainingManager:
             Model to evaluate.
         task_type:
             Task category to filter records by.
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+
+        Returns:
+            The RetrainingRecommendation result.
         """
         collector = self._get_collector()
         try:
@@ -439,7 +469,11 @@ _manager: TrainingManager | None = None
 
 
 def get_training_manager(data_path: str | None = None) -> TrainingManager:
-    """Return the global TrainingManager singleton."""
+    """Return the global TrainingManager singleton.
+
+    Returns:
+        The TrainingManager result.
+    """
     global _manager
     if _manager is None:
         _manager = TrainingManager(data_path=data_path)

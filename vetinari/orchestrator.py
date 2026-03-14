@@ -42,6 +42,8 @@ from vetinari.upgrader import Upgrader  # noqa: E402
 from vetinari.validator import Validator  # noqa: E402
 from vetinari.verification import get_verifier_pipeline  # noqa: E402
 
+logger = logging.getLogger(__name__)
+
 # Plan Mode integration
 PLAN_MODE_ENABLE = os.environ.get("PLAN_MODE_ENABLE", "true").lower() in ("1", "true", "yes")
 PLAN_MODE_DEFAULT = os.environ.get("PLAN_MODE_DEFAULT", "true").lower() in ("1", "true", "yes")
@@ -52,6 +54,7 @@ VERIFICATION_LEVEL = os.environ.get("VERIFICATION_LEVEL", "standard").lower()
 
 
 class Orchestrator:
+    """Central coordinator that drives the agent execution pipeline."""
     def __init__(
         self,
         manifest_path: str,
@@ -62,7 +65,7 @@ class Orchestrator:
     ):
         # Resolve host from env if not provided
         if host is None:
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         # Auto-read API token from environment when not explicitly provided
         if api_token is None:
             api_token = os.environ.get("LM_STUDIO_API_TOKEN", "")
@@ -99,9 +102,9 @@ class Orchestrator:
         try:
             self.execution_mode = ExecutionMode(mode_str)
             self.context_manager.switch_mode(self.execution_mode)
-            logging.info(f"Execution mode set to: {self.execution_mode.value}")
+            logger.info("Execution mode set to: %s", self.execution_mode.value)
         except ValueError:
-            logging.warning(f"Invalid execution mode: {mode_str}, using default EXECUTION")
+            logger.warning("Invalid execution mode: %s, using default EXECUTION", mode_str)
             self.execution_mode = ExecutionMode.EXECUTION
 
         # Plan Mode initialization
@@ -112,9 +115,9 @@ class Orchestrator:
                 from vetinari.plan_mode import get_plan_engine
 
                 self.plan_engine = get_plan_engine()
-                logging.info("Plan Mode initialized successfully")
+                logger.info("Plan Mode initialized successfully")
             except Exception as e:
-                logging.warning(f"Plan Mode initialization failed: {e}. Continuing without Plan Mode.")
+                logger.warning("Plan Mode initialization failed: %s. Continuing without Plan Mode.", e)
                 self.plan_mode_enabled = False
 
         # Phase 2+: Initialize agent system and wire context
@@ -127,9 +130,9 @@ class Orchestrator:
             from vetinari.tools.web_search_tool import get_search_tool
 
             self._agent_context["web_search"] = get_search_tool()
-            logging.info("Web search tool registered in agent context")
+            logger.info("Web search tool registered in agent context")
         except Exception as e:
-            logging.warning(f"Web search tool unavailable: {e}")
+            logger.warning("Web search tool unavailable: %s", e)
 
         # Register LM Studio as a provider in the adapter manager
         self._register_lmstudio_adapter(host, api_token)
@@ -137,7 +140,7 @@ class Orchestrator:
         # Phase 5: Register default SLO targets for analytics
         self._register_default_slos()
 
-        logging.info("Vetinari orchestrator initialized with Phase 2 OpenCode integration.")
+        logger.info("Vetinari orchestrator initialized with Phase 2 OpenCode integration.")
 
     def _register_default_slos(self) -> None:
         """Register default SLO targets for the analytics SLA tracker."""
@@ -177,9 +180,9 @@ class Orchestrator:
             ]
             for slo in defaults:
                 tracker.register_slo(slo)
-            logging.info("Registered %d default SLO targets", len(defaults))
+            logger.info("Registered %d default SLO targets", len(defaults))
         except Exception as e:
-            logging.warning(f"Failed to register default SLOs: {e}")
+            logger.warning("Failed to register default SLOs: %s", e)
 
     def _register_lmstudio_adapter(self, host: str, api_token: str | None = None):
         """Register LM Studio as a provider in the AdapterManager.
@@ -198,19 +201,24 @@ class Orchestrator:
                 timeout_seconds=120,
             )
             self.adapter_manager.register_provider(config, "lmstudio")
-            logging.info(f"LM Studio registered in AdapterManager at {host}")
+            logger.info("LM Studio registered in AdapterManager at %s", host)
         except Exception as e:
-            logging.warning(f"Could not register LM Studio in AdapterManager: {e}")
+            logger.warning("Could not register LM Studio in AdapterManager: %s", e)
 
     def _initialize_agent(self, agent_instance) -> None:
         """Initialize a single agent with the shared context."""
         try:
             agent_instance.initialize(self._agent_context)
         except Exception as e:
-            logging.warning(f"Agent initialization failed for {agent_instance}: {e}")
+            logger.warning("Agent initialization failed for %s: %s", agent_instance, e)
 
     def update_settings(self, host: str | None = None, api_token: str | None = None):
-        """Update settings including host and API token."""
+        """Update settings including host and API token.
+
+        Args:
+            host: The host.
+            api_token: The api token.
+        """
         if host:
             self.adapter.host = host.rstrip("/")
             self.model_pool.host = host.rstrip("/")
@@ -220,14 +228,19 @@ class Orchestrator:
             self.adapter.set_api_token(api_token)
             self.model_pool.set_api_token(api_token)
 
-        logging.info(f"Settings updated: host={host}, api_token={'***' if api_token else 'None'}")
+        logger.info(f"Settings updated: host={host}, api_token={'***' if api_token else 'None'}")  # noqa: VET051 — complex expression
 
     def _load_manifest(self):
         with open(self.manifest_path, encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def run_all(self):
-        logging.info("Starting full workflow: plan -> allocate -> execute -> validate -> build.")
+        """Run all for the current context.
+
+        Returns:
+            The computed result.
+        """
+        logger.info("Starting full workflow: plan -> allocate -> execute -> validate -> build.")
 
         # 0) Plan Mode: Generate plan before execution (if enabled)
         if self.plan_mode_enabled and self.plan_engine:
@@ -250,12 +263,12 @@ class Orchestrator:
                 self.config["_plan_risk_score"] = plan.risk_score
 
                 if plan.auto_approved:
-                    logging.info(f"Plan {plan.plan_id} auto-approved (risk_score={plan.risk_score:.2f})")
+                    logger.info("Plan %s auto-approved (risk_score=%.2f)", plan.risk_score, plan.plan_id)
                 else:
-                    logging.info(f"Plan {plan.plan_id} generated (risk_score={plan.risk_score:.2f}), awaiting approval")
+                    logger.info("Plan %s generated (risk_score=%.2f), awaiting approval", plan.risk_score, plan.plan_id)
 
             except Exception as e:
-                logging.warning(f"Plan Mode failed: {e}. Continuing without plan generation.")
+                logger.warning("Plan Mode failed: %s. Continuing without plan generation.", e)
 
         # Phase 5: Apply AutoTuner configuration before execution
         try:
@@ -264,15 +277,15 @@ class Orchestrator:
             tuner_config = get_auto_tuner().get_config()
             if "max_concurrent" in tuner_config:
                 self.max_concurrent = tuner_config["max_concurrent"]
-                logging.info(f"AutoTuner applied max_concurrent={self.max_concurrent}")
+                logger.info("AutoTuner applied max_concurrent=%s", self.max_concurrent)
         except Exception as e:
-            logging.debug(f"AutoTuner config not applied: {e}")
+            logger.debug("AutoTuner config not applied: %s", e)
 
         # 1) Auto-discover models
         try:
             self.model_pool.discover_models()
         except Exception as e:
-            logging.error(f"Model discovery failed: {e}")
+            logger.error("Model discovery failed: %s", e)
             # Continue with empty model pool if discovery fails
 
         # 2) Assign tasks to models
@@ -281,14 +294,14 @@ class Orchestrator:
         # 3) Build schedule (layers for parallel execution)
         layers = self.scheduler.build_schedule_layers(self.config)
 
-        logging.info(f"Built {len(layers)} execution layers")
+        logger.info("Built %s execution layers", len(layers))
 
         # 4) Execute tasks layer by layer
         completed_tasks = set()
         all_results = []
 
         for layer_idx, layer in enumerate(layers):
-            logging.info(f"Executing layer {layer_idx + 1}/{len(layers)} with {len(layer)} tasks in parallel")
+            logger.info("Executing layer %s/%s with %s tasks in parallel", layer_idx + 1, len(layers), len(layer))
 
             # Execute tasks in this layer concurrently
             layer_results = self._execute_layer_parallel(layer)
@@ -299,9 +312,9 @@ class Orchestrator:
                 if result.get("status") == "completed":
                     completed_tasks.add(result["task_id"])
                 else:
-                    logging.warning(f"Task {result.get('task_id')} did not complete successfully")
+                    logger.warning("Task %s did not complete successfully", result.get("task_id"))
 
-        logging.info(f"All layers completed. {len(completed_tasks)} tasks finished successfully.")
+        logger.info("All layers completed. %s tasks finished successfully.", len(completed_tasks))
 
         # 5) Build final artifact
         self.builder.build_final_artifact(all_results)
@@ -322,21 +335,26 @@ class Orchestrator:
                 try:
                     result = future.result()
                     results.append(result)
-                    logging.info(f"Task {task['id']} completed with status: {result.get('status')}")
+                    logger.info("Task %s completed with status: %s", task["id"], result.get("status"))
                 except Exception as e:
-                    logging.error(f"Task {task['id']} failed with exception: {e}")
+                    logger.error("Task %s failed with exception: %s", task["id"], e)
                     results.append({"status": "failed", "task_id": task["id"], "error": str(e)})
 
         return results
 
     def run_task(self, task_id: str):
-        logging.info(f"Running task {task_id}")
+        """Run task for the current context.
+
+        Returns:
+            The computed result.
+        """
+        logger.info("Running task %s", task_id)
 
         # Check permission in current execution context
         try:
             self.context_manager.enforce_permission(ToolPermission.MODEL_INFERENCE, f"task {task_id}")
         except PermissionError as e:
-            logging.error(f"Task {task_id} blocked by permission: {e}")
+            logger.error("Task %s blocked by permission: %s", task_id, e)
             return {
                 "status": "failed",
                 "task_id": task_id,
@@ -349,21 +367,21 @@ class Orchestrator:
         task_output = result.get("output", "")
         if task_output:
             try:
-                logging.info(f"Running verification pipeline for task {task_id}")
+                logger.info("Running verification pipeline for task %s", task_id)
                 verification_results = self.verifier_pipeline.verify(task_output)
                 verification_summary = self.verifier_pipeline.get_summary(verification_results)
 
                 # Log verification results
-                logging.info(f"Verification summary for {task_id}: {verification_summary['overall_status']}")
+                logger.info("Verification summary for %s: %s", task_id, verification_summary["overall_status"])
                 if verification_summary["total_issues"] > 0:
-                    logging.warning(f"Task {task_id} has {verification_summary['total_issues']} verification issues")
+                    logger.warning("Task %s has %s verification issues", task_id, verification_summary["total_issues"])
                     if verification_summary["error_count"] > 0:
-                        logging.error(f"Task {task_id} has {verification_summary['error_count']} verification errors")
+                        logger.error("Task %s has %s verification errors", task_id, verification_summary["error_count"])
 
                 # Attach verification results to task result
                 result["verification"] = verification_summary
             except Exception as e:
-                logging.warning(f"Verification pipeline failed for task {task_id}: {e}")
+                logger.warning("Verification pipeline failed for task %s: %s", task_id, e)
 
         # Record operation in audit trail
         self.context_manager.current_context.record_operation(
@@ -373,9 +391,9 @@ class Orchestrator:
         )
 
         if result.get("status") != "completed":
-            logging.warning(f"Task {task_id} did not complete successfully. See logs for details.")
+            logger.warning("Task %s did not complete successfully. See logs for details.", task_id)
         else:
-            logging.info(f"Task {task_id} completed.")
+            logger.info("Task %s completed.", task_id)
         return result
 
     def check_and_upgrade_models(self):
@@ -388,7 +406,7 @@ class Orchestrator:
         try:
             self.context_manager.enforce_permission(ToolPermission.MODEL_DISCOVERY, "model upgrade check")
         except PermissionError as e:
-            logging.error(f"Model upgrade blocked by permission: {e}")
+            logger.error("Model upgrade blocked by permission: %s", e)
             return
 
         # Check if running in non-interactive mode
@@ -397,7 +415,7 @@ class Orchestrator:
 
         upgrades = self.upgrader.check_for_upgrades()
         if not upgrades:
-            logging.info("No upgrades available.")
+            logger.info("No upgrades available.")
             return
 
         for u in upgrades:
@@ -410,31 +428,35 @@ class Orchestrator:
                     try:
                         user_input = input(f"Upgrade available: {u['name']} (version {u['version']}). Install? (y/n): ")
                         if user_input.strip().lower() != "y":
-                            logging.info(f"Upgrade skipped by user: {u['name']}")
+                            logger.info("Upgrade skipped by user: %s", u["name"])
                             continue
                     except EOFError:
                         # No TTY available, skip this upgrade
-                        logging.warning(f"No TTY available - skipping upgrade prompt for {u['name']}")
+                        logger.warning("No TTY available - skipping upgrade prompt for %s", u["name"])
                         continue
                 else:
                     # Non-interactive mode: skip unless auto_approve is set
-                    logging.warning(
+                    logger.warning(
                         f"Non-interactive mode: Skipping upgrade {u['name']} (set VETINARI_UPGRADE_AUTO_APPROVE=true to auto-approve)"
                     )
                     continue
             elif auto_approve:
-                logging.info(f"Auto-approving upgrade: {u['name']} (VETINARI_UPGRADE_AUTO_APPROVE=true)")
+                logger.info("Auto-approving upgrade: %s (VETINARI_UPGRADE_AUTO_APPROVE=true)", u["name"])
 
             try:
                 self.upgrader.install_upgrade(u)
-                logging.info(f"Upgrade installed: {u['name']} v{u['version']}")
+                logger.info("Upgrade installed: %s v%s", u["name"], u["version"])
             except Exception as e:
-                logging.error(f"Failed to install upgrade {u['name']}: {e!s}")
+                logger.error("Failed to install upgrade %s: %s", u["name"], e)
 
-        logging.info("Upgrade process complete.")
+        logger.info("Upgrade process complete.")
 
     def get_execution_status(self) -> dict:
-        """Get current execution status (Phase 2 enhancement)."""
+        """Get current execution status (Phase 2 enhancement).
+
+        Returns:
+            Dictionary of results.
+        """
         context_status = self.context_manager.get_status()
         adapter_status = self.adapter_manager.get_status()
 

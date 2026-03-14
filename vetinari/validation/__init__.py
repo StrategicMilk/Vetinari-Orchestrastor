@@ -19,7 +19,7 @@ from vetinari.validation.goal_verifier import *  # noqa: F403, VET006
 from vetinari.validation.validator import *  # noqa: F403, VET006
 from vetinari.validation.verification import *  # noqa: F403, VET006
 
-__all__ = [  # noqa: F405
+__all__ = [
     "DIMENSIONS",
     "DimensionScore",
     "DocumentJudge",

@@ -179,7 +179,11 @@ class SkillSpec:
     # ------------------------------------------------------------------
 
     def validate(self) -> list[str]:
-        """Validate this spec meets contract requirements. Returns list of errors."""
+        """Validate this spec meets contract requirements. Returns list of errors.
+
+        Returns:
+            The result string.
+        """
         errors = []
         if not self.skill_id:
             errors.append("skill_id is required")

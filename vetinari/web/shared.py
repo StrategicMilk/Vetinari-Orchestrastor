@@ -42,7 +42,7 @@ if _env_file.exists():
 # Runtime configuration
 # ---------------------------------------------------------------------------
 current_config = {
-    "host": os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),
+    "host": os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),  # noqa: VET041
     "config_path": "manifest/vetinari.yaml",
     "api_token": os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
     "default_models": ["qwen3-coder-next", "qwen3-30b-a3b-gemini-pro-high-reasoning-2507-hi8"],
@@ -161,7 +161,7 @@ def _get_models_cached(force: bool = False) -> list:
                 _models_cache_ts = now
             return fresh if fresh else list(_models_cache)
     except Exception as e:
-        logger.warning(f"[web_ui] Model discovery failed: {e}")
+        logger.warning("[web_ui] Model discovery failed: %s", e)
         return _models_cache
 
 
@@ -172,6 +172,11 @@ orchestrator = None
 
 
 def get_orchestrator():
+    """Get orchestrator.
+
+    Returns:
+        The result value.
+    """
     global orchestrator
     if orchestrator is None:
         import sys
@@ -192,6 +197,7 @@ def get_orchestrator():
 # Model search helpers
 # ---------------------------------------------------------------------------
 def refresh_model_cache():
+    """Refresh model cache."""
     try:
         from vetinari.model_search import ModelSearchEngine
 
@@ -199,12 +205,21 @@ def refresh_model_cache():
         search_engine.refresh_all_caches()
         from datetime import datetime
 
-        logger.info(f"Model cache refreshed at {datetime.now()}")
+        logger.info("Model cache refreshed at %s", datetime.now())
     except Exception as e:
-        logger.error(f"Error refreshing model cache: {e}")
+        logger.error("Error refreshing model cache: %s", e)
 
 
 def trigger_light_search(project_id: str, task_description: str):
+    """Trigger light search.
+
+    Args:
+        project_id: The project id.
+        task_description: The task description.
+
+    Returns:
+        List of results.
+    """
     try:
         from vetinari.model_search import ModelSearchEngine
 
@@ -214,7 +229,7 @@ def trigger_light_search(project_id: str, task_description: str):
         try:
             from vetinari.model_pool import ModelPool
 
-            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))  # noqa: VET041
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception:  # noqa: S110, VET022
@@ -223,7 +238,7 @@ def trigger_light_search(project_id: str, task_description: str):
         candidates = search_engine.search_for_task(task_description, lm_models)
         return candidates
     except Exception as e:
-        logger.error(f"Light search error: {e}")
+        logger.error("Light search error: %s", e)
         return []
 
 
@@ -241,7 +256,7 @@ def _is_admin_user() -> bool:
         provided = req_token or auth_header.replace("Bearer ", "")
         return hmac.compare_digest(provided, admin_token)
     remote = request.remote_addr or ""
-    return remote in ("127.0.0.1", "::1", "localhost")
+    return remote in ("127.0.0.1", "::1", "localhost")  # noqa: VET041
 
 
 def _project_external_model_enabled(project_dir) -> bool:
@@ -251,7 +266,7 @@ def _project_external_model_enabled(project_dir) -> bool:
 
         config_file = Path(project_dir) / "project.yaml"
         if config_file.exists():
-            with open(config_file) as f:
+            with open(config_file, encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
             return cfg.get("enable_external_model_discovery", ENABLE_EXTERNAL_DISCOVERY)
     except Exception:  # noqa: S110, VET022

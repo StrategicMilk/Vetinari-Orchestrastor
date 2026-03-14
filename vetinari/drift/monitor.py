@@ -67,6 +67,11 @@ class DriftReport:
         }
 
     def summary(self) -> str:
+        """Summary.
+
+        Returns:
+            The result string.
+        """
         if self.is_clean:
             return f"Drift audit clean ({self.duration_ms:.0f} ms)"
         parts = []
@@ -173,7 +178,11 @@ class DriftMonitor:
     # ------------------------------------------------------------------
 
     def run_contract_check(self) -> dict[str, dict[str, str]]:
-        """Load snapshot and compare current fingerprints."""
+        """Load snapshot and compare current fingerprints.
+
+        Returns:
+            The result string.
+        """
         self._registry.load_snapshot()
         drifts = self._registry.check_drift()
         if drifts:
@@ -183,7 +192,11 @@ class DriftMonitor:
         return drifts
 
     def run_capability_check(self) -> list[str]:
-        """Return text descriptions of all capability drift findings."""
+        """Return text descriptions of all capability drift findings.
+
+        Returns:
+            The result string.
+        """
         findings = self._auditor.get_drift_findings()
         texts = [str(f) for f in findings]
         if texts:
@@ -198,6 +211,9 @@ class DriftMonitor:
         Args:
             sample_objects: ``{ schema_name: object_to_validate }``.
                             If None, uses live instances seeded in bootstrap.
+
+        Returns:
+            The result string.
         """
         if sample_objects is None:
             sample_objects = self._build_sample_objects()
@@ -247,6 +263,9 @@ class DriftMonitor:
             sample_objects: Passed through to ``run_schema_check()``.
             snapshot_after: If True, save a fresh snapshot after the check
                             so the current state becomes the new baseline.
+
+        Returns:
+            The DriftReport result.
         """
         t0 = time.perf_counter()
         report = DriftReport()
@@ -283,14 +302,29 @@ class DriftMonitor:
     # ------------------------------------------------------------------
 
     def get_history(self) -> list[DriftReport]:
+        """Get history.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._history)
 
     def get_last_report(self) -> DriftReport | None:
+        """Get last report.
+
+        Returns:
+            The DriftReport | None result.
+        """
         with self._lock:
             return self._history[-1] if self._history else None
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             last = self._history[-1] if self._history else None
         return {
@@ -303,6 +337,7 @@ class DriftMonitor:
         }
 
     def clear_history(self) -> None:
+        """Clear history."""
         with self._lock:
             self._history.clear()
 
@@ -317,5 +352,6 @@ def get_drift_monitor() -> DriftMonitor:
 
 
 def reset_drift_monitor() -> None:
+    """Reset drift monitor."""
     with DriftMonitor._class_lock:
         DriftMonitor._instance = None

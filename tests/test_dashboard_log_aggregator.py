@@ -42,7 +42,6 @@ from vetinari.dashboard.log_aggregator import (
     reset_log_aggregator,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -183,7 +182,7 @@ class TestSplunkBackend(unittest.TestCase):
 
     def test_configure(self):
         b = SplunkBackend()
-        b.configure(url="http://splunk:8088", token="mytoken")
+        b.configure(url="http://splunk:8088", token="mytoken")  # noqa: VET040
         self.assertEqual(b._token, "mytoken")
 
     def test_send_not_configured_returns_false(self):
@@ -192,7 +191,7 @@ class TestSplunkBackend(unittest.TestCase):
 
     def test_send_uses_requests(self):
         b = SplunkBackend()
-        b.configure(url="http://splunk:8088", token="tok")
+        b.configure(url="http://splunk:8088", token="tok")  # noqa: VET040
         mock_resp = MagicMock(status_code=200, text="ok")
         with patch("requests.post", return_value=mock_resp) as mock_post:
             ok = b.send([_rec("splunk msg")])
@@ -201,7 +200,7 @@ class TestSplunkBackend(unittest.TestCase):
 
     def test_send_non_200_returns_false(self):
         b = SplunkBackend()
-        b.configure(url="http://splunk:8088", token="tok")
+        b.configure(url="http://splunk:8088", token="tok")  # noqa: VET040
         mock_resp = MagicMock(status_code=503, text="unavailable")
         with patch("requests.post", return_value=mock_resp):
             self.assertFalse(b.send([_rec()]))
@@ -215,7 +214,7 @@ class TestDatadogBackend(unittest.TestCase):
 
     def test_configure(self):
         b = DatadogBackend()
-        b.configure(api_key="ddkey123", service="vet")
+        b.configure(api_key="ddkey123", service="vet")  # noqa: VET040
         self.assertEqual(b._api_key, "ddkey123")
         self.assertEqual(b._service, "vet")
 
@@ -225,7 +224,7 @@ class TestDatadogBackend(unittest.TestCase):
 
     def test_send_uses_requests(self):
         b = DatadogBackend()
-        b.configure(api_key="ddkey")
+        b.configure(api_key="ddkey")  # noqa: VET040
         mock_resp = MagicMock(status_code=202, text="accepted")
         with patch("requests.post", return_value=mock_resp) as mock_post:
             ok = b.send([_rec("dd msg")])

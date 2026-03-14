@@ -85,17 +85,41 @@ class FileOperations:
     # -- read ---------------------------------------------------------------
 
     def read_file(self, path: str, encoding: str = "utf-8") -> str:
-        """Read and return the text content of *path*."""
+        """Read and return the text content of *path*.
+
+        Args:
+            path: The path.
+            encoding: The encoding.
+
+        Returns:
+            The result string.
+
+        Raises:
+            FileNotFoundError: If the operation fails.
+        """
         target = _safe_resolve(path, self.root)
         if not target.is_file():
             raise FileNotFoundError(f"Not a file: {path}")
         return target.read_text(encoding=encoding)
 
     def file_exists(self, path: str) -> bool:
+        """File exists.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         target = _safe_resolve(path, self.root)
         return target.exists()
 
     def get_file_info(self, path: str) -> FileInfo:
+        """Get file info.
+
+        Returns:
+            The FileInfo result.
+
+        Raises:
+            FileNotFoundError: If the operation fails.
+        """
         target = _safe_resolve(path, self.root)
         if not target.exists():
             raise FileNotFoundError(f"Path does not exist: {path}")
@@ -111,6 +135,14 @@ class FileOperations:
         )
 
     def list_directory(self, path: str = ".") -> list[FileInfo]:
+        """List directory.
+
+        Returns:
+            List of results.
+
+        Raises:
+            NotADirectoryError: If the resolved path is not a directory.
+        """
         target = _safe_resolve(path, self.root)
         if not target.is_dir():
             raise NotADirectoryError(f"Not a directory: {path}")
@@ -139,6 +171,14 @@ class FileOperations:
         """Write *content* to *path*, creating parent dirs as needed.
 
         Returns the resolved path relative to the project root.
+
+        Args:
+            path: The path.
+            content: The content.
+            encoding: The encoding.
+
+        Returns:
+            The result string.
         """
         target = _safe_resolve(path, self.root)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -146,11 +186,28 @@ class FileOperations:
         return str(target.relative_to(self.root))
 
     def create_directory(self, path: str) -> str:
+        """Create directory.
+
+        Returns:
+            The result string.
+        """
         target = _safe_resolve(path, self.root)
         target.mkdir(parents=True, exist_ok=True)
         return str(target.relative_to(self.root))
 
     def move_file(self, src: str, dst: str) -> str:
+        """Move file.
+
+        Args:
+            src: The src.
+            dst: The dst.
+
+        Returns:
+            The result string.
+
+        Raises:
+            FileNotFoundError: If the source path does not exist.
+        """
         src_path = _safe_resolve(src, self.root)
         dst_path = _safe_resolve(dst, self.root)
         if not src_path.exists():
@@ -160,6 +217,11 @@ class FileOperations:
         return str(dst_path.relative_to(self.root))
 
     def delete_file(self, path: str) -> bool:
+        """Delete file.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         target = _safe_resolve(path, self.root)
         if not target.exists():
             return False
@@ -203,6 +265,11 @@ class FileOperationsTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         op = kwargs.get("operation", "")
         path = kwargs.get("path", ".")
 

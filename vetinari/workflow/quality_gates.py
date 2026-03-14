@@ -143,6 +143,10 @@ class WorkflowGateRunner:
             ``CONTINUE`` on success, otherwise the gate's ``failure_action``.
         violations : list[str]
             Human-readable descriptions of each failed criterion.
+
+        Args:
+            stage: The stage.
+            metrics: The metrics.
         """
         gate = self._gates.get(stage)
         if gate is None:
@@ -206,7 +210,12 @@ class WorkflowGateRunner:
     # -- customisation helpers ----------------------------------------------
 
     def add_gate(self, stage: str, gate: WorkflowGate) -> None:
-        """Register (or replace) a gate for *stage*."""
+        """Register (or replace) a gate for *stage*.
+
+        Args:
+            stage: The stage.
+            gate: The gate.
+        """
         self._gates[stage] = gate
 
     def remove_gate(self, stage: str) -> WorkflowGate | None:

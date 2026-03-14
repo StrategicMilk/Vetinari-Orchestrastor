@@ -50,7 +50,7 @@ class PreferencesManager:
         """Load preferences from disk, falling back to defaults."""
         try:
             if self._path.exists():
-                with open(self._path) as f:
+                with open(self._path, encoding="utf-8") as f:
                     saved = json.load(f)
                 # Only load allowed keys
                 self._prefs = {k: saved[k] for k in saved if k in ALLOWED_KEYS}
@@ -65,13 +65,17 @@ class PreferencesManager:
         """Persist preferences to disk."""
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._path, "w") as f:
+            with open(self._path, "w", encoding="utf-8") as f:
                 json.dump(self._prefs, f, indent=2)
         except Exception as e:
             logger.warning("Failed to save preferences: %s", e)
 
     def get_all(self) -> dict[str, Any]:
-        """Get all preferences with defaults applied."""
+        """Get all preferences with defaults applied.
+
+        Returns:
+            The result string.
+        """
         result = dict(DEFAULTS)
         result.update(self._prefs)
         return result
@@ -81,7 +85,15 @@ class PreferencesManager:
         return self._prefs.get(key, DEFAULTS.get(key))
 
     def set(self, key: str, value: Any) -> bool:
-        """Set a preference. Returns False if key not allowed."""
+        """Set a preference. Returns False if key not allowed.
+
+        Args:
+            key: The key.
+            value: The value.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if key not in ALLOWED_KEYS:
             return False
         self._prefs[key] = value
@@ -89,7 +101,11 @@ class PreferencesManager:
         return True
 
     def set_many(self, updates: dict[str, Any]) -> dict[str, bool]:
-        """Set multiple preferences. Returns per-key success map."""
+        """Set multiple preferences. Returns per-key success map.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         results = {}
         changed = False
         for key, value in updates.items():
@@ -116,7 +132,11 @@ _manager: PreferencesManager | None = None
 
 
 def get_preferences_manager() -> PreferencesManager:
-    """Get or create the global preferences manager."""
+    """Get or create the global preferences manager.
+
+    Returns:
+        The PreferencesManager result.
+    """
     global _manager
     if _manager is None:
         _manager = PreferencesManager()

@@ -64,7 +64,7 @@ class AutoTuner:
         config = dict(self._DEFAULTS)
         try:
             if self._CONFIG_PATH.exists():
-                with open(self._CONFIG_PATH) as f:
+                with open(self._CONFIG_PATH, encoding="utf-8") as f:
                     saved = json.load(f)
                 config.update(saved)
                 logger.info("[AutoTuner] Loaded persisted config from %s", self._CONFIG_PATH)
@@ -76,7 +76,7 @@ class AutoTuner:
         """Save current config to disk."""
         try:
             self._CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._CONFIG_PATH, "w") as f:
+            with open(self._CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(self._current_config, f, indent=2)
         except Exception as e:
             logger.warning("[AutoTuner] Failed to persist config: %s", e)
@@ -273,7 +273,11 @@ class AutoTuner:
         return dict(self._current_config)
 
     def get_history(self) -> list[dict[str, Any]]:
-        """Get tuning action history."""
+        """Get tuning action history.
+
+        Returns:
+            The result string.
+        """
         from dataclasses import asdict
 
         return [asdict(a) for a in self._actions]
@@ -283,6 +287,11 @@ _auto_tuner: AutoTuner | None = None
 
 
 def get_auto_tuner() -> AutoTuner:
+    """Get auto tuner.
+
+    Returns:
+        The AutoTuner result.
+    """
     global _auto_tuner
     if _auto_tuner is None:
         _auto_tuner = AutoTuner()

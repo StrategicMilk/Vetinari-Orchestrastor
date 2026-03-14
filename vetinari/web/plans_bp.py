@@ -16,6 +16,11 @@ plans_bp = Blueprint("plans", __name__)
 
 @plans_bp.route("/api/plans", methods=["POST"])
 def api_plan_create():
+    """Api plan create.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -35,6 +40,11 @@ def api_plan_create():
 
 @plans_bp.route("/api/plans", methods=["GET"])
 def api_plans_list():
+    """Api plans list.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -51,6 +61,11 @@ def api_plans_list():
 
 @plans_bp.route("/api/plans/<plan_id>", methods=["GET"])
 def api_plan_get(plan_id):
+    """Api plan get.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -66,6 +81,11 @@ def api_plan_get(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>", methods=["PUT"])
 def api_plan_update(plan_id):
+    """Api plan update.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -83,6 +103,11 @@ def api_plan_update(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>", methods=["DELETE"])
 def api_plan_delete(plan_id):
+    """Api plan delete.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -95,6 +120,11 @@ def api_plan_delete(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>/start", methods=["POST"])
 def api_plan_start(plan_id):
+    """Api plan start.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -110,6 +140,11 @@ def api_plan_start(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>/pause", methods=["POST"])
 def api_plan_pause(plan_id):
+    """Api plan pause.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -125,6 +160,11 @@ def api_plan_pause(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>/resume", methods=["POST"])
 def api_plan_resume(plan_id):
+    """Api plan resume.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -140,6 +180,11 @@ def api_plan_resume(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>/cancel", methods=["POST"])
 def api_plan_cancel(plan_id):
+    """Api plan cancel.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -155,6 +200,11 @@ def api_plan_cancel(plan_id):
 
 @plans_bp.route("/api/plans/<plan_id>/status", methods=["GET"])
 def api_plan_status(plan_id):
+    """Api plan status.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.planning import plan_manager
 
@@ -184,6 +234,11 @@ def api_plan_status(plan_id):
 
 @plans_bp.route("/api/decomposition/templates", methods=["GET"])
 def api_decomposition_templates():
+    """Api decomposition templates.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -200,6 +255,11 @@ def api_decomposition_templates():
 
 @plans_bp.route("/api/decomposition/dod-dor", methods=["GET"])
 def api_decomposition_dod_dor():
+    """Api decomposition dod dor.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -218,6 +278,11 @@ def api_decomposition_dod_dor():
 
 @plans_bp.route("/api/decomposition/decompose", methods=["POST"])
 def api_decomposition_decompose():
+    """Api decomposition decompose.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -245,6 +310,11 @@ def api_decomposition_decompose():
 
 @plans_bp.route("/api/decomposition/decompose-agent", methods=["POST"])
 def api_decomposition_decompose_agent():
+    """Api decomposition decompose agent.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition_agent import decomposition_agent
         from vetinari.planning import plan_manager
@@ -270,6 +340,11 @@ def api_decomposition_decompose_agent():
 
 @plans_bp.route("/api/decomposition/knobs", methods=["GET"])
 def api_decomposition_knobs():
+    """Api decomposition knobs.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition_agent import (
             DEFAULT_MAX_DEPTH,
@@ -296,6 +371,11 @@ def api_decomposition_knobs():
 
 @plans_bp.route("/api/decomposition/history", methods=["GET"])
 def api_decomposition_history():
+    """Api decomposition history.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -326,6 +406,11 @@ def api_decomposition_history():
 
 @plans_bp.route("/api/decomposition/seed-config", methods=["GET"])
 def api_decomposition_seed_config():
+    """Api decomposition seed config.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -347,6 +432,11 @@ def api_decomposition_seed_config():
 
 @plans_bp.route("/api/subtasks/<plan_id>", methods=["GET"])
 def api_get_subtasks(plan_id):
+    """Api get subtasks.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -364,6 +454,11 @@ def api_get_subtasks(plan_id):
 
 @plans_bp.route("/api/subtasks/<plan_id>", methods=["POST"])
 def api_create_subtask(plan_id):
+    """Api create subtask.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -407,6 +502,15 @@ def api_create_subtask(plan_id):
 
 @plans_bp.route("/api/subtasks/<plan_id>/<subtask_id>", methods=["PUT"])
 def api_update_subtask(plan_id, subtask_id):
+    """Api update subtask.
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -424,6 +528,11 @@ def api_update_subtask(plan_id, subtask_id):
 
 @plans_bp.route("/api/subtasks/<plan_id>/tree", methods=["GET"])
 def api_get_subtask_tree(plan_id):
+    """Api get subtask tree.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -447,6 +556,11 @@ def api_get_subtask_tree(plan_id):
 
 @plans_bp.route("/api/assignments/execute-pass", methods=["POST"])
 def api_assignment_execute_pass():
+    """Api assignment execute pass.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.assignment_pass import execute_assignment_pass
 
@@ -467,6 +581,11 @@ def api_assignment_execute_pass():
 
 @plans_bp.route("/api/assignments/<plan_id>", methods=["GET"])
 def api_get_assignments(plan_id):
+    """Api get assignments.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -492,6 +611,15 @@ def api_get_assignments(plan_id):
 
 @plans_bp.route("/api/assignments/<plan_id>/<subtask_id>", methods=["PUT"])
 def api_override_assignment(plan_id, subtask_id):
+    """Api override assignment.
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.subtask_tree import subtask_tree
 
@@ -518,6 +646,11 @@ def api_override_assignment(plan_id, subtask_id):
 
 @plans_bp.route("/api/templates/versions", methods=["GET"])
 def api_template_versions():
+    """Api template versions.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.template_loader import template_loader
 
@@ -530,6 +663,11 @@ def api_template_versions():
 
 @plans_bp.route("/api/templates", methods=["GET"])
 def api_templates():
+    """Api templates.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.template_loader import template_loader
 
@@ -547,6 +685,11 @@ def api_templates():
 
 @plans_bp.route("/api/plans/<plan_id>/migrate_templates", methods=["POST"])
 def api_migrate_templates(plan_id):
+    """Api migrate templates.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         from vetinari.planning import plan_manager
         from vetinari.template_loader import template_loader

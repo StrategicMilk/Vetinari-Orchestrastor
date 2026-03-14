@@ -48,7 +48,11 @@ class TemplateLoader:
         self.base_path = base_path or BASE
 
     def list_versions(self) -> list[str]:
-        """Return available template versions from the manifest."""
+        """Return available template versions from the manifest.
+
+        Returns:
+            The result string.
+        """
         manifest = self.base_path / "versions.json"
         if not manifest.exists():
             return ["v1"]
@@ -102,7 +106,11 @@ class TemplateLoader:
         return templates
 
     def default_version(self) -> str:
-        """Return the first available version, defaulting to 'v1'."""
+        """Return the first available version, defaulting to 'v1'.
+
+        Returns:
+            The result string.
+        """
         versions = self.list_versions()
         return versions[0] if versions else "v1"
 

@@ -1,3 +1,5 @@
+"""Prompt Templates module."""
+
 from __future__ import annotations
 
 import logging
@@ -202,7 +204,11 @@ This will be injected into the agent's context.
 
 
 def get_prompt(prompt_type: str, **kwargs) -> str:
-    """Get a prompt template with variables filled in."""
+    """Get a prompt template with variables filled in.
+
+    Returns:
+        The result string.
+    """
     prompts = {
         "planning": PLANNING_PROMPT,
         "decomposition": DECOMPOSITION_PROMPT,

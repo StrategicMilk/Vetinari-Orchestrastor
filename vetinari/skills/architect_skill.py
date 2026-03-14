@@ -209,7 +209,11 @@ class ArchitectSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
-        """Execute an architect operation."""
+        """Execute an architect operation.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             mode_str = kwargs.get("mode")
             design_request = kwargs.get("design_request")

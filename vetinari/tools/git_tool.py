@@ -90,6 +90,15 @@ class GitOperations:
         return self._run(["log", f"-{n}", "--oneline"])
 
     def diff(self, base: str = "HEAD", head: str = "") -> GitResult:
+        """Diff.
+
+        Args:
+            base: The base.
+            head: The head.
+
+        Returns:
+            The GitResult result.
+        """
         args = ["diff", base]
         if head:
             args.append(head)
@@ -99,6 +108,11 @@ class GitOperations:
         return self._run(["init"])
 
     def add(self, files: list[str] | None = None) -> GitResult:
+        """Add.
+
+        Returns:
+            The GitResult result.
+        """
         if files:
             return self._run(["add", *files])
         return self._run(["add", "."])
@@ -116,12 +130,30 @@ class GitOperations:
         return self._run(["rev-parse", "--abbrev-ref", "HEAD"])
 
     def push(self, remote: str = "origin", branch: str = "") -> GitResult:
+        """Push.
+
+        Args:
+            remote: The remote.
+            branch: The branch.
+
+        Returns:
+            The GitResult result.
+        """
         args = ["push", remote]
         if branch:
             args.append(branch)
         return self._run(args, timeout=60)
 
     def pull(self, remote: str = "origin", branch: str = "") -> GitResult:
+        """Pull.
+
+        Args:
+            remote: The remote.
+            branch: The branch.
+
+        Returns:
+            The GitResult result.
+        """
         args = ["pull", remote]
         if branch:
             args.append(branch)
@@ -131,6 +163,15 @@ class GitOperations:
         return self._run(["stash", "pop"] if pop else ["stash"])
 
     def tag(self, name: str, message: str = "") -> GitResult:
+        """Tag.
+
+        Args:
+            name: The name.
+            message: The message.
+
+        Returns:
+            The GitResult result.
+        """
         if message:
             return self._run(["tag", "-a", name, "-m", message])
         return self._run(["tag", name])
@@ -169,6 +210,11 @@ class GitOperationsTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         op = kwargs.get("operation", "")
 
         try:

@@ -17,7 +17,6 @@ Phase 8 deferred:
 import unittest
 from unittest.mock import MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # Phase 7.1: SkillSpec entries for consolidated agents
 # ---------------------------------------------------------------------------
@@ -260,7 +259,7 @@ class TestStyleConstraints(unittest.TestCase):
 
     def test_code_style_detects_hardcoded_secret(self):
         from vetinari.constraints.style import validate_output_style
-        issues = validate_output_style('api_key = "sk-1234567890abcdef"', "code")
+        issues = validate_output_style('api_key = "sk-1234567890abcdef"', "code")  # noqa: VET040
         rule_ids = [i["rule_id"] for i in issues]
         self.assertIn("code-no-hardcoded-secrets", rule_ids)
 
@@ -308,8 +307,12 @@ class TestStyleConstraints(unittest.TestCase):
 
     def test_style_constraint_exports(self):
         from vetinari.constraints import (
-            STYLE_CONSTRAINTS, StyleConstraint, StyleRule,
-            get_style_domain, get_style_rules, validate_output_style,
+            STYLE_CONSTRAINTS,
+            StyleConstraint,
+            StyleRule,
+            get_style_domain,
+            get_style_rules,
+            validate_output_style,
         )
         self.assertIsNotNone(STYLE_CONSTRAINTS)
         self.assertTrue(callable(validate_output_style))
@@ -465,8 +468,9 @@ class TestPlannerConsolidatedAgents(unittest.TestCase):
 
     def test_decompose_available_agents_includes_consolidated(self):
         """_decompose_goal_llm available_agents includes consolidated types."""
-        from vetinari.agents.planner_agent import PlannerAgent
         import inspect
+
+        from vetinari.agents.planner_agent import PlannerAgent
         source = inspect.getsource(PlannerAgent._decompose_goal_llm)
         for agent in ["PLANNER", "CONSOLIDATED_RESEARCHER", "CONSOLIDATED_ORACLE",
                        "BUILDER", "QUALITY", "OPERATIONS"]:
@@ -490,10 +494,11 @@ class TestRulesYamlConsolidated(unittest.TestCase):
     """rules.yaml includes consolidated agent identifiers."""
 
     def setUp(self):
-        import yaml
         from pathlib import Path
+
+        import yaml
         rules_path = Path(__file__).parent.parent / "rules.yaml"
-        with open(rules_path, 'r', encoding='utf-8') as f:
+        with open(rules_path, encoding='utf-8') as f:
             self.rules = yaml.safe_load(f)
 
     def test_agents_section_exists(self):
@@ -553,6 +558,7 @@ class TestPermissionEnforcementAgentGraph(unittest.TestCase):
     def test_agent_graph_has_permission_check_in_execute(self):
         """_execute_task_node source contains permission enforcement."""
         import inspect
+
         from vetinari.orchestration.agent_graph import AgentGraph
         src = inspect.getsource(AgentGraph._execute_task_node)
         self.assertIn("enforce_permission", src)
@@ -560,8 +566,9 @@ class TestPermissionEnforcementAgentGraph(unittest.TestCase):
 
     def test_agent_graph_returns_failure_on_permission_denied(self):
         """When permission is denied, _execute_task_node returns failure."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph, TaskNode
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         mock_agent = MagicMock()
@@ -586,8 +593,9 @@ class TestPermissionEnforcementAgentGraph(unittest.TestCase):
 
     def test_agent_graph_allows_when_no_context_manager(self):
         """When context manager is not configured, execution proceeds normally."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph, TaskNode
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         mock_agent = MagicMock()
@@ -609,6 +617,7 @@ class TestPermissionEnforcementAgentGraph(unittest.TestCase):
     def test_blackboard_claim_checks_permission(self):
         """Blackboard.claim checks MODEL_INFERENCE permission."""
         import inspect
+
         from vetinari.blackboard import Blackboard
         src = inspect.getsource(Blackboard.claim)
         self.assertIn("MODEL_INFERENCE", src)
@@ -662,8 +671,9 @@ class TestDependencyResultsIncorporation(unittest.TestCase):
 
     def test_incorporate_extracts_dependency_results(self):
         """_incorporate_prior_results extracts context.dependency_results."""
+        from vetinari.agents.contracts import AgentTask
         from vetinari.agents.planner_agent import PlannerAgent
-        from vetinari.agents.contracts import AgentTask, AgentType
+        from vetinari.types import AgentType
 
         agent = PlannerAgent()
         task = AgentTask(
@@ -683,8 +693,9 @@ class TestDependencyResultsIncorporation(unittest.TestCase):
 
     def test_incorporate_returns_empty_when_no_deps(self):
         """Returns empty dict when no dependency_results in context."""
+        from vetinari.agents.contracts import AgentTask
         from vetinari.agents.planner_agent import PlannerAgent
-        from vetinari.agents.contracts import AgentTask, AgentType
+        from vetinari.types import AgentType
 
         agent = PlannerAgent()
         task = AgentTask(
@@ -700,6 +711,7 @@ class TestDependencyResultsIncorporation(unittest.TestCase):
     def test_agent_graph_calls_incorporate(self):
         """AgentGraph._execute_task_node calls _incorporate_prior_results."""
         import inspect
+
         from vetinari.orchestration.agent_graph import AgentGraph
         src = inspect.getsource(AgentGraph._execute_task_node)
         self.assertIn("_incorporate_prior_results", src)
@@ -714,8 +726,9 @@ class TestInjectTask(unittest.TestCase):
     """7.9J: AgentGraph.inject_task for mid-execution DAG changes."""
 
     def _make_graph_with_plan(self):
-        from vetinari.orchestration.agent_graph import AgentGraph, TaskNode, ExecutionPlan
-        from vetinari.agents.contracts import AgentType, Plan, Task
+        from vetinari.orchestration.agent_graph import AgentGraph, ExecutionPlan, TaskNode
+        from vetinari.agents.contracts import Plan, Task
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         plan = Plan.create_new("Test goal")
@@ -733,7 +746,8 @@ class TestInjectTask(unittest.TestCase):
 
     def test_inject_task_success(self):
         """inject_task inserts a new task between existing ones."""
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         graph, plan, exec_plan = self._make_graph_with_plan()
         new_task = Task(id="t_review", description="Review",
@@ -753,7 +767,8 @@ class TestInjectTask(unittest.TestCase):
     def test_inject_task_nonexistent_plan(self):
         """inject_task returns False for unknown plan_id."""
         from vetinari.orchestration.agent_graph import AgentGraph
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         task = Task(id="tx", description="X", assigned_agent=AgentType.BUILDER)
@@ -761,7 +776,8 @@ class TestInjectTask(unittest.TestCase):
 
     def test_inject_task_nonexistent_after(self):
         """inject_task returns False when after_task_id not in plan."""
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         graph, plan, _ = self._make_graph_with_plan()
         task = Task(id="tx", description="X", assigned_agent=AgentType.BUILDER)
@@ -769,7 +785,8 @@ class TestInjectTask(unittest.TestCase):
 
     def test_inject_task_duplicate_id(self):
         """inject_task returns False when task.id already exists."""
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         graph, plan, _ = self._make_graph_with_plan()
         task = Task(id="t1", description="Dup", assigned_agent=AgentType.BUILDER)
@@ -777,7 +794,8 @@ class TestInjectTask(unittest.TestCase):
 
     def test_inject_task_updates_execution_order(self):
         """inject_task rebuilds execution_order with new task."""
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         graph, plan, exec_plan = self._make_graph_with_plan()
         new_task = Task(id="t_mid", description="Mid",
@@ -801,8 +819,9 @@ class TestMakerChecker(unittest.TestCase):
 
     def test_maker_checker_approval(self):
         """QUALITY approves BUILDER output on first attempt."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         mock_quality = MagicMock()
@@ -821,8 +840,9 @@ class TestMakerChecker(unittest.TestCase):
 
     def test_maker_checker_rejection_retries(self):
         """QUALITY rejects, BUILDER gets feedback and retries."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
 
@@ -850,8 +870,9 @@ class TestMakerChecker(unittest.TestCase):
 
     def test_maker_checker_max_iterations(self):
         """After max iterations without approval, returns not-approved result."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         mock_quality = MagicMock()
@@ -878,6 +899,7 @@ class TestMakerChecker(unittest.TestCase):
     def test_maker_checker_triggered_for_builder(self):
         """_execute_task_node triggers maker-checker for BUILDER when QUALITY registered."""
         import inspect
+
         from vetinari.orchestration.agent_graph import AgentGraph
         src = inspect.getsource(AgentGraph._execute_task_node)
         self.assertIn("_apply_maker_checker", src)
@@ -885,8 +907,9 @@ class TestMakerChecker(unittest.TestCase):
 
     def test_maker_checker_skips_without_quality(self):
         """Without QUALITY agent, maker-checker returns original result."""
+        from vetinari.agents.contracts import AgentResult, Task
         from vetinari.orchestration.agent_graph import AgentGraph
-        from vetinari.agents.contracts import AgentType, Task, AgentResult
+        from vetinari.types import AgentType
 
         graph = AgentGraph()
         graph._agents[AgentType.BUILDER] = MagicMock()
@@ -1033,7 +1056,8 @@ class TestTopologicalSort(unittest.TestCase):
 
     def test_linear_chain(self):
         from vetinari.orchestration.agent_graph import AgentGraph, TaskNode
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         t1 = Task(id="t1", description="A", assigned_agent=AgentType.BUILDER)
         t2 = Task(id="t2", description="B", assigned_agent=AgentType.BUILDER, dependencies=["t1"])
@@ -1055,7 +1079,8 @@ class TestTopologicalSort(unittest.TestCase):
 
     def test_parallel_tasks(self):
         from vetinari.orchestration.agent_graph import AgentGraph, TaskNode
-        from vetinari.agents.contracts import AgentType, Task
+        from vetinari.agents.contracts import Task
+        from vetinari.types import AgentType
 
         t1 = Task(id="t1", description="A", assigned_agent=AgentType.BUILDER)
         t2 = Task(id="t2", description="B", assigned_agent=AgentType.BUILDER)

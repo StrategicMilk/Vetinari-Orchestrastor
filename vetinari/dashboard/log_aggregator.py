@@ -96,6 +96,9 @@ class BackendBase:
         """Send a batch of records. Returns True on success.
 
         Subclasses must override this method.
+
+        Raises:
+            NotImplementedError: If the operation fails.
         """
         raise NotImplementedError(f"{type(self).__name__} must implement send()")  # noqa: VET033
 
@@ -118,10 +121,16 @@ class FileBackend(BackendBase):
         self._lock = threading.Lock()
 
     def configure(self, path: str = "logs/vetinari_audit.jsonl", **_: Any) -> None:
+        """Configure."""
         self._path = path
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self._path:
             logger.warning("FileBackend not configured (no path set).")
             return False
@@ -135,7 +144,8 @@ class FileBackend(BackendBase):
             return False
 
     def close(self) -> None:
-        pass  # noqa: VET031  (intentional: file opened/closed per send call — nothing to release)
+        """Close for the current context."""
+        # noqa: VET031  (intentional: file opened/closed per send call — nothing to release)
 
 
 # ---------------------------------------------------------------------------
@@ -155,17 +165,29 @@ class ElasticsearchBackend(BackendBase):
 
     def configure(
         self,
-        url: str = "http://localhost:9200",
+        url: str = "http://localhost:9200",  # noqa: VET041
         index: str = "vetinari-logs",
         api_key: str | None = None,
         **_: Any,
     ) -> None:
+        """Configure.
+
+        Args:
+            url: The url.
+            index: The index.
+            api_key: The api key.
+        """
         self._url = url.rstrip("/")
         self._index = index
         if api_key:
             self._headers["Authorization"] = f"ApiKey {api_key}"
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self._url:
             logger.warning("ElasticsearchBackend not configured.")
             return False
@@ -221,18 +243,31 @@ class SplunkBackend(BackendBase):
 
     def configure(
         self,
-        url: str = "http://localhost:8088",
+        url: str = "http://localhost:8088",  # noqa: VET041
         token: str = "",
         source: str = "vetinari",
         sourcetype: str = "_json",
         **_: Any,
     ) -> None:
+        """Configure.
+
+        Args:
+            url: The url.
+            token: The token.
+            source: The source.
+            sourcetype: The sourcetype.
+        """
         self._url = url.rstrip("/")
         self._token = token
         self._source = source
         self._sourcetype = sourcetype
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self._url or not self._token:
             logger.warning("SplunkBackend not configured (url/token missing).")
             return False
@@ -303,12 +338,25 @@ class DatadogBackend(BackendBase):
         ddtags: str = "",
         **_: Any,
     ) -> None:
+        """Configure.
+
+        Args:
+            api_key: The api key.
+            service: The service.
+            ddsource: The ddsource.
+            ddtags: The ddtags.
+        """
         self._api_key = api_key
         self._service = service
         self._ddsource = ddsource
         self._ddtags = ddtags
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self._api_key:
             logger.warning("DatadogBackend not configured (api_key missing).")
             return False
@@ -369,12 +417,24 @@ class WebhookBackend(BackendBase):
         self._timeout: int = 10
 
     def configure(self, url: str = "", headers: dict[str, str] | None = None, timeout: int = 10, **_: Any) -> None:
+        """Configure.
+
+        Args:
+            url: The url.
+            headers: The headers.
+            timeout: The timeout.
+        """
         self._url = url
         if headers:
             self._headers.update(headers)
         self._timeout = timeout
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self._url:
             logger.warning("WebhookBackend not configured (url missing).")
             return False
@@ -480,7 +540,11 @@ class LogAggregator:
             logger.info("Configured log aggregation backend: %s", name)
 
     def remove_backend(self, name: str) -> bool:
-        """Remove a backend by name. Returns True if it existed."""
+        """Remove a backend by name. Returns True if it existed.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             b = self._backends.pop(name, None)
             if b:
@@ -489,6 +553,11 @@ class LogAggregator:
             return b is not None
 
     def list_backends(self) -> list[str]:
+        """List backends.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._backends.keys())
 
@@ -580,13 +649,25 @@ class LogAggregator:
         return results
 
     def get_trace_records(self, trace_id: str) -> list[LogRecord]:
-        """Return all records belonging to a trace, ordered oldest-first."""
+        """Return all records belonging to a trace, ordered oldest-first.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             records = [r for r in self._buffer if r.trace_id == trace_id]
         return sorted(records, key=lambda r: r.timestamp)
 
     def correlate_span(self, trace_id: str, span_id: str) -> list[LogRecord]:
-        """Return all records for a specific span within a trace."""
+        """Return all records for a specific span within a trace.
+
+        Args:
+            trace_id: The trace id.
+            span_id: The span id.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return [r for r in self._buffer if r.trace_id == trace_id and r.span_id == span_id]
 
@@ -595,6 +676,11 @@ class LogAggregator:
     # ------------------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "buffer_size": len(self._buffer),
@@ -629,6 +715,7 @@ class AggregatorHandler(logging.Handler):
     """
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Emit for the current context."""
         try:
             agg = get_log_aggregator()
             lr = LogRecord(
@@ -715,22 +802,33 @@ class SSEBackend(BackendBase):
         self._lock = threading.Lock()
 
     def configure(self, max_buffer: int = 1000, **_: Any) -> None:
+        """Configure."""
         with self._lock:
             self._buffer = deque(maxlen=max_buffer)
 
     def send(self, records: list[LogRecord]) -> bool:
+        """Send.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             for rec in records:
                 self._buffer.append(rec)
         return True
 
     def get_recent(self, limit: int = 50) -> list[LogRecord]:
-        """Return the most recent records (newest last)."""
+        """Return the most recent records (newest last).
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             items = list(self._buffer)
         return items[-limit:]
 
     def close(self) -> None:
+        """Close for the current context."""
         with self._lock:
             self._buffer.clear()
 
@@ -740,7 +838,11 @@ _sse_lock = threading.Lock()
 
 
 def get_sse_backend() -> SSEBackend:
-    """Return the global SSEBackend singleton."""
+    """Return the global SSEBackend singleton.
+
+    Returns:
+        The SSEBackend result.
+    """
     global _sse_backend_instance
     if _sse_backend_instance is None:
         with _sse_lock:

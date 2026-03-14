@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class WaveStatus(Enum):
+    """Wave status."""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -40,6 +41,7 @@ class WaveStatus(Enum):
 
 @dataclass
 class Task:
+    """A unit of work within a plan or wave."""
     task_id: str
     agent_type: str
     description: str
@@ -97,6 +99,11 @@ class Task:
 
     @classmethod
     def from_dict(cls, data: dict) -> Task:
+        """From dict.
+
+        Returns:
+            The Task result.
+        """
         subtasks = [Task.from_dict(t) for t in data.get("subtasks", [])]
         return cls(
             task_id=data.get("task_id", ""),
@@ -129,6 +136,7 @@ class Task:
 
 @dataclass
 class Wave:
+    """A group of tasks executed in parallel."""
     wave_id: str
     milestone: str
     description: str
@@ -150,6 +158,11 @@ class Wave:
 
     @classmethod
     def from_dict(cls, data: dict) -> Wave:
+        """From dict.
+
+        Returns:
+            The Wave result.
+        """
         tasks = [Task.from_dict(t) for t in data.get("tasks", [])]
         return cls(
             wave_id=data.get("wave_id", ""),
@@ -172,6 +185,7 @@ class Wave:
 
 @dataclass
 class Plan:
+    """An execution plan containing ordered waves of tasks."""
     plan_id: str
     title: str
     prompt: str
@@ -210,6 +224,11 @@ class Plan:
 
     @classmethod
     def from_dict(cls, data: dict) -> Plan:
+        """From dict.
+
+        Returns:
+            The Plan result.
+        """
         waves = [Wave.from_dict(w) for w in data.get("waves", [])]
         plan = cls(
             plan_id=data.get("plan_id", ""),
@@ -257,6 +276,18 @@ class Plan:
         return 14
 
     def add_adr(self, adr_id: str, title: str, context: str, decision: str, status: str = "proposed"):
+        """Add adr.
+
+        Args:
+            adr_id: The adr id.
+            title: The title.
+            context: The context.
+            decision: The decision.
+            status: The status.
+
+        Returns:
+            The result value.
+        """
         adr = {
             "adr_id": adr_id,
             "title": title,
@@ -270,10 +301,16 @@ class Plan:
 
 
 class PlanManager:
+    """Plan manager."""
     _instance = None
 
     @classmethod
     def get_instance(cls, storage_path: str | None = None) -> PlanManager:
+        """Get instance.
+
+        Returns:
+            The PlanManager result.
+        """
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -290,7 +327,7 @@ class PlanManager:
     def _load_plans(self):
         for file in self.storage_path.glob("*.json"):
             try:
-                with open(file) as f:
+                with open(file, encoding="utf-8") as f:
                     data = json.load(f)
                     plan = Plan.from_dict(data)
                     self.plans[plan.plan_id] = plan
@@ -299,12 +336,23 @@ class PlanManager:
 
     def _save_plan(self, plan: Plan):
         file_path = self.storage_path / f"{plan.plan_id}.json"
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(plan.to_dict(), f, indent=2)
 
     def create_plan(
         self, title: str, prompt: str, created_by: str = "user", waves_data: list[dict] | None = None
     ) -> Plan:
+        """Create plan.
+
+        Args:
+            title: The title.
+            prompt: The prompt.
+            created_by: The created by.
+            waves_data: The waves data.
+
+        Returns:
+            The Plan result.
+        """
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
         now = datetime.now().isoformat()
 
@@ -354,6 +402,16 @@ class PlanManager:
         return self.plans.get(plan_id)
 
     def list_plans(self, status: str | None = None, limit: int = 50, offset: int = 0) -> list[Plan]:
+        """List plans.
+
+        Args:
+            status: The status.
+            limit: The limit.
+            offset: The offset.
+
+        Returns:
+            List of results.
+        """
         plans = list(self.plans.values())
         if status:
             plans = [p for p in plans if p.status == status]
@@ -361,6 +419,15 @@ class PlanManager:
         return plans[offset : offset + limit]
 
     def update_plan(self, plan_id: str, updates: dict) -> Plan | None:
+        """Update plan.
+
+        Args:
+            plan_id: The plan id.
+            updates: The updates.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan:
             return None
@@ -375,6 +442,11 @@ class PlanManager:
         return plan
 
     def delete_plan(self, plan_id: str) -> bool:
+        """Delete plan.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if plan_id in self.plans:
             del self.plans[plan_id]
             file_path = self.storage_path / f"{plan_id}.json"
@@ -384,6 +456,11 @@ class PlanManager:
         return False
 
     def start_plan(self, plan_id: str) -> Plan | None:
+        """Start plan.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan:
             return None
@@ -400,6 +477,11 @@ class PlanManager:
         return plan
 
     def pause_plan(self, plan_id: str) -> Plan | None:
+        """Pause plan.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan or plan.status != PlanStatus.ACTIVE.value:
             return None
@@ -415,6 +497,11 @@ class PlanManager:
         return plan
 
     def resume_plan(self, plan_id: str) -> Plan | None:
+        """Resume plan.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan or plan.status != PlanStatus.PAUSED.value:
             return None
@@ -430,6 +517,11 @@ class PlanManager:
         return plan
 
     def cancel_plan(self, plan_id: str) -> Plan | None:
+        """Cancel plan.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan:
             return None
@@ -450,6 +542,19 @@ class PlanManager:
     def update_task_status(
         self, plan_id: str, wave_id: str, task_id: str, status: str, result: Any = None, error: str = ""
     ) -> Plan | None:
+        """Update task status.
+
+        Args:
+            plan_id: The plan id.
+            wave_id: The wave id.
+            task_id: The task id.
+            status: The status.
+            result: The result.
+            error: The error.
+
+        Returns:
+            The Plan | None result.
+        """
         plan = self.plans.get(plan_id)
         if not plan:
             return None

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # LM Studio local API requires an api_key param but accepts any value.
 # The local server ignores the key; any non-empty string works.
-_LM_STUDIO_API_KEY = os.environ.get("LM_STUDIO_API_KEY", "not-a-real-key")  # noqa: S105
+_LM_STUDIO_API_KEY = os.environ.get("LM_STUDIO_API_KEY", "not-a-real-key")
 
 _OPTIMIZED_PROMPTS_PATH = Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari" / "optimized_prompts.json"
 
@@ -90,7 +90,7 @@ class DSPyOptimizer:
         try:
             import dspy
 
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             # Get the primary loaded model
             from vetinari.models.model_registry import get_model_registry
 
@@ -121,6 +121,17 @@ class DSPyOptimizer:
         """Optimize the system prompt for a specific agent/task combination.
 
         Uses accumulated training data as the evaluation set.
+
+        Args:
+            agent_type: The agent type.
+            task_type: The task type.
+            num_trials: The num trials.
+
+        Returns:
+            The OptimizationResult result.
+
+        Raises:
+            RuntimeError: If the operation fails.
         """
         if not self._available:
             return OptimizationResult(
@@ -186,6 +197,16 @@ class DSPyOptimizer:
 
             # Quality metric
             def quality_metric(example, pred, trace=None):
+                """Quality metric.
+
+                Args:
+                    example: The example.
+                    pred: The pred.
+                    trace: The trace.
+
+                Returns:
+                    The computed value.
+                """
                 score = getattr(example, "score", 0.7)
                 # Penalise empty outputs
                 if not pred.output or len(pred.output) < 10:
@@ -253,7 +274,11 @@ class DSPyOptimizer:
             )
 
     def optimize_all(self, num_trials: int = 30) -> list[OptimizationResult]:
-        """Run optimization for all 21 agents across their primary task types."""
+        """Run optimization for all 21 agents across their primary task types.
+
+        Returns:
+            List of results.
+        """
         agent_task_pairs = [
             ("PLANNER", "planning"),
             ("BUILDER", "coding"),
@@ -273,7 +298,15 @@ class DSPyOptimizer:
         return results
 
     def get_optimized_prompt(self, agent_type: str, task_type: str = "general") -> str | None:
-        """Return the best optimized prompt for an agent, if available."""
+        """Return the best optimized prompt for an agent, if available.
+
+        Args:
+            agent_type: The agent type.
+            task_type: The task type.
+
+        Returns:
+            The result string.
+        """
         key = f"{agent_type}:{task_type}"
         result = self._results.get(key)
         if result and result.optimized and result.best_prompt:
@@ -327,7 +360,11 @@ _opt_lock = threading.Lock()
 
 
 def get_dspy_optimizer() -> DSPyOptimizer:
-    """Return the global DSPyOptimizer singleton."""
+    """Return the global DSPyOptimizer singleton.
+
+    Returns:
+        The DSPyOptimizer result.
+    """
     global _optimizer
     if _optimizer is None:
         with _opt_lock:

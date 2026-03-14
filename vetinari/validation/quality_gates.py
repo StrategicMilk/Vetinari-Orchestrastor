@@ -229,6 +229,9 @@ class QualityGateRunner:
 
         A gate is considered passing if its result is PASSED or WARNING.
         Only gates marked as ``required`` can cause a stage failure.
+
+        Returns:
+            True if successful, False otherwise.
         """
         for r in results:
             is_required = r.metadata.get("required", True)
@@ -246,6 +249,13 @@ class QualityGateRunner:
         Inspects ``artifacts["code"]`` for common quality issues using
         lightweight heuristic analysis. Falls back gracefully when the
         code key is absent.
+
+        Args:
+            artifacts: The artifacts.
+            config: The config.
+
+        Returns:
+            The GateCheckResult result.
         """
         code = artifacts.get("code", "")
         issues: list[dict[str, Any]] = []
@@ -336,6 +346,13 @@ class QualityGateRunner:
 
         Checks ``artifacts["code"]`` for dangerous patterns, potential
         secrets, and unsafe practices.
+
+        Args:
+            artifacts: The artifacts.
+            config: The config.
+
+        Returns:
+            The GateCheckResult result.
         """
         code = artifacts.get("code", "")
         issues: list[dict[str, Any]] = []
@@ -420,6 +437,13 @@ class QualityGateRunner:
         ``artifacts["coverage_percent"]`` for coverage threshold.
         Also checks ``artifacts["code"]`` for testable functions
         without corresponding tests.
+
+        Args:
+            artifacts: The artifacts.
+            config: The config.
+
+        Returns:
+            The GateCheckResult result.
         """
         tests = artifacts.get("tests", "")
         code = artifacts.get("code", "")
@@ -520,6 +544,13 @@ class QualityGateRunner:
         Checks ``artifacts["code"]`` for architectural consistency
         including circular imports, layer violations, and naming
         conventions.
+
+        Args:
+            artifacts: The artifacts.
+            config: The config.
+
+        Returns:
+            The GateCheckResult result.
         """
         code = artifacts.get("code", "")
         architecture = artifacts.get("architecture", {})

@@ -77,6 +77,11 @@ class KnowledgeBase:
 
     @classmethod
     def get_instance(cls) -> KnowledgeBase:
+        """Get instance.
+
+        Returns:
+            The KnowledgeBase result.
+        """
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -117,7 +122,17 @@ class KnowledgeBase:
         category: str = "general",
         doc_id: str | None = None,
     ) -> str:
-        """Add a document chunk to the knowledge base."""
+        """Add a document chunk to the knowledge base.
+
+        Args:
+            content: The content.
+            source: The source.
+            category: The category.
+            doc_id: The doc id.
+
+        Returns:
+            The result string.
+        """
         if not doc_id:
             doc_id = f"doc_{hashlib.md5(f'{source}:{content[:50]}'.encode()).hexdigest()[:8]}"  # noqa: S324
 
@@ -153,7 +168,17 @@ class KnowledgeBase:
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
     ) -> int:
-        """Ingest all documents from a directory. Returns count of chunks added."""
+        """Ingest all documents from a directory. Returns count of chunks added.
+
+        Args:
+            directory: The directory.
+            extensions: The extensions.
+            chunk_size: The chunk size.
+            chunk_overlap: The chunk overlap.
+
+        Returns:
+            The computed value.
+        """
         extensions = extensions or [".md", ".txt", ".py", ".yaml", ".json"]
         base = Path(directory)
         if not base.exists():
@@ -298,6 +323,11 @@ class KnowledgeBase:
         return chunks
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         count = 0
         if self._chroma_available and self._collection:
             try:
@@ -322,7 +352,11 @@ _kb_lock = threading.Lock()
 
 
 def get_knowledge_base() -> KnowledgeBase:
-    """Return the global KnowledgeBase singleton."""
+    """Return the global KnowledgeBase singleton.
+
+    Returns:
+        The KnowledgeBase result.
+    """
     global _kb
     if _kb is None:
         with _kb_lock:
@@ -332,7 +366,11 @@ def get_knowledge_base() -> KnowledgeBase:
 
 
 def ingest_project_docs() -> int:
-    """Convenience function to ingest all Vetinari project documentation."""
+    """Convenience function to ingest all Vetinari project documentation.
+
+    Returns:
+        The computed value.
+    """
     kb = get_knowledge_base()
     project_root = Path(__file__).parent.parent.parent
     total = 0

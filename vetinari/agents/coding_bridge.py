@@ -14,6 +14,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from vetinari.types import CodingTaskStatus, CodingTaskType  # canonical enums
@@ -62,7 +63,7 @@ class CodingBridge:
     """
 
     def __init__(self, endpoint: str | None = None, api_key: str | None = None):
-        self.endpoint = endpoint or os.environ.get("CODING_BRIDGE_ENDPOINT", "http://localhost:4096")
+        self.endpoint = endpoint or os.environ.get("CODING_BRIDGE_ENDPOINT", "http://localhost:4096")  # noqa: VET041
         self.api_key = api_key or os.environ.get("CODING_BRIDGE_API_KEY", "")
         self.enabled = os.environ.get("CODING_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
 
@@ -80,6 +81,9 @@ class CodingBridge:
         SCAFFOLD tasks produce a real Python package scaffold.
         Other task types return a success acknowledgement (external agent
         integration is not yet wired).
+
+        Returns:
+            The CodingResult result.
         """
         if not self.enabled:
             logger.warning("CodingBridge is not enabled")
@@ -196,7 +200,11 @@ class CodingBridge:
             return CodingResult(success=False, task_id=task.task_id, error=str(e))
 
     def get_task_status(self, task_id: str) -> CodingTask | None:
-        """Get the status of a coding task from the active task registry."""
+        """Get the status of a coding task from the active task registry.
+
+        Returns:
+            The CodingTask | None result.
+        """
         logger.debug("Checking status for task: %s", task_id)
         # Check in-memory task registry if available
         if hasattr(self, "_active_tasks") and task_id in self._active_tasks:
@@ -205,7 +213,7 @@ class CodingBridge:
         import os
 
         output_base = os.environ.get("VETINARI_OUTPUTS_DIR", "outputs")
-        output_path = os.path.join(output_base, task_id)
+        output_path = Path(output_base) / task_id
         if os.path.exists(output_path):
             return CodingTask(
                 task_id=task_id, status=CodingTaskStatus.COMPLETED, result=f"Output available at {output_path}"
@@ -213,7 +221,11 @@ class CodingBridge:
         return CodingTask(task_id=task_id, status=CodingTaskStatus.PENDING, result="")
 
     def cancel_task(self, task_id: str) -> bool:
-        """Cancel a coding task."""
+        """Cancel a coding task.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         logger.info("Cancelling task: %s", task_id)
         return True
 
@@ -222,7 +234,17 @@ class CodingBridge:
         return []
 
     def create_scaffold(self, language: str, framework: str, output_path: str, project_name: str) -> CodingResult:
-        """Create a project scaffold."""
+        """Create a project scaffold.
+
+        Args:
+            language: The language.
+            framework: The framework.
+            output_path: The output path.
+            project_name: The project name.
+
+        Returns:
+            The CodingResult result.
+        """
         task = CodingTask(
             task_type=CodingTaskType.SCAFFOLD,
             description=f"Create {language}/{framework} scaffold for {project_name}",
@@ -234,7 +256,15 @@ class CodingBridge:
         return self.generate_task(task)
 
     def write_tests(self, source_file: str, test_framework: str = "pytest") -> CodingResult:
-        """Generate tests for a source file."""
+        """Generate tests for a source file.
+
+        Args:
+            source_file: The source file.
+            test_framework: The test framework.
+
+        Returns:
+            The CodingResult result.
+        """
         task = CodingTask(
             task_type=CodingTaskType.TEST,
             description=f"Write tests for {source_file}",
@@ -244,7 +274,11 @@ class CodingBridge:
         return self.generate_task(task)
 
     def review_code(self, file_path: str) -> CodingResult:
-        """Request code review."""
+        """Request code review.
+
+        Returns:
+            The CodingResult result.
+        """
         task = CodingTask(
             task_type=CodingTaskType.REVIEW, description=f"Review code in {file_path}", input_files=[file_path]
         )
@@ -255,7 +289,11 @@ _coding_bridge: CodingBridge | None = None
 
 
 def get_coding_bridge() -> CodingBridge:
-    """Get or create the global coding bridge instance."""
+    """Get or create the global coding bridge instance.
+
+    Returns:
+        The CodingBridge result.
+    """
     global _coding_bridge
     if _coding_bridge is None:
         _coding_bridge = CodingBridge()
@@ -263,7 +301,15 @@ def get_coding_bridge() -> CodingBridge:
 
 
 def init_coding_bridge(endpoint: str | None = None, api_key: str | None = None) -> CodingBridge:
-    """Initialize a new coding bridge instance."""
+    """Initialize a new coding bridge instance.
+
+    Args:
+        endpoint: The endpoint.
+        api_key: The api key.
+
+    Returns:
+        The CodingBridge result.
+    """
     global _coding_bridge
     _coding_bridge = CodingBridge(endpoint=endpoint, api_key=api_key)
     return _coding_bridge

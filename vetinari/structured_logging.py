@@ -109,6 +109,7 @@ def get_request_id() -> str | None:
 
 
 class LogLevel(Enum):
+    """Log level."""
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -135,7 +136,11 @@ class StructuredFormatter(logging.Formatter):
         self._context.update(kwargs)
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format the log record as JSON."""
+        """Format the log record as JSON.
+
+        Returns:
+            The result string.
+        """
         # Build the log entry
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -220,30 +225,80 @@ class StructuredLogger:
         """Set context for this logger."""
         self._context.update(kwargs)
 
-    def _log_with_context(self, level: int, message: str, **kwargs):
-        """Log with additional context fields."""
+    def _log_with_context(self, level: int, message: str, *args, **kwargs):
+        """Log with additional context fields.
+
+        Args:
+            level: The logging level.
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        if args:
+            message = message % args
         extra = {"extra_fields": dict(self._context)}
         extra["extra_fields"].update(kwargs)
         self.logger.log(level, message, extra=extra)
 
-    def debug(self, message: str, **kwargs):
-        self._log_with_context(logging.DEBUG, message, **kwargs)
+    def debug(self, message: str, *args, **kwargs):
+        """Log a debug message with context.
 
-    def info(self, message: str, **kwargs):
-        self._log_with_context(logging.INFO, message, **kwargs)
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.DEBUG, message, *args, **kwargs)
 
-    def warning(self, message: str, **kwargs):
-        self._log_with_context(logging.WARNING, message, **kwargs)
+    def info(self, message: str, *args, **kwargs):
+        """Log an info message with context.
 
-    def error(self, message: str, **kwargs):
-        self._log_with_context(logging.ERROR, message, **kwargs)
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.INFO, message, *args, **kwargs)
 
-    def critical(self, message: str, **kwargs):
-        self._log_with_context(logging.CRITICAL, message, **kwargs)
+    def warning(self, message: str, *args, **kwargs):
+        """Log a warning message with context.
 
-    def exception(self, message: str, **kwargs):
-        """Log exception with full traceback."""
-        self._log_with_context(logging.ERROR, message, **kwargs)
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.WARNING, message, *args, **kwargs)
+
+    def error(self, message: str, *args, **kwargs):
+        """Log an error message with context.
+
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.ERROR, message, *args, **kwargs)
+
+    def critical(self, message: str, *args, **kwargs):
+        """Log a critical message with context.
+
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.CRITICAL, message, *args, **kwargs)
+
+    def exception(self, message: str, *args, **kwargs):
+        """Log an exception with full traceback.
+
+        Args:
+            message: The log message (supports %-style formatting).
+            *args: Positional arguments for %-style string formatting.
+            **kwargs: Additional structured context fields.
+        """
+        self._log_with_context(logging.ERROR, message, *args, **kwargs)
 
 
 # Global state
@@ -331,13 +386,25 @@ def log_event(level: str, logger_name: str, message: str, **context):
 
 
 def log_task_start(task_id: str, task_type: str = "generic", **kwargs):
-    """Log task start event."""
+    """Log task start event.
+
+    Args:
+        task_id: The task id.
+        task_type: The task type.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("executor")
-    logger.info(f"Task started: {task_id}", event_type="task_start", task_id=task_id, task_type=task_type, **kwargs)
+    logger.info("Task started: %s", task_id, event_type="task_start", task_id=task_id, task_type=task_type, **kwargs)
 
 
 def log_task_complete(task_id: str, execution_time_ms: float, **kwargs):
-    """Log task completion event."""
+    """Log task completion event.
+
+    Args:
+        task_id: The task id.
+        execution_time_ms: The execution time ms.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("executor")
     logger.info(
         f"Task completed: {task_id}",
@@ -349,13 +416,25 @@ def log_task_complete(task_id: str, execution_time_ms: float, **kwargs):
 
 
 def log_task_error(task_id: str, error: str, **kwargs):
-    """Log task error event."""
+    """Log task error event.
+
+    Args:
+        task_id: The task id.
+        error: The error.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("executor")
-    logger.error(f"Task failed: {task_id}", event_type="task_error", task_id=task_id, error=error, **kwargs)
+    logger.error("Task failed: %s", task_id, event_type="task_error", task_id=task_id, error=error, **kwargs)
 
 
 def log_model_discovery(models_found: int, duration_ms: float, **kwargs):
-    """Log model discovery event."""
+    """Log model discovery event.
+
+    Args:
+        models_found: The models found.
+        duration_ms: The duration ms.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("model_pool")
     logger.info(
         f"Model discovery completed: {models_found} models",
@@ -367,13 +446,25 @@ def log_model_discovery(models_found: int, duration_ms: float, **kwargs):
 
 
 def log_wave_start(wave_id: str, task_count: int, **kwargs):
-    """Log wave start event."""
+    """Log wave start event.
+
+    Args:
+        wave_id: The wave id.
+        task_count: The task count.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("scheduler")
-    logger.info(f"Wave started: {wave_id}", event_type="wave_start", wave_id=wave_id, task_count=task_count, **kwargs)
+    logger.info("Wave started: %s", wave_id, event_type="wave_start", wave_id=wave_id, task_count=task_count, **kwargs)
 
 
 def log_wave_complete(wave_id: str, duration_ms: float, **kwargs):
-    """Log wave completion event."""
+    """Log wave completion event.
+
+    Args:
+        wave_id: The wave id.
+        duration_ms: The duration ms.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("scheduler")
     logger.info(
         f"Wave completed: {wave_id}", event_type="wave_complete", wave_id=wave_id, duration_ms=duration_ms, **kwargs
@@ -381,7 +472,15 @@ def log_wave_complete(wave_id: str, duration_ms: float, **kwargs):
 
 
 def log_api_request(endpoint: str, method: str, status_code: int, duration_ms: float, **kwargs):
-    """Log API request event."""
+    """Log API request event.
+
+    Args:
+        endpoint: The endpoint.
+        method: The method.
+        status_code: The status code.
+        duration_ms: The duration ms.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("web_ui")
     logger.info(
         f"API request: {method} {endpoint}",
@@ -395,7 +494,15 @@ def log_api_request(endpoint: str, method: str, status_code: int, duration_ms: f
 
 
 def log_sandbox_execution(execution_id: str, success: bool, duration_ms: float, memory_mb: float, **kwargs):
-    """Log sandbox execution event."""
+    """Log sandbox execution event.
+
+    Args:
+        execution_id: The execution id.
+        success: The success.
+        duration_ms: The duration ms.
+        memory_mb: The memory mb.
+        **kwargs: Additional structured fields for the log event.
+    """
     logger = get_logger("sandbox")
     level = logger.info if success else logger.error
     level(
@@ -416,11 +523,27 @@ def timed_operation(operation_name: str):
         @timed_operation("model_discovery")
         def discover_models():
             ...
+
+    Returns:
+        The computed result.
     """
 
     def decorator(func: Callable) -> Callable:
+        """Decorate function with timing instrumentation.
+
+        Returns:
+            The Callable result.
+        """
         @wraps(func)
         def wrapper(*args, **kwargs):
+            """Execute the wrapped function with timing.
+
+            Returns:
+                The computed result.
+
+            Raises:
+                Exception: Re-raises any exception raised by the wrapped function after logging the failure.
+            """
             start_time = datetime.now(timezone.utc)
             logger = get_logger(func.__module__)
 
@@ -466,11 +589,27 @@ def traced_operation(operation_name: str, generate_trace_id: bool = True):
     Args:
         operation_name: Name of the operation
         generate_trace_id: Whether to generate a new trace ID for this operation
+
+    Returns:
+        The computed result.
     """
 
     def decorator(func: Callable) -> Callable:
+        """Decorate function with tracing instrumentation.
+
+        Returns:
+            The Callable result.
+        """
         @wraps(func)
         def wrapper(*args, **kwargs):
+            """Execute the wrapped function with tracing.
+
+            Returns:
+                The computed result.
+
+            Raises:
+                Exception: Re-raises any exception raised by the wrapped function after logging the failure.
+            """
             trace_id = str(uuid.uuid4()) if generate_trace_id else get_trace_id()
 
             with CorrelationContext(trace_id=trace_id):
@@ -523,13 +662,25 @@ class MetricsCollector:
         self._lock = threading.Lock()
 
     def increment(self, metric_name: str, value: int = 1, **tags):
-        """Increment a counter metric."""
+        """Increment a counter metric.
+
+        Args:
+            metric_name: The metric name.
+            value: The value.
+            **tags: Dimension tags for the metric key.
+        """
         key = self._make_key(metric_name, tags)
         with self._lock:
             self._counters[key] = self._counters.get(key, 0) + value
 
     def record(self, metric_name: str, value: float, **tags):
-        """Record a histogram value."""
+        """Record a histogram value.
+
+        Args:
+            metric_name: The metric name.
+            value: The value.
+            **tags: Dimension tags for the metric key.
+        """
         key = self._make_key(metric_name, tags)
         with self._lock:
             if key not in self._histograms:
@@ -537,13 +688,21 @@ class MetricsCollector:
             self._histograms[key].append(value)
 
     def get_counter(self, metric_name: str, **tags) -> int:
-        """Get counter value."""
+        """Get counter value.
+
+        Returns:
+            The computed value.
+        """
         key = self._make_key(metric_name, tags)
         with self._lock:
             return self._counters.get(key, 0)
 
     def get_histogram_stats(self, metric_name: str, **tags) -> dict[str, float] | None:
-        """Get histogram statistics."""
+        """Get histogram statistics.
+
+        Returns:
+            The result string.
+        """
         key = self._make_key(metric_name, tags)
         with self._lock:
             values = self._histograms.get(key, [])
@@ -581,7 +740,12 @@ def get_metrics() -> MetricsCollector:
 
 # Convenience metric functions
 def record_task_duration(task_id: str, duration_ms: float):
-    """Record task execution duration."""
+    """Record task execution duration.
+
+    Args:
+        task_id: The task id.
+        duration_ms: The duration ms.
+    """
     _metrics.record("vetinari.task.duration", duration_ms, task_type="generic")
 
 

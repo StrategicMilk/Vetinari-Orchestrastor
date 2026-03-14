@@ -36,6 +36,9 @@ def get_lmstudio_headers(host: str | None = None) -> dict[str, str]:
         from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers
         headers = get_lmstudio_headers()
         requests.post(url, json=payload, headers=headers)
+
+    Returns:
+        The result string.
     """
     import os as _os
 
@@ -62,6 +65,13 @@ def resolve_lmstudio_model(model_id: str, host: str | None = None) -> str:
 
         from vetinari.adapters.lmstudio_adapter import resolve_lmstudio_model
         real_model = resolve_lmstudio_model(model_id)
+
+    Args:
+        model_id: The model id.
+        host: The host.
+
+    Returns:
+        The result string.
     """
     import os as _os
 
@@ -73,7 +83,7 @@ def resolve_lmstudio_model(model_id: str, host: str | None = None) -> str:
     if env_model:
         return env_model
 
-    _host = host or _os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+    _host = host or _os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
 
     # Return cached result if we already resolved for this host
     if _host in _resolved_model_cache:
@@ -126,7 +136,7 @@ def _try_discover_model(host: str, endpoint: str) -> str | None:
             if not models_list and "id" in data:
                 resolved = data["id"]
                 if resolved and isinstance(resolved, str):
-                    logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
+                    logger.debug("[LMStudio] Resolved via %s -> '%s'", endpoint, resolved)
                     return resolved
         elif isinstance(data, list):
             models_list = data
@@ -138,7 +148,7 @@ def _try_discover_model(host: str, endpoint: str) -> str | None:
             else:
                 resolved = str(first)
             if resolved:
-                logger.debug(f"[LMStudio] Resolved via {endpoint} -> '{resolved}'")
+                logger.debug("[LMStudio] Resolved via %s -> '%s'", endpoint, resolved)
                 return resolved
     except Exception:  # noqa: S110, VET022
         pass
@@ -149,7 +159,7 @@ def _probe_model_via_chat(host: str) -> str | None:
     """Discover the model name by making a minimal chat completion request.
 
     LM Studio echoes the actual model name in the response ``"model"`` field,
-    even when the request sends an empty or placeholder model name.
+    even when the request sends an empty or placeholder model name.  # noqa: VET034
     """
     try:
         resp = requests.post(
@@ -167,7 +177,7 @@ def _probe_model_via_chat(host: str) -> str | None:
             data = resp.json()
             model_name = data.get("model", "")
             if model_name and model_name not in ("", "default"):
-                logger.info(f"[LMStudio] Discovered model via probe: '{model_name}'")
+                logger.info("[LMStudio] Discovered model via probe: '%s'", model_name)
                 return model_name
     except Exception:  # noqa: S110, VET022
         pass
@@ -348,7 +358,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
     # ------------------------------------------------------------------
 
     def discover_models(self) -> list[ModelInfo]:
-        """Discover models available in LM Studio."""
+        """Discover models available in LM Studio.
+
+        Returns:
+            List of results.
+        """
         try:
             response = self.session.get(f"{self.endpoint}/v1/models", timeout=self.timeout_seconds)
             response.raise_for_status()
@@ -394,7 +408,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
             return []
 
     def health_check(self) -> dict[str, Any]:
-        """Check LM Studio health."""
+        """Check LM Studio health.
+
+        Returns:
+            The result string.
+        """
         try:
             response = self.session.get(f"{self.endpoint}/v1/models", timeout=5)
             return {
@@ -412,7 +430,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
             }
 
     def infer(self, request: InferenceRequest) -> InferenceResponse:
-        """Run inference using LM Studio."""
+        """Run inference using LM Studio.
+
+        Returns:
+            The InferenceResponse result.
+        """
         start_time = time.time()
         resolved_model = self._resolve_model_id(request.model_id)
 
@@ -541,6 +563,15 @@ class LMStudioProviderAdapter(ProviderAdapter):
 
             {"output": str, "latency_ms": int, "tokens_used": int,
              "status": str, "error": str|None}
+
+        Args:
+            model_id: The model id.
+            system_prompt: The system prompt.
+            input_text: The input text.
+            timeout: The timeout.
+
+        Returns:
+            The result string.
         """
         resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
@@ -576,6 +607,12 @@ class LMStudioProviderAdapter(ProviderAdapter):
 
             for chunk in adapter.chat_stream(model, sys_prompt, user_text):
                 logger.debug(chunk, end="", flush=True)
+
+        Args:
+            model_id: The model id.
+            system_prompt: The system prompt.
+            input_text: The input text.
+            timeout: The timeout.
         """
         resolved_model = self._resolve_model_id(model_id)
         endpoint = f"{self.endpoint}/v1/chat/completions"
@@ -618,7 +655,7 @@ class LMStudioProviderAdapter(ProviderAdapter):
                     except (json.JSONDecodeError, IndexError, KeyError):
                         continue
         except Exception as e:
-            logger.debug(f"[LMStudio] Stream failed, falling back: {e}")
+            logger.debug("[LMStudio] Stream failed, falling back: %s", e)
             result = self.chat(
                 model_id,
                 system_prompt,
@@ -638,6 +675,14 @@ class LMStudioProviderAdapter(ProviderAdapter):
         """Direct endpoint call returning the old Dict format.
 
         Used by the legacy ``LMStudioAdapter.infer()`` shim.
+
+        Args:
+            model_endpoint: The model endpoint.
+            prompt: The prompt.
+            timeout: The timeout.
+
+        Returns:
+            The result string.
         """
         payload = {"prompt": prompt}
         start = time.time()
@@ -661,7 +706,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
         }
 
     def list_loaded_models(self) -> list[dict[str, Any]]:
-        """Return loaded models, using ModelRegistry when available."""
+        """Return loaded models, using ModelRegistry when available.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.model_registry import get_model_registry
 
@@ -679,7 +728,11 @@ class LMStudioProviderAdapter(ProviderAdapter):
         return models if isinstance(models, list) else []
 
     def is_healthy(self) -> bool:
-        """Return True if LM Studio is reachable and responding."""
+        """Return True if LM Studio is reachable and responding.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             resp = self.session.get(
                 f"{self.endpoint}/v1/models",
@@ -700,7 +753,7 @@ class LMStudioAdapter:
 
     Construction signature is unchanged::
 
-        adapter = LMStudioAdapter(host="http://localhost:1234")
+        adapter = LMStudioAdapter(host="http://localhost:1234")  # noqa: VET041
         result  = adapter.chat(model_id, system_prompt, input_text)
     """
 
@@ -723,6 +776,7 @@ class LMStudioAdapter:
             self.session.headers.update({"Authorization": f"Bearer {self.api_token}"})
 
     def set_api_token(self, api_token: str | None) -> None:
+        """Set api token."""
         self.api_token = api_token
         if api_token:
             self.session.headers.update({"Authorization": f"Bearer {api_token}"})
@@ -736,7 +790,17 @@ class LMStudioAdapter:
         input_text: str,
         timeout: int = 120,
     ) -> dict[str, Any]:
-        """Call LM Studio chat API via :class:`LMStudioProviderAdapter`."""
+        """Call LM Studio chat API via :class:`LMStudioProviderAdapter`.
+
+        Args:
+            model_id: The model id.
+            system_prompt: The system prompt.
+            input_text: The input text.
+            timeout: The timeout.
+
+        Returns:
+            The result string.
+        """
         req = InferenceRequest(
             model_id=model_id,
             prompt=input_text,
@@ -760,7 +824,16 @@ class LMStudioAdapter:
         }
 
     def infer(self, model_endpoint: str, prompt: str, timeout: int = 120) -> dict[str, Any]:
-        """Fallback for direct endpoint calls."""
+        """Fallback for direct endpoint calls.
+
+        Args:
+            model_endpoint: The model endpoint.
+            prompt: The prompt.
+            timeout: The timeout.
+
+        Returns:
+            The result string.
+        """
         payload = {"prompt": prompt}
         start = time.time()
         resp = self._post(model_endpoint, payload, timeout=timeout)
@@ -783,7 +856,11 @@ class LMStudioAdapter:
         }
 
     def list_loaded_models(self) -> list[dict[str, Any]]:
-        """Return the list of currently-loaded models from LM Studio."""
+        """Return the list of currently-loaded models from LM Studio.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.model_registry import get_model_registry
 
@@ -800,7 +877,11 @@ class LMStudioAdapter:
         return models if isinstance(models, list) else []
 
     def is_healthy(self) -> bool:
-        """Return True if LM Studio is reachable and responding."""
+        """Return True if LM Studio is reachable and responding.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         health = self._provider.health_check()
         return health.get("healthy", False)
 
@@ -811,7 +892,14 @@ class LMStudioAdapter:
         input_text: str,
         timeout: int = 180,
     ) -> Iterator[str]:
-        """Stream chat completion tokens from LM Studio."""
+        """Stream chat completion tokens from LM Studio.
+
+        Args:
+            model_id: The model id.
+            system_prompt: The system prompt.
+            input_text: The input text.
+            timeout: The timeout.
+        """
         endpoint = f"{self.host}/v1/chat/completions"
         payload = {
             "model": model_id,

@@ -101,6 +101,12 @@ class TokenBudget:
     task_token_counts: dict[str, int] = field(default_factory=dict)
 
     def record(self, task_id: str, tokens: int) -> None:
+        """Record.
+
+        Args:
+            task_id: The task id.
+            tokens: The tokens.
+        """
         self.tokens_used += tokens
         self.task_token_counts[task_id] = self.task_token_counts.get(task_id, 0) + tokens
 
@@ -113,7 +119,15 @@ class TokenBudget:
         return self.tokens_used >= self.max_tokens
 
     def check_task(self, task_id: str, estimated_tokens: int) -> bool:
-        """Return True if this task can proceed within budget."""
+        """Return True if this task can proceed within budget.
+
+        Args:
+            task_id: The task id.
+            estimated_tokens: The estimated tokens.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if self.is_exhausted:
             return False
         task_used = self.task_token_counts.get(task_id, 0)
@@ -146,7 +160,7 @@ class LocalPreprocessor:
         if self._local_model:
             return self._local_model
         try:
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             import requests
 
             from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers
@@ -243,7 +257,7 @@ class LocalPreprocessor:
                 "Provide the compressed version. Be as concise as possible while preserving ALL technically relevant information."
             )
 
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers, resolve_lmstudio_model
 
             resolved_model = resolve_lmstudio_model(local_model, host)
@@ -566,6 +580,11 @@ class LocalPreprocessor:
 
         Returns:
             (processed_prompt, processed_context, metadata)
+
+        Args:
+            prompt: The prompt.
+            context: The context.
+            task_description: The task description.
         """
         meta = {
             "original_prompt_chars": len(prompt),
@@ -618,7 +637,16 @@ class TokenOptimizer:
         max_tokens: int = 100_000,
         max_tokens_per_task: int = 8_000,
     ) -> TokenBudget:
-        """Create and register a token budget for a plan."""
+        """Create and register a token budget for a plan.
+
+        Args:
+            plan_id: The plan id.
+            max_tokens: The max tokens.
+            max_tokens_per_task: The max tokens per task.
+
+        Returns:
+            The TokenBudget result.
+        """
         budget = TokenBudget(
             plan_id=plan_id,
             max_tokens=max_tokens,
@@ -631,7 +659,13 @@ class TokenOptimizer:
         return self._budgets.get(plan_id)
 
     def record_usage(self, plan_id: str, task_id: str, tokens: int) -> None:
-        """Record token usage after a completed inference."""
+        """Record token usage after a completed inference.
+
+        Args:
+            plan_id: The plan id.
+            task_id: The task id.
+            tokens: The tokens.
+        """
         budget = self._budgets.get(plan_id)
         if budget:
             budget.record(task_id, tokens)
@@ -641,7 +675,11 @@ class TokenOptimizer:
     # ------------------------------------------------------------------
 
     def get_task_profile(self, task_type: str) -> tuple[int, float, bool]:
-        """Return (max_tokens, temperature, prefer_json) for a task type."""
+        """Return (max_tokens, temperature, prefer_json) for a task type.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         key = task_type.lower().replace(" ", "_").replace("-", "_")
         return TASK_PROFILES.get(key, TASK_PROFILES["general"])
 
@@ -670,6 +708,19 @@ class TokenOptimizer:
           - prefer_json: whether to request JSON output
           - metadata: compression/optimisation stats
           - budget_ok: whether the budget allows this task
+
+        Args:
+            prompt: The prompt.
+            context: The context.
+            task_type: The task type.
+            task_description: The task description.
+            is_cloud_model: The is cloud model.
+            plan_id: The plan id.
+            task_id: The task id.
+            budget: The budget.
+
+        Returns:
+            The result string.
         """
         max_tokens, temperature, prefer_json = self.get_task_profile(task_type)
 
@@ -744,6 +795,13 @@ class TokenOptimizer:
         """Summarise a list of task results for inclusion in subsequent prompts.
 
         Prevents context explosion when many tasks have completed.
+
+        Args:
+            results: The results.
+            max_chars: The max chars.
+
+        Returns:
+            The result string.
         """
         if not results:
             return ""
@@ -776,7 +834,11 @@ _token_optimizer: TokenOptimizer | None = None
 
 
 def get_token_optimizer() -> TokenOptimizer:
-    """Get or create the global TokenOptimizer singleton."""
+    """Get or create the global TokenOptimizer singleton.
+
+    Returns:
+        The TokenOptimizer result.
+    """
     global _token_optimizer
     if _token_optimizer is None:
         _token_optimizer = TokenOptimizer()

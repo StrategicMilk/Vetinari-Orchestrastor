@@ -88,6 +88,18 @@ class DataCurator:
         """Curate SFT training data and write to a JSONL file.
 
         Returns the path to the curated dataset file.
+
+        Args:
+            task_type: The task type.
+            min_score: The min score.
+            max_examples: The max examples.
+            output_dir: The output dir.
+
+        Returns:
+            The result string.
+
+        Raises:
+            ValueError: If the operation fails.
         """
         from vetinari.learning.training_data import get_training_collector
 
@@ -126,7 +138,19 @@ class DataCurator:
         min_score_gap: float = 0.2,
         output_dir: str = ".",
     ) -> str:
-        """Curate DPO preference pairs and write to a JSONL file."""
+        """Curate DPO preference pairs and write to a JSONL file.
+
+        Args:
+            task_type: The task type.
+            min_score_gap: The min score gap.
+            output_dir: The output dir.
+
+        Returns:
+            The result string.
+
+        Raises:
+            ValueError: If the operation fails.
+        """
         from vetinari.learning.training_data import get_training_collector
 
         collector = get_training_collector()
@@ -151,7 +175,11 @@ class LocalTrainer:
     """QLoRA fine-tuning via unsloth (2x faster) or trl fallback."""
 
     def check_available(self) -> dict[str, bool]:
-        """Check which training libraries are installed."""
+        """Check which training libraries are installed.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         result = {}
         for lib in ["unsloth", "trl", "peft", "transformers", "bitsandbytes"]:
             try:
@@ -179,6 +207,23 @@ class LocalTrainer:
           7B Q4 model:  ~8GB VRAM for training
           14B Q4 model: ~14GB VRAM for training
           32B model:    too large — use cloud_trainer
+
+        Args:
+            base_model: The base model.
+            dataset_path: The dataset path.
+            output_dir: The output dir.
+            epochs: The epochs.
+            batch_size: The batch size.
+            learning_rate: The learning rate.
+            max_seq_length: The max seq length.
+            lora_r: The lora r.
+            use_unsloth: The use unsloth.
+
+        Returns:
+            The result string.
+
+        Raises:
+            RuntimeError: If required training libraries are not installed or if the training subprocess fails.
         """
         avail = self.check_available()
         if not avail.get("trl") and not avail.get("transformers"):
@@ -347,6 +392,18 @@ class GGUFConverter:
 
         Returns path to the .gguf file.
         Requires: llama.cpp and pip install llama-cpp-python
+
+        Args:
+            base_model: The base model.
+            adapter_path: The adapter path.
+            output_dir: The output dir.
+            quantization: The quantization.
+
+        Returns:
+            The result string.
+
+        Raises:
+            RuntimeError: If the adapter merge subprocess fails.
         """
         out_path = Path(output_dir) / f"model_{quantization}.gguf"
 
@@ -408,7 +465,18 @@ class ModelDeployer:
     """Deploys converted GGUF model to LM Studio."""
 
     def deploy(self, gguf_path: str, model_name: str) -> str:
-        """Copy GGUF to LM Studio models directory."""
+        """Copy GGUF to LM Studio models directory.
+
+        Args:
+            gguf_path: The gguf path.
+            model_name: The model name.
+
+        Returns:
+            The result string.
+
+        Raises:
+            FileNotFoundError: If the GGUF model file does not exist at the given path.
+        """
         src = Path(gguf_path)
         if not src.exists():
             raise FileNotFoundError(f"Model file not found: {gguf_path}")
@@ -440,7 +508,11 @@ class TrainingPipeline:
         self._deployer = ModelDeployer()
 
     def check_requirements(self) -> dict[str, Any]:
-        """Check what training capabilities are available."""
+        """Check what training capabilities are available.
+
+        Returns:
+            The result string.
+        """
         avail = self._trainer.check_available()
         return {
             "libraries": avail,
@@ -495,7 +567,7 @@ class TrainingPipeline:
             )
 
             # Count examples
-            with open(dataset_path) as f:
+            with open(dataset_path, encoding="utf-8") as f:
                 run.training_examples = sum(1 for _ in f)
             logger.info("[TrainingPipeline] %s: %d training examples", run_id, run.training_examples)
 
@@ -535,7 +607,7 @@ class TrainingPipeline:
             logger.error("[TrainingPipeline] %s: Failed: %s", run_id, e)
 
         # Save run record
-        with open(run_dir / "run.json", "w") as f:
+        with open(run_dir / "run.json", "w", encoding="utf-8") as f:
             import dataclasses
 
             json.dump(dataclasses.asdict(run), f, indent=2)

@@ -51,7 +51,11 @@ class SkillRegistry:
             self.load()
 
     def load(self) -> None:
-        """Load all registry data from disk."""
+        """Load all registry data from disk.
+
+        Raises:
+            Exception: Re-raises any exception encountered while reading registry files from disk.
+        """
         try:
             # Load central registry
             if CENTRAL_REGISTRY.exists():
@@ -94,6 +98,9 @@ class SkillRegistry:
 
         Merges disk-based skills with programmatic SkillSpec entries,
         deduplicating by skill id.
+
+        Returns:
+            The result string.
         """
         if not self._loaded:
             self.load()
@@ -111,6 +118,9 @@ class SkillRegistry:
 
         Falls back to the programmatic SkillSpec registry if the disk-based
         registry does not contain the requested skill.
+
+        Returns:
+            The result string.
         """
         if not self._loaded:
             self.load()
@@ -129,6 +139,9 @@ class SkillRegistry:
 
         Falls back to the programmatic SkillSpec registry if no disk manifest
         exists.
+
+        Returns:
+            The result string.
         """
         if skill_id in self._manifests:
             return self._manifests[skill_id]
@@ -150,7 +163,11 @@ class SkillRegistry:
         return None
 
     def get_skill_capabilities(self, skill_id: str) -> list[str]:
-        """Get list of capabilities for a skill."""
+        """Get list of capabilities for a skill.
+
+        Returns:
+            The result string.
+        """
         skill = self.get_skill(skill_id)
         if skill:
             return skill.get("capabilities", [])
@@ -160,7 +177,11 @@ class SkillRegistry:
         return []
 
     def get_skill_permissions(self, skill_id: str) -> list[str]:
-        """Get required permissions for a skill."""
+        """Get required permissions for a skill.
+
+        Returns:
+            The result string.
+        """
         skill = self.get_skill(skill_id)
         if skill:
             return skill.get("permissions_required", [])
@@ -174,6 +195,9 @@ class SkillRegistry:
 
         Searches both the disk-based registry and the programmatic SkillSpec
         registry, deduplicating by skill id.
+
+        Returns:
+            The result string.
         """
         seen_ids: set = set()
         matching = []
@@ -193,7 +217,11 @@ class SkillRegistry:
         return matching
 
     def list_agents(self) -> list[str]:
-        """List all registered agents, including consolidated agent types."""
+        """List all registered agents, including consolidated agent types.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded:
             self.load()
         disk_agents = set(self._agent_map.get("agents", {}).keys())
@@ -207,6 +235,13 @@ class SkillRegistry:
 
         Falls back to the programmatic SkillSpec when the disk-based map
         does not contain the agent.
+
+        Args:
+            agent_id: The agent id.
+            env: The env.
+
+        Returns:
+            The result string.
         """
         if not self._loaded:
             self.load()
@@ -231,13 +266,21 @@ class SkillRegistry:
         return []
 
     def get_context(self, context_id: str) -> dict[str, Any] | None:
-        """Get sample context by ID."""
+        """Get sample context by ID.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded:
             self.load()
         return self._contexts.get(context_id)
 
     def get_contexts_for_skill(self, skill_id: str) -> list[dict[str, Any]]:
-        """Get all contexts available for a specific skill."""
+        """Get all contexts available for a specific skill.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded:
             self.load()
 
@@ -248,13 +291,21 @@ class SkillRegistry:
         return contexts
 
     def list_workflows(self) -> dict[str, list[dict[str, str]]]:
-        """List predefined skill workflows."""
+        """List predefined skill workflows.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded:
             self.load()
         return self._agent_map.get("workflows", {})
 
     def get_compatibility_matrix(self) -> dict[str, Any]:
-        """Get version compatibility matrix."""
+        """Get version compatibility matrix.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded:
             self.load()
         return self._registry.get("version_matrix", {})
@@ -264,6 +315,9 @@ class SkillRegistry:
 
         Searches both disk-based and programmatic registries via
         ``list_skills()`` which already merges both sources.
+
+        Returns:
+            The result string.
         """
         if not self._loaded:
             self.load()
@@ -323,7 +377,11 @@ _global_registry: SkillRegistry | None = None
 
 
 def get_registry() -> SkillRegistry:
-    """Get global registry instance (singleton)."""
+    """Get global registry instance (singleton).
+
+    Returns:
+        The result string.
+    """
     global _global_registry
     if _global_registry is None:
         _global_registry = SkillRegistry()
@@ -369,7 +427,11 @@ def validate_registry() -> dict[str, list[str]]:
 
 
 def get_workflow_template(template_name: str) -> dict[str, Any] | None:
-    """Get a predefined workflow template by name."""
+    """Get a predefined workflow template by name.
+
+    Returns:
+        The result string.
+    """
     reg = get_registry()
     if not reg.is_loaded:
         reg.load()
@@ -378,7 +440,11 @@ def get_workflow_template(template_name: str) -> dict[str, Any] | None:
 
 
 def list_workflow_templates() -> list[str]:
-    """List all available workflow templates."""
+    """List all available workflow templates.
+
+    Returns:
+        The result string.
+    """
     reg = get_registry()
     if not reg.is_loaded:
         reg.load()
@@ -386,7 +452,11 @@ def list_workflow_templates() -> list[str]:
 
 
 def get_orchestration_config() -> dict[str, Any]:
-    """Get orchestration configuration from registry."""
+    """Get orchestration configuration from registry.
+
+    Returns:
+        The result string.
+    """
     reg = get_registry()
     if not reg.is_loaded:
         reg.load()
@@ -394,7 +464,11 @@ def get_orchestration_config() -> dict[str, Any]:
 
 
 def get_skill_dependencies(skill_id: str) -> list[str]:
-    """Get skills that the given skill depends on."""
+    """Get skills that the given skill depends on.
+
+    Returns:
+        The result string.
+    """
     reg = get_registry()
     if not reg.is_loaded:
         reg.load()
@@ -403,7 +477,11 @@ def get_skill_dependencies(skill_id: str) -> list[str]:
 
 
 def get_skills_for_workflow_stage(stage_purpose: str) -> list[dict[str, Any]]:
-    """Find skills matching a specific workflow stage purpose."""
+    """Find skills matching a specific workflow stage purpose.
+
+    Returns:
+        The result string.
+    """
     reg = get_registry()
     if not reg.is_loaded:
         reg.load()

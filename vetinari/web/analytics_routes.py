@@ -63,7 +63,11 @@ def _forecaster():
 @bp.route("/cost")
 @require_admin
 def analytics_cost():
-    """Return cost attribution report, optionally filtered by agent or task_id."""
+    """Return cost attribution report, optionally filtered by agent or task_id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         agent = request.args.get("agent") or None
         task_id = request.args.get("task_id") or None
@@ -85,7 +89,11 @@ def analytics_cost():
 @bp.route("/sla")
 @require_admin
 def analytics_sla():
-    """Return SLA compliance reports for all registered SLOs."""
+    """Return SLA compliance reports for all registered SLOs.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         tracker = _sla_tracker()
         reports = tracker.get_all_reports()
@@ -111,7 +119,11 @@ def analytics_sla():
 @bp.route("/anomalies")
 @require_admin
 def analytics_anomalies():
-    """Return detected anomalies, optionally filtered by metric name."""
+    """Return detected anomalies, optionally filtered by metric name.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         metric = request.args.get("metric") or None
         detector = _anomaly_detector()
@@ -145,6 +157,9 @@ def analytics_forecast():
         metric   — specific metric (default: all tracked metrics)
         horizon  — number of future steps (default: 10)
         method   — forecasting method: sma | exp_smoothing | linear_trend | seasonal
+
+    Returns:
+        The jsonify result.
     """
     try:
         from vetinari.analytics.forecasting import ForecastRequest
@@ -188,7 +203,11 @@ def analytics_forecast():
 @bp.route("/models")
 @require_admin
 def analytics_models():
-    """Return per-model performance statistics."""
+    """Return per-model performance statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         cost_report = _cost_tracker().get_report()
         sla_reports = _sla_tracker().get_all_reports()
@@ -236,7 +255,11 @@ def analytics_models():
 @bp.route("/agents")
 @require_admin
 def analytics_agents():
-    """Return per-agent cost and quality metrics."""
+    """Return per-agent cost and quality metrics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         cost_report = _cost_tracker().get_report()
         top_agents = _cost_tracker().get_top_agents(n=10)
@@ -278,7 +301,11 @@ def analytics_agents():
 @bp.route("/summary")
 @require_admin
 def analytics_summary():
-    """Return a dashboard summary combining all analytics dimensions."""
+    """Return a dashboard summary combining all analytics dimensions.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         cost_report = _cost_tracker().get_report()
         sla_reports = _sla_tracker().get_all_reports()

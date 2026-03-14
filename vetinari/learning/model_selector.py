@@ -18,6 +18,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,11 @@ class BetaArm:
         return self.alpha / (self.alpha + self.beta)
 
     def sample(self) -> float:
-        """Sample from the Beta distribution using the ratio method."""
+        """Sample from the Beta distribution using the ratio method.
+
+        Returns:
+            The computed value.
+        """
         # Approximate Beta sampling via the relationship to Gamma distributions
         # Uses Python's built-in random.betavariate
         try:
@@ -49,7 +54,12 @@ class BetaArm:
             return self.mean
 
     def update(self, quality_score: float, success: bool) -> None:
-        """Update the arm based on observed outcome."""
+        """Update the arm based on observed outcome.
+
+        Args:
+            quality_score: The quality score.
+            success: The success.
+        """
         if success:
             self.alpha += quality_score  # Weight by quality
         else:
@@ -192,13 +202,25 @@ class ThompsonSamplingSelector:
         self._save_state()
 
     def get_rankings(self, task_type: str) -> list[tuple[str, float]]:
-        """Get model rankings for a task type (by expected value)."""
+        """Get model rankings for a task type (by expected value).
+
+        Returns:
+            The result string.
+        """
         arms = [(k.split(":")[0], arm.mean) for k, arm in self._arms.items() if k.endswith(f":{task_type}")]
         arms.sort(key=lambda x: x[1], reverse=True)
         return arms
 
     def get_arm_state(self, model_id: str, task_type: str) -> dict[str, Any]:
-        """Get the current state of a Beta arm."""
+        """Get the current state of a Beta arm.
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+
+        Returns:
+            The result string.
+        """
         arm = self._get_or_create_arm(model_id, task_type)
         return {
             "model_id": arm.model_id,
@@ -243,7 +265,7 @@ class ThompsonSamplingSelector:
         if not state_dir:
             # Use the directory two levels above this file (project root/.vetinari)
             pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            state_dir = os.path.join(pkg_root, ".vetinari")
+            state_dir = str(Path(pkg_root) / ".vetinari")
         return state_dir
 
     def _load_state(self) -> None:
@@ -251,9 +273,9 @@ class ThompsonSamplingSelector:
         try:
             import json
 
-            state_file = os.path.join(self._get_state_dir(), "thompson_state.json")
+            state_file = str(Path(self._get_state_dir()) / "thompson_state.json")
             if os.path.exists(state_file):
-                with open(state_file) as f:
+                with open(state_file, encoding="utf-8") as f:
                     data = json.load(f)
                 for key, d in data.items():
                     self._arms[key] = BetaArm(**d)
@@ -269,8 +291,8 @@ class ThompsonSamplingSelector:
 
             state_dir = self._get_state_dir()
             os.makedirs(state_dir, exist_ok=True)
-            state_file = os.path.join(state_dir, "thompson_state.json")
-            with open(state_file, "w") as f:
+            state_file = str(Path(state_dir) / "thompson_state.json")
+            with open(state_file, "w", encoding="utf-8") as f:
                 json.dump({k: asdict(v) for k, v in self._arms.items()}, f, indent=2)
         except Exception as e:
             logger.debug("[Thompson] Could not save state: %s", e)
@@ -281,6 +303,11 @@ _thompson_selector: ThompsonSamplingSelector | None = None
 
 
 def get_thompson_selector() -> ThompsonSamplingSelector:
+    """Get thompson selector.
+
+    Returns:
+        The ThompsonSamplingSelector result.
+    """
     global _thompson_selector
     if _thompson_selector is None:
         _thompson_selector = ThompsonSamplingSelector()

@@ -1,3 +1,5 @@
+"""Executor module."""
+
 from __future__ import annotations
 
 import re
@@ -24,6 +26,7 @@ logger = get_logger(__name__)
 
 
 class TaskExecutor:
+    """Task executor."""
     def __init__(self, adapter: LMStudioAdapter, validator: Validator, config: dict):
         self.adapter = adapter
         self.validator = validator
@@ -70,11 +73,16 @@ class TaskExecutor:
             filepath = output_dir / filename
             filepath.write_text(code, encoding="utf-8")
             written.append(str(filepath))
-            logger.info(f"[Vetinari] Written: {filepath}")
+            logger.info("[Vetinari] Written: %s", filepath)
         return written
 
     def execute_task(self, task_id: str) -> dict:
         # Locate task
+        """Execute task.
+
+        Returns:
+            Dictionary of results.
+        """
         tasks = self.config.get("tasks", [])
         task = next((t for t in tasks if t["id"] == task_id), None)
         if not task:
@@ -147,7 +155,7 @@ class TaskExecutor:
                     all_issues.extend(getattr(v, "issues", []))
                 verification_result = {"passed": all_passed, "score": avg_score, "issues": all_issues}
                 if not all_passed:
-                    logger.warning(f"Verification failed for task {task_id}: {all_issues}")
+                    logger.warning("Verification failed for task %s: %s", task_id, all_issues)
             else:
                 # Single result (legacy path)
                 verification_result = {
@@ -155,7 +163,7 @@ class TaskExecutor:
                     "score": getattr(vr_dict, "score", 1.0),
                 }
         except Exception as e:
-            logger.debug(f"Verification pipeline skipped: {e}")
+            logger.debug("Verification pipeline skipped: %s", e)
 
         # Record quality score in learning system
         try:
@@ -180,7 +188,7 @@ class TaskExecutor:
                 success=(result.get("status") == "ok"),
             )
         except Exception as e:
-            logger.debug(f"[TaskExecutor] Quality scoring skipped: {e}")
+            logger.debug("[TaskExecutor] Quality scoring skipped: %s", e)
 
         status = "completed" if result.get("status") == "ok" and valid else "failed"
 

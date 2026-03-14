@@ -7,6 +7,7 @@ from enum import Enum
 
 
 class Severity(Enum):
+    """Severity level for quality findings."""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -15,12 +16,14 @@ class Severity(Enum):
 
 
 class Verdict(Enum):
+    """Quality verdict for a reviewed artifact."""
     PASS = "pass"  # noqa: S105
     FAIL = "fail"
     NEEDS_REVIEW = "needs_review"
 
 
 class DataProvenance(Enum):
+    """Data provenance."""
     MEASURED = "measured"
     INFERRED = "inferred"
     ESTIMATED = "estimated"
@@ -28,6 +31,7 @@ class DataProvenance(Enum):
 
 
 class ArtifactType(Enum):
+    """Artifact type."""
     CODE = "code"
     TEST = "test"
     CONFIG = "config"
@@ -38,6 +42,7 @@ class ArtifactType(Enum):
 
 @dataclass
 class Finding:
+    """Individual quality issue detected during review."""
     id: str  # e.g., "SEC-001", "TEST-003"
     severity: Severity
     category: str  # Agent-specific category
@@ -62,6 +67,7 @@ class Finding:
 
 @dataclass
 class Artifact:
+    """Build or review artifact produced by an agent."""
     filename: str
     content: str
     artifact_type: ArtifactType
@@ -206,7 +212,15 @@ SCORING_RUBRICS = {
 
 
 def compute_overall_score(scores: dict[str, float], agent_type: str) -> float:
-    """Compute weighted overall score using the agent's rubric."""
+    """Compute weighted overall score using the agent's rubric.
+
+    Args:
+        scores: The scores.
+        agent_type: The agent type.
+
+    Returns:
+        The computed value.
+    """
     rubric = SCORING_RUBRICS.get(agent_type, {})
     if not rubric or not scores:
         return sum(scores.values()) / max(len(scores), 1)
@@ -232,7 +246,11 @@ VAGUE_PATTERNS = [
 
 
 def self_check(output: SkillOutput) -> SkillOutput:
-    """Verify output quality. Mutates and returns the output."""
+    """Verify output quality. Mutates and returns the output.
+
+    Returns:
+        The SkillOutput result.
+    """
     issues = []
 
     for finding in output.findings:

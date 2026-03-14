@@ -1,3 +1,5 @@
+"""Plan Types module."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,6 +12,7 @@ from vetinari.types import PlanStatus, SubtaskStatus  # canonical source
 
 
 class TaskDomain(str, Enum):
+    """Task domain."""
     CODING = "coding"
     DATA_PROCESSING = "data_processing"
     INFRA = "infra"
@@ -20,6 +23,7 @@ class TaskDomain(str, Enum):
 
 
 class PlanRiskLevel(str, Enum):
+    """Plan risk level."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -85,7 +89,11 @@ class Subtask:
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         if self.rationale:
             data["rationale"] = asdict(self.rationale)
@@ -97,7 +105,11 @@ class Subtask:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Subtask:
-        """Create Subtask from dictionary."""
+        """Create Subtask from dictionary.
+
+        Returns:
+            The Subtask result.
+        """
         if "rationale" in data and isinstance(data["rationale"], dict):
             data["rationale"] = TaskRationale(**data["rationale"])
         if "definition_of_done" in data and isinstance(data["definition_of_done"], dict):
@@ -135,7 +147,11 @@ class PlanCandidate:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         if self.risk_level:
             data["risk_level"] = self.risk_level.value
@@ -145,7 +161,11 @@ class PlanCandidate:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlanCandidate:
-        """Create PlanCandidate from dictionary."""
+        """Create PlanCandidate from dictionary.
+
+        Returns:
+            The PlanCandidate result.
+        """
         if "risk_level" in data and isinstance(data["risk_level"], str):
             data["risk_level"] = PlanRiskLevel(data["risk_level"])
         if "domains" in data and isinstance(data["domains"], list):
@@ -180,7 +200,11 @@ class Plan:
     completed_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         if self.status:
             data["status"] = self.status.value
@@ -196,7 +220,11 @@ class Plan:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Plan:
-        """Create Plan from dictionary."""
+        """Create Plan from dictionary.
+
+        Returns:
+            The Plan result.
+        """
         if "status" in data and isinstance(data["status"], str):
             data["status"] = PlanStatus(data["status"])
         if "risk_level" in data and isinstance(data["risk_level"], str):
@@ -211,7 +239,11 @@ class Plan:
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
     def get_subtask(self, subtask_id: str) -> Subtask | None:
-        """Get a subtask by ID."""
+        """Get a subtask by ID.
+
+        Returns:
+            The Subtask | None result.
+        """
         for subtask in self.subtasks:
             if subtask.subtask_id == subtask_id:
                 return subtask
@@ -230,7 +262,11 @@ class Plan:
         return [s for s in self.subtasks if s.domain == domain]
 
     def calculate_risk_score(self) -> float:
-        """Calculate overall risk score based on subtasks."""
+        """Calculate overall risk score based on subtasks.
+
+        Returns:
+            The computed value.
+        """
         if not self.subtasks:
             return 0.0
 
@@ -316,6 +352,11 @@ class PlanHistoryResponse:
     completed_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to dict.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         if self.status:
             data["status"] = self.status.value

@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 
 # ── LM Studio / API ──────────────────────────────────────────────────────────
-DEFAULT_LM_STUDIO_HOST: str = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+DEFAULT_LM_STUDIO_HOST: str = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
 DEFAULT_API_TOKEN: str = os.environ.get("LM_STUDIO_API_TOKEN", "")
 
 # ── Web UI ────────────────────────────────────────────────────────────────────
@@ -71,11 +71,11 @@ LOGS_DIR: str = "./logs"
 MODEL_CACHE_DIR: str = "./model_cache"
 
 # ── Coding bridge ─────────────────────────────────────────────────────────────
-CODING_BRIDGE_HOST: str = os.environ.get("CODING_BRIDGE_HOST", "http://localhost:4096")
+CODING_BRIDGE_HOST: str = os.environ.get("CODING_BRIDGE_HOST", "http://localhost:4096")  # noqa: VET041
 CODING_BRIDGE_ENABLED: bool = os.environ.get("CODING_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
 
 # ── Image generation (Stable Diffusion) ──────────────────────────────────────
-SD_WEBUI_HOST: str = os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")
+SD_WEBUI_HOST: str = os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")  # noqa: VET041
 SD_WEBUI_ENABLED: bool = os.environ.get("SD_WEBUI_ENABLED", "false").lower() in ("1", "true", "yes")
 SD_DEFAULT_WIDTH: int = 512
 SD_DEFAULT_HEIGHT: int = 512
@@ -83,5 +83,5 @@ SD_DEFAULT_STEPS: int = 20
 SD_DEFAULT_CFG: float = 7.0
 
 # ── External services ─────────────────────────────────────────────────────────
-ELASTICSEARCH_HOST: str = os.environ.get("ELASTICSEARCH_HOST", "http://localhost:9200")
-SPLUNK_HOST: str = os.environ.get("SPLUNK_HOST", "http://localhost:8088")
+ELASTICSEARCH_HOST: str = os.environ.get("ELASTICSEARCH_HOST", "http://localhost:9200")  # noqa: VET041
+SPLUNK_HOST: str = os.environ.get("SPLUNK_HOST", "http://localhost:8088")  # noqa: VET041

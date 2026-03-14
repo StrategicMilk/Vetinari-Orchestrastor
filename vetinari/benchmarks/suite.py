@@ -16,7 +16,7 @@ Usage::
 
     # Or run a single agent
     agent_results = suite.run_agent("BUILDER")
-    logger.debug(f"Builder: {agent_results.avg_score:.3f}")
+    logger.debug("Builder: %.3f", agent_results.avg_score)
 """
 
 from __future__ import annotations
@@ -242,7 +242,11 @@ class BenchmarkSuite:
     # ------------------------------------------------------------------
 
     def run_all(self, agent_types: list[str] | None = None) -> list[BenchmarkResult]:
-        """Run all benchmark cases, optionally filtered to specific agents."""
+        """Run all benchmark cases, optionally filtered to specific agents.
+
+        Returns:
+            List of results.
+        """
         results = []
         types_to_test = agent_types or list({c.agent_type for c in self._cases})
 
@@ -254,7 +258,11 @@ class BenchmarkSuite:
         return results
 
     def run_agent(self, agent_type: str) -> BenchmarkResult:
-        """Run all benchmark cases for a specific agent."""
+        """Run all benchmark cases for a specific agent.
+
+        Returns:
+            The BenchmarkResult result.
+        """
         cases = [c for c in self._cases if c.agent_type == agent_type]
         if not cases:
             return BenchmarkResult(
@@ -344,7 +352,7 @@ class BenchmarkSuite:
     def print_report(self, results: list[BenchmarkResult]) -> None:
         """Print a human-readable benchmark report."""
         logger.info("\n" + "=" * 60)
-        logger.info(f"VETINARI BENCHMARK REPORT — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        logger.info("VETINARI BENCHMARK REPORT — %s", datetime.now().strftime('%Y-%m-%d %H:%M'))
         logger.info("=" * 60)
         for r in sorted(results, key=lambda x: -x.avg_score):
             status = "PASS" if r.avg_score >= self.PASS_THRESHOLD else "FAIL"
@@ -356,13 +364,20 @@ class BenchmarkSuite:
             )
         overall = sum(r.avg_score for r in results) / max(len(results), 1)
         logger.info("=" * 60)
-        logger.info(f"  OVERALL AVG: {overall:.3f}")
+        logger.info("  OVERALL AVG: %.3f", overall)
         logger.info("=" * 60 + "\n")
 
     def check_regression(self, new_results: list[BenchmarkResult], threshold: float = 0.05) -> list[str]:
         """Compare new results against historical baseline.
 
         Returns list of agents whose scores regressed by more than threshold.
+
+        Args:
+            new_results: The new results.
+            threshold: The threshold.
+
+        Returns:
+            The result string.
         """
         regressions = []
         historical = self._load_historical()
@@ -384,7 +399,7 @@ class BenchmarkSuite:
         try:
             import dataclasses
 
-            with open(_RESULTS_PATH, "a") as f:
+            with open(_RESULTS_PATH, "a", encoding="utf-8") as f:
                 f.write(json.dumps(dataclasses.asdict(result)) + "\n")
         except Exception as e:
             logger.debug("[Benchmark] Persist failed: %s", e)
@@ -395,7 +410,7 @@ class BenchmarkSuite:
             return {}
         by_agent: dict[str, list[float]] = {}
         try:
-            with open(_RESULTS_PATH) as f:
+            with open(_RESULTS_PATH, encoding="utf-8") as f:
                 for line in f:
                     r = json.loads(line.strip())
                     agent = r.get("agent_type", "")
@@ -407,7 +422,11 @@ class BenchmarkSuite:
 
 
 def run_benchmark(agent_types: list[str] | None = None) -> list[BenchmarkResult]:
-    """Convenience function to run the benchmark suite."""
+    """Convenience function to run the benchmark suite.
+
+    Returns:
+        List of results.
+    """
     suite = BenchmarkSuite()
     results = suite.run_all(agent_types)
     suite.print_report(results)

@@ -49,7 +49,11 @@ Output must include: architecture_vision, risks, recommended_guidelines, cost_an
         ]
 
     def execute(self, task: AgentTask) -> AgentResult:
-        """Execute task, delegating to OracleAgent or CostPlannerAgent based on keywords."""
+        """Execute task, delegating to OracleAgent or CostPlannerAgent based on keywords.
+
+        Returns:
+            The AgentResult result.
+        """
         if not self.validate_task(task):
             return AgentResult(
                 success=False,
@@ -258,6 +262,11 @@ Avoid generic advice — be specific to this project."""
         return AgentResult(success=True, output=output, metadata={"mode": "default"})
 
     def verify(self, output: Any) -> VerificationResult:
+        """Verify.
+
+        Returns:
+            The VerificationResult result.
+        """
         issues = []
         score = 1.0
         if not isinstance(output, dict):

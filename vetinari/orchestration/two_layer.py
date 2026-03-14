@@ -67,6 +67,9 @@ def classify_goal(goal: str) -> str:
 
     Returns the GoalCategory *value* string (e.g. ``"code"``, ``"security"``).
     Falls back to ``"general"`` when no keywords match.
+
+    Returns:
+        The result string.
     """
     goal_lower = goal.lower()
     for category, keywords in _GOAL_CATEGORY_KEYWORDS.items():
@@ -76,7 +79,11 @@ def classify_goal(goal: str) -> str:
 
 
 def get_goal_routing(goal: str) -> tuple:
-    """Return ``(agent_type, mode, model_tier)`` for a goal string."""
+    """Return ``(agent_type, mode, model_tier)`` for a goal string.
+
+    Returns:
+        The tuple result.
+    """
     category = classify_goal(goal)
     return _GOAL_ROUTING_TABLE.get(category, _GOAL_ROUTING_TABLE["general"])
 
@@ -299,6 +306,17 @@ class TwoLayerOrchestrator:
         """Full assembly-line pipeline: analyze → plan → decompose →.
 
         assign models → execute → review → assemble.
+
+        Args:
+            goal: The goal.
+            constraints: The constraints.
+            task_handler: The task handler.
+            context: The context.
+            project_id: The project id.
+            model_id: The model id.
+
+        Returns:
+            The result string.
         """
         stages: dict[str, Any] = {}
         start_time = time.time()
@@ -534,6 +552,11 @@ class TwoLayerOrchestrator:
 
         def handle_task(task: TaskNode) -> dict[str, Any]:
             # Switch to EXECUTION mode so tool permission checks pass
+            """Handle task.
+
+            Returns:
+                The result string.
+            """
             try:
                 from vetinari.execution_context import ExecutionMode as _ExecMode  # noqa: VET003
                 from vetinari.execution_context import get_context_manager as _get_ctx
@@ -651,12 +674,12 @@ class TwoLayerOrchestrator:
                                 "task_id": task.id,
                             }
                     except Exception as e:
-                        logger.warning(f"Adapter inference failed for task {task.id}: {e}")
+                        logger.warning("Adapter inference failed for task %s: %s", task.id, e)
 
                 # Fallback: use LM Studio adapter directly
                 from vetinari.lmstudio_adapter import LMStudioAdapter
 
-                host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+                host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
                 adapter = LMStudioAdapter(host=host)
                 result = adapter.chat(
                     model_id=assigned_model,
@@ -937,6 +960,14 @@ class TwoLayerOrchestrator:
         - Permission enforcement and constraint checking
 
         Falls back to ``generate_and_execute()`` if AgentGraph is unavailable.
+
+        Args:
+            goal: The goal.
+            constraints: The constraints.
+            context: The context.
+
+        Returns:
+            The result string.
         """
         try:
             from vetinari.agents.contracts import (
@@ -987,7 +1018,7 @@ class TwoLayerOrchestrator:
             }
 
         except Exception as e:
-            logger.warning(f"[TwoLayer] AgentGraph execution failed, falling back: {e}")
+            logger.warning("[TwoLayer] AgentGraph execution failed, falling back: %s", e)
             return self.generate_and_execute(
                 goal,
                 constraints,
@@ -1031,7 +1062,11 @@ _two_layer_orchestrator: TwoLayerOrchestrator | None = None
 
 
 def get_two_layer_orchestrator() -> TwoLayerOrchestrator:
-    """Get or create the global two-layer orchestrator."""
+    """Get or create the global two-layer orchestrator.
+
+    Returns:
+        The result string.
+    """
     global _two_layer_orchestrator
     if _two_layer_orchestrator is None:
         _two_layer_orchestrator = TwoLayerOrchestrator()
@@ -1039,7 +1074,11 @@ def get_two_layer_orchestrator() -> TwoLayerOrchestrator:
 
 
 def init_two_layer_orchestrator(checkpoint_dir: str | None = None, **kwargs) -> TwoLayerOrchestrator:
-    """Initialize a new two-layer orchestrator."""
+    """Initialize a new two-layer orchestrator.
+
+    Returns:
+        The result string.
+    """
     global _two_layer_orchestrator
     _two_layer_orchestrator = TwoLayerOrchestrator(checkpoint_dir=checkpoint_dir, **kwargs)
     return _two_layer_orchestrator

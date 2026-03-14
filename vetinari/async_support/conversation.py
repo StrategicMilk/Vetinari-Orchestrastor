@@ -255,7 +255,7 @@ class ContextReconstructor:
 
         1. Reserve space for the system header.
         2. Walk messages from newest to oldest, collecting those that fit.
-        3. Prepend a summary placeholder for any omitted older messages.
+        3. Prepend a summary placeholder for any omitted older messages.  # noqa: VET034
 
         Args:
             messages: Conversation history (chronological order).

@@ -105,7 +105,11 @@ class ModelCapabilities:
 
     @classmethod
     def from_dict(cls, data: dict) -> ModelCapabilities:
-        """Create capabilities from model data."""
+        """Create capabilities from model data.
+
+        Returns:
+            The ModelCapabilities result.
+        """
         caps = cls()
 
         # Extract from capabilities list
@@ -147,7 +151,11 @@ class ModelCapabilities:
         return caps
 
     def matches_task(self, task_type: TaskType) -> float:
-        """Return a score (0-1) for how well this model matches a task type."""
+        """Return a score (0-1) for how well this model matches a task type.
+
+        Returns:
+            The computed value.
+        """
         scores = {
             TaskType.PLANNING: 0.3 * int(self.reasoning)
             + 0.3 * int(self.code_gen)
@@ -199,7 +207,11 @@ class ModelInfo:
 
     @classmethod
     def from_dict(cls, data: dict) -> ModelInfo:
-        """Create ModelInfo from dictionary."""
+        """Create ModelInfo from dictionary.
+
+        Returns:
+            The ModelInfo result.
+        """
         info = cls(
             id=data.get("id", data.get("name", "")),
             name=data.get("name", data.get("id", "")),
@@ -451,7 +463,7 @@ class DynamicModelRouter:
         # Callbacks
         self._health_check_callback: Callable | None = None
 
-        logger.info(f"DynamicModelRouter initialized (prefer_local={prefer_local})")
+        logger.info("DynamicModelRouter initialized (prefer_local=%s)", prefer_local)
 
     # ------------------------------------------------------------------
     # PonderEngine integration
@@ -483,7 +495,7 @@ class DynamicModelRouter:
             if ranking.rankings:
                 return ranking.rankings[0].total_score
         except Exception as e:
-            logger.debug(f"PonderEngine scoring failed for {model.id}: {e}")
+            logger.debug("PonderEngine scoring failed for %s: %s", model.id, e)
 
         return None
 
@@ -494,21 +506,28 @@ class DynamicModelRouter:
     def register_model(self, model: ModelInfo):
         """Register a model in the router."""
         self.models[model.id] = model
-        logger.debug(f"Registered model: {model.id}")
+        logger.debug("Registered model: %s", model.id)
 
     def register_models_from_pool(self, models: list[dict]):
         """Register models from a model pool (list of dicts)."""
         for m in models:
             model_info = ModelInfo.from_dict(m)
             self.register_model(model_info)
-        logger.info(f"Registered {len(models)} models from pool")
+        logger.info("Registered %s models from pool", len(models))
 
     def set_health_check_callback(self, callback: Callable):
         """Set a callback for health checking models."""
         self._health_check_callback = callback
 
     def update_model_performance(self, model_id: str, latency_ms: float, success: bool, task_type: TaskType = None):
-        """Update performance metrics for a model."""
+        """Update performance metrics for a model.
+
+        Args:
+            model_id: The model id.
+            latency_ms: The latency ms.
+            success: The success.
+            task_type: The task type.
+        """
         if model_id not in self.models:
             return
 
@@ -758,7 +777,11 @@ class DynamicModelRouter:
         return [m for m in self.models.values() if m.is_available]
 
     def get_models_by_capability(self, capability: str) -> list[ModelInfo]:
-        """Get all models with a specific capability."""
+        """Get all models with a specific capability.
+
+        Returns:
+            List of results.
+        """
         results = []
         for model in self.models.values():
             if not model.is_available:
@@ -773,7 +796,11 @@ class DynamicModelRouter:
         return results
 
     def check_model_health(self, model_id: str) -> bool:
-        """Check if a model is healthy."""
+        """Check if a model is healthy.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if model_id not in self.models:
             return False
 
@@ -783,7 +810,7 @@ class DynamicModelRouter:
             try:
                 return self._health_check_callback(model_id)
             except Exception as e:
-                logger.error(f"Health check failed for {model_id}: {e}")
+                logger.error("Health check failed for %s: %s", model_id, e)
 
         if model.avg_latency_ms > self.max_latency_ms * 2:
             return False
@@ -791,7 +818,11 @@ class DynamicModelRouter:
         return not model.success_rate < 0.5
 
     def get_routing_stats(self) -> dict[str, Any]:
-        """Get routing statistics."""
+        """Get routing statistics.
+
+        Returns:
+            The result string.
+        """
         total_selections = len(self._selection_history)
 
         model_counts: dict[str, int] = {}
@@ -823,6 +854,11 @@ class ModelRelay:
 
     @classmethod
     def get_instance(cls, config_path: str | None = None):
+        """Get instance.
+
+        Returns:
+            The attribute value.
+        """
         if cls._instance is None:
             cls._instance = cls(config_path)
         return cls._instance
@@ -846,7 +882,7 @@ class ModelRelay:
     def _load_config(self):
         if self.config_path.exists():
             try:
-                with open(self.config_path) as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     if data:
                         for model_data in data.get("models", []):
@@ -855,7 +891,7 @@ class ModelRelay:
                         if "policy" in data:
                             self.policy = RoutingPolicy.from_dict(data["policy"])
             except Exception as e:
-                logger.error(f"Error loading model config: {e}")
+                logger.error("Error loading model config: %s", e)
 
         if not self.models:
             self._load_default_models()
@@ -871,7 +907,7 @@ class ModelRelay:
                 latency_hint="fast",
                 privacy_level="local",
                 memory_requirements_gb=8,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="qwen2.5-72b",
@@ -882,7 +918,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="llama-3.3-70b",
@@ -893,7 +929,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="gpt-4o",
@@ -911,6 +947,7 @@ class ModelRelay:
             self.models[model.model_id] = model
 
     def reload_catalog(self):
+        """Reload catalog."""
         self.models.clear()
         self._load_config()
 
@@ -920,7 +957,7 @@ class ModelRelay:
             "policy": self.policy.to_dict(),
         }
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, "w") as f:
+        with open(self.config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f)
 
     # ----- queries -----
@@ -938,12 +975,22 @@ class ModelRelay:
         return self.policy
 
     def set_policy(self, policy: RoutingPolicy):
+        """Set policy."""
         self.policy = policy
         self._save_config()
 
     # ----- selection -----
 
     def pick_model_for_task(self, task_type: str | None = None, context: dict | None = None) -> RelayModelSelection:
+        """Pick model for task.
+
+        Args:
+            task_type: The task type.
+            context: The context.
+
+        Returns:
+            The RelayModelSelection result.
+        """
         available = self.get_available_models()
 
         if not available:
@@ -1026,14 +1073,22 @@ class ModelRelay:
     # ----- mutations -----
 
     def update_model_status(self, model_id: str, status: str):
+        """Update model status.
+
+        Args:
+            model_id: The model id.
+            status: The status.
+        """
         if model_id in self.models:
             self.models[model_id].status = status
 
     def add_model(self, model: ModelEntry):
+        """Add model."""
         self.models[model.model_id] = model
         self._save_config()
 
     def remove_model(self, model_id: str):
+        """Remove model."""
         if model_id in self.models:
             del self.models[model_id]
             self._save_config()
@@ -1049,7 +1104,11 @@ _model_router: DynamicModelRouter | None = None
 
 
 def get_model_router() -> DynamicModelRouter:
-    """Get or create the global model router."""
+    """Get or create the global model router.
+
+    Returns:
+        The DynamicModelRouter result.
+    """
     global _model_router
     if _model_router is None:
         _model_router = DynamicModelRouter()
@@ -1061,7 +1120,11 @@ get_dynamic_router = get_model_router
 
 
 def init_model_router(prefer_local: bool = True, **kwargs) -> DynamicModelRouter:
-    """Initialize a new model router."""
+    """Initialize a new model router.
+
+    Returns:
+        The DynamicModelRouter result.
+    """
     global _model_router
     _model_router = DynamicModelRouter(prefer_local=prefer_local, **kwargs)
     return _model_router
@@ -1098,6 +1161,9 @@ def infer_task_type(description: str) -> TaskType:
 
     Order matters — more specific categories are checked before general ones
     so that "security audit" matches SECURITY_AUDIT, not just ANALYSIS.
+
+    Returns:
+        The TaskType result.
     """
     desc_lower = description.lower()
 
@@ -1183,7 +1249,7 @@ if __name__ == "__main__":
 
     # Test selection
     selection = router.select_model(TaskType.CODING, "Write a Python function")
-    logger.info(f"Selected: {selection.model.id}")
-    logger.info(f"Reasoning: {selection.reasoning}")
-    logger.info(f"Confidence: {selection.confidence:.2f}")
-    logger.info(f"Alternatives: {[a.id for a in selection.alternatives]}")
+    logger.info("Selected: %s", selection.model.id)
+    logger.info("Reasoning: %s", selection.reasoning)
+    logger.info("Confidence: %.2f", selection.confidence)
+    logger.info("Alternatives: %s", [a.id for a in selection.alternatives])

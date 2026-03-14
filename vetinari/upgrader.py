@@ -1,3 +1,5 @@
+"""Upgrader module."""
+
 from __future__ import annotations
 
 import logging
@@ -33,6 +35,9 @@ class Upgrader:
         Returns a (possibly empty) list of candidate dicts, each containing at
         least ``name``, ``version``, and ``memory_gb`` keys.  Candidates whose
         ``memory_gb`` exceeds the configured budget are filtered out.
+
+        Returns:
+            The result string.
         """
         candidates: list[dict[str, Any]] = []
 
@@ -88,6 +93,9 @@ class Upgrader:
 
         Returns ``True`` if the download was accepted or the fallback URL
         was logged; ``False`` on unrecoverable errors.
+
+        Returns:
+            True if successful, False otherwise.
         """
         name = candidate.get("name", "unknown")
         version = candidate.get("version", "?")
@@ -101,7 +109,7 @@ class Upgrader:
             return False
 
         # ── Attempt 1: LM Studio local model management API ──
-        lmstudio_host = self.config.get("lmstudio_host", "http://localhost:1234")
+        lmstudio_host = self.config.get("lmstudio_host", "http://localhost:1234")  # noqa: VET041
         api_url = f"{lmstudio_host}/api/v0/models/download"
 
         payload = {"model": model_id}

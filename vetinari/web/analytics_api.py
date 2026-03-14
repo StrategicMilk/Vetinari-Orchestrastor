@@ -27,7 +27,11 @@ analytics_bp = Blueprint("analytics", __name__)
 @analytics_bp.route("/api/v1/analytics/cost")
 @require_admin
 def get_cost_data():
-    """Token costs by model / agent / provider."""
+    """Token costs by model / agent / provider.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.analytics.cost import get_cost_tracker
 
@@ -42,7 +46,11 @@ def get_cost_data():
 @analytics_bp.route("/api/v1/analytics/sla")
 @require_admin
 def get_sla_data():
-    """SLA compliance metrics."""
+    """SLA compliance metrics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.analytics.sla import get_sla_tracker
 
@@ -58,7 +66,11 @@ def get_sla_data():
 @analytics_bp.route("/api/v1/analytics/anomalies")
 @require_admin
 def get_anomaly_data():
-    """Recent anomaly detections."""
+    """Recent anomaly detections.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.analytics.anomaly import get_anomaly_detector
 
@@ -73,7 +85,11 @@ def get_anomaly_data():
 @analytics_bp.route("/api/v1/analytics/forecasts")
 @require_admin
 def get_forecast_data():
-    """Capacity-planning forecasts."""
+    """Capacity-planning forecasts.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.analytics.forecasting import get_forecaster
 

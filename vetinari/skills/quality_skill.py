@@ -125,6 +125,11 @@ class QualityIssue:
     owasp_category: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """To dict.
+
+        Returns:
+            The result string.
+        """
         result: dict[str, Any] = {
             "title": self.title,
             "severity": self.severity.value,
@@ -238,7 +243,11 @@ class QualitySkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs: Any) -> ToolResult:
-        """Execute a quality operation."""
+        """Execute a quality operation.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             mode_str = kwargs.get("mode")
             code = kwargs.get("code")

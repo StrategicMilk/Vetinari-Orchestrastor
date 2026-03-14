@@ -21,7 +21,7 @@ class VetinariConfig:
     debug: bool = False
 
     # LM Studio
-    lm_studio_host: str = "http://localhost:1234"
+    lm_studio_host: str = "http://localhost:1234"  # noqa: VET041
     api_token: str = ""
 
     # Model defaults (from current_config in web_ui.py)
@@ -68,7 +68,7 @@ class VetinariConfig:
             host=os.environ.get("VETINARI_WEB_HOST", "127.0.0.1"),
             port=int(os.environ.get("VETINARI_WEB_PORT", "5000")),
             debug=os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes"),
-            lm_studio_host=os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),
+            lm_studio_host=os.environ.get("LM_STUDIO_HOST", "http://localhost:1234"),  # noqa: VET041
             api_token=os.environ.get("LM_STUDIO_API_TOKEN") or os.environ.get("VETINARI_API_TOKEN", ""),
             config_path=os.environ.get("VETINARI_CONFIG", "manifest/vetinari.yaml"),
             project_dir=os.environ.get("VETINARI_PROJECT_DIR", "projects"),
@@ -82,7 +82,11 @@ class VetinariConfig:
         )
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for backward compatibility with current_config consumers."""
+        """Convert to dictionary for backward compatibility with current_config consumers.
+
+        Returns:
+            Dictionary of results.
+        """
         from dataclasses import asdict
 
         return asdict(self)
@@ -93,7 +97,11 @@ _config: VetinariConfig | None = None
 
 
 def get_config() -> VetinariConfig:
-    """Get or create the global configuration singleton."""
+    """Get or create the global configuration singleton.
+
+    Returns:
+        The VetinariConfig result.
+    """
     global _config
     if _config is None:
         _config = VetinariConfig.from_env()

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PhaseRoute:
+    """Phase route."""
     phase: str
     primary_agents: list[str]
     fallback_agents: list[str]
@@ -38,7 +39,11 @@ class PhaseCoordinator:
         return task_count > self.COMPLEXITY_THRESHOLD
 
     def classify_task(self, description: str) -> str:
-        """Classify a task into a phase based on keywords. No LLM call."""
+        """Classify a task into a phase based on keywords. No LLM call.
+
+        Returns:
+            The result string.
+        """
         desc_lower = description.lower()
 
         phase_keywords = {
@@ -65,7 +70,11 @@ class PhaseCoordinator:
         return self.PHASES.get(phase, self.PHASES["implementation"])
 
     def group_tasks_by_phase(self, tasks: list) -> dict[str, list]:
-        """Group tasks by their classified phase."""
+        """Group tasks by their classified phase.
+
+        Returns:
+            The result string.
+        """
         groups: dict[str, list] = {}
         for task in tasks:
             desc = getattr(task, "description", str(task))
@@ -82,6 +91,11 @@ _coordinator: PhaseCoordinator | None = None
 
 
 def get_phase_coordinator() -> PhaseCoordinator:
+    """Get phase coordinator.
+
+    Returns:
+        The PhaseCoordinator result.
+    """
     global _coordinator
     if _coordinator is None:
         _coordinator = PhaseCoordinator()

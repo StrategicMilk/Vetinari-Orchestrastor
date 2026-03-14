@@ -311,6 +311,13 @@ def validate_output(mode: str, data: Any) -> BaseModel | None:
 
     Returns a validated model instance, or None if no schema exists
     or validation fails.
+
+    Args:
+        mode: The mode.
+        data: The data.
+
+    Returns:
+        The BaseModel | None result.
     """
     schema_cls = OUTPUT_SCHEMAS.get(mode)
     if schema_cls is None:

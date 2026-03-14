@@ -77,12 +77,12 @@ class GeminiProviderAdapter(ProviderAdapter):
     def _load_model_definitions(self) -> list[dict[str, Any]]:
         """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
         try:
-            config_path = os.path.join(
+            config_path = os.path.join(  # noqa: VET063
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "provider_models.yaml"
             )
             import yaml
 
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             provider_models = config.get("providers", {}).get("google", {}).get("models", [])
             if provider_models:
@@ -92,7 +92,11 @@ class GeminiProviderAdapter(ProviderAdapter):
         return self._HARDCODED_MODELS
 
     def discover_models(self) -> list[ModelInfo]:
-        """Discover available models from Google Gemini."""
+        """Discover available models from Google Gemini.
+
+        Returns:
+            List of results.
+        """
         try:
             # Load model list from config file (falls back to hardcoded if unavailable)
             models_data = self._load_model_definitions()
@@ -124,7 +128,11 @@ class GeminiProviderAdapter(ProviderAdapter):
             return []
 
     def health_check(self) -> dict[str, Any]:
-        """Check Google Gemini API health."""
+        """Check Google Gemini API health.
+
+        Returns:
+            The result string.
+        """
         try:
             # Try to list models
             response = self.session.get("https://generativelanguage.googleapis.com/v1beta/models", timeout=5)
@@ -143,7 +151,11 @@ class GeminiProviderAdapter(ProviderAdapter):
             }
 
     def infer(self, request: InferenceRequest) -> InferenceResponse:
-        """Run inference using Google Gemini API."""
+        """Run inference using Google Gemini API.
+
+        Returns:
+            The InferenceResponse result.
+        """
         start_time = time.time()
 
         try:

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class Complexity(Enum):
+    """Task complexity classification for routing decisions."""
     SIMPLE = "simple"
     MODERATE = "moderate"
     COMPLEX = "complex"
@@ -85,6 +86,14 @@ def classify_complexity(
     """Classify a task's complexity.
 
     Uses keyword analysis, task count, and estimated file count as signals.
+
+    Args:
+        description: The description.
+        task_count: The task count.
+        estimated_files: The estimated files.
+
+    Returns:
+        The Complexity result.
     """
     desc_lower = description.lower()
 
@@ -128,6 +137,14 @@ def route_by_complexity(
     """Produce a routing decision based on task complexity.
 
     Returns which pipeline stages to skip/add and which agents to engage.
+
+    Args:
+        description: The description.
+        task_count: The task count.
+        estimated_files: The estimated files.
+
+    Returns:
+        The RoutingDecision result.
     """
     complexity = classify_complexity(description, task_count, estimated_files)
 

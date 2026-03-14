@@ -1,3 +1,5 @@
+"""Subtask Tree module."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class SubtaskStatus(Enum):
+    """Subtask status."""
     PENDING = "pending"
     ASSIGNED = "assigned"
     RUNNING = "running"
@@ -22,6 +25,7 @@ class SubtaskStatus(Enum):
 
 @dataclass
 class Subtask:
+    """A child task within a hierarchical subtask tree."""
     subtask_id: str
     plan_id: str
     parent_id: str
@@ -114,16 +118,27 @@ class Subtask:
         )
 
     def get_effective_max_depth(self) -> int:
+        """Get effective max depth.
+
+        Returns:
+            The computed value.
+        """
         if self.max_depth_override > 0:
             return max(12, min(16, self.max_depth_override))
         return max(12, min(16, self.max_depth))
 
 
 class SubtaskTree:
+    """Subtask tree."""
     _instance = None
 
     @classmethod
     def get_instance(cls, storage_path: str | None = None):
+        """Get instance.
+
+        Returns:
+            The attribute value.
+        """
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -140,7 +155,7 @@ class SubtaskTree:
     def _load_trees(self):
         for file in self.storage_path.glob("*.json"):
             try:
-                with open(file) as f:
+                with open(file, encoding="utf-8") as f:
                     data = json.load(f)
                     plan_id = file.stem
                     self.trees[plan_id] = {}
@@ -148,12 +163,12 @@ class SubtaskTree:
                         subtask = Subtask.from_dict(st_data)
                         self.trees[plan_id][subtask.subtask_id] = subtask
             except Exception as e:
-                logger.error(f"Error loading subtask tree {file}: {e}")
+                logger.error("Error loading subtask tree %s: %s", file, e)
 
     def _save_tree(self, plan_id: str):
         file_path = self.storage_path / f"{plan_id}.json"
         subtasks = [st.to_dict() for st in self.trees.get(plan_id, {}).values()]
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump({"plan_id": plan_id, "subtasks": subtasks}, f, indent=2)
 
     def create_subtask(
@@ -173,7 +188,27 @@ class SubtaskTree:
         outputs: list[str] | None = None,
         decomposition_seed: str = "",
     ) -> Subtask:
+        """Create subtask.
 
+        Returns:
+            The Subtask result.
+
+        Args:
+            plan_id: The plan id.
+            parent_id: The parent id.
+            depth: The depth.
+            description: The description.
+            prompt: The prompt.
+            agent_type: The agent type.
+            max_depth: The max depth.
+            dod_level: The dod level.
+            dor_level: The dor level.
+            estimated_effort: The estimated effort.
+            max_depth_override: The max depth override.
+            inputs: The inputs.
+            outputs: The outputs.
+            decomposition_seed: The decomposition seed.
+        """
         if plan_id not in self.trees:
             self.trees[plan_id] = {}
 
@@ -215,6 +250,16 @@ class SubtaskTree:
         return list(self.trees.get(plan_id, {}).values())
 
     def update_subtask(self, plan_id: str, subtask_id: str, updates: dict) -> Subtask | None:
+        """Update subtask.
+
+        Returns:
+            The Subtask | None result.
+
+        Args:
+            plan_id: The plan id.
+            subtask_id: The subtask id.
+            updates: The updates.
+        """
         subtask = self.trees.get(plan_id, {}).get(subtask_id)
         if not subtask:
             return None
@@ -227,6 +272,11 @@ class SubtaskTree:
         return subtask
 
     def delete_tree(self, plan_id: str) -> bool:
+        """Delete tree.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if plan_id in self.trees:
             del self.trees[plan_id]
             file_path = self.storage_path / f"{plan_id}.json"
@@ -236,6 +286,11 @@ class SubtaskTree:
         return False
 
     def get_tree_depth(self, plan_id: str) -> int:
+        """Get tree depth.
+
+        Returns:
+            The computed value.
+        """
         subtasks = self.trees.get(plan_id, {}).values()
         if not subtasks:
             return 0

@@ -210,7 +210,7 @@ class BaseAgent(ABC):
             try:
                 from vetinari.lmstudio_adapter import LMStudioAdapter
 
-                _host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+                _host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
                 _adapter = LMStudioAdapter(host=_host)
                 _sys = system_prompt or self.get_system_prompt()
                 _model = model_id or self.default_model or "default"
@@ -272,6 +272,7 @@ class BaseAgent(ABC):
 
             @dataclass
             class InferenceRequest:  # type: ignore[no-redef]
+                """Inference request."""
                 model_id: str
                 prompt: str
                 system_prompt: str | None = None
@@ -707,6 +708,9 @@ class BaseAgent(ABC):
 
         Returns:
             The prepared task
+
+        Raises:
+            PermissionError: If MODEL_INFERENCE permission is denied by the context manager.
         """
         if not self._initialized:
             self._log("warning", "Agent not initialized, initializing with default context")
@@ -966,6 +970,12 @@ class BaseAgent(ABC):
 
         Returns:
             entry_id: Use with get_help_result() to retrieve the answer.
+
+        Args:
+            content: The content.
+            request_type: The request type.
+            priority: The priority.
+            ttl_seconds: The ttl seconds.
         """
         from vetinari.blackboard import get_blackboard
 
@@ -1045,6 +1055,13 @@ class BaseAgent(ABC):
 
         Returns an AgentResult with delegation_requested=True so the
         orchestrator (AgentGraph) reassigns it to an appropriate agent.
+
+        Args:
+            task: The task.
+            reason: The reason.
+
+        Returns:
+            The AgentResult result.
         """
         logger.info("[%s] delegating task '%s': %s", self.name, task.task_id, reason)
         return AgentResult(

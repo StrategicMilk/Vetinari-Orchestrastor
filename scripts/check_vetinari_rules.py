@@ -560,7 +560,13 @@ def check_organization(filepath, source, lines):
         elif stem.startswith("test_") or stem == "conftest":
             pass  # Test files are ok
         elif not re.match(r"^[a-z][a-z0-9_]*$", stem):
-            add_warning(filepath, 1, "VET082", f"File '{fpath.name}' is not snake_case — rename to '{stem.lower()}.py'")
+            # Allow suppression via `# noqa: VET082` on line 1 of the file
+            try:
+                first_line = fpath.read_text(encoding="utf-8").splitlines()[0]
+            except Exception:
+                first_line = ""
+            if not has_noqa(first_line, "VET082"):
+                add_warning(filepath, 1, "VET082", f"File '{fpath.name}' is not snake_case — rename to '{stem.lower()}.py'")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

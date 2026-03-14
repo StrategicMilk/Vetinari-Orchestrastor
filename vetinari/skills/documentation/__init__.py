@@ -55,6 +55,11 @@ class DocumentationSkill(Tool):
         return self._agent
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         agent = self._get_agent()
         if agent is None:
             return ToolResult(success=False, output=None, error="DocumentationAgent not available")

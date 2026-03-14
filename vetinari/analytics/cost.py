@@ -164,10 +164,26 @@ class CostTracker:
     # ------------------------------------------------------------------
 
     def set_pricing(self, provider: str, model: str, pricing: ModelPricing) -> None:
+        """Set pricing.
+
+        Args:
+            provider: The provider.
+            model: The model.
+            pricing: The pricing.
+        """
         with self._lock:
             self._pricing[f"{provider}:{model}"] = pricing
 
     def get_pricing(self, provider: str, model: str) -> ModelPricing:
+        """Get pricing.
+
+        Args:
+            provider: The provider.
+            model: The model.
+
+        Returns:
+            The ModelPricing result.
+        """
         with self._lock:
             key = f"{provider}:{model}"
             if key in self._pricing:
@@ -186,6 +202,9 @@ class CostTracker:
         """Record a cost entry.  ``entry.cost_usd`` is calculated automatically.
 
         using the configured pricing if it is not already set (> 0).
+
+        Returns:
+            The CostEntry result.
         """
         with self._lock:
             if entry.cost_usd == 0.0:
@@ -219,6 +238,9 @@ class CostTracker:
             agent:   Only include entries from this agent.
             task_id: Only include entries for this task.
             since:   Only include entries with timestamp >= since (unix epoch).
+
+        Returns:
+            The result string.
         """
         with self._lock:
             entries = list(self._entries)
@@ -261,13 +283,21 @@ class CostTracker:
         )
 
     def get_top_agents(self, n: int = 5) -> list[dict[str, Any]]:
-        """Return the N most expensive agents."""
+        """Return the N most expensive agents.
+
+        Returns:
+            The result string.
+        """
         report = self.get_report()
         ranked = sorted(report.by_agent.items(), key=lambda x: x[1], reverse=True)
         return [{"agent": k, "cost_usd": v} for k, v in ranked[:n]]
 
     def get_top_models(self, n: int = 5) -> list[dict[str, Any]]:
-        """Return the N most expensive provider/model combos."""
+        """Return the N most expensive provider/model combos.
+
+        Returns:
+            The result string.
+        """
         report = self.get_report()
         ranked = sorted(report.by_model.items(), key=lambda x: x[1], reverse=True)
         return [{"model": k, "cost_usd": v} for k, v in ranked[:n]]
@@ -277,6 +307,11 @@ class CostTracker:
     # ------------------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "total_entries": len(self._entries),
@@ -284,6 +319,7 @@ class CostTracker:
             }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._entries.clear()
 
@@ -298,5 +334,6 @@ def get_cost_tracker() -> CostTracker:
 
 
 def reset_cost_tracker() -> None:
+    """Reset cost tracker."""
     with CostTracker._class_lock:
         CostTracker._instance = None

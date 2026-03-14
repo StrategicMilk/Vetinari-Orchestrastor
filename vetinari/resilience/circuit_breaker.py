@@ -149,7 +149,11 @@ class CircuitBreaker:
     # ── Core API ──────────────────────────────────────────────────────
 
     def allow_request(self) -> bool:
-        """Check whether a request should be allowed through."""
+        """Check whether a request should be allowed through.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             self._maybe_transition()
 
@@ -206,6 +210,12 @@ class CircuitBreaker:
 
         Raises CircuitBreakerOpen if the circuit is open and not ready
         for a probe.
+
+        Returns:
+            The T result.
+
+        Raises:
+            CircuitBreakerOpen: If the operation fails.
         """
         if not self.allow_request():
             remaining = self._time_until_half_open()
@@ -229,7 +239,11 @@ class CircuitBreaker:
             logger.info("Circuit breaker '%s' manually reset → CLOSED", self.name)
 
     def get_backoff_delay(self) -> float:
-        """Return the current exponential backoff delay in seconds."""
+        """Return the current exponential backoff delay in seconds.
+
+        Returns:
+            The computed value.
+        """
         n = self._stats.consecutive_failures
         if n == 0:
             return 0.0
@@ -305,7 +319,11 @@ class CircuitBreakerRegistry:
         self._lock = threading.Lock()
 
     def get(self, agent_type: str) -> CircuitBreaker:
-        """Get or create the circuit breaker for an agent type."""
+        """Get or create the circuit breaker for an agent type.
+
+        Returns:
+            The CircuitBreaker result.
+        """
         with self._lock:
             if agent_type not in self._breakers:
                 config = _AGENT_BREAKER_CONFIGS.get(agent_type, CircuitBreakerConfig())
@@ -313,12 +331,20 @@ class CircuitBreakerRegistry:
             return self._breakers[agent_type]
 
     def get_all(self) -> dict[str, CircuitBreaker]:
-        """Return all registered breakers."""
+        """Return all registered breakers.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return dict(self._breakers)
 
     def get_summary(self) -> dict[str, Any]:
-        """Return a dashboard-friendly summary of all breakers."""
+        """Return a dashboard-friendly summary of all breakers.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {name: cb.to_dict() for name, cb in self._breakers.items()}
 
@@ -335,7 +361,11 @@ _registry: CircuitBreakerRegistry | None = None
 
 
 def get_circuit_breaker_registry() -> CircuitBreakerRegistry:
-    """Get or create the global circuit breaker registry."""
+    """Get or create the global circuit breaker registry.
+
+    Returns:
+        The result string.
+    """
     global _registry
     if _registry is None:
         _registry = CircuitBreakerRegistry()

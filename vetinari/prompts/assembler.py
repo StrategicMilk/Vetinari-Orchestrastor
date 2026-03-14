@@ -324,7 +324,11 @@ _assembler_lock = __import__("threading").Lock()
 
 
 def get_prompt_assembler() -> PromptAssembler:
-    """Return the global PromptAssembler singleton."""
+    """Return the global PromptAssembler singleton.
+
+    Returns:
+        The PromptAssembler result.
+    """
     global _assembler
     if _assembler is None:
         with _assembler_lock:

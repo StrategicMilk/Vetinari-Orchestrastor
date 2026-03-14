@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Model:
+    """Model configuration for the planning engine."""
     id: str
     name: str
     capabilities: list[str] = field(default_factory=list)
@@ -44,6 +45,7 @@ class Model:
 
 @dataclass
 class Task:
+    """A unit of work within a plan or wave."""
     id: str
     description: str
     inputs: list[str] = field(default_factory=list)
@@ -76,6 +78,7 @@ class Task:
 
 @dataclass
 class Plan:
+    """An execution plan containing ordered waves of tasks."""
     goal: str
     tasks: list[Task] = field(default_factory=list)
     model_scores: list[dict] = field(default_factory=list)
@@ -87,6 +90,11 @@ class Plan:
     final_delivery_summary: str = ""
 
     def to_dict(self) -> dict:
+        """To dict.
+
+        Returns:
+            Dictionary of results.
+        """
         d = {
             "goal": self.goal,
             "tasks": [t.to_dict() for t in self.tasks],
@@ -104,6 +112,7 @@ class Plan:
 
 
 class PlanningEngine:
+    """Planning engine."""
     def __init__(
         self,
         default_models: list[str] | None = None,
@@ -195,7 +204,17 @@ class PlanningEngine:
         }
 
     def plan(self, goal: str, system_prompt: str, models: list[dict], planning_model: str | None = None) -> Plan:
-        """Create a plan for the given goal."""
+        """Create a plan for the given goal.
+
+        Args:
+            goal: The goal.
+            system_prompt: The system prompt.
+            models: The models.
+            planning_model: The planning model.
+
+        Returns:
+            The Plan result.
+        """
         plan = Plan(goal=goal)
 
         # Convert dict models to Model objects, filtering extra fields
@@ -405,6 +424,11 @@ class PlanningEngine:
         task_counter = [1]
 
         def next_id(prefix="t"):
+            """Next id for the current context.
+
+            Returns:
+                The result value.
+            """
             tid = f"{prefix}{task_counter[0]}"
             task_counter[0] += 1
             return tid

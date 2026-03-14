@@ -159,6 +159,14 @@ class RepoMap:
         """Generate a task-focused repo map that emphasises relevant modules.
 
         Uses keyword matching to prioritise files likely relevant to the task.
+
+        Args:
+            root_path: The root path.
+            task_description: The task description.
+            max_tokens: The max tokens.
+
+        Returns:
+            The result string.
         """
         root = Path(root_path)
         if not root.exists():
@@ -336,6 +344,11 @@ _repo_map: RepoMap | None = None
 
 
 def get_repo_map() -> RepoMap:
+    """Get repo map.
+
+    Returns:
+        The RepoMap result.
+    """
     global _repo_map
     if _repo_map is None:
         _repo_map = RepoMap()
@@ -403,7 +416,11 @@ class ASTIndexer:
         self._loaded = False
 
     def index_project(self, force: bool = False) -> int:
-        """Index all Python files in the project. Returns count of indexed files."""
+        """Index all Python files in the project. Returns count of indexed files.
+
+        Returns:
+            The computed value.
+        """
         if not force:
             self._load_cache()
 
@@ -539,13 +556,21 @@ class ASTIndexer:
                 self._symbol_table.setdefault(symbol.name, []).append(symbol)
 
     def find_symbol(self, name: str) -> list[SymbolInfo]:
-        """Find all definitions of a symbol by name."""
+        """Find all definitions of a symbol by name.
+
+        Returns:
+            List of results.
+        """
         if not self._loaded and not self._index:
             self.index_project()
         return self._symbol_table.get(name, [])
 
     def find_usages(self, name: str) -> list[str]:
-        """Find files that import or reference a symbol name."""
+        """Find files that import or reference a symbol name.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded and not self._index:
             self.index_project()
         files: set[str] = set()
@@ -561,14 +586,22 @@ class ASTIndexer:
         return sorted(files)
 
     def get_file_symbols(self, file_path: str) -> list[SymbolInfo]:
-        """Get all symbols in a specific file."""
+        """Get all symbols in a specific file.
+
+        Returns:
+            List of results.
+        """
         if not self._loaded and not self._index:
             self.index_project()
         fi = self._index.get(file_path)
         return fi.symbols if fi else []
 
     def get_import_graph(self) -> dict[str, list[str]]:
-        """Get the import dependency graph."""
+        """Get the import dependency graph.
+
+        Returns:
+            The result string.
+        """
         if not self._loaded and not self._index:
             self.index_project()
         graph = {}
@@ -603,7 +636,7 @@ class ASTIndexer:
                 self._build_symbol_table()
                 self._loaded = True
             except Exception as e:
-                logger.debug(f"AST index cache load error: {e}")
+                logger.debug("AST index cache load error: %s", e)
 
     def _save_cache(self):
         try:
@@ -612,13 +645,18 @@ class ASTIndexer:
             data = [fi.to_dict() for fi in self._index.values()]
             cache_file.write_text(json.dumps(data), encoding="utf-8")
         except Exception as e:
-            logger.debug(f"AST index cache save error: {e}")
+            logger.debug("AST index cache save error: %s", e)
 
 
 _indexer: ASTIndexer | None = None
 
 
 def get_ast_indexer(root_path: str = ".") -> ASTIndexer:
+    """Get ast indexer.
+
+    Returns:
+        The ASTIndexer result.
+    """
     global _indexer
     if _indexer is None:
         _indexer = ASTIndexer(root_path)

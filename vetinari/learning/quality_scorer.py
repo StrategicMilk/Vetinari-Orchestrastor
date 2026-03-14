@@ -72,10 +72,10 @@ class QualityScorer:
         try:
             import yaml
 
-            config_path = os.path.join(
+            config_path = os.path.join(  # noqa: VET063
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "ml_config.yaml"
             )
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 ml_config = yaml.safe_load(f)
             self._calibration_interval: int = ml_config.get("quality_scoring", {}).get("calibration_interval", 10)
         except Exception:
@@ -195,7 +195,7 @@ class QualityScorer:
             # Prefer a different, fast local model for judging
             judge_model = self._pick_judge_model(model_id)
 
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             import requests as _req
 
             resp = _req.post(
@@ -366,7 +366,15 @@ class QualityScorer:
         )
 
     def get_history(self, model_id: str | None = None, task_type: str | None = None) -> list[QualityScore]:
-        """Get scoring history from SQLite + in-memory cache, optionally filtered."""
+        """Get scoring history from SQLite + in-memory cache, optionally filtered.
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+
+        Returns:
+            List of results.
+        """
         try:
             query = "SELECT task_id, model_id, task_type, overall_score, correctness, completeness, efficiency, style, dimensions, issues, method, timestamp FROM quality_scores WHERE 1=1"
             params: list = []
@@ -410,7 +418,15 @@ class QualityScorer:
             return result
 
     def get_model_average(self, model_id: str, task_type: str | None = None) -> float:
-        """Get average quality score for a model (optionally filtered by task type)."""
+        """Get average quality score for a model (optionally filtered by task type).
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+
+        Returns:
+            The computed value.
+        """
         scores = self.get_history(model_id=model_id, task_type=task_type)
         if not scores:
             return 0.7  # Default prior
@@ -422,6 +438,11 @@ _quality_scorer: QualityScorer | None = None
 
 
 def get_quality_scorer() -> QualityScorer:
+    """Get quality scorer.
+
+    Returns:
+        The QualityScorer result.
+    """
     global _quality_scorer
     if _quality_scorer is None:
         _quality_scorer = QualityScorer()

@@ -5,37 +5,36 @@ Combined tests for:
 """
 
 import os
-import sys
 import shutil
+import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Both modules import cleanly from the installed package — no stubs needed.
-from vetinari.agents.interfaces import (
-    CapabilityType,
-    Capability,
-    AgentInterface,
-    AGENT_INTERFACES,
-    EXPLORER_INTERFACE,
-    LIBRARIAN_INTERFACE,
-    RESEARCHER_INTERFACE,
-    BUILDER_INTERFACE,
-    EVALUATOR_INTERFACE,
-    UI_PLANNER_INTERFACE,
-    get_agent_interface,
-)
-
 from vetinari.agents import coding_bridge as _cb_module
 from vetinari.agents.coding_bridge import (
-    CodingTask,
-    CodingResult,
     CodingBridge,
+    CodingResult,
+    CodingTask,
     get_coding_bridge,
     init_coding_bridge,
 )
-from vetinari.types import CodingTaskType, CodingTaskStatus
 
+# Both modules import cleanly from the installed package — no stubs needed.
+from vetinari.agents.interfaces import (
+    AGENT_INTERFACES,
+    BUILDER_INTERFACE,
+    EVALUATOR_INTERFACE,
+    EXPLORER_INTERFACE,
+    LIBRARIAN_INTERFACE,
+    RESEARCHER_INTERFACE,
+    UI_PLANNER_INTERFACE,
+    AgentInterface,
+    Capability,
+    CapabilityType,
+    get_agent_interface,
+)
+from vetinari.types import CodingTaskStatus, CodingTaskType
 
 # ===========================================================================
 # PART 1 — vetinari/agents/interfaces.py
@@ -590,7 +589,7 @@ class TestCodingBridgeInit(unittest.TestCase):
         self.assertEqual(bridge.api_key, "")
 
     def test_custom_api_key_argument(self):
-        bridge = CodingBridge(api_key="secret123")
+        bridge = CodingBridge(api_key="secret123")  # noqa: VET040
         self.assertEqual(bridge.api_key, "secret123")
 
     def test_api_key_from_env(self):

@@ -1,3 +1,5 @@
+"""Model Search module."""
+
 from __future__ import annotations
 
 import hashlib
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelSource:
+    """Model source."""
     source_type: str
     url: str
     last_checked: str = ""
@@ -25,6 +28,7 @@ class ModelSource:
 
 @dataclass
 class ModelCandidate:
+    """Model candidate."""
     id: str
     name: str
     source_type: str
@@ -63,6 +67,7 @@ class ModelCandidate:
 
 
 class ModelSearchEngine:
+    """Model search engine."""
     WEIGHTS = {"hard_data": 0.55, "benchmarks": 0.25, "sentiment": 0.15, "recency": 0.05}
 
     def __init__(self, cache_dir: str | None = None):
@@ -76,6 +81,15 @@ class ModelSearchEngine:
     def search_for_task(
         self, task_description: str, lm_studio_models: list[dict] | None = None
     ) -> list[ModelCandidate]:
+        """Search for task.
+
+        Returns:
+            List of results.
+
+        Args:
+            task_description: The task description.
+            lm_studio_models: The lm studio models.
+        """
         candidates = []
 
         if lm_studio_models:
@@ -141,7 +155,7 @@ class ModelSearchEngine:
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
                 try:
-                    with open(cache_file) as f:
+                    with open(cache_file, encoding="utf-8") as f:
                         data = json.load(f)
                     result = []
                     for c in data:
@@ -151,7 +165,7 @@ class ModelSearchEngine:
                         result.append(ModelCandidate(**c))
                     return result
                 except Exception as e:
-                    logger.debug(f"Cache load failed for {cache_file}: {e}")
+                    logger.debug("Cache load failed for %s: %s", cache_file, e)
 
         candidates = []
 
@@ -196,7 +210,7 @@ class ModelSearchEngine:
                 candidates.append(candidate)
 
         if candidates:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump([c.to_dict() for c in candidates], f)
 
         return candidates
@@ -209,7 +223,7 @@ class ModelSearchEngine:
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
                 try:
-                    with open(cache_file) as f:
+                    with open(cache_file, encoding="utf-8") as f:
                         data = json.load(f)
                     result = []
                     for c in data:
@@ -218,7 +232,7 @@ class ModelSearchEngine:
                         result.append(ModelCandidate(**c))
                     return result
                 except Exception as e:
-                    logger.debug(f"Cache load failed for {cache_file}: {e}")
+                    logger.debug("Cache load failed for %s: %s", cache_file, e)
 
         candidates = []
 
@@ -249,7 +263,7 @@ class ModelSearchEngine:
             candidates.append(candidate)
 
         if candidates:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump([c.to_dict() for c in candidates], f)
 
         return candidates
@@ -262,7 +276,7 @@ class ModelSearchEngine:
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(days=7):
                 try:
-                    with open(cache_file) as f:
+                    with open(cache_file, encoding="utf-8") as f:
                         data = json.load(f)
                     result = []
                     for c in data:
@@ -271,7 +285,7 @@ class ModelSearchEngine:
                         result.append(ModelCandidate(**c))
                     return result
                 except Exception as e:
-                    logger.debug(f"Cache load failed for {cache_file}: {e}")
+                    logger.debug("Cache load failed for %s: %s", cache_file, e)
 
         candidates = []
 
@@ -311,7 +325,7 @@ class ModelSearchEngine:
                 candidates.append(candidate)
 
         if candidates:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump([c.to_dict() for c in candidates], f)
 
         return candidates
@@ -331,7 +345,7 @@ class ModelSearchEngine:
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(seconds=60):
-                with open(cache_file) as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     return [ModelCandidate(**c) for c in data]
 
@@ -374,7 +388,7 @@ class ModelSearchEngine:
             candidates.append(candidate)
 
         if candidates:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump([c.to_dict() for c in candidates], f)
 
         return candidates
@@ -394,7 +408,7 @@ class ModelSearchEngine:
         if cache_file.exists():
             age = datetime.now() - datetime.fromtimestamp(cache_file.stat().st_mtime)
             if age < timedelta(seconds=60):
-                with open(cache_file) as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     return [ModelCandidate(**c) for c in data]
 
@@ -439,7 +453,7 @@ class ModelSearchEngine:
             candidates.append(candidate)
 
         if candidates:
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump([c.to_dict() for c in candidates], f)
 
         return candidates
@@ -605,17 +619,23 @@ class ModelSearchEngine:
         return round(final_score, 3)
 
     def refresh_all_caches(self):
+        """Refresh all caches."""
         for cache_file in self.cache_dir.glob("*.json"):
             cache_file.unlink()
         logger.info("Model cache cleared")
 
     def get_cached_candidates(self) -> list[ModelCandidate]:
+        """Get cached candidates.
+
+        Returns:
+            List of results.
+        """
         candidates = []
         for cache_file in self.cache_dir.glob("*.json"):
             try:
-                with open(cache_file) as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     candidates.extend([ModelCandidate(**c) for c in data])
             except Exception as e:
-                logger.warning(f"Failed to load cache {cache_file}: {e}")
+                logger.warning("Failed to load cache %s: %s", cache_file, e)
         return candidates

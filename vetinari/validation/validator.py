@@ -1,3 +1,5 @@
+"""Validator module."""
+
 from __future__ import annotations
 
 import ast
@@ -6,8 +8,14 @@ import re
 
 
 class Validator:
+    """Validates agent outputs against quality and safety rules."""
     def is_valid_text(self, text: str) -> bool:
         # Check if text is empty
+        """Check if valid text.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not text or len(text.strip()) == 0:
             return False
 

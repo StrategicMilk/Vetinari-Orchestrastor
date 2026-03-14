@@ -104,7 +104,11 @@ class _AnthropicBatchBackend:
         }
 
     def submit(self, items: list[BatchItem]) -> dict[str, BatchResult]:
-        """Submit batch to Anthropic. Returns mapping item_id -> BatchResult."""
+        """Submit batch to Anthropic. Returns mapping item_id -> BatchResult.
+
+        Returns:
+            The result string.
+        """
         import requests as _req  # local import to avoid module-level dependency
 
         batch_requests = []
@@ -230,7 +234,11 @@ class _OpenAIBatchBackend:
         }
 
     def submit(self, items: list[BatchItem]) -> dict[str, BatchResult]:
-        """Submit batch to OpenAI. Returns mapping item_id -> BatchResult."""
+        """Submit batch to OpenAI. Returns mapping item_id -> BatchResult.
+
+        Returns:
+            The result string.
+        """
         import io
         import json
 
@@ -411,12 +419,22 @@ class BatchProcessor:
         )
 
     def register_backend(self, provider: str, backend: Any) -> None:
-        """Register a batch backend for a provider."""
+        """Register a batch backend for a provider.
+
+        Args:
+            provider: The provider.
+            backend: The backend.
+        """
         self._backends[provider] = backend
         logger.debug("Registered batch backend for provider: %s", provider)
 
     def register_anthropic(self, api_key: str, api_version: str = "2023-06-01") -> None:
-        """Convenience method to register Anthropic batch backend."""
+        """Convenience method to register Anthropic batch backend.
+
+        Args:
+            api_key: The api key.
+            api_version: The api version.
+        """
         self.register_backend("anthropic", _AnthropicBatchBackend(api_key, api_version))
 
     def register_openai(self, api_key: str) -> None:
@@ -606,7 +624,11 @@ class BatchProcessor:
         self.flush()
 
     def get_queue_stats(self) -> dict[str, Any]:
-        """Return current queue statistics."""
+        """Return current queue statistics.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "enabled": self.enabled,
@@ -628,7 +650,11 @@ _bp_lock = threading.Lock()
 
 
 def get_batch_processor() -> BatchProcessor:
-    """Get or create the global BatchProcessor instance."""
+    """Get or create the global BatchProcessor instance.
+
+    Returns:
+        The BatchProcessor result.
+    """
     global _batch_processor
     if _batch_processor is None:
         with _bp_lock:

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchBackend(Enum):
+    """Search backend."""
     DUCKDUCKGO = "duckduckgo"
     SERPAPI = "serpapi"
     TAVILY = "tavily"
@@ -86,7 +87,11 @@ class SearchResponse:
         }
 
     def get_citations(self) -> list[str]:
-        """Get formatted citations for all results."""
+        """Get formatted citations for all results.
+
+        Returns:
+            The result string.
+        """
         citations = []
         for i, r in enumerate(self.results, 1):
             citations.append(f"[{i}] {r.title}. {r.url}")
@@ -118,7 +123,11 @@ class SourceCredibility:
 
     @classmethod
     def score_url(cls, url: str) -> float:
-        """Score a URL based on domain credibility."""
+        """Score a URL based on domain credibility.
+
+        Returns:
+            The computed value.
+        """
         url_lower = url.lower()
 
         # Check exact matches first
@@ -521,6 +530,13 @@ class WebSearchTool:
         """Search multiple queries and aggregate results.
 
         Useful for comprehensive research on a topic.
+
+        Args:
+            queries: The queries.
+            max_results_per_query: The max results per query.
+
+        Returns:
+            List of results.
         """
         all_responses = []
 
@@ -714,7 +730,11 @@ _search_tool: WebSearchTool | None = None
 
 
 def get_search_tool() -> WebSearchTool:
-    """Get or create the global search tool instance."""
+    """Get or create the global search tool instance.
+
+    Returns:
+        The WebSearchTool result.
+    """
     global _search_tool
     if _search_tool is None:
         _search_tool = WebSearchTool()
@@ -722,7 +742,11 @@ def get_search_tool() -> WebSearchTool:
 
 
 def init_search_tool(backend: str | None = None, **kwargs) -> WebSearchTool:
-    """Initialize a new search tool instance."""
+    """Initialize a new search tool instance.
+
+    Returns:
+        The WebSearchTool result.
+    """
     global _search_tool
     _search_tool = WebSearchTool(backend=backend, **kwargs)
     return _search_tool
@@ -737,16 +761,16 @@ if __name__ == "__main__":
     # Simple search
     logger.info("=== Simple Search ===")
     result = tool.search("Python async programming", max_results=3)
-    logger.info(f"Found {result.total_results} results in {result.execution_time_ms}ms")
+    logger.info("Found %s results in %sms", result.total_results, result.execution_time_ms)
     for r in result.results:
-        logger.info(f"  - {r.title}: {r.url}")
+        logger.info("  - %s: %s", r.title, r.url)
 
     # Research topic
     logger.info("\n=== Research Topic ===")
     research = tool.research_topic("LLM agents orchestration")
-    logger.info(f"Topic: {research['topic']}")
-    logger.info(f"Total sources: {research['total_sources']}")
-    logger.info(f"High credibility: {research['high_credibility_sources']}")
+    logger.info("Topic: %s", research["topic"])
+    logger.info("Total sources: %s", research["total_sources"])
+    logger.info("High credibility: %s", research["high_credibility_sources"])
     logger.info("Citations:")
     for cite in research["citations"][:5]:
-        logger.info(f"  {cite}")
+        logger.info("  %s", cite)

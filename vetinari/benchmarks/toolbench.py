@@ -178,6 +178,11 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
     tier = BenchmarkTier.FAST
 
     def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
+        """Load cases.
+
+        Returns:
+            List of results.
+        """
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
@@ -201,7 +206,15 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
-        """Run a ToolBench case."""
+        """Run a ToolBench case.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+
+        Returns:
+            The BenchmarkResult result.
+        """
         start = time.time()
 
         try:
@@ -230,6 +243,9 @@ class ToolBenchAdapter(BenchmarkSuiteAdapter):
           - 0.5 weight: correct tools selected (order matters for chains)
           - 0.3 weight: correct parameters for each tool
           - 0.2 weight: no extraneous tool calls
+
+        Returns:
+            The computed value.
         """
         if not result.output:
             return 0.0

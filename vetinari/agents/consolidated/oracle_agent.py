@@ -379,6 +379,11 @@ class ConsolidatedOracleAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
+        """Verify.
+
+        Returns:
+            The VerificationResult result.
+        """
         if output is None:
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         if isinstance(output, dict):
@@ -457,6 +462,11 @@ _consolidated_oracle_agent: ConsolidatedOracleAgent | None = None
 
 
 def get_consolidated_oracle_agent(config: dict[str, Any] | None = None) -> ConsolidatedOracleAgent:
+    """Get consolidated oracle agent.
+
+    Returns:
+        The ConsolidatedOracleAgent result.
+    """
     global _consolidated_oracle_agent
     if _consolidated_oracle_agent is None:
         _consolidated_oracle_agent = ConsolidatedOracleAgent(config)

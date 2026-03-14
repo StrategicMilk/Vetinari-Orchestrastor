@@ -123,7 +123,18 @@ class ExecutionGraph:
         depends_on: list[str] | None = None,
         input_data: dict[str, Any] | None = None,
     ) -> TaskNode:
-        """Add a task to the graph."""
+        """Add a task to the graph.
+
+        Args:
+            task_id: The task id.
+            description: The description.
+            task_type: The task type.
+            depends_on: The depends on.
+            input_data: The input data.
+
+        Returns:
+            The TaskNode result.
+        """
         node = TaskNode(
             id=task_id,
             description=description,
@@ -142,7 +153,11 @@ class ExecutionGraph:
         return node
 
     def get_ready_tasks(self) -> list[TaskNode]:
-        """Get tasks that are ready to execute (all dependencies completed)."""
+        """Get tasks that are ready to execute (all dependencies completed).
+
+        Returns:
+            List of results.
+        """
         ready = []
         for node in self.nodes.values():
             if node.status != TaskStatus.PENDING:
@@ -161,6 +176,9 @@ class ExecutionGraph:
         Uses a simulation pass: tasks are "virtually completed" after being
         placed in a layer so that subsequent layers correctly detect their
         dependencies as satisfied.
+
+        Returns:
+            List of results.
         """
         layers: list[list[TaskNode]] = []
         simulated_completed: set[str] = {nid for nid, n in self.nodes.items() if n.status == TaskStatus.COMPLETED}
@@ -191,7 +209,11 @@ class ExecutionGraph:
         return self.get_next_layer()
 
     def can_retry(self, task_id: str) -> bool:
-        """Check if a failed task can be retried."""
+        """Check if a failed task can be retried.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if task_id not in self.nodes:
             return False
         node = self.nodes[task_id]

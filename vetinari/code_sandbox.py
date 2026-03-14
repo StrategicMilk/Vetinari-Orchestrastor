@@ -301,7 +301,15 @@ print("===VETINARI_OUTPUT_END===")  # noqa: T201, VET035
         return wrapped
 
     def execute_shell(self, command: str, timeout: int | None = None) -> ExecutionResult:
-        """Execute a shell command."""
+        """Execute a shell command.
+
+        Args:
+            command: The command.
+            timeout: The timeout.
+
+        Returns:
+            The ExecutionResult result.
+        """
         timeout = timeout or self.max_execution_time
 
         start_time = time.time()
@@ -373,7 +381,16 @@ print("===VETINARI_OUTPUT_END===")  # noqa: T201, VET035
     def run_tests(
         self, test_dir: str | None = None, test_pattern: str = "test_*.py", verbose: bool = True
     ) -> ExecutionResult:
-        """Run pytest tests in a directory."""
+        """Run pytest tests in a directory.
+
+        Args:
+            test_dir: The test dir.
+            test_pattern: The test pattern.
+            verbose: The verbose.
+
+        Returns:
+            The ExecutionResult result.
+        """
         test_dir = Path(test_dir) if test_dir else self.working_dir
 
         args = ["-m", "pytest"]
@@ -415,7 +432,15 @@ print("===VETINARI_OUTPUT_END===")  # noqa: T201, VET035
             )
 
     def lint_code(self, code: str, linter: str = "ruff") -> ExecutionResult:
-        """Lint code with specified linter."""
+        """Lint code with specified linter.
+
+        Args:
+            code: The code.
+            linter: The linter.
+
+        Returns:
+            The ExecutionResult result.
+        """
         # Write code to temp file
         execution_id = str(uuid.uuid4())[:8]
         script_file = self.working_dir / f"lint_{execution_id}.py"
@@ -577,7 +602,11 @@ _code_executor: CodeExecutor | None = None
 
 
 def get_subprocess_executor() -> CodeExecutor:
-    """Get or create the global subprocess-based code executor."""
+    """Get or create the global subprocess-based code executor.
+
+    Returns:
+        The CodeExecutor result.
+    """
     global _code_executor
     if _code_executor is None:
         _code_executor = CodeExecutor()
@@ -591,7 +620,11 @@ def get_code_executor() -> CodeExecutor:
 
 
 def init_code_executor(**kwargs) -> CodeExecutor:
-    """Initialize a new code executor."""
+    """Initialize a new code executor.
+
+    Returns:
+        The CodeExecutor result.
+    """
     global _code_executor
     sandbox = CodeSandbox(**kwargs)
     _code_executor = CodeExecutor(sandbox)

@@ -61,6 +61,11 @@ class MultiAgentOrchestrator:
 
     @classmethod
     def get_or_create(cls) -> MultiAgentOrchestrator:
+        """Get or create.
+
+        Returns:
+            The result string.
+        """
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -72,16 +77,24 @@ class MultiAgentOrchestrator:
             a.value: AgentStatus(name=a.value.replace("_", " ").title(), agent_type=a.value) for a in AgentType
         }
         self._initialized = True
-        logger.info(f"MultiAgentOrchestrator initialized with {len(self.agents)} agents")
+        logger.info("MultiAgentOrchestrator initialized with %s agents", len(self.agents))
 
     def get_agent_status(self) -> list[dict[str, Any]]:
-        """Return status for all agents."""
+        """Return status for all agents.
+
+        Returns:
+            The result string.
+        """
         if not self._initialized:
             self.initialize_agents()
         return [a.to_dict() for a in self.agents.values()]
 
     def dispatch_task(self, task: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch a task to the appropriate agent via TwoLayerOrchestrator."""
+        """Dispatch a task to the appropriate agent via TwoLayerOrchestrator.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.two_layer_orchestration import TwoLayerOrchestrator
 
@@ -89,5 +102,5 @@ class MultiAgentOrchestrator:
             results = orch.generate_and_execute(goal=task.get("description", ""), context=task.get("context", {}))
             return {"status": "dispatched", "results": results}
         except Exception as e:
-            logger.error(f"Task dispatch failed: {e}")
+            logger.error("Task dispatch failed: %s", e)
             return {"status": "error", "error": str(e)}

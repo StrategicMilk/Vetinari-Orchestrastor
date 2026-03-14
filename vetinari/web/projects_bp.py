@@ -218,12 +218,17 @@ def _execute_via_pipeline(
 # API: Server-Sent Events stream for real-time task updates
 @projects_bp.route("/api/project/<project_id>/stream")
 def api_project_stream(project_id):
-    """SSE endpoint — subscribe to real-time events for a project."""
+    """SSE endpoint — subscribe to real-time events for a project.
+
+    Returns:
+        The Response result.
+    """
     import json as _json
 
     from flask import stream_with_context
 
     def generate():
+        """Generate for the current context."""
         q = _get_sse_queue(project_id)
         # Send an initial connected event
         yield f"data: {_json.dumps({'type': 'connected', 'project_id': project_id})}\n\n"
@@ -244,7 +249,7 @@ def api_project_stream(project_id):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": request.headers.get("Origin", "http://localhost:5000"),
+            "Access-Control-Allow-Origin": request.headers.get("Origin", "http://localhost:5000"),  # noqa: VET041
         },
     )
 
@@ -253,7 +258,11 @@ def api_project_stream(project_id):
 @projects_bp.route("/api/project/<project_id>/cancel", methods=["POST"])
 @require_admin
 def api_cancel_project(project_id):
-    """Cancel a running project execution."""
+    """Cancel a running project execution.
+
+    Returns:
+        The jsonify result.
+    """
     cancelled = _cancel_project_task(project_id)
     _push_sse_event(project_id, "cancelled", {"project_id": project_id, "status": "cancelled"})
 
@@ -279,6 +288,11 @@ def api_cancel_project(project_id):
 @projects_bp.route("/api/new-project", methods=["POST"])
 @require_admin
 def api_new_project():
+    """Api new project.
+
+    Returns:
+        Tuple of results.
+    """
     data = request.json
     goal = data.get("goal", "")
     model = data.get("model", "")
@@ -366,7 +380,7 @@ def api_new_project():
                 rules_list = [r.strip() for r in project_rules.splitlines() if r.strip()]
                 rm.set_project_rules(project_dir.name, rules_list)
             except Exception as _re:
-                logging.warning(f"Could not save project rules: {_re}")
+                logger.warning("Could not save project rules: %s", _re)
 
         config_path = project_dir / "project.yaml"
         with open(config_path, "w", encoding="utf-8") as f:
@@ -410,9 +424,9 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
                 agent_type="PLANNER",
             )
             model_response = result.get("output", "")
-            logger.debug(f"Model response received: {len(model_response)} chars")
+            logger.debug("Model response received: %s chars", len(model_response))
         except Exception as e:
-            logger.error(f"Error getting model response: {e}")
+            logger.error("Error getting model response: %s", e)
             model_response = ""
 
         # Build the conversation with model's actual response
@@ -440,6 +454,7 @@ Be concise but thorough. Focus on creating actionable, clear tasks."""
             _get_sse_queue(_proj_id)  # Pre-create queue
 
             def run_tasks_background():
+                """Run tasks background."""
                 try:
                     # Update config to show running
                     project_config["status"] = "running"
@@ -502,7 +517,7 @@ Implement this task. Output the code as code blocks with filenames."""
                             for filename, code in code_blocks.items():
                                 filepath = generated_dir / filename
                                 filepath.write_text(code, encoding="utf-8")
-                                logger.debug(f"Written: {filepath}")
+                                logger.debug("Written: %s", filepath)
 
                         results.append(
                             {
@@ -621,12 +636,12 @@ Implement this task. Output the code as code blocks with filenames."""
                         with open(config_path, "w", encoding="utf-8") as f:
                             yaml.dump(project_config, f)
 
-                        logger.info(f"Final deliverable assembled: {final_report_path}")
+                        logger.info("Final deliverable assembled: %s", final_report_path)
                     except Exception as assemble_err:
-                        logging.error(f"Error assembling final deliverable: {assemble_err}")
+                        logger.error("Error assembling final deliverable: %s", assemble_err)
 
                 except Exception as e:
-                    logging.error(f"Error running tasks: {e}")
+                    logger.error("Error running tasks: %s", e)
                     project_config["status"] = "error"
                     project_config["error"] = str(e)
                     with open(config_path, "w", encoding="utf-8") as f:
@@ -661,6 +676,11 @@ Implement this task. Output the code as code blocks with filenames."""
 @projects_bp.route("/api/projects")
 @require_admin
 def api_projects():
+    """Api projects.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         include_archived = request.args.get("include_archived", "false").lower() == "true"
         projects_dir = PROJECT_ROOT / "projects"
@@ -745,6 +765,11 @@ def api_projects():
 @projects_bp.route("/api/project/<project_id>")
 @require_admin
 def api_project(project_id):
+    """Api project.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -838,6 +863,11 @@ def api_project(project_id):
 @projects_bp.route("/api/project/<project_id>/message", methods=["POST"])
 @require_admin
 def api_project_message(project_id):
+    """Api project message.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         message = data.get("message", "")
@@ -908,6 +938,11 @@ def api_project_message(project_id):
 @projects_bp.route("/api/project/<project_id>/task", methods=["POST"])
 @require_admin
 def api_add_task(project_id):
+    """Api add task.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         project_dir = PROJECT_ROOT / "projects" / project_id
@@ -957,6 +992,15 @@ def api_add_task(project_id):
 @projects_bp.route("/api/project/<project_id>/task/<task_id>", methods=["PUT"])
 @require_admin
 def api_update_task(project_id, task_id):
+    """Api update task.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         project_dir = PROJECT_ROOT / "projects" / project_id
@@ -1009,6 +1053,15 @@ def api_update_task(project_id, task_id):
 @projects_bp.route("/api/project/<project_id>/task/<task_id>", methods=["DELETE"])
 @require_admin
 def api_delete_task(project_id, task_id):
+    """Api delete task.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1046,6 +1099,11 @@ def api_delete_task(project_id, task_id):
 @projects_bp.route("/api/project/<project_id>/review")
 @require_admin
 def api_project_review(project_id):
+    """Api project review.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1116,6 +1174,11 @@ def api_project_review(project_id):
 @projects_bp.route("/api/project/<project_id>/approve", methods=["POST"])
 @require_admin
 def api_approve_outputs(project_id):
+    """Api approve outputs.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1137,6 +1200,11 @@ def api_approve_outputs(project_id):
 @projects_bp.route("/api/project/<project_id>/merge", methods=["POST"])
 @require_admin
 def api_merge_project(project_id):
+    """Api merge project.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         import shutil
         from datetime import datetime
@@ -1238,6 +1306,15 @@ Run the generated code from the artifacts folder.
 @projects_bp.route("/api/project/<project_id>/task/<task_id>/output")
 @require_admin
 def api_task_output(project_id, task_id):
+    """Api task output.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
 
@@ -1266,6 +1343,11 @@ def api_task_output(project_id, task_id):
 @projects_bp.route("/api/project/<project_id>/rename", methods=["POST"])
 @require_admin
 def api_rename_project(project_id):
+    """Api rename project.
+
+    Returns:
+        The jsonify result.
+    """
     data = request.json
     new_name = data.get("name", "")
     new_description = data.get("description", "")
@@ -1303,6 +1385,11 @@ def api_rename_project(project_id):
 @projects_bp.route("/api/project/<project_id>/archive", methods=["POST"])
 @require_admin
 def api_archive_project(project_id):
+    """Api archive project.
+
+    Returns:
+        The jsonify result.
+    """
     data = request.json
     archive = data.get("archive", True)
 
@@ -1330,6 +1417,11 @@ def api_archive_project(project_id):
 @projects_bp.route("/api/project/<project_id>", methods=["DELETE"])
 @require_admin
 def api_delete_project(project_id):
+    """Api delete project.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         import shutil
 
@@ -1352,6 +1444,11 @@ def api_delete_project(project_id):
 @projects_bp.route("/api/project/<project_id>/assemble", methods=["POST"])
 @require_admin
 def api_project_assemble(project_id):
+    """Api project assemble.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
@@ -1449,6 +1546,11 @@ def api_project_assemble(project_id):
 @projects_bp.route("/api/artifacts")
 @require_admin
 def api_artifacts():
+    """Api artifacts.
+
+    Returns:
+        The jsonify result.
+    """
     build_dir = PROJECT_ROOT / "build" / "artifacts"
     artifacts = []
     if build_dir.exists():
@@ -1462,6 +1564,11 @@ def api_artifacts():
 @projects_bp.route("/api/project/<project_id>/files/read", methods=["POST"])
 @require_admin
 def api_read_file(project_id):
+    """Api read file.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         file_path = data.get("path", "")
@@ -1496,7 +1603,7 @@ def api_read_file(project_id):
         content = target_path.read_text(encoding="utf-8")
 
         # Log the IO operation
-        logger.debug(f"IO Read: {target_path} (project: {project_id})")
+        logger.debug("IO Read: %s (project: %s)", target_path, project_id)
 
         return jsonify(
             {
@@ -1514,6 +1621,11 @@ def api_read_file(project_id):
 @projects_bp.route("/api/project/<project_id>/files/write", methods=["POST"])
 @require_admin
 def api_write_file(project_id):
+    """Api write file.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         file_path = data.get("path", "")
@@ -1547,7 +1659,7 @@ def api_write_file(project_id):
         target_path.write_text(content, encoding="utf-8")
 
         # Log the IO operation
-        logger.debug(f"IO Write: {target_path} (project: {project_id}, size: {len(content)})")
+        logger.debug("IO Write: %s (project: %s, size: %s)", target_path, project_id, len(content))
 
         return jsonify({"status": "ok", "path": str(target_path.relative_to(project_dir)), "size": len(content)})
     except Exception as e:
@@ -1558,6 +1670,11 @@ def api_write_file(project_id):
 @projects_bp.route("/api/project/<project_id>/files/list")
 @require_admin
 def api_list_files(project_id):
+    """Api list files.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
@@ -1582,6 +1699,11 @@ def api_list_files(project_id):
 @projects_bp.route("/api/project/<project_id>/model-search", methods=["POST"])
 @require_admin
 def api_model_search(project_id):
+    """Api model search.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         project_dir = PROJECT_ROOT / "projects" / project_id
         if not project_dir.exists():
@@ -1605,11 +1727,11 @@ def api_model_search(project_id):
         try:
             from vetinari.model_pool import ModelPool
 
-            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))
+            model_pool = ModelPool(current_config, current_config.get("host", "http://localhost:1234"))  # noqa: VET041
             model_pool.discover_models()
             lm_models = model_pool.list_models()
         except Exception as e:
-            logger.warning(f"Could not get LM Studio models: {e}")
+            logger.warning("Could not get LM Studio models: %s", e)
 
         candidates = search_adapter.search(task_description, lm_models)
 
@@ -1621,6 +1743,15 @@ def api_model_search(project_id):
 @projects_bp.route("/api/project/<project_id>/task/<task_id>/override", methods=["POST"])
 @require_admin
 def api_task_override(project_id, task_id):
+    """Api task override.
+
+    Args:
+        project_id: The project id.
+        task_id: The task id.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json or {}
         model_id = data.get("model_id", "")
@@ -1631,7 +1762,7 @@ def api_task_override(project_id, task_id):
         if not config_file.exists():
             return jsonify({"error": "Project not found"}), 404
 
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         tasks = config.get("tasks", [])
@@ -1640,7 +1771,7 @@ def api_task_override(project_id, task_id):
                 task["model_override"] = model_id
                 break
 
-        with open(config_file, "w") as f:
+        with open(config_file, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False)
 
         return jsonify({"status": "ok", "task_id": task_id, "model_override": model_id})
@@ -1651,6 +1782,11 @@ def api_task_override(project_id, task_id):
 @projects_bp.route("/api/project/<project_id>/refresh-models", methods=["POST"])
 @require_admin
 def api_refresh_models(project_id):
+    """Api refresh models.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         return jsonify({"status": "ok", "message": "Model cache refreshed (live search enabled)"})
     except Exception as e:
@@ -1660,7 +1796,11 @@ def api_refresh_models(project_id):
 @projects_bp.route("/api/project/<project_id>/verify-goal", methods=["POST"])
 @require_admin
 def api_verify_goal(project_id):
-    """Verify the final deliverable against the original project goal."""
+    """Verify the final deliverable against the original project goal.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.goal_verifier import get_goal_verifier
 
@@ -1680,7 +1820,7 @@ def api_verify_goal(project_id):
             if config_path.exists():
                 import yaml as _yaml
 
-                with open(config_path) as f:
+                with open(config_path, encoding="utf-8") as f:
                     proj_config = _yaml.safe_load(f) or {}
                 goal = proj_config.get("goal", proj_config.get("description", ""))
                 required_features = required_features or proj_config.get("required_features", [])

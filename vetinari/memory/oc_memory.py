@@ -76,7 +76,11 @@ class OcMemoryStore(IMemoryStore):
             raise
 
     def remember(self, entry: MemoryEntry) -> str:
-        """Store a memory entry."""
+        """Store a memory entry.
+
+        Returns:
+            The result string.
+        """
         if "oc" not in entry.source_backends:
             entry.source_backends = [*entry.source_backends, "oc"]
 
@@ -110,7 +114,17 @@ class OcMemoryStore(IMemoryStore):
     def search(
         self, query: str, agent: str | None = None, entry_types: list[str] | None = None, limit: int = 10
     ) -> list[MemoryEntry]:
-        """Search memories by keyword."""
+        """Search memories by keyword.
+
+        Args:
+            query: The query.
+            agent: The agent.
+            entry_types: The entry types.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         cursor = self._conn.cursor()
 
         sql = "SELECT * FROM memories WHERE forgotten = 0 AND (content LIKE ? OR summary LIKE ?)"
@@ -136,7 +150,17 @@ class OcMemoryStore(IMemoryStore):
     def timeline(
         self, agent: str | None = None, start_time: int | None = None, end_time: int | None = None, limit: int = 100
     ) -> list[MemoryEntry]:
-        """Browse memories chronologically."""
+        """Browse memories chronologically.
+
+        Args:
+            agent: The agent.
+            start_time: The start time.
+            end_time: The end time.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         cursor = self._conn.cursor()
 
         sql = "SELECT * FROM memories WHERE forgotten = 0"
@@ -163,7 +187,15 @@ class OcMemoryStore(IMemoryStore):
         return [self._row_to_entry(row) for row in rows]
 
     def ask(self, question: str, agent: str | None = None) -> list[MemoryEntry]:
-        """Ask a natural language question (simplified: keyword search)."""
+        """Ask a natural language question (simplified: keyword search).
+
+        Args:
+            question: The question.
+            agent: The agent.
+
+        Returns:
+            List of results.
+        """
         keywords = question.lower().split()
         if not keywords:
             return []
@@ -172,21 +204,33 @@ class OcMemoryStore(IMemoryStore):
         return self.search(query, agent=agent, limit=5)
 
     def export(self, path: str) -> bool:
-        """Export memories to JSON."""
+        """Export memories to JSON.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         cursor = self._conn.cursor()
         cursor.execute("SELECT * FROM memories ORDER BY timestamp DESC")
         rows = cursor.fetchall()
 
         memories = [self._row_to_entry(row).to_dict() for row in rows]
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump({"memories": memories, "exported_at": datetime.now().isoformat()}, f, indent=2)
 
         logger.info("OcMemoryStore: exported %d entries to %s", len(memories), path)
         return True
 
     def forget(self, entry_id: str, reason: str) -> bool:
-        """Mark a memory as forgotten (tombstone)."""
+        """Mark a memory as forgotten (tombstone).
+
+        Args:
+            entry_id: The entry id.
+            reason: The reason.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         cursor = self._conn.cursor()
         cursor.execute(
             """
@@ -200,7 +244,11 @@ class OcMemoryStore(IMemoryStore):
         return cursor.rowcount > 0
 
     def compact(self, max_age_days: int | None = None) -> int:
-        """Remove forgotten entries and optionally prune old data."""
+        """Remove forgotten entries and optionally prune old data.
+
+        Returns:
+            The computed value.
+        """
         cursor = self._conn.cursor()
 
         deleted = 0
@@ -221,7 +269,11 @@ class OcMemoryStore(IMemoryStore):
         return deleted
 
     def stats(self) -> MemoryStats:
-        """Get memory store statistics."""
+        """Get memory store statistics.
+
+        Returns:
+            The MemoryStats result.
+        """
         cursor = self._conn.cursor()
 
         cursor.execute("SELECT COUNT(*) FROM memories WHERE forgotten = 0")
@@ -256,7 +308,11 @@ class OcMemoryStore(IMemoryStore):
         )
 
     def get_entry(self, entry_id: str) -> MemoryEntry | None:
-        """Get a specific entry by ID."""
+        """Get a specific entry by ID.
+
+        Returns:
+            The MemoryEntry | None result.
+        """
         cursor = self._conn.cursor()
         cursor.execute("SELECT * FROM memories WHERE id = ?", (entry_id,))
         row = cursor.fetchone()

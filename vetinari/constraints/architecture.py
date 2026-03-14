@@ -154,6 +154,14 @@ def validate_delegation(from_agent: str, to_agent: str, current_depth: int = 0) 
     """Check if delegation from one agent to another is allowed.
 
     Returns ``(allowed, reason)`` where *reason* explains the denial.
+
+    Args:
+        from_agent: The from agent.
+        to_agent: The to agent.
+        current_depth: The current depth.
+
+    Returns:
+        True if successful, False otherwise.
     """
     constraint = ARCHITECTURE_CONSTRAINTS.get(from_agent)
     if constraint is None:

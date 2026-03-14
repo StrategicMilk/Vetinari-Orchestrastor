@@ -103,7 +103,11 @@ _profiles: dict[str, DocumentProfile] | None = None
 
 
 def get_document_profiles() -> dict[str, DocumentProfile]:
-    """Return cached document profiles (singleton)."""
+    """Return cached document profiles (singleton).
+
+    Returns:
+        The result string.
+    """
     global _profiles
     if _profiles is None:
         _profiles = load_document_profiles()

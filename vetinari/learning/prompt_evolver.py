@@ -19,6 +19,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class PromptVariant:
         return self.total_quality / max(self.trials, 1)
 
     def record(self, quality: float) -> None:
+        """Record for the current context."""
         self.trials += 1
         self.total_quality += quality
 
@@ -76,7 +78,12 @@ class PromptEvolver:
         self._load_variants()
 
     def register_baseline(self, agent_type: str, prompt_text: str) -> None:
-        """Register the current system prompt as the baseline."""
+        """Register the current system prompt as the baseline.
+
+        Args:
+            agent_type: The agent type.
+            prompt_text: The prompt text.
+        """
         if agent_type not in self._variants:
             self._variants[agent_type] = []
 
@@ -124,7 +131,13 @@ class PromptEvolver:
             return "", "default"
 
     def record_result(self, agent_type: str, variant_id: str, quality: float) -> None:
-        """Record a quality result for a variant and trigger promotion check."""
+        """Record a quality result for a variant and trigger promotion check.
+
+        Args:
+            agent_type: The agent type.
+            variant_id: The variant id.
+            quality: The quality.
+        """
         with self._lock:
             variants = self._variants.get(agent_type, [])
             for v in variants:
@@ -281,12 +294,20 @@ class PromptEvolver:
             logger.debug("[PromptEvolver] Benchmark suite not available; skipping validation")
             return True
         except Exception as e:
-            logger.debug(f"[PromptEvolver] Benchmark validation error: {e}")
+            logger.debug("[PromptEvolver] Benchmark validation error: %s", e)
             # On error, don't block promotion -- fail open
             return True
 
     def generate_variant(self, agent_type: str, baseline_prompt: str) -> str | None:
-        """Use LLM to generate an improved prompt variant."""
+        """Use LLM to generate an improved prompt variant.
+
+        Args:
+            agent_type: The agent type.
+            baseline_prompt: The baseline prompt.
+
+        Returns:
+            The result string.
+        """
         if not self._adapter_manager:
             return None
 
@@ -333,7 +354,11 @@ Respond with ONLY the improved prompt text, no explanations.""",
         return None
 
     def get_stats(self, agent_type: str) -> dict[str, Any]:
-        """Get evolution statistics for an agent type."""
+        """Get evolution statistics for an agent type.
+
+        Returns:
+            The result string.
+        """
         variants = self._variants.get(agent_type, [])
         return {
             "agent_type": agent_type,
@@ -351,11 +376,9 @@ Respond with ONLY the improved prompt text, no explanations.""",
         try:
             import os
 
-            path = os.path.join(
-                os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari", "prompt_variants.json"
-            )
+            path = str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari" / "prompt_variants.json")
             if os.path.exists(path):
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 for agent_type, variants in data.items():
                     self._variants[agent_type] = [PromptVariant(**v) for v in variants]
@@ -367,11 +390,11 @@ Respond with ONLY the improved prompt text, no explanations.""",
             import os
             from dataclasses import asdict
 
-            state_dir = os.path.join(os.path.expanduser("~"), ".lmstudio", "projects", "Vetinari", ".vetinari")
+            state_dir = str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / ".vetinari")
             os.makedirs(state_dir, exist_ok=True)
-            path = os.path.join(state_dir, "prompt_variants.json")
+            path = str(Path(state_dir) / "prompt_variants.json")
             data = {k: [asdict(v) for v in vs] for k, vs in self._variants.items()}
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.debug("Could not save prompt variants: %s", e)
@@ -381,6 +404,11 @@ _prompt_evolver: PromptEvolver | None = None
 
 
 def get_prompt_evolver() -> PromptEvolver:
+    """Get prompt evolver.
+
+    Returns:
+        The PromptEvolver result.
+    """
     global _prompt_evolver
     if _prompt_evolver is None:
         _prompt_evolver = PromptEvolver()

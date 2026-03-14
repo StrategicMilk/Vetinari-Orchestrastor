@@ -1,3 +1,5 @@
+"""Shared Memory module."""
+
 from __future__ import annotations
 
 import json
@@ -37,6 +39,7 @@ class AgentName(Enum):
 
 @dataclass
 class MemoryEntry:
+    """Memory entry."""
     entry_id: str
     agent_name: str
     memory_type: str
@@ -99,7 +102,11 @@ class SharedMemory:
 
     @classmethod
     def get_instance(cls, storage_path: str | None = None) -> SharedMemory:
-        """Get or create singleton instance."""
+        """Get or create singleton instance.
+
+        Returns:
+            The SharedMemory result.
+        """
         if cls._instance is None:
             cls._instance = cls(storage_path)
         return cls._instance
@@ -129,7 +136,7 @@ class SharedMemory:
     def _load(self):
         if self.memory_file.exists():
             try:
-                with open(self.memory_file) as f:
+                with open(self.memory_file, encoding="utf-8") as f:
                     data = json.load(f)
                     for e in data:
                         # Backward compatibility: add default fields if missing
@@ -144,7 +151,7 @@ class SharedMemory:
 
     def _save(self):
         try:
-            with open(self.memory_file, "w") as f:
+            with open(self.memory_file, "w", encoding="utf-8") as f:
                 json.dump([e.to_dict() for e in self.entries], f, indent=2)
         except Exception as e:
             logger.error("Could not save memory: %s", e)
@@ -163,6 +170,24 @@ class SharedMemory:
         task_id: str = "",
         provenance: str = "agent",
     ) -> MemoryEntry:
+        """Add.
+
+        Returns:
+            The MemoryEntry result.
+
+        Args:
+            agent_name: The agent name.
+            memory_type: The memory type.
+            summary: The summary.
+            content: The content.
+            tags: The tags.
+            project_id: The project id.
+            session_id: The session id.
+            plan_id: The plan id.
+            wave_id: The wave id.
+            task_id: The task id.
+            provenance: The provenance.
+        """
         entry = MemoryEntry(
             entry_id=str(uuid.uuid4())[:8],
             agent_name=agent_name,
@@ -198,6 +223,17 @@ class SharedMemory:
     def search(
         self, query: str, agent_name: str | None = None, memory_type: str | None = None, limit: int = 10
     ) -> list[MemoryEntry]:
+        """Search.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            agent_name: The agent name.
+            memory_type: The memory type.
+            limit: The limit.
+        """
         results = self.entries
 
         if agent_name:
@@ -218,10 +254,28 @@ class SharedMemory:
         return sorted(self.entries, key=lambda x: x.timestamp, reverse=True)[:limit]
 
     def get_by_agent(self, agent_name: str, limit: int = 20) -> list[MemoryEntry]:
+        """Get by agent.
+
+        Returns:
+            List of results.
+
+        Args:
+            agent_name: The agent name.
+            limit: The limit.
+        """
         results = [e for e in self.entries if e.agent_name == agent_name]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
     def get_by_type(self, memory_type: str, limit: int = 20) -> list[MemoryEntry]:
+        """Get by type.
+
+        Returns:
+            List of results.
+
+        Args:
+            memory_type: The memory type.
+            limit: The limit.
+        """
         results = [e for e in self.entries if e.memory_type == memory_type]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
@@ -229,6 +283,11 @@ class SharedMemory:
         return sorted(self.entries, key=lambda x: x.timestamp, reverse=True)[:limit]
 
     def get_stats(self) -> dict:
+        """Get stats.
+
+        Returns:
+            Dictionary of results.
+        """
         total = len(self.entries)
 
         by_type = {}
@@ -251,17 +310,37 @@ class SharedMemory:
         }
 
     def get_all(self, limit: int = 100) -> list[dict]:
-        """Get all memories as dicts (for API compatibility)."""
+        """Get all memories as dicts (for API compatibility).
+
+        Returns:
+            List of results.
+        """
         sorted_entries = sorted(self.entries, key=lambda x: x.timestamp, reverse=True)
         return [e.to_dict() for e in sorted_entries[:limit]]
 
     def get_memories_by_type(self, memory_type: str, limit: int = 20) -> list[dict]:
-        """Get memories by type (for API compatibility)."""
+        """Get memories by type (for API compatibility).
+
+        Args:
+            memory_type: The memory type.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         results = self.get_by_type(memory_type, limit)
         return [e.to_dict() for e in results]
 
     def resolve_decision(self, decision_id: str, choice: str):
-        """Mark a decision as resolved with the chosen option."""
+        """Mark a decision as resolved with the chosen option.
+
+        Args:
+            decision_id: The decision id.
+            choice: The choice.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         for entry in self.entries:
             if entry.entry_id == decision_id:
                 entry.content = f"{entry.content}\n\n[RESOLVED]: {choice}"
@@ -272,6 +351,11 @@ class SharedMemory:
         return False
 
     def forget(self, entry_id: str) -> bool:
+        """Forget.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         for entry in self.entries:
             if entry.entry_id == entry_id:
                 entry.memory_type = "forgotten"
@@ -280,6 +364,7 @@ class SharedMemory:
         return False
 
     def compact(self, max_age_days: int | None = None):
+        """Compact for the current context."""
         if max_age_days:
             from datetime import timedelta
 
@@ -290,17 +375,37 @@ class SharedMemory:
     # Phase 1: Plan-aware methods
 
     def get_by_plan(self, plan_id: str, limit: int = 50) -> list[MemoryEntry]:
-        """Get all memories linked to a specific plan."""
+        """Get all memories linked to a specific plan.
+
+        Args:
+            plan_id: The plan id.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
     def get_by_task(self, task_id: str, limit: int = 20) -> list[MemoryEntry]:
-        """Get all memories linked to a specific task."""
+        """Get all memories linked to a specific task.
+
+        Args:
+            task_id: The task id.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         results = [e for e in self.entries if e.task_id == task_id]
         return sorted(results, key=lambda x: x.timestamp, reverse=True)[:limit]
 
     def get_plan_timeline(self, plan_id: str) -> list[MemoryEntry]:
-        """Get timeline of all events for a plan (waves, tasks, decisions)."""
+        """Get timeline of all events for a plan (waves, tasks, decisions).
+
+        Returns:
+            List of results.
+        """
         results = [e for e in self.entries if e.plan_id == plan_id]
         return sorted(results, key=lambda x: x.timestamp)
 
@@ -337,6 +442,9 @@ class SharedMemory:
         """Migrate all legacy entries to DualMemoryStore.
 
         Returns the number of entries successfully migrated.
+
+        Returns:
+            The computed value.
         """
         if self._dual is None:
             logger.warning("DualMemoryStore not available for migration")

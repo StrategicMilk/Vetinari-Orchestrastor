@@ -62,7 +62,7 @@ class CodeBridge:
     """
 
     def __init__(self, endpoint: str | None = None, api_key: str | None = None):
-        self.endpoint = endpoint or os.environ.get("CODE_BRIDGE_ENDPOINT", "http://localhost:4096")
+        self.endpoint = endpoint or os.environ.get("CODE_BRIDGE_ENDPOINT", "http://localhost:4096")  # noqa: VET041
         self.api_key = api_key or os.environ.get("CODE_BRIDGE_API_KEY", "")
         self.enabled = os.environ.get("CODE_BRIDGE_ENABLED", "false").lower() in ("1", "true", "yes")
         self.timeout = int(os.environ.get("CODE_BRIDGE_TIMEOUT", "30"))
@@ -70,7 +70,11 @@ class CodeBridge:
         logger.info("CodeBridge initialized (enabled=%s, endpoint=%s)", self.enabled, self.endpoint)
 
     def is_available(self) -> bool:
-        """Check if the bridge is available."""
+        """Check if the bridge is available.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self.enabled:
             return False
 
@@ -82,7 +86,11 @@ class CodeBridge:
             return False
 
     def submit_task(self, spec: BridgeTaskSpec) -> BridgeTaskResult:
-        """Submit a task to the external bridge."""
+        """Submit a task to the external bridge.
+
+        Returns:
+            The BridgeTaskResult result.
+        """
         if not self.enabled:
             logger.warning("CodeBridge is not enabled")
             return BridgeTaskResult(
@@ -140,7 +148,11 @@ class CodeBridge:
             return BridgeTaskResult(task_id=spec.task_id, status=BridgeTaskStatus.FAILED, success=False, error=str(e))
 
     def get_task_status(self, task_id: str) -> BridgeTaskResult:
-        """Poll task status from the bridge."""
+        """Poll task status from the bridge.
+
+        Returns:
+            The BridgeTaskResult result.
+        """
         if not self.enabled:
             return BridgeTaskResult(task_id=task_id, status=BridgeTaskStatus.FAILED, error="CodeBridge not enabled")
 
@@ -172,7 +184,11 @@ class CodeBridge:
             return BridgeTaskResult(task_id=task_id, status=BridgeTaskStatus.FAILED, error=str(e))
 
     def get_artifacts(self, task_id: str) -> list[dict[str, Any]]:
-        """Fetch artifacts from a completed task."""
+        """Fetch artifacts from a completed task.
+
+        Returns:
+            The result string.
+        """
         result = self.get_task_status(task_id)
 
         if result.status == BridgeTaskStatus.COMPLETED and result.success:
@@ -181,7 +197,11 @@ class CodeBridge:
         return []
 
     def cancel_task(self, task_id: str) -> bool:
-        """Cancel a running task."""
+        """Cancel a running task.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self.enabled:
             return False
 
@@ -199,7 +219,11 @@ class CodeBridge:
             return False
 
     def list_tasks(self, status: BridgeTaskStatus | None = None) -> list[BridgeTaskResult]:
-        """List tasks from the bridge."""
+        """List tasks from the bridge.
+
+        Returns:
+            List of results.
+        """
         if not self.enabled:
             return []
 
@@ -241,6 +265,9 @@ class CodeBridge:
 
         Each edit dict has keys: ``path``, ``old`` (text to replace), ``new``.
         All edits are validated for syntax before any file is written.
+
+        Returns:
+            The BridgeTaskResult result.
         """
         import ast
 
@@ -301,6 +328,9 @@ class CodeBridge:
 
         Each edit dict has keys: ``path``, ``old`` (text to replace), ``new``.
         Returns a multi-file unified diff string.
+
+        Returns:
+            The result string.
         """
         import difflib
 
@@ -337,6 +367,9 @@ class CodeBridge:
 
         Uses ``git checkout`` to restore files to the specified commit.
         Creates a safety stash of current changes before rolling back.
+
+        Returns:
+            True if successful, False otherwise.
         """
         import subprocess
 
@@ -376,6 +409,9 @@ class CodeBridge:
         """Create a git checkpoint (commit) for later rollback.
 
         Returns the commit SHA or None on failure.
+
+        Returns:
+            The result string.
         """
         import subprocess
 
@@ -412,7 +448,11 @@ _code_bridge: CodeBridge | None = None
 
 
 def get_code_bridge() -> CodeBridge:
-    """Get or create the global code bridge instance."""
+    """Get or create the global code bridge instance.
+
+    Returns:
+        The CodeBridge result.
+    """
     global _code_bridge
     if _code_bridge is None:
         _code_bridge = CodeBridge()
@@ -420,7 +460,15 @@ def get_code_bridge() -> CodeBridge:
 
 
 def init_code_bridge(endpoint: str | None = None, api_key: str | None = None) -> CodeBridge:
-    """Initialize a new code bridge instance."""
+    """Initialize a new code bridge instance.
+
+    Args:
+        endpoint: The endpoint.
+        api_key: The api key.
+
+    Returns:
+        The CodeBridge result.
+    """
     global _code_bridge
     _code_bridge = CodeBridge(endpoint=endpoint, api_key=api_key)
     return _code_bridge

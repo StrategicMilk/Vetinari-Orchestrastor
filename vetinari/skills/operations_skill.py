@@ -193,7 +193,11 @@ class OperationsSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs: Any) -> ToolResult:
-        """Execute an operations task."""
+        """Execute an operations task.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             mode_str = kwargs.get("mode")
             content = kwargs.get("content")

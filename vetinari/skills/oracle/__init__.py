@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class OracleCapability(str, Enum):
+    """Oracle capability."""
     ARCHITECTURE_ANALYSIS = "architecture_analysis"
     TRADE_OFF_EVALUATION = "trade_off_evaluation"
     DEBUGGING_STRATEGY = "debugging_strategy"
@@ -32,6 +33,7 @@ class OracleCapability(str, Enum):
 
 @dataclass
 class OracleRequest:
+    """Oracle request."""
     capability: OracleCapability
     question: str
     context: str | None = None
@@ -49,6 +51,7 @@ class OracleRequest:
 
 @dataclass
 class OracleResult:
+    """Oracle result."""
     success: bool
     recommendation: str | None = None
     analysis: str | None = None
@@ -64,6 +67,7 @@ class OracleResult:
 
 
 class OracleSkillTool(Tool):
+    """Oracle skill tool."""
     def __init__(self):
         metadata = ToolMetadata(
             name="oracle",
@@ -98,6 +102,11 @@ class OracleSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             cap_str = kwargs.get("capability")
             question = kwargs.get("question")

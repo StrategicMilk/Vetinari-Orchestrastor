@@ -10,13 +10,14 @@ Tests cover:
 References master plan Phase 2b.5 security findings.
 """
 
-import pytest
 import json
 import os
-import sys
 import shlex
+import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -27,7 +28,6 @@ except ImportError:
     HAS_FLASK = False
 
 from vetinari.code_sandbox import CodeSandbox, ExecutionResult
-
 
 # ============ C3: shell=True Removal Tests ============
 
@@ -379,8 +379,7 @@ class TestAdminAuthFunction:
             # Remove VETINARI_ADMIN_TOKEN if set
             os.environ.pop("VETINARI_ADMIN_TOKEN", None)
 
-            from vetinari.web_ui import _is_admin_user
-            from vetinari.web_ui import app
+            from vetinari.web_ui import _is_admin_user, app
 
             with app.test_request_context(
                 environ_base={'REMOTE_ADDR': '127.0.0.1'}
@@ -391,8 +390,7 @@ class TestAdminAuthFunction:
         """Verify non-localhost requests are not admin when no token configured."""
         os.environ.pop("VETINARI_ADMIN_TOKEN", None)
 
-        from vetinari.web_ui import _is_admin_user
-        from vetinari.web_ui import app
+        from vetinari.web_ui import _is_admin_user, app
 
         with app.test_request_context(
             environ_base={'REMOTE_ADDR': '192.168.1.100'}

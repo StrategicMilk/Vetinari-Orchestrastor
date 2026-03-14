@@ -264,7 +264,7 @@ class RailContext:
 # GuardrailsManager
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CONFIG_DIR = os.path.join(
+_DEFAULT_CONFIG_DIR = os.path.join(  # noqa: VET063
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "config",
     "guardrails",
@@ -438,7 +438,11 @@ class GuardrailsManager:
     # ------------------------------------------------------------------
 
     def get_rails_for_context(self, context_type: str) -> list[str]:
-        """Return which rail categories apply for a given context type."""
+        """Return which rail categories apply for a given context type.
+
+        Returns:
+            The result string.
+        """
         if context_type == RailContext.USER_FACING:
             return ["jailbreak", "toxic", "prompt_injection", "sensitive_data"]
         elif context_type == RailContext.CODE_EXECUTION:
@@ -470,5 +474,6 @@ def get_guardrails() -> GuardrailsManager:
 
 
 def reset_guardrails() -> None:
+    """Reset guardrails."""
     with GuardrailsManager._class_lock:
         GuardrailsManager._instance = None

@@ -1,3 +1,5 @@
+"""Builder module."""
+
 from __future__ import annotations
 
 import json
@@ -8,10 +10,16 @@ from pathlib import Path
 
 
 class Builder:
+    """Produces final build artifacts from agent outputs."""
     def __init__(self, config: dict):
         self.config = config
 
     def build_final_artifact(self, results: list | None = None):
+        """Build final artifact.
+
+        Returns:
+            The result string.
+        """
         outputs_dir = Path(self.config.get("outputs_dir", "outputs"))
         artifacts_dir = Path(self.config.get("build", {}).get("artifacts", "build/artifacts"))
         artifacts_dir.mkdir(parents=True, exist_ok=True)

@@ -70,6 +70,7 @@ from vetinari.dynamic_model_router import (  # noqa: F401, E402  (re-export)
 
 
 class ModelStatus(Enum):
+    """Model status."""
     AVAILABLE = "available"
     LOADING = "loading"
     UNAVAILABLE = "unavailable"
@@ -209,6 +210,11 @@ class ModelRelay:
 
     @classmethod
     def get_instance(cls, config_path: str | None = None) -> ModelRelay:
+        """Get instance.
+
+        Returns:
+            The ModelRelay result.
+        """
         if cls._instance is None:
             cls._instance = cls(config_path)
         return cls._instance
@@ -230,7 +236,7 @@ class ModelRelay:
     def _load_config(self):
         if self.config_path.exists():
             try:
-                with open(self.config_path) as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     if data:
                         for model_data in data.get("models", []):
@@ -256,7 +262,7 @@ class ModelRelay:
                 latency_hint="fast",
                 privacy_level="local",
                 memory_requirements_gb=8,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="qwen2.5-72b",
@@ -267,7 +273,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="llama-3.3-70b",
@@ -278,7 +284,7 @@ class ModelRelay:
                 latency_hint="medium",
                 privacy_level="local",
                 memory_requirements_gb=48,
-                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",
+                endpoint=f"{os.environ.get('LM_STUDIO_HOST', 'http://localhost:1234')}/v1/chat/completions",  # noqa: VET041
             ),
             ModelEntry(
                 model_id="gpt-4o",
@@ -297,6 +303,7 @@ class ModelRelay:
             self.models[model.model_id] = model
 
     def reload_catalog(self):
+        """Reload catalog."""
         self.models.clear()
         self._load_config()
 
@@ -313,16 +320,26 @@ class ModelRelay:
         return self.policy
 
     def set_policy(self, policy: RoutingPolicy):
+        """Set policy."""
         self.policy = policy
         self._save_config()
 
     def _save_config(self):
         data = {"models": [m.to_dict() for m in self.models.values()], "policy": self.policy.to_dict()}
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, "w") as f:
+        with open(self.config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f)
 
     def pick_model_for_task(self, task_type: str | None = None, context: dict | None = None) -> ModelSelection:
+        """Pick model for task.
+
+        Args:
+            task_type: The task type.
+            context: The context.
+
+        Returns:
+            The ModelSelection result.
+        """
         available = self.get_available_models()
 
         if not available:
@@ -406,14 +423,22 @@ class ModelRelay:
         return ", ".join(reasons) if reasons else "best available model"
 
     def update_model_status(self, model_id: str, status: str):
+        """Update model status.
+
+        Args:
+            model_id: The model id.
+            status: The status.
+        """
         if model_id in self.models:
             self.models[model_id].status = status
 
     def add_model(self, model: ModelEntry):
+        """Add model."""
         self.models[model.model_id] = model
         self._save_config()
 
     def remove_model(self, model_id: str):
+        """Remove model."""
         if model_id in self.models:
             del self.models[model_id]
             self._save_config()

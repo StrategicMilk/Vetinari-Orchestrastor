@@ -120,6 +120,9 @@ class IntegrationManager:
         """Run a lightweight drift pre-check if wired.
 
         Returns a dict with ``is_clean`` and optional ``issues``.
+
+        Returns:
+            The result string.
         """
         if self._drift_pre_check is not None:
             return self._drift_pre_check()

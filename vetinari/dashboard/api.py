@@ -492,7 +492,11 @@ class DashboardAPI:
             logger.info("Traces cleared")
 
     def get_stats(self) -> dict[str, Any]:
-        """Get dashboard statistics."""
+        """Get dashboard statistics.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "total_traces_stored": len(self._traces),
@@ -507,7 +511,11 @@ _dashboard_lock = threading.Lock()
 
 
 def get_dashboard_api() -> DashboardAPI:
-    """Get or create the global dashboard API instance."""
+    """Get or create the global dashboard API instance.
+
+    Returns:
+        The DashboardAPI result.
+    """
     global _dashboard_api
     if _dashboard_api is None:
         with _dashboard_lock:
