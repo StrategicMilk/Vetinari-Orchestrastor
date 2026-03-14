@@ -190,6 +190,11 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
     tier = BenchmarkTier.FAST
 
     def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
+        """Load cases.
+
+        Returns:
+            List of results.
+        """
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
@@ -211,7 +216,15 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
         return cases
 
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
-        """Run a TaskBench decomposition case."""
+        """Run a TaskBench decomposition case.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+
+        Returns:
+            The BenchmarkResult result.
+        """
         start = time.time()
 
         try:
@@ -241,6 +254,9 @@ class TaskBenchAdapter(BenchmarkSuiteAdapter):
           - 0.25: Dependency correctness
           - 0.25: Granularity — within acceptable range
           - 0.20: DAG validity — no cycles, all deps exist
+
+        Returns:
+            The computed value.
         """
         if not result.output:
             return 0.0

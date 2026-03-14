@@ -133,6 +133,13 @@ def get_quality_gate(agent_type: str, mode: str | None = None) -> QualityGate:
     """Get the quality gate for an agent (optionally for a specific mode).
 
     Mode-specific gates take priority over agent-level gates.
+
+    Args:
+        agent_type: The agent type.
+        mode: The mode.
+
+    Returns:
+        The QualityGate result.
     """
     # Check for mode-specific gate first
     if mode:
@@ -146,6 +153,14 @@ def check_quality_gate(agent_type: str, score: float, mode: str | None = None) -
     """Check if an output score passes the quality gate.
 
     Returns ``(passed, reason)``.
+
+    Args:
+        agent_type: The agent type.
+        score: The score.
+        mode: The mode.
+
+    Returns:
+        True if successful, False otherwise.
     """
     gate = get_quality_gate(agent_type, mode)
     if score >= gate.min_verification_score:

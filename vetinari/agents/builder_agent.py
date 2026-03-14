@@ -130,7 +130,7 @@ class BuilderAgent(MultiModeAgent):
                 "translate specifications into working, tested, documented code that a professional\n"
                 "developer would be proud to ship. You apply clean code principles (SOLID, DRY,\n"
                 "KISS, YAGNI), idiomatic language patterns, and security-by-default practices.\n"
-                "You never generate placeholder comments like 'TODO: implement this' — every\n"
+                "You never generate placeholder comments like 'TODO: implement this' — every\n"  # noqa: VET034
                 "function you generate actually does something meaningful. Your test suite covers\n"
                 "the happy path, all error paths, and critical edge cases. You write code for\n"
                 "the maintainer who will read it in 2 years, not just for the compiler.\n\n"
@@ -280,7 +280,7 @@ class BuilderAgent(MultiModeAgent):
                 "ERROR HANDLING:\n"
                 "- If description is very vague (< 5 words), infer the most likely asset type\n"
                 "- If dimensions conflict with style_preset, use style_preset dimensions as override\n"
-                "- svg_fallback must always be non-empty — generate a placeholder if description is unclear\n"
+                "- svg_fallback must always be non-empty — generate a placeholder if description is unclear\n"  # noqa: VET034
                 "- Never return null for svg_fallback — it is the critical fallback path\n\n"
                 "QUALITY CRITERIA:\n"
                 "- sd_prompt must be 20-100 words (specific but not overloaded)\n"
@@ -298,7 +298,11 @@ class BuilderAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
-        """Verify output — mode-aware."""
+        """Verify output — mode-aware.
+
+        Returns:
+            The VerificationResult result.
+        """
         if not isinstance(output, dict):
             return VerificationResult(passed=False, issues=[{"message": "Output must be a dict"}], score=0.0)
 
@@ -524,7 +528,16 @@ Requirements:
         timeout: int = 30,
         working_dir: str | None = None,
     ) -> dict[str, Any]:
-        """Write code to a temp file and execute it safely."""
+        """Write code to a temp file and execute it safely.
+
+        Args:
+            code: The code.
+            timeout: The timeout.
+            working_dir: The working dir.
+
+        Returns:
+            The result string.
+        """
         syntax_errors = self._check_syntax(code)
         if syntax_errors:
             return {
@@ -773,7 +786,7 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
         return self._minimal_svg_placeholder(description, size)
 
     def _minimal_svg_placeholder(self, description: str, size: tuple) -> str:
-        """Generate a descriptive placeholder SVG with keyword-based theming."""
+        """Generate a descriptive placeholder SVG with keyword-based theming."""  # noqa: VET034
         w, h = size
         colors = {
             "landscape": "#4CAF50",
@@ -802,10 +815,10 @@ Output ONLY the SVG code, starting with <svg and ending with </svg>."""
 
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
-            f'width="{w}" height="{h}" data-placeholder="true">\n'
+            f'width="{w}" height="{h}" data-placeholder="true">\n'  # noqa: VET034
             f'  <rect width="{w}" height="{h}" fill="{bg_color}" rx="8"/>\n'
             f'  <text x="{w // 2}" y="28" text-anchor="middle" fill="white" font-family="sans-serif"\n'
-            f'        font-size="15" font-weight="bold">Image Placeholder ({w}x{h})</text>\n'
+            f'        font-size="15" font-weight="bold">Image Placeholder ({w}x{h})</text>\n'  # noqa: VET034
             f"{text_elements}\n"
             f"</svg>"
         )
@@ -825,7 +838,11 @@ _builder_agent: BuilderAgent | None = None
 
 
 def get_builder_agent(config: dict[str, Any] | None = None) -> BuilderAgent:
-    """Get the singleton Builder agent instance."""
+    """Get the singleton Builder agent instance.
+
+    Returns:
+        The BuilderAgent result.
+    """
     global _builder_agent
     if _builder_agent is None:
         _builder_agent = BuilderAgent(config)

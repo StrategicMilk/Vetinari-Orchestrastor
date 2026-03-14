@@ -184,9 +184,7 @@ class ADRSystem:
 
     def __init__(self, storage_path: str | None = None) -> None:
         if storage_path is None:
-            storage_path = str(
-                Path.home() / ".lmstudio" / "projects" / "Vetinari" / "adr"
-            )
+            storage_path = str(Path.home() / ".lmstudio" / "projects" / "Vetinari" / "adr")
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
@@ -343,9 +341,7 @@ class ADRSystem:
         self._save_adr(adr)
         return adr
 
-    def deprecate_adr(
-        self, adr_id: str, replacement_id: str | None = None
-    ) -> ADR | None:
+    def deprecate_adr(self, adr_id: str, replacement_id: str | None = None) -> ADR | None:
         """Mark an ADR as deprecated, optionally linking a replacement.
 
         Args:
@@ -385,12 +381,10 @@ class ADRSystem:
         except ValueError:
             return False
 
-    def generate_proposal(
-        self, context: str, num_options: int = 3
-    ) -> ADRProposal:
+    def generate_proposal(self, context: str, num_options: int = 3) -> ADRProposal:
         """Generate a proposal template for a new architecture decision.
 
-        Creates a proposal with placeholder options that can be customized
+        Creates a proposal with placeholder options that can be customized  # noqa: VET034
         before being accepted via :meth:`accept_proposal`.
 
         Args:
@@ -439,12 +433,8 @@ class ADRSystem:
         Returns:
             The newly created ADR.
         """
-        decision = "; ".join(
-            [f"{o['id']}: {o['description']}" for o in proposal.options]
-        )
-        consequences = "\n".join(
-            [f"Pros: {', '.join(o.get('pros', []))}" for o in proposal.options]
-        )
+        decision = "; ".join([f"{o['id']}: {o['description']}" for o in proposal.options])
+        consequences = "\n".join([f"Pros: {', '.join(o.get('pros', []))}" for o in proposal.options])
 
         return self.create_adr(
             title=title,
@@ -471,9 +461,7 @@ class ADRSystem:
 
         for adr in self.adrs.values():
             stats["by_status"][adr.status] = stats["by_status"].get(adr.status, 0) + 1
-            stats["by_category"][adr.category] = (
-                stats["by_category"].get(adr.category, 0) + 1
-            )
+            stats["by_category"][adr.category] = stats["by_category"].get(adr.category, 0) + 1
 
             if self.is_high_stakes(adr.category):
                 stats["high_stakes_count"] += 1

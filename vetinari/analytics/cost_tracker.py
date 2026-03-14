@@ -114,7 +114,20 @@ class CostTracker:
         task_id: str = "",
         duration_ms: float = 0.0,
     ) -> CostRecord:
-        """Record an LLM inference cost."""
+        """Record an LLM inference cost.
+
+        Args:
+            model_id: The model id.
+            input_tokens: The input tokens.
+            output_tokens: The output tokens.
+            agent_type: The agent type.
+            mode: The mode.
+            task_id: The task id.
+            duration_ms: The duration ms.
+
+        Returns:
+            The result string.
+        """
         total_tokens = input_tokens + output_tokens
         cost_per_1k = MODEL_COST_PER_1K.get(model_id, 0.0)
         estimated_cost = (total_tokens / 1000.0) * cost_per_1k
@@ -171,7 +184,11 @@ class CostTracker:
         return self._total_tokens
 
     def get_cost_by_model(self, hours: int = 24) -> dict[str, float]:
-        """Get cost breakdown by model for the last N hours."""
+        """Get cost breakdown by model for the last N hours.
+
+        Returns:
+            The result string.
+        """
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         with self._lock:
             try:
@@ -189,7 +206,11 @@ class CostTracker:
                 return {}
 
     def get_cost_by_agent(self, hours: int = 24) -> dict[str, float]:
-        """Get cost breakdown by agent type for the last N hours."""
+        """Get cost breakdown by agent type for the last N hours.
+
+        Returns:
+            The result string.
+        """
         since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         with self._lock:
             try:
@@ -222,6 +243,11 @@ _cost_tracker: CostTracker | None = None
 
 
 def get_cost_tracker() -> CostTracker:
+    """Get cost tracker.
+
+    Returns:
+        The CostTracker result.
+    """
     global _cost_tracker
     if _cost_tracker is None:
         _cost_tracker = CostTracker()

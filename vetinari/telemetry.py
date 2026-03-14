@@ -79,16 +79,31 @@ class MemoryMetrics:
         return (self.dedup_hits / total) * 100
 
     def avg_write_latency(self) -> float:
+        """Avg write latency.
+
+        Returns:
+            The computed value.
+        """
         if not self.write_latency_ms:
             return 0.0
         return sum(self.write_latency_ms) / len(self.write_latency_ms)
 
     def avg_read_latency(self) -> float:
+        """Avg read latency.
+
+        Returns:
+            The computed value.
+        """
         if not self.read_latency_ms:
             return 0.0
         return sum(self.read_latency_ms) / len(self.read_latency_ms)
 
     def avg_search_latency(self) -> float:
+        """Avg search latency.
+
+        Returns:
+            The computed value.
+        """
         if not self.search_latency_ms:
             return 0.0
         return sum(self.search_latency_ms) / len(self.search_latency_ms)
@@ -114,10 +129,12 @@ class PlanMetrics:
         return (self.approved_decisions / self.total_decisions) * 100
 
     def update_average_risk_score(self):
+        """Update average risk score."""
         if self.risk_scores:
             self.average_risk_score = sum(self.risk_scores) / len(self.risk_scores)
 
     def update_average_approval_time(self):
+        """Update average approval time."""
         if self.approval_times_ms:
             self.average_approval_time_ms = sum(self.approval_times_ms) / len(self.approval_times_ms)
 
@@ -145,7 +162,15 @@ class TelemetryCollector:
     def record_adapter_latency(
         self, provider: str, model: str, latency_ms: float, success: bool = True, tokens_used: int = 0
     ):
-        """Record adapter inference latency."""
+        """Record adapter inference latency.
+
+        Args:
+            provider: The provider.
+            model: The model.
+            latency_ms: The latency ms.
+            success: The success.
+            tokens_used: The tokens used.
+        """
         with self._lock:
             key = f"{provider}:{model}"
             if key not in self.adapter_metrics:
@@ -167,7 +192,11 @@ class TelemetryCollector:
             logger.debug("Recorded adapter latency: %s = %sms (success=%s)", key, latency_ms, success)
 
     def get_adapter_metrics(self, provider: str | None = None) -> dict[str, AdapterMetrics]:
-        """Get adapter metrics, optionally filtered by provider."""
+        """Get adapter metrics, optionally filtered by provider.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             if provider:
                 return {k: v for k, v in self.adapter_metrics.items() if v.provider == provider}
@@ -176,7 +205,12 @@ class TelemetryCollector:
     # === Memory Metrics ===
 
     def record_memory_write(self, backend: str, latency_ms: float):
-        """Record memory write operation."""
+        """Record memory write operation.
+
+        Args:
+            backend: The backend.
+            latency_ms: The latency ms.
+        """
         with self._lock:
             if backend in self.memory_metrics:
                 metrics = self.memory_metrics[backend]
@@ -185,7 +219,12 @@ class TelemetryCollector:
                 logger.debug("Recorded memory write: %s = %sms", backend, latency_ms)
 
     def record_memory_read(self, backend: str, latency_ms: float):
-        """Record memory read operation."""
+        """Record memory read operation.
+
+        Args:
+            backend: The backend.
+            latency_ms: The latency ms.
+        """
         with self._lock:
             if backend in self.memory_metrics:
                 metrics = self.memory_metrics[backend]
@@ -194,7 +233,12 @@ class TelemetryCollector:
                 logger.debug("Recorded memory read: %s = %sms", backend, latency_ms)
 
     def record_memory_search(self, backend: str, latency_ms: float):
-        """Record memory search operation."""
+        """Record memory search operation.
+
+        Args:
+            backend: The backend.
+            latency_ms: The latency ms.
+        """
         with self._lock:
             if backend in self.memory_metrics:
                 metrics = self.memory_metrics[backend]
@@ -222,7 +266,11 @@ class TelemetryCollector:
                 logger.warning("Memory sync failure recorded for %s", backend)
 
     def get_memory_metrics(self, backend: str | None = None) -> dict[str, MemoryMetrics]:
-        """Get memory metrics, optionally filtered by backend."""
+        """Get memory metrics, optionally filtered by backend.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             if backend and backend in self.memory_metrics:
                 return {backend: self.memory_metrics[backend]}
@@ -261,14 +309,22 @@ class TelemetryCollector:
             logger.debug("Recorded plan decision: %s (risk=%s)", decision, risk_score)
 
     def get_plan_metrics(self) -> PlanMetrics:
-        """Get plan mode metrics."""
+        """Get plan mode metrics.
+
+        Returns:
+            The PlanMetrics result.
+        """
         with self._lock:
             return PlanMetrics(**asdict(self.plan_metrics))
 
     # === Export ===
 
     def export_json(self, path: str) -> bool:
-        """Export all metrics to JSON file."""
+        """Export all metrics to JSON file.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             with self._lock:
                 uptime_ms = (datetime.now(timezone.utc) - self._start_time).total_seconds() * 1000
@@ -318,7 +374,7 @@ class TelemetryCollector:
                 }
 
                 Path(path).parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w") as f:
+                with open(path, "w", encoding="utf-8") as f:
                     json.dump(export_data, f, indent=2)
 
                 logger.info("Telemetry exported to %s", path)
@@ -328,7 +384,11 @@ class TelemetryCollector:
             return False
 
     def export_prometheus(self, path: str) -> bool:
-        """Export metrics in Prometheus text format."""
+        """Export metrics in Prometheus text format.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             with self._lock:
                 lines = []
@@ -363,7 +423,7 @@ class TelemetryCollector:
                 )
 
                 Path(path).parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w") as f:
+                with open(path, "w", encoding="utf-8") as f:
                     f.write("\n".join(lines))
 
                 logger.info("Prometheus metrics exported to %s", path)
@@ -388,7 +448,11 @@ _telemetry_lock = threading.Lock()
 
 
 def get_telemetry_collector() -> TelemetryCollector:
-    """Get or create the global telemetry collector instance."""
+    """Get or create the global telemetry collector instance.
+
+    Returns:
+        The TelemetryCollector result.
+    """
     global _telemetry
     if _telemetry is None:
         with _telemetry_lock:

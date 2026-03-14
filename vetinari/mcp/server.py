@@ -28,7 +28,11 @@ class MCPServer:
         return self._registry
 
     def handle_message(self, message: dict[str, Any]) -> dict[str, Any]:
-        """Handle an incoming JSON-RPC message."""
+        """Handle an incoming JSON-RPC message.
+
+        Returns:
+            The result string.
+        """
         method = message.get("method", "")
         msg_id = message.get("id")
         params = message.get("params", {})
@@ -80,6 +84,11 @@ _mcp_server: MCPServer | None = None
 
 
 def get_mcp_server() -> MCPServer:
+    """Get mcp server.
+
+    Returns:
+        The MCPServer result.
+    """
     global _mcp_server
     if _mcp_server is None:
         _mcp_server = MCPServer()

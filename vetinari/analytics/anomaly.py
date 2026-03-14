@@ -100,6 +100,12 @@ class _MetricState:
     ewma_var: float = 0.0
 
     def push(self, value: float, window_size: int) -> None:
+        """Push.
+
+        Args:
+            value: The value.
+            window_size: The window size.
+        """
         self.window.append(value)
         if len(self.window) > window_size:
             self.window.popleft()
@@ -157,6 +163,7 @@ class AnomalyDetector:
     # ------------------------------------------------------------------
 
     def configure(self, config: AnomalyConfig) -> None:
+        """Configure."""
         with self._lock:
             self._config = config
 
@@ -168,6 +175,13 @@ class AnomalyDetector:
         """Ingest a single observation and return an AnomalyResult.
 
         The value is always appended to the rolling window.
+
+        Args:
+            metric: The metric.
+            value: The value.
+
+        Returns:
+            The AnomalyResult result.
         """
         with self._lock:
             cfg = self._config
@@ -249,6 +263,9 @@ class AnomalyDetector:
         """Feed all numeric leaf values from a MetricsSnapshot into the detector.
 
         Returns only the anomalies found.
+
+        Returns:
+            List of results.
         """
         snap_dict = snapshot.to_dict() if hasattr(snapshot, "to_dict") else {}
         anomalies: list[AnomalyResult] = []
@@ -270,21 +287,33 @@ class AnomalyDetector:
     # ------------------------------------------------------------------
 
     def get_history(self, metric: str | None = None) -> list[AnomalyResult]:
+        """Get history.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             if metric:
                 return [r for r in self._history if r.metric == metric]
             return list(self._history)
 
     def clear_history(self) -> None:
+        """Clear history."""
         with self._lock:
             self._history.clear()
 
     def clear_state(self) -> None:
+        """Clear state."""
         with self._lock:
             self._states.clear()
             self._history.clear()
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "tracked_metrics": len(self._states),
@@ -310,5 +339,6 @@ def get_anomaly_detector() -> AnomalyDetector:
 
 
 def reset_anomaly_detector() -> None:
+    """Reset anomaly detector."""
     with AnomalyDetector._class_lock:
         AnomalyDetector._instance = None

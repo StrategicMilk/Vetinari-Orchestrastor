@@ -194,7 +194,12 @@ class BenchmarkSuiteAdapter(ABC):
 
     @abstractmethod
     def run_case(self, case: BenchmarkCase, run_id: str) -> BenchmarkResult:
-        """Execute a single benchmark case and return its result."""
+        """Execute a single benchmark case and return its result.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+        """
         ...  # noqa: VET032
 
     @abstractmethod
@@ -328,7 +333,11 @@ class MetricStore:
                 )
 
     def load_report(self, run_id: str) -> dict[str, Any] | None:
-        """Load a benchmark run summary by run_id."""
+        """Load a benchmark run summary by run_id.
+
+        Returns:
+            The result string.
+        """
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM benchmark_runs WHERE run_id = ?", (run_id,)).fetchone()
             if row is None:
@@ -336,7 +345,11 @@ class MetricStore:
             return dict(row)
 
     def load_results(self, run_id: str) -> list[dict[str, Any]]:
-        """Load individual results for a run."""
+        """Load individual results for a run.
+
+        Returns:
+            The result string.
+        """
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM benchmark_results WHERE run_id = ? ORDER BY id",
@@ -345,7 +358,15 @@ class MetricStore:
             return [dict(r) for r in rows]
 
     def list_runs(self, suite_name: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
-        """List recent benchmark runs."""
+        """List recent benchmark runs.
+
+        Args:
+            suite_name: The suite name.
+            limit: The limit.
+
+        Returns:
+            The result string.
+        """
         with self._connect() as conn:
             if suite_name:
                 rows = conn.execute(
@@ -363,7 +384,11 @@ class MetricStore:
             return [dict(r) for r in rows]
 
     def last_two_run_ids(self, suite_name: str) -> list[str]:
-        """Return the two most recent run IDs for a suite."""
+        """Return the two most recent run IDs for a suite.
+
+        Returns:
+            The result string.
+        """
         with self._connect() as conn:
             rows = conn.execute(
                 """SELECT run_id FROM benchmark_runs
@@ -421,6 +446,9 @@ class BenchmarkRunner:
 
         Returns:
             BenchmarkReport with aggregated metrics.
+
+        Raises:
+            ValueError: If the operation fails.
         """
         adapter = self._suites.get(suite_name)
         if adapter is None:
@@ -478,7 +506,14 @@ class BenchmarkRunner:
         return report
 
     def run_single(self, benchmark_id: str) -> BenchmarkResult:
-        """Run a single benchmark case by its ID (suite:case_id format)."""
+        """Run a single benchmark case by its ID (suite:case_id format).
+
+        Returns:
+            The BenchmarkResult result.
+
+        Raises:
+            ValueError: If the operation fails.
+        """
         if ":" not in benchmark_id:
             raise ValueError("benchmark_id must be 'suite_name:case_id' format")
         suite_name, case_id = benchmark_id.split(":", 1)
@@ -500,7 +535,18 @@ class BenchmarkRunner:
     # -- Comparison --
 
     def compare_runs(self, run_a: str, run_b: str) -> ComparisonReport:
-        """Compare two benchmark runs."""
+        """Compare two benchmark runs.
+
+        Args:
+            run_a: The run a.
+            run_b: The run b.
+
+        Returns:
+            The ComparisonReport result.
+
+        Raises:
+            ValueError: If either run ID is not found in the metric store.
+        """
         a = self._store.load_report(run_a)
         b = self._store.load_report(run_b)
 
@@ -541,7 +587,11 @@ class BenchmarkRunner:
         return self._store.list_runs(suite_name, limit)
 
     def get_last_comparison(self, suite_name: str) -> ComparisonReport | None:
-        """Compare the two most recent runs for a suite."""
+        """Compare the two most recent runs for a suite.
+
+        Returns:
+            The ComparisonReport | None result.
+        """
         ids = self._store.last_two_run_ids(suite_name)
         if len(ids) < 2:
             return None
@@ -554,7 +604,11 @@ class BenchmarkRunner:
 
 
 def get_default_runner(db_path: Path | None = None) -> BenchmarkRunner:
-    """Create a BenchmarkRunner with all built-in adapters registered."""
+    """Create a BenchmarkRunner with all built-in adapters registered.
+
+    Returns:
+        The BenchmarkRunner result.
+    """
     runner = BenchmarkRunner(db_path=db_path)
 
     # Import adapters lazily to avoid circular imports
@@ -563,34 +617,34 @@ def get_default_runner(db_path: Path | None = None) -> BenchmarkRunner:
 
         runner.register_suite(SWEBenchAdapter())
     except Exception as exc:
-        logger.debug(f"Could not load SWE-bench adapter: {exc}")
+        logger.debug("Could not load SWE-bench adapter: %s", exc)
 
     try:
         from vetinari.benchmarks.tau_bench import TauBenchAdapter
 
         runner.register_suite(TauBenchAdapter())
     except Exception as exc:
-        logger.debug(f"Could not load Tau-bench adapter: {exc}")
+        logger.debug("Could not load Tau-bench adapter: %s", exc)
 
     try:
         from vetinari.benchmarks.toolbench import ToolBenchAdapter
 
         runner.register_suite(ToolBenchAdapter())
     except Exception as exc:
-        logger.debug(f"Could not load ToolBench adapter: {exc}")
+        logger.debug("Could not load ToolBench adapter: %s", exc)
 
     try:
         from vetinari.benchmarks.taskbench import TaskBenchAdapter
 
         runner.register_suite(TaskBenchAdapter())
     except Exception as exc:
-        logger.debug(f"Could not load TaskBench adapter: {exc}")
+        logger.debug("Could not load TaskBench adapter: %s", exc)
 
     try:
         from vetinari.benchmarks.api_bank import APIBankAdapter
 
         runner.register_suite(APIBankAdapter())
     except Exception as exc:
-        logger.debug(f"Could not load API-Bank adapter: {exc}")
+        logger.debug("Could not load API-Bank adapter: %s", exc)
 
     return runner

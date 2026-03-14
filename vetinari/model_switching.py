@@ -55,10 +55,22 @@ class ModelSwitcher:
         return self._current_model
 
     def set_initial_model(self, model_id: str) -> None:
+        """Set initial model."""
         self._current_model = model_id
 
     def switch(self, to_model: str, reason: str = "manual") -> ModelSwitch:
-        """Switch to a different model."""
+        """Switch to a different model.
+
+        Args:
+            to_model: The to model.
+            reason: The reason.
+
+        Returns:
+            The ModelSwitch result.
+
+        Raises:
+            RuntimeError: If the operation fails.
+        """
         if self._switch_count >= self._config.max_switches_per_session:
             raise RuntimeError("Max model switches per session exceeded")
 
@@ -77,7 +89,11 @@ class ModelSwitcher:
         return switch
 
     def fallback(self) -> ModelSwitch | None:
-        """Switch to next model in fallback chain."""
+        """Switch to next model in fallback chain.
+
+        Returns:
+            The ModelSwitch | None result.
+        """
         if not self._config.auto_fallback:
             return None
         chain = self._config.fallback_chain
@@ -90,12 +106,21 @@ class ModelSwitcher:
         return None
 
     def get_history(self) -> list[dict[str, Any]]:
+        """Get history.
+
+        Returns:
+            The result string.
+        """
         from dataclasses import asdict
 
         return [asdict(s) for s in self._history]
 
     def summarize_context(self, messages: list[dict]) -> str:
-        """Summarize conversation context for handoff to new model."""
+        """Summarize conversation context for handoff to new model.
+
+        Returns:
+            The result string.
+        """
         if not messages:
             return ""
         # Extract key information for context transfer
@@ -114,6 +139,11 @@ _switcher: ModelSwitcher | None = None
 
 
 def get_model_switcher() -> ModelSwitcher:
+    """Get model switcher.
+
+    Returns:
+        The ModelSwitcher result.
+    """
     global _switcher
     if _switcher is None:
         _switcher = ModelSwitcher()

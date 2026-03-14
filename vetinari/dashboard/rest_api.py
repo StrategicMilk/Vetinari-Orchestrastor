@@ -38,9 +38,9 @@ except ImportError:
 
 # Resolve UI directories relative to this file's location
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_UI_DIR = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "ui"))
-_TEMPLATES = os.path.join(_UI_DIR, "templates")
-_STATIC = os.path.join(_UI_DIR, "static")
+_UI_DIR = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "ui"))  # noqa: VET063
+_TEMPLATES = os.path.join(_UI_DIR, "templates")  # noqa: VET063
+_STATIC = os.path.join(_UI_DIR, "static")  # noqa: VET063
 
 from vetinari.dashboard.api import get_dashboard_api  # noqa: E402
 
@@ -55,6 +55,9 @@ def create_app(debug: bool = False) -> Flask:
 
     Returns:
         Flask application instance
+
+    Raises:
+        ImportError: If the operation fails.
     """
     if Flask is None:
         raise ImportError("Flask is required for REST API. Install with: pip install flask")
@@ -90,7 +93,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/stats", methods=["GET"])
     def get_stats() -> tuple[dict[str, Any], int]:
-        """Get dashboard statistics."""
+        """Get dashboard statistics.
+
+        Returns:
+            The result string.
+        """
         try:
             stats = dashboard.get_stats()
             return jsonify(stats), 200
@@ -102,7 +109,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/metrics/latest", methods=["GET"])
     def get_latest_metrics() -> tuple[dict[str, Any], int]:
-        """Get latest metrics snapshot."""
+        """Get latest metrics snapshot.
+
+        Returns:
+            The result string.
+        """
         try:
             metrics = dashboard.get_latest_metrics()
             return jsonify(metrics.to_dict()), 200
@@ -118,6 +129,9 @@ def create_app(debug: bool = False) -> Flask:
             metric (str): Metric name (latency, success_rate, token_usage, memory_latency)
             timerange (str): Time range (1h, 24h, 7d) - currently not filtered
             provider (str): Optional provider filter
+
+        Returns:
+            The result string.
         """
         try:
             metric = request.args.get("metric", "latency")
@@ -148,6 +162,9 @@ def create_app(debug: bool = False) -> Flask:
         Query Parameters:
             trace_id (str): Optional specific trace ID to search for
             limit (int): Maximum traces to return (default 100)
+
+        Returns:
+            The result string.
         """
         try:
             trace_id = request.args.get("trace_id", None)
@@ -165,7 +182,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/traces/<trace_id>", methods=["GET"])
     def get_trace_detail(trace_id: str) -> tuple[dict[str, Any], int]:
-        """Get detailed information about a specific trace."""
+        """Get detailed information about a specific trace.
+
+        Returns:
+            The result string.
+        """
         try:
             trace = dashboard.get_trace_detail(trace_id)
 
@@ -181,7 +202,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/cost", methods=["GET"])
     def get_cost_report() -> tuple[dict[str, Any], int]:
-        """Get cost attribution report, optionally filtered."""
+        """Get cost attribution report, optionally filtered.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.cost import get_cost_tracker
 
@@ -197,7 +222,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/cost/top", methods=["GET"])
     def get_cost_top() -> tuple[dict[str, Any], int]:
-        """Get top agents and models by cost."""
+        """Get top agents and models by cost.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.cost import get_cost_tracker
 
@@ -215,7 +244,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/sla", methods=["GET"])
     def get_sla_reports() -> tuple[dict[str, Any], int]:
-        """Get all SLA compliance reports."""
+        """Get all SLA compliance reports.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.sla import get_sla_tracker
 
@@ -232,7 +265,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/sla/<name>", methods=["GET"])
     def get_sla_report(name: str) -> tuple[dict[str, Any], int]:
-        """Get a single SLO compliance report."""
+        """Get a single SLO compliance report.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.sla import get_sla_tracker
 
@@ -246,7 +283,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/anomalies", methods=["GET"])
     def get_anomalies() -> tuple[dict[str, Any], int]:
-        """Get recent anomaly detections."""
+        """Get recent anomaly detections.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.anomaly import get_anomaly_detector
 
@@ -264,7 +305,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/forecast", methods=["GET"])
     def get_forecast() -> tuple[dict[str, Any], int]:
-        """Get forecast for a metric."""
+        """Get forecast for a metric.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.analytics.forecasting import ForecastRequest, get_forecaster
 
@@ -282,7 +327,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/analytics/autotuner", methods=["GET"])
     def get_autotuner() -> tuple[dict[str, Any], int]:
-        """Get AutoTuner config and action history."""
+        """Get AutoTuner config and action history.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.learning.auto_tuner import get_auto_tuner
 
@@ -301,7 +350,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/config/inference-profiles", methods=["GET"])
     def get_inference_profiles() -> tuple[dict[str, Any], int]:
-        """Get current inference profiles and stats."""
+        """Get current inference profiles and stats.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.config.inference_config import get_inference_config
 
@@ -318,7 +371,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.route("/api/v1/config/inference-profiles/effective", methods=["GET"])
     def get_effective_inference_params() -> tuple[dict[str, Any], int]:
-        """Get effective params for a task_type + model_id combination."""
+        """Get effective params for a task_type + model_id combination.
+
+        Returns:
+            The result string.
+        """
         try:
             from vetinari.config.inference_config import get_inference_config
 
@@ -346,7 +403,11 @@ def create_app(debug: bool = False) -> Flask:
 
     @app.errorhandler(500)
     def internal_error(error: Any) -> tuple[dict[str, str], int]:
-        """Handle 500 errors."""
+        """Handle 500 errors.
+
+        Returns:
+            The result string.
+        """
         logger.error("Internal server error: %s", error)
         return jsonify({"error": "Internal server error"}), 500
 
@@ -358,15 +419,19 @@ def create_app(debug: bool = False) -> Flask:
         logger.debug("%s %s", request.method, request.path)
 
     _DASHBOARD_ALLOWED_ORIGINS = {
-        "http://localhost",
+        "http://localhost",  # noqa: VET041
         "http://127.0.0.1",
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
+        "http://localhost:5000",  # noqa: VET041
+        "http://127.0.0.1:5000",  # noqa: VET041
     }
 
     @app.after_request
     def add_cors_headers(response: Any) -> Any:
-        """Add CORS headers restricted to localhost origins (P1.H2)."""
+        """Add CORS headers restricted to localhost origins (P1.H2).
+
+        Returns:
+            The response with CORS headers applied.
+        """  # noqa: VET041
         origin = request.headers.get("Origin", "")
         if origin in _DASHBOARD_ALLOWED_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin

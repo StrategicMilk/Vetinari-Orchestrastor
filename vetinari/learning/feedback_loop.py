@@ -146,7 +146,7 @@ class FeedbackLoop:
                 task_type=bench_task_type,
             )
         except Exception as e:
-            logger.debug(f"Thompson benchmark update failed: {e}")
+            logger.debug("Thompson benchmark update failed: %s", e)
 
         # Update memory store with benchmark-informed performance
         try:
@@ -168,7 +168,7 @@ class FeedbackLoop:
                     },
                 )
         except Exception as e:
-            logger.debug(f"Memory benchmark update failed: {e}")
+            logger.debug("Memory benchmark update failed: %s", e)
 
     def _update_memory_performance(
         self, model_id: str, task_type: str, quality: float, latency_ms: int, success: bool
@@ -248,7 +248,7 @@ class FeedbackLoop:
 
             get_thompson_selector().update(model_id, task_type, quality, success)
         except Exception as e:
-            logger.debug(f"Thompson arm update failed: {e}")
+            logger.debug("Thompson arm update failed: %s", e)
 
 
 # Singleton
@@ -256,6 +256,11 @@ _feedback_loop: FeedbackLoop | None = None
 
 
 def get_feedback_loop() -> FeedbackLoop:
+    """Get feedback loop.
+
+    Returns:
+        The FeedbackLoop result.
+    """
     global _feedback_loop
     if _feedback_loop is None:
         _feedback_loop = FeedbackLoop()

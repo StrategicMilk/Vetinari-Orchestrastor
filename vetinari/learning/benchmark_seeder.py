@@ -133,6 +133,10 @@ class BenchmarkSeeder:
 
         Returns:
             Tuple of (alpha, beta) for Beta distribution initialization.
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
         """
         key = f"{model_id}:{task_type}"
 
@@ -239,36 +243,36 @@ class BenchmarkSeeder:
         state_dir = os.environ.get("VETINARI_STATE_DIR", "")
         if not state_dir:
             pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            state_dir = os.path.join(pkg_root, ".vetinari")
+            state_dir = os.path.join(pkg_root, ".vetinari")  # noqa: VET063
         return state_dir
 
     def _load_cache(self) -> None:
         try:
-            cache_file = os.path.join(self._state_dir, "benchmark_cache.json")
+            cache_file = os.path.join(self._state_dir, "benchmark_cache.json")  # noqa: VET063
             if os.path.exists(cache_file):
-                with open(cache_file) as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                 self._cache.last_updated = data.get("last_updated", 0.0)
                 for key, p in data.get("priors", {}).items():
                     self._cache.priors[key] = BenchmarkPrior(**p)
-                logger.debug(f"[BenchmarkSeeder] Loaded {len(self._cache.priors)} cached priors")
+                logger.debug("[BenchmarkSeeder] Loaded %s cached priors", len(self._cache.priors))
         except Exception as e:
-            logger.debug(f"[BenchmarkSeeder] Could not load cache: {e}")
+            logger.debug("[BenchmarkSeeder] Could not load cache: %s", e)
 
     def _save_cache(self) -> None:
         try:
             os.makedirs(self._state_dir, exist_ok=True)
-            cache_file = os.path.join(self._state_dir, "benchmark_cache.json")
+            cache_file = os.path.join(self._state_dir, "benchmark_cache.json")  # noqa: VET063
             from dataclasses import asdict
 
             data = {
                 "last_updated": time.time(),
                 "priors": {k: asdict(v) for k, v in self._cache.priors.items()},
             }
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.debug(f"[BenchmarkSeeder] Could not save cache: {e}")
+            logger.debug("[BenchmarkSeeder] Could not save cache: %s", e)
 
 
 # Singleton
@@ -276,6 +280,11 @@ _benchmark_seeder: BenchmarkSeeder | None = None
 
 
 def get_benchmark_seeder() -> BenchmarkSeeder:
+    """Get benchmark seeder.
+
+    Returns:
+        The BenchmarkSeeder result.
+    """
     global _benchmark_seeder
     if _benchmark_seeder is None:
         _benchmark_seeder = BenchmarkSeeder()

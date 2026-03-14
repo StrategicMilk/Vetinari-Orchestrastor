@@ -87,10 +87,15 @@ class DurableExecutionEngine:
         self._on_task_complete: Callable | None = None
         self._on_task_fail: Callable | None = None
 
-        logger.info(f"DurableExecutionEngine initialized (checkpoint_dir={self.checkpoint_dir})")
+        logger.info("DurableExecutionEngine initialized (checkpoint_dir=%s)", self.checkpoint_dir)
 
     def register_handler(self, task_type: str, handler: Callable):
-        """Register a handler for a task type."""
+        """Register a handler for a task type.
+
+        Args:
+            task_type: The task type.
+            handler: The handler.
+        """
         self._task_handlers[task_type] = handler
         logger.debug("Registered handler for task type: %s", task_type)
 
@@ -100,13 +105,23 @@ class DurableExecutionEngine:
         on_task_complete: Callable | None = None,
         on_task_fail: Callable | None = None,
     ):
-        """Set execution callbacks."""
+        """Set execution callbacks.
+
+        Args:
+            on_task_start: The on task start.
+            on_task_complete: The on task complete.
+            on_task_fail: The on task fail.
+        """
         self._on_task_start = on_task_start
         self._on_task_complete = on_task_complete
         self._on_task_fail = on_task_fail
 
     def create_execution(self, graph: ExecutionGraph) -> str:
-        """Create a new execution from a graph."""
+        """Create a new execution from a graph.
+
+        Returns:
+            The result string.
+        """
         plan_id = graph.plan_id
         with self._execution_lock:
             self._active_executions[plan_id] = graph
@@ -146,7 +161,7 @@ class DurableExecutionEngine:
         }
 
         for layer_idx, layer in enumerate(layers):
-            logger.info(f"Executing layer {layer_idx + 1}/{len(layers)} with {len(layer)} tasks")
+            logger.info("Executing layer %s/%s with %s tasks", layer_idx + 1, len(layers), len(layer))
             layer_results = self._execute_layer(graph, layer)
 
             for task_id, result in layer_results.items():
@@ -236,7 +251,7 @@ class DurableExecutionEngine:
             except Exception as e:
                 last_error = str(e)
                 task.retry_count = attempt + 1
-                logger.warning(f"Task {task_id} attempt {attempt + 1} failed: {e}")
+                logger.warning("Task %s attempt %s failed: %s", task_id, attempt + 1, e)
                 if attempt < max_attempts - 1:
                     time.sleep(2**attempt)
 
@@ -349,7 +364,7 @@ class DurableExecutionEngine:
         )
 
         checkpoint_file = self.checkpoint_dir / f"{plan_id}_checkpoint.json"
-        with open(checkpoint_file, "w") as f:
+        with open(checkpoint_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "checkpoint_id": checkpoint.checkpoint_id,
@@ -365,14 +380,18 @@ class DurableExecutionEngine:
             )
 
     def load_checkpoint(self, plan_id: str) -> ExecutionGraph | None:
-        """Load a checkpoint to resume execution."""
+        """Load a checkpoint to resume execution.
+
+        Returns:
+            The ExecutionGraph | None result.
+        """
         checkpoint_file = self.checkpoint_dir / f"{plan_id}_checkpoint.json"
 
         if not checkpoint_file.exists():
             logger.warning("No checkpoint found for plan: %s", plan_id)
             return None
 
-        with open(checkpoint_file) as f:
+        with open(checkpoint_file, encoding="utf-8") as f:
             data = json.load(f)
 
         graph_data = data["graph_state"]
@@ -397,7 +416,11 @@ class DurableExecutionEngine:
         return graph
 
     def recover_execution(self, plan_id: str) -> dict[str, Any]:
-        """Recover and continue an execution from checkpoint."""
+        """Recover and continue an execution from checkpoint.
+
+        Returns:
+            The result string.
+        """
         graph = self.load_checkpoint(plan_id)
 
         if not graph:
@@ -412,12 +435,16 @@ class DurableExecutionEngine:
         incomplete = [
             n for n in graph.nodes.values() if n.status in (TaskStatus.PENDING, TaskStatus.BLOCKED, TaskStatus.FAILED)
         ]
-        logger.info(f"Recovering {len(incomplete)} incomplete tasks for plan: {plan_id}")
+        logger.info("Recovering %s incomplete tasks for plan: %s", len(incomplete), plan_id)
 
         return self.execute_plan(graph)
 
     def get_execution_status(self, plan_id: str) -> dict[str, Any] | None:
-        """Get the status of an execution."""
+        """Get the status of an execution.
+
+        Returns:
+            The result string.
+        """
         with self._execution_lock:
             graph = self._active_executions.get(plan_id)
 

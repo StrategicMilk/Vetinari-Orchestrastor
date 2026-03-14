@@ -604,7 +604,7 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
                 '  "monitoring": {\n'
                 '    "health_checks": [{"endpoint": "...", "interval_seconds": 30, "threshold": 3}],\n'
                 '    "alerts": [{"name": "...", "condition": "...", "severity": "critical|warning|info"}],\n'
-                '    "runbook_url": "string — placeholder or actual URL"\n'
+                '    "runbook_url": "string — placeholder or actual URL"\n'  # noqa: VET034
                 "  }\n"
                 "}\n\n"
                 "DECISION FRAMEWORK — deployment strategy selection:\n"
@@ -713,6 +713,11 @@ class ConsolidatedResearcherAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
+        """Verify.
+
+        Returns:
+            The VerificationResult result.
+        """
         if output is None:
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         if isinstance(output, dict):
@@ -992,6 +997,11 @@ _consolidated_researcher_agent: ConsolidatedResearcherAgent | None = None
 
 
 def get_consolidated_researcher_agent(config: dict[str, Any] | None = None) -> ConsolidatedResearcherAgent:
+    """Get consolidated researcher agent.
+
+    Returns:
+        The ConsolidatedResearcherAgent result.
+    """
     global _consolidated_researcher_agent
     if _consolidated_researcher_agent is None:
         _consolidated_researcher_agent = ConsolidatedResearcherAgent(config)

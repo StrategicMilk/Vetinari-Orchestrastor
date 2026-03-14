@@ -143,6 +143,11 @@ class CostOptimizer:
 
         Returns:
             Dict with estimated_cost_usd, breakdown_by_type, warnings.
+
+        Args:
+            planned_tasks: The planned tasks.
+            task_types: The task types.
+            models: The models.
         """
         total_cost = 0.0
         breakdown: dict[str, float] = {}
@@ -174,6 +179,11 @@ _cost_optimizer: CostOptimizer | None = None
 
 
 def get_cost_optimizer() -> CostOptimizer:
+    """Get cost optimizer.
+
+    Returns:
+        The CostOptimizer result.
+    """
     global _cost_optimizer
     if _cost_optimizer is None:
         _cost_optimizer = CostOptimizer()

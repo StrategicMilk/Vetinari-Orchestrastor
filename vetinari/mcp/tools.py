@@ -9,6 +9,7 @@ from typing import Any
 
 @dataclass
 class MCPToolParameter:
+    """Mcptool parameter."""
     name: str
     type: str  # "string", "number", "boolean", "object"
     description: str
@@ -18,13 +19,18 @@ class MCPToolParameter:
 
 @dataclass
 class MCPTool:
+    """Model Context Protocol tool definition."""
     name: str
     description: str
     parameters: list[MCPToolParameter] = field(default_factory=list)
     handler: Callable | None = None
 
     def to_schema(self) -> dict[str, Any]:
-        """Convert to MCP tool schema format."""
+        """Convert to MCP tool schema format.
+
+        Returns:
+            The result string.
+        """
         properties = {}
         required = []
         for p in self.parameters:
@@ -49,6 +55,7 @@ class MCPToolRegistry:
         self._tools: dict[str, MCPTool] = {}
 
     def register(self, tool: MCPTool) -> None:
+        """Register for the current context."""
         self._tools[tool.name] = tool
 
     def get(self, name: str) -> MCPTool | None:
@@ -58,6 +65,15 @@ class MCPToolRegistry:
         return [t.to_schema() for t in self._tools.values()]
 
     def invoke(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Invoke.
+
+        Args:
+            name: The name.
+            arguments: The arguments.
+
+        Returns:
+            The result string.
+        """
         tool = self._tools.get(name)
         if tool is None:
             return {"error": f"Unknown tool: {name}"}

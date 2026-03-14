@@ -200,6 +200,11 @@ class SWEBenchAdapter(BenchmarkSuiteAdapter):
     tier = BenchmarkTier.SLOW
 
     def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
+        """Load cases.
+
+        Returns:
+            List of results.
+        """
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
@@ -229,6 +234,13 @@ class SWEBenchAdapter(BenchmarkSuiteAdapter):
         In local/mock mode, we simulate patch generation by checking
         structural similarity. In production mode, this would invoke
         the full Vetinari pipeline to generate a code patch.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+
+        Returns:
+            The BenchmarkResult result.
         """
         start = time.time()
 
@@ -262,6 +274,9 @@ class SWEBenchAdapter(BenchmarkSuiteAdapter):
           - 0.6: Patch addresses the issue (keyword overlap)
           - 0.8: Patch closely matches expected structure
           - 1.0: Exact or near-exact match
+
+        Returns:
+            The computed value.
         """
         if not result.output:
             return 0.0

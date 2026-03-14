@@ -74,7 +74,15 @@ class CodeModeEngine:
         self._successful_executions = 0
 
     def execute_goal(self, goal: str, context: dict[str, Any] | None = None) -> CodeModeResult:
-        """Execute a goal using code mode."""
+        """Execute a goal using code mode.
+
+        Args:
+            goal: The goal.
+            context: The context.
+
+        Returns:
+            The CodeModeResult result.
+        """
         start = time.monotonic()
         self._total_executions += 1
 
@@ -134,7 +142,7 @@ class CodeModeEngine:
 
             from vetinari.lmstudio_adapter import LMStudioAdapter
 
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             adapter = LMStudioAdapter(host=host)
             resp = adapter.chat("default", "Output only valid Python code.", prompt)
             return self._clean_code(resp.get("output", ""))
@@ -255,6 +263,11 @@ _engine: CodeModeEngine | None = None
 
 
 def get_code_mode_engine(context: dict[str, Any] | None = None) -> CodeModeEngine:
+    """Get code mode engine.
+
+    Returns:
+        The CodeModeEngine result.
+    """
     global _engine
     if _engine is None:
         _engine = CodeModeEngine(context)

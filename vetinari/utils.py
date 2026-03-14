@@ -1,3 +1,5 @@
+"""Utils module."""
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +54,12 @@ class SingletonMeta(type):
 
 
 def setup_logging(level=logging.INFO, log_dir="logs"):
+    """Set up logging.
+
+    Args:
+        level: The level.
+        log_dir: The log dir.
+    """
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=level,
@@ -79,7 +87,11 @@ def _expand_env_vars(obj: Any) -> Any:
 
 
 def load_yaml(path: str) -> Any:
-    """Load a YAML file and expand ${ENV_VAR} placeholders in string values."""
+    """Load a YAML file and expand ${ENV_VAR} placeholders in string values.
+
+    Returns:
+        The Any result.
+    """
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return _expand_env_vars(data)
@@ -95,6 +107,9 @@ def estimate_model_memory_gb(model_id: str) -> int:
 
     Shared utility used by model_search, live_model_search, ponder, and vram_manager.
     Returns a conservative estimate based on parameter count in the model name.
+
+    Returns:
+        The computed value.
     """
     model_lower = model_id.lower()
 

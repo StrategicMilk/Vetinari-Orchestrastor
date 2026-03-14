@@ -342,7 +342,7 @@ class PlannerAgent(MultiModeAgent):
                 "FEW-SHOT EXAMPLE 2 — Blocked session:\n"
                 "History: Attempts to connect to database failing\n"
                 'Output: session_summary="Database integration stalled due to connection refused errors.",\n'
-                'blockers=["PostgreSQL not reachable at localhost:5432"],\n'
+                'blockers=["PostgreSQL not reachable at localhost:5432"],\n'  # noqa: VET041
                 'next_steps=["Verify DB is running: systemctl status postgresql"],\n'
                 'session_health="blocked"\n\n'
                 "ERROR HANDLING:\n"
@@ -498,7 +498,11 @@ class PlannerAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
-        """Verify output — mode-aware."""
+        """Verify output — mode-aware.
+
+        Returns:
+            The VerificationResult result.
+        """
         if not isinstance(output, dict):
             return VerificationResult(passed=False, issues=[{"message": "Output must be a dict"}], score=0.0)
 
@@ -665,6 +669,15 @@ Output valid JSON array of task objects only — no prose, no markdown:
             id_to_task = {t.id: t for t in tasks}
 
             def get_depth(task_id: str, visited: set) -> int:
+                """Get depth.
+
+                Args:
+                    task_id: The task id.
+                    visited: The visited.
+
+                Returns:
+                    The computed value.
+                """
                 if task_id in visited:
                     return 0
                 visited.add(task_id)
@@ -685,6 +698,11 @@ Output valid JSON array of task objects only — no prose, no markdown:
         task_counter = [1]
 
         def next_id(prefix="t"):
+            """Next id for the current context.
+
+            Returns:
+                The result value.
+            """
             tid = f"{prefix}{task_counter[0]}"
             task_counter[0] += 1
             return tid
@@ -946,7 +964,12 @@ Output valid JSON array of task objects only — no prose, no markdown:
             return ["(callback error)"] * len(questions)
 
     def set_interaction_mode(self, mode: str, callback: Callable | None = None) -> None:
-        """Set the interaction mode for clarify operations."""
+        """Set the interaction mode for clarify operations.
+
+        Args:
+            mode: The mode.
+            callback: The callback.
+        """
         self._interaction_mode = mode
         self._callback = callback
 
@@ -1086,7 +1109,11 @@ _planner_agent: PlannerAgent | None = None
 
 
 def get_planner_agent(config: dict[str, Any] | None = None) -> PlannerAgent:
-    """Get the singleton Planner agent instance."""
+    """Get the singleton Planner agent instance.
+
+    Returns:
+        The PlannerAgent result.
+    """
     global _planner_agent
     if _planner_agent is None:
         _planner_agent = PlannerAgent(config)

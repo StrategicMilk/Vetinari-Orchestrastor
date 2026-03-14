@@ -45,7 +45,12 @@ class AdapterRegistry:
 
     @classmethod
     def register_adapter(cls, provider_type: ProviderType, adapter_class: type[ProviderAdapter]) -> None:
-        """Register a new adapter class for a provider type."""
+        """Register a new adapter class for a provider type.
+
+        Args:
+            provider_type: The provider type.
+            adapter_class: The adapter class.
+        """
         with _registry_lock:
             cls._adapter_classes[provider_type] = adapter_class
         logger.info("[AdapterRegistry] Registered %s for %s", adapter_class.__name__, provider_type.value)
@@ -85,7 +90,11 @@ class AdapterRegistry:
 
     @classmethod
     def list_adapters(cls) -> dict[str, ProviderAdapter]:
-        """Get all cached adapter instances."""
+        """Get all cached adapter instances.
+
+        Returns:
+            The result string.
+        """
         with _registry_lock:
             return dict(cls._instances)
 
@@ -96,7 +105,11 @@ class AdapterRegistry:
 
     @classmethod
     def discover_all_models(cls) -> dict[str, list[ModelInfo]]:
-        """Discover models from all active adapter instances."""
+        """Discover models from all active adapter instances.
+
+        Returns:
+            The result string.
+        """
         results = {}
         with _registry_lock:
             instances = dict(cls._instances)
@@ -112,7 +125,11 @@ class AdapterRegistry:
 
     @classmethod
     def health_check_all(cls) -> dict[str, dict]:
-        """Run health check on all active adapter instances."""
+        """Run health check on all active adapter instances.
+
+        Returns:
+            The result string.
+        """
         results = {}
         with _registry_lock:
             instances = dict(cls._instances)
@@ -129,7 +146,11 @@ class AdapterRegistry:
 
     @classmethod
     def find_best_model(cls, task_requirements: dict) -> tuple[ProviderAdapter | None, ModelInfo | None]:
-        """Find the best model across all adapters for a given task."""
+        """Find the best model across all adapters for a given task.
+
+        Returns:
+            The tuple[ProviderAdapter | None, ModelInfo | None] result.
+        """
         best_adapter = None
         best_model = None
         best_score = -1.0

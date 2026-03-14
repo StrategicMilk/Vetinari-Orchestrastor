@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CachedPlan:
+    """Cached plan."""
     goal: str
     goal_hash: str
     plan_data: dict[str, Any]
@@ -62,7 +63,7 @@ class PlanCache:
                     plan = CachedPlan.from_dict(entry)
                     self._cache[plan.goal_hash] = plan
             except Exception as e:
-                logger.debug(f"Plan cache load error: {e}")
+                logger.debug("Plan cache load error: %s", e)
 
     def _save_cache(self):
         try:
@@ -71,7 +72,7 @@ class PlanCache:
             data = [p.to_dict() for p in self._cache.values()]
             cache_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception as e:
-            logger.debug(f"Plan cache save error: {e}")
+            logger.debug("Plan cache save error: %s", e)
 
     def _goal_hash(self, goal: str) -> str:
         normalized = " ".join(goal.lower().split())
@@ -144,7 +145,15 @@ class PlanCache:
         return len(intersection) / len(union) if union else 0.0
 
     def find_similar(self, goal: str, threshold: float | None = None) -> CachedPlan | None:
-        """Find a cached plan similar to the given goal."""
+        """Find a cached plan similar to the given goal.
+
+        Args:
+            goal: The goal.
+            threshold: The threshold.
+
+        Returns:
+            The CachedPlan | None result.
+        """
         self._ensure_loaded()
         threshold = threshold or self.DEFAULT_THRESHOLD
 
@@ -169,12 +178,18 @@ class PlanCache:
         if best_plan:
             best_plan.hit_count += 1
             best_plan.last_hit = time.time()
-            logger.info(f"Plan cache hit (similarity={best_score:.2f})")
+            logger.info("Plan cache hit (similarity=%.2f)", best_score)
 
         return best_plan
 
     def store(self, goal: str, plan_data: dict[str, Any], quality_score: float = 0.0) -> None:
-        """Store a plan in the cache."""
+        """Store a plan in the cache.
+
+        Args:
+            goal: The goal.
+            plan_data: The plan data.
+            quality_score: The quality score.
+        """
         self._ensure_loaded()
 
         goal_hash = self._goal_hash(goal)
@@ -194,7 +209,11 @@ class PlanCache:
         self._save_cache()
 
     def invalidate(self, older_than_days: int | None = None) -> int:
-        """Remove stale entries. Returns count of removed entries."""
+        """Remove stale entries. Returns count of removed entries.
+
+        Returns:
+            The computed value.
+        """
         self._ensure_loaded()
         older_than_days = older_than_days or self.DEFAULT_MAX_AGE_DAYS
         cutoff = time.time() - (older_than_days * 86400)
@@ -209,6 +228,11 @@ class PlanCache:
         return len(to_remove)
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         self._ensure_loaded()
         return {
             "total_cached": len(self._cache),
@@ -221,6 +245,11 @@ _plan_cache: PlanCache | None = None
 
 
 def get_plan_cache(cache_dir: str | None = None) -> PlanCache:
+    """Get plan cache.
+
+    Returns:
+        The PlanCache result.
+    """
     global _plan_cache
     if _plan_cache is None:
         _plan_cache = PlanCache(cache_dir)

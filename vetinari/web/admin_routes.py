@@ -11,6 +11,11 @@ bp = Blueprint("admin", __name__)
 
 @bp.route("/api/admin/credentials", methods=["GET"])
 def api_admin_list_credentials():
+    """Api admin list credentials.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -26,6 +31,11 @@ def api_admin_list_credentials():
 
 @bp.route("/api/admin/credentials/<source_type>", methods=["POST"])
 def api_admin_set_credential(source_type):
+    """Api admin set credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -55,6 +65,11 @@ def api_admin_set_credential(source_type):
 
 @bp.route("/api/admin/credentials/<source_type>/rotate", methods=["POST"])
 def api_admin_rotate_credential(source_type):
+    """Api admin rotate credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -78,6 +93,11 @@ def api_admin_rotate_credential(source_type):
 
 @bp.route("/api/admin/credentials/<source_type>", methods=["DELETE"])
 def api_admin_delete_credential(source_type):
+    """Api admin delete credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -92,6 +112,11 @@ def api_admin_delete_credential(source_type):
 
 @bp.route("/api/admin/credentials/health", methods=["GET"])
 def api_admin_credentials_health():
+    """Api admin credentials health.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:

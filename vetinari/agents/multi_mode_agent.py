@@ -120,7 +120,11 @@ class MultiModeAgent(BaseAgent):
         return self.DEFAULT_MODE or (next(iter(self.MODES.keys())) if self.MODES else "")
 
     def execute(self, task: AgentTask) -> AgentResult:
-        """Route task to the appropriate mode handler."""
+        """Route task to the appropriate mode handler.
+
+        Returns:
+            The AgentResult result.
+        """
         task = self.prepare_task(task)
 
         mode = self._resolve_mode(task)
@@ -159,7 +163,11 @@ class MultiModeAgent(BaseAgent):
         return result
 
     def verify(self, output: Any) -> VerificationResult:
-        """Default verification — subclasses can override per-mode."""
+        """Default verification — subclasses can override per-mode.
+
+        Returns:
+            The VerificationResult result.
+        """
         if output is None:
             return VerificationResult(
                 passed=False,
@@ -169,7 +177,11 @@ class MultiModeAgent(BaseAgent):
         return VerificationResult(passed=True, score=0.7)
 
     def get_system_prompt(self) -> str:
-        """Return mode-aware system prompt."""
+        """Return mode-aware system prompt.
+
+        Returns:
+            The result string.
+        """
         mode = self._current_mode or self.DEFAULT_MODE
         mode_prompt = self._get_mode_system_prompt(mode)
         if mode_prompt:

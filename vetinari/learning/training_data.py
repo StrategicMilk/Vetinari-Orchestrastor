@@ -130,6 +130,11 @@ class TrainingDataCollector:
 
     @classmethod
     def get_instance(cls, output_path: str = _DEFAULT_PATH) -> TrainingDataCollector:
+        """Get instance.
+
+        Returns:
+            The TrainingDataCollector result.
+        """
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls(output_path=output_path)
@@ -263,6 +268,14 @@ class TrainingDataCollector:
         """Export high-quality completions for supervised fine-tuning.
 
         Returns list of ``{"prompt": ..., "completion": ..., "score": ...}`` dicts.
+
+        Args:
+            min_score: The min score.
+            task_type: The task type.
+            max_records: The max records.
+
+        Returns:
+            The result string.
         """
         self.flush()
         all_records = self._load_all()
@@ -286,6 +299,13 @@ class TrainingDataCollector:
         responses for the same task (if gap >= min_score_gap).
 
         Returns list of ``{"prompt": ..., "chosen": ..., "rejected": ...}`` dicts.
+
+        Args:
+            task_type: The task type.
+            min_score_gap: The min score gap.
+
+        Returns:
+            The result string.
         """
         self.flush()
         all_records = self._load_all()
@@ -319,7 +339,11 @@ class TrainingDataCollector:
         return pairs
 
     def export_prompt_dataset(self) -> list[dict[str, Any]]:
-        """Export prompt variant performance for DSPy/A-B analysis."""
+        """Export prompt variant performance for DSPy/A-B analysis.
+
+        Returns:
+            The result string.
+        """
         self.flush()
         all_records = self._load_all()
         variant_records = [r for r in all_records if r.prompt_variant_id]
@@ -344,6 +368,13 @@ class TrainingDataCollector:
 
         Returns list of ``{"instruction": ..., "input": ..., "output": ...}`` dicts.
         Does NOT require the ``datasets`` library — returns plain Python dicts.
+
+        Args:
+            min_score: The min score.
+            task_type: The task type.
+
+        Returns:
+            The result string.
         """
         self.flush()
         all_records = self._load_all()
@@ -371,6 +402,13 @@ class TrainingDataCollector:
 
         Returns list of ``{"input": ..., "output": ...}`` pairs suitable for
         few-shot prompt construction.
+
+        Args:
+            task_type: The task type.
+            k: The k.
+
+        Returns:
+            The result string.
         """
         self.flush()
         all_records = self._load_all()
@@ -384,6 +422,9 @@ class TrainingDataCollector:
         Groups records by task text, ranks all responses best→worst by score.
         Returns list of ``{"prompt": ..., "responses": [...]}`` dicts where
         ``responses`` is ordered from highest to lowest score.
+
+        Returns:
+            The result string.
         """
         self.flush()
         all_records = self._load_all()
@@ -407,7 +448,11 @@ class TrainingDataCollector:
         return result
 
     def get_stats(self) -> dict[str, Any]:
-        """Return a summary of collected training data."""
+        """Return a summary of collected training data.
+
+        Returns:
+            The result string.
+        """
         self.flush()
         all_records = self._load_all()
         if not all_records:
@@ -444,7 +489,11 @@ _collector_lock = threading.Lock()
 def get_training_collector(
     output_path: str = _DEFAULT_PATH,
 ) -> TrainingDataCollector:
-    """Return the global TrainingDataCollector singleton."""
+    """Return the global TrainingDataCollector singleton.
+
+    Returns:
+        The TrainingDataCollector result.
+    """
     global _collector
     if _collector is None:
         with _collector_lock:

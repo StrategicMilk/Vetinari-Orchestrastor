@@ -81,7 +81,7 @@ def execute_assignment_pass(
                     }
                 )
             except Exception as e:
-                logger.warning(f"Assignment failed for subtask {st.subtask_id}: {e}")
+                logger.warning("Assignment failed for subtask %s: %s", st.subtask_id, e)
                 errors.append({"subtask_id": st.subtask_id, "error": str(e)})
 
         return {
@@ -96,5 +96,5 @@ def execute_assignment_pass(
         }
 
     except Exception as e:
-        logger.error(f"execute_assignment_pass failed: {e}")
+        logger.error("execute_assignment_pass failed: %s", e)
         return {"plan_id": plan_id, "error": str(e), "assignments": []}

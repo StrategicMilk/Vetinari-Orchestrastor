@@ -1,16 +1,25 @@
+"""Scheduler module."""
+
 from __future__ import annotations
 
 import logging
 from collections import defaultdict
 
+logger = logging.getLogger(__name__)
+
 
 class Scheduler:
+    """Schedules and dispatches waves of tasks to agents."""
     def __init__(self, config: dict, max_concurrent: int = 4):
         self.config = config
         self.max_concurrent = max_concurrent
 
     def build_schedule(self, config: dict) -> list[dict]:
-        """Build a linear schedule (legacy method, use build_schedule_layers for parallelism)."""
+        """Build a linear schedule (legacy method, use build_schedule_layers for parallelism).
+
+        Returns:
+            List of results.
+        """
         tasks = config.get("tasks", [])
         # Simple topological sort based on dependencies
         order = []
@@ -35,6 +44,9 @@ class Scheduler:
 
         Returns a list of layers, where each layer contains tasks that can run in parallel.
         Tasks in layer N only depend on tasks in layers 0 to N-1.
+
+        Returns:
+            List of results.
         """
         tasks = config.get("tasks", [])
         if not tasks:
@@ -45,7 +57,7 @@ class Scheduler:
         for task in tasks:
             for dep in task.get("dependencies", []):
                 if dep not in task_ids:
-                    logging.warning(f"Task {task['id']} has unknown dependency: {dep}")
+                    logger.warning("Task %s has unknown dependency: %s", task["id"], dep)
 
         # Build dependency graph
         task_map = {t["id"]: t for t in tasks}
@@ -61,7 +73,7 @@ class Scheduler:
             # If any dependency is missing, mark this task as unresolvable
             if len(valid_deps) != len(deps):
                 unresolvable.add(task_id)
-                logging.warning(f"Task {task_id} has unknown dependency and will not be scheduled")
+                logger.warning("Task %s has unknown dependency and will not be scheduled", task_id)
             in_degree[task_id] = len(valid_deps)
             for dep in valid_deps:
                 # Always initialize dependent list and add task_id
@@ -87,7 +99,7 @@ class Scheduler:
             if not ready:
                 # Circular dependency or missing task - log and break
                 remaining = [tid for tid in task_ids if tid not in processed]
-                logging.error(f"Possible circular dependency or missing tasks. Remaining: {remaining}")
+                logger.error("Possible circular dependency or missing tasks. Remaining: %s", remaining)
                 break
 
             # Emit layers of at most max_concurrent tasks, but keep iterating
@@ -106,12 +118,20 @@ class Scheduler:
                         in_degree[dependent_id] -= 1
 
         if iteration >= max_iterations:
-            logging.error("Scheduler exceeded maximum iterations - possible circular dependency")
+            logger.error("Scheduler exceeded maximum iterations - possible circular dependency")
 
         return layers
 
     def get_ready_tasks(self, config: dict, completed: set[str]) -> list[dict]:
-        """Get tasks that are ready to run (all dependencies completed)."""
+        """Get tasks that are ready to run (all dependencies completed).
+
+        Args:
+            config: The config.
+            completed: The completed.
+
+        Returns:
+            List of results.
+        """
         tasks = config.get("tasks", [])
         ready = []
 

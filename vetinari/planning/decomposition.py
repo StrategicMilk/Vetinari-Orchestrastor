@@ -360,7 +360,16 @@ class DecompositionEngine:
         agent_type: str | None = None,
         dod_level: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Return matching decomposition templates."""
+        """Return matching decomposition templates.
+
+        Args:
+            keywords: The keywords.
+            agent_type: The agent type.
+            dod_level: The dod level.
+
+        Returns:
+            The result string.
+        """
         results = self._templates[:]
         if keywords:
             kw_lower = [k.lower() for k in keywords]
@@ -388,6 +397,16 @@ class DecompositionEngine:
         """Decompose a task into subtasks using the PlannerAgent.
 
         Falls back to keyword-based decomposition.
+
+        Args:
+            task_prompt: The task prompt.
+            parent_task_id: The parent task id.
+            depth: The depth.
+            max_depth: The max depth.
+            plan_id: The plan id.
+
+        Returns:
+            The result string.
         """
         max_depth = max(MIN_MAX_DEPTH, min(max_depth, MAX_MAX_DEPTH))
 
@@ -450,6 +469,16 @@ class DecompositionEngine:
         subtasks = []
 
         def make_subtask(desc: str, agent: str, deps: list[str] | None = None) -> dict[str, Any]:
+            """Make subtask.
+
+            Args:
+                desc: The desc.
+                agent: The agent.
+                deps: The deps.
+
+            Returns:
+                The result string.
+            """
             sid = f"st_{uuid.uuid4().hex[:6]}"
             return {
                 "subtask_id": sid,
@@ -482,7 +511,11 @@ class DecompositionEngine:
         return subtasks
 
     def get_decomposition_history(self, plan_id: str | None = None) -> list[DecompositionEvent]:
-        """Return decomposition history, optionally filtered by plan_id."""
+        """Return decomposition history, optionally filtered by plan_id.
+
+        Returns:
+            List of results.
+        """
         if plan_id:
             return [e for e in self._history if e.plan_id == plan_id]
         return list(self._history)

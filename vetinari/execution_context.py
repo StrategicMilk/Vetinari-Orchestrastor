@@ -159,7 +159,11 @@ class ExecutionContext:
         return self.policy.has_permission(permission)
 
     def requires_confirmation(self, permission: ToolPermission) -> bool:
-        """Check if an operation requires user confirmation."""
+        """Check if an operation requires user confirmation.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self.policy:
             return True
         return self.policy.requires_confirmation(permission)
@@ -180,7 +184,13 @@ class ExecutionContext:
         self.post_execution_hooks.append(hook)
 
     def record_operation(self, operation_name: str, params: dict[str, Any], result: Any):
-        """Record an executed operation for audit trail."""
+        """Record an executed operation for audit trail.
+
+        Args:
+            operation_name: The operation name.
+            params: The params.
+            result: The result.
+        """
         self.executed_operations.append(
             {
                 "timestamp": datetime.now().isoformat(),
@@ -289,6 +299,10 @@ class ContextManager:
             with context_manager.temporary_mode(ExecutionMode.EXECUTION):
                 # Execute operations with EXECUTION permissions
                 ...
+
+        Args:
+            mode: The mode.
+            task_id: The task id.
         """
         self.switch_mode(mode, task_id)
         try:
@@ -297,7 +311,11 @@ class ContextManager:
             self.pop_context()
 
     def get_status(self) -> dict[str, Any]:
-        """Get the current status of the context manager."""
+        """Get the current status of the context manager.
+
+        Returns:
+            The result string.
+        """
         ctx = self.current_context
         return {
             "mode": ctx.mode.value,
@@ -313,7 +331,11 @@ _context_manager: ContextManager | None = None
 
 
 def get_context_manager() -> ContextManager:
-    """Get or create the global context manager instance."""
+    """Get or create the global context manager instance.
+
+    Returns:
+        The ContextManager result.
+    """
     global _context_manager
     if _context_manager is None:
         _context_manager = ContextManager()

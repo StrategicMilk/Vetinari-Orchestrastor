@@ -159,6 +159,11 @@ class EpisodeMemory:
 
     @classmethod
     def get_instance(cls, db_path: str = _DB_PATH) -> EpisodeMemory:
+        """Get instance.
+
+        Returns:
+            The EpisodeMemory result.
+        """
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls(db_path=db_path)
@@ -217,7 +222,21 @@ class EpisodeMemory:
         model_id: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Record a new episode. Returns the episode_id."""
+        """Record a new episode. Returns the episode_id.
+
+        Args:
+            task_description: The task description.
+            agent_type: The agent type.
+            task_type: The task type.
+            output_summary: The output summary.
+            quality_score: The quality score.
+            success: The success.
+            model_id: The model id.
+            metadata: The metadata.
+
+        Returns:
+            The result string.
+        """
         import uuid
 
         episode_id = f"ep_{uuid.uuid4().hex[:8]}"
@@ -320,6 +339,9 @@ class EpisodeMemory:
             min_score:       Minimum quality_score filter
             task_type:       Filter to a specific task type
             successful_only: Only return successful episodes
+
+        Returns:
+            List of results.
         """
         query_emb = self._embedder(query)
 
@@ -389,7 +411,15 @@ class EpisodeMemory:
             return []
 
     def get_failure_patterns(self, agent_type: str, task_type: str) -> list[str]:
-        """Return common failure summaries for an agent/task combination."""
+        """Return common failure summaries for an agent/task combination.
+
+        Args:
+            agent_type: The agent type.
+            task_type: The task type.
+
+        Returns:
+            The result string.
+        """
         try:
             with sqlite3.connect(self._db_path) as conn:
                 rows = conn.execute(
@@ -403,7 +433,11 @@ class EpisodeMemory:
             return []
 
     def get_stats(self) -> dict[str, Any]:
-        """Return memory statistics."""
+        """Return memory statistics.
+
+        Returns:
+            The result string.
+        """
         try:
             with sqlite3.connect(self._db_path) as conn:
                 total = conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
@@ -429,7 +463,11 @@ _mem_lock = threading.Lock()
 
 
 def get_episode_memory(db_path: str = _DB_PATH) -> EpisodeMemory:
-    """Return the global EpisodeMemory singleton."""
+    """Return the global EpisodeMemory singleton.
+
+    Returns:
+        The EpisodeMemory result.
+    """
     global _episode_memory
     if _episode_memory is None:
         with _mem_lock:

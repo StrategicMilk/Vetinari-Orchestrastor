@@ -82,9 +82,9 @@ _CODE_RULES: list[StyleRule] = [
 
 _DOC_RULES: list[StyleRule] = [
     StyleRule(
-        rule_id="doc-no-placeholder",
-        description="No placeholder text in documentation",
-        pattern=r"(?i)\b(lorem ipsum|TBD|placeholder|TODO)\b",
+        rule_id="doc-no-placeholder",  # noqa: VET034
+        description="No placeholder text in documentation",  # noqa: VET034
+        pattern=r"(?i)\b(lorem ipsum|TBD|placeholder|TODO)\b",  # noqa: VET034
         severity="warning",
         applies_to="documentation",
     ),
@@ -125,7 +125,7 @@ STYLE_CONSTRAINTS: dict[str, StyleConstraint] = {
         max_line_length=100,
         require_headings=True,
         require_sections=True,
-        forbidden_phrases=["lorem ipsum", "TBD"],
+        forbidden_phrases=["lorem ipsum", "TBD"],  # noqa: VET034
     ),
     "creative": StyleConstraint(
         domain="creative",
@@ -168,7 +168,15 @@ _MODE_STYLE_OVERRIDES: dict[str, str] = {
 
 
 def get_style_domain(agent_type: str, mode: str | None = None) -> str:
-    """Determine the style domain for an agent/mode combination."""
+    """Determine the style domain for an agent/mode combination.
+
+    Args:
+        agent_type: The agent type.
+        mode: The mode.
+
+    Returns:
+        The result string.
+    """
     if mode and mode in _MODE_STYLE_OVERRIDES:
         return _MODE_STYLE_OVERRIDES[mode]
     return AGENT_STYLE_DOMAIN.get(agent_type, "documentation")
@@ -188,6 +196,15 @@ def validate_output_style(
     """Validate text against style rules for the given domain.
 
     Returns list of style issues: [{"rule_id": ..., "description": ..., "severity": ...}]
+
+    Args:
+        text: The text.
+        domain: The domain.
+        agent_type: The agent type.
+        mode: The mode.
+
+    Returns:
+        The result string.
     """
     if not text:
         return []

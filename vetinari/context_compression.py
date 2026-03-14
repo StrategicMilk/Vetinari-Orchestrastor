@@ -67,7 +67,11 @@ class ContextCompressor:
         return sum(self.estimate_tokens(m.get("content", "")) for m in messages)
 
     def needs_compression(self, messages: list[dict[str, str]]) -> bool:
-        """Check if context needs compression."""
+        """Check if context needs compression.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         total = self.estimate_messages_tokens(messages)
         threshold = int(self.config.max_context_tokens * self.config.compress_threshold)
         return total > threshold
@@ -146,6 +150,11 @@ class ContextCompressor:
         """Truncate code blocks longer than 20 lines."""
 
         def truncate_block(match):
+            """Truncate block.
+
+            Returns:
+                The computed value.
+            """
             block = match.group(0)
             lines = block.split("\n")
             if len(lines) <= 20:
@@ -219,7 +228,11 @@ class ContextCompressor:
         return result
 
     def extract_key_decisions(self, messages: list[dict[str, str]]) -> list[str]:
-        """Extract key decisions from conversation history."""
+        """Extract key decisions from conversation history.
+
+        Returns:
+            The result string.
+        """
         decisions = []
 
         for msg in messages:
@@ -251,6 +264,11 @@ _compressor: ContextCompressor | None = None
 
 
 def get_context_compressor(config: CompressionConfig | None = None) -> ContextCompressor:
+    """Get context compressor.
+
+    Returns:
+        The ContextCompressor result.
+    """
     global _compressor
     if _compressor is None:
         _compressor = ContextCompressor(config)

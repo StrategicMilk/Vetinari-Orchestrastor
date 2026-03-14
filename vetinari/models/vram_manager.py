@@ -25,7 +25,7 @@ Usage::
         logger.debug("Fits in VRAM")
     else:
         evict = manager.recommend_eviction("qwen3-vl-32b")
-        logger.debug(f"Unload {evict} first")
+        logger.debug("Unload %s first", evict)
 
     logger.debug(manager.status_summary())
 """
@@ -108,6 +108,11 @@ class VRAMManager:
 
     @classmethod
     def get_instance(cls) -> VRAMManager:
+        """Get instance.
+
+        Returns:
+            The VRAMManager result.
+        """
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -132,14 +137,18 @@ class VRAMManager:
                 if hw.get("max_cpu_offload_gb"):
                     self._cpu_offload_gb = float(hw["max_cpu_offload_gb"])
         except Exception as e:
-            logger.debug(f"[VRAMManager] Could not load hardware config: {e}")
+            logger.debug("[VRAMManager] Could not load hardware config: %s", e)
 
     # ------------------------------------------------------------------
     # Real-time VRAM reading
     # ------------------------------------------------------------------
 
     def get_gpu_snapshot(self, gpu_index: int = 0) -> VRAMSnapshot | None:
-        """Return live GPU memory snapshot via pynvml if available."""
+        """Return live GPU memory snapshot via pynvml if available.
+
+        Returns:
+            The VRAMSnapshot | None result.
+        """
         if not _PYNVML_AVAILABLE:
             return None
         try:
@@ -154,11 +163,15 @@ class VRAMManager:
             self._last_snapshot = snap
             return snap
         except Exception as e:
-            logger.debug(f"[VRAMManager] pynvml snapshot failed: {e}")
+            logger.debug("[VRAMManager] pynvml snapshot failed: %s", e)
             return None
 
     def get_free_vram_gb(self) -> float:
-        """Return estimated free VRAM in GB."""
+        """Return estimated free VRAM in GB.
+
+        Returns:
+            The computed value.
+        """
         snap = self.get_gpu_snapshot()
         if snap:
             return snap.free_gb
@@ -168,7 +181,11 @@ class VRAMManager:
         return max(0.0, self._gpu_total_gb - self._overhead_gb - used)
 
     def get_used_vram_gb(self) -> float:
-        """Return estimated used VRAM in GB."""
+        """Return estimated used VRAM in GB.
+
+        Returns:
+            The computed value.
+        """
         snap = self.get_gpu_snapshot()
         if snap:
             return snap.used_gb
@@ -202,7 +219,7 @@ class VRAMManager:
                             last_used=time.time(),
                         )
         except Exception as e:
-            logger.debug(f"[VRAMManager] refresh() failed: {e}")
+            logger.debug("[VRAMManager] refresh() failed: %s", e)
 
     def mark_used(self, model_id: str) -> None:
         """Update last-used timestamp for a model (call before inference)."""
@@ -211,7 +228,13 @@ class VRAMManager:
                 self._estimates[model_id].last_used = time.time()
 
     def register_load(self, model_id: str, vram_gb: float, cpu_gb: float = 0.0) -> None:
-        """Manually register that a model has been loaded."""
+        """Manually register that a model has been loaded.
+
+        Args:
+            model_id: The model id.
+            vram_gb: The vram gb.
+            cpu_gb: The cpu gb.
+        """
         with self._lock_rw:
             self._estimates[model_id] = ModelVRAMEstimate(
                 model_id=model_id,
@@ -230,7 +253,11 @@ class VRAMManager:
     # ------------------------------------------------------------------
 
     def get_model_vram_requirement(self, model_id: str) -> float:
-        """Return estimated VRAM requirement for a model in GB."""
+        """Return estimated VRAM requirement for a model in GB.
+
+        Returns:
+            The computed value.
+        """
         try:
             from vetinari.models.model_registry import get_model_registry
 
@@ -244,7 +271,11 @@ class VRAMManager:
         return float(estimate_model_memory_gb(model_id))
 
     def can_load(self, model_id: str) -> bool:
-        """Return True if the model fits within available VRAM + CPU offload budget."""
+        """Return True if the model fits within available VRAM + CPU offload budget.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         required = self.get_model_vram_requirement(model_id)
         free_vram = self.get_free_vram_gb()
 
@@ -271,6 +302,9 @@ class VRAMManager:
 
         Prioritises: lowest priority first, then least-recently-used.
         Returns None if no loaded models exist or eviction would not help.
+
+        Returns:
+            The result string.
         """
         required = self.get_model_vram_requirement(model_id)
         free_vram = self.get_free_vram_gb()
@@ -299,7 +333,11 @@ class VRAMManager:
     # ------------------------------------------------------------------
 
     def status_summary(self) -> dict[str, Any]:
-        """Return a summary dict for dashboard / logging."""
+        """Return a summary dict for dashboard / logging.
+
+        Returns:
+            The result string.
+        """
         self.refresh()
         snap = self.get_gpu_snapshot()
         used_by_models = sum(e.gpu_gb for e in self._estimates.values())
@@ -325,7 +363,11 @@ _vram_lock = threading.Lock()
 
 
 def get_vram_manager() -> VRAMManager:
-    """Return the global VRAMManager singleton (created lazily)."""
+    """Return the global VRAMManager singleton (created lazily).
+
+    Returns:
+        The VRAMManager result.
+    """
     global _vram_manager
     if _vram_manager is None:
         with _vram_lock:

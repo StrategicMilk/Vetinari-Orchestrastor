@@ -60,7 +60,7 @@ class InferenceBatcher:
     def __init__(self, config: BatchConfig | None = None):
         self._config = config or BatchConfig()
         if not self._config.lmstudio_host:
-            self._config.lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            self._config.lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         self._queue: queue.Queue[BatchRequest] = queue.Queue()
         self._running = False
         self._thread: threading.Thread | None = None
@@ -95,6 +95,16 @@ class InferenceBatcher:
         """Submit an inference request and wait for the result.
 
         If batching is disabled, dispatches immediately (synchronous).
+
+        Args:
+            request: The request.
+            timeout: The timeout.
+
+        Returns:
+            The result string.
+
+        Raises:
+            RuntimeError: If the operation fails.
         """
         if not self._config.enabled:
             return self._dispatch_single(request)
@@ -213,6 +223,11 @@ _batcher: InferenceBatcher | None = None
 
 
 def get_inference_batcher(config: BatchConfig | None = None) -> InferenceBatcher:
+    """Get inference batcher.
+
+    Returns:
+        The InferenceBatcher result.
+    """
     global _batcher
     if _batcher is None:
         _batcher = InferenceBatcher(config)

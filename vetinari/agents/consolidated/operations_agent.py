@@ -411,6 +411,11 @@ class OperationsAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
+        """Verify.
+
+        Returns:
+            The VerificationResult result.
+        """
         if output is None:
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         return VerificationResult(passed=True, score=0.7)
@@ -744,6 +749,11 @@ _operations_agent: OperationsAgent | None = None
 
 
 def get_operations_agent(config: dict[str, Any] | None = None) -> OperationsAgent:
+    """Get operations agent.
+
+    Returns:
+        The OperationsAgent result.
+    """
     global _operations_agent
     if _operations_agent is None:
         _operations_agent = OperationsAgent(config)

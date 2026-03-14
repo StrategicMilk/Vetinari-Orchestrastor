@@ -177,6 +177,11 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
     tier = BenchmarkTier.SLOW
 
     def load_cases(self, limit: int | None = None) -> list[BenchmarkCase]:
+        """Load cases.
+
+        Returns:
+            List of results.
+        """
         cases = []
         items = _SAMPLE_CASES[:limit] if limit else _SAMPLE_CASES
         for item in items:
@@ -205,6 +210,13 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
 
         Mock mode simulates tool-calling sequences. Production mode
         would invoke the full Vetinari orchestrator.
+
+        Args:
+            case: The case.
+            run_id: The run id.
+
+        Returns:
+            The BenchmarkResult result.
         """
         start = time.time()
 
@@ -234,6 +246,9 @@ class TauBenchAdapter(BenchmarkSuiteAdapter):
           - 0.4 weight: correct actions taken (order-independent)
           - 0.4 weight: output field accuracy
           - 0.2 weight: no extraneous/harmful actions
+
+        Returns:
+            The computed value.
         """
         if not result.output:
             return 0.0

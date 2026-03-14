@@ -70,6 +70,11 @@ class TaskNode:
 
     @classmethod
     def from_dict(cls, data: dict) -> TaskNode:
+        """From dict.
+
+        Returns:
+            The TaskNode result.
+        """
         node = cls(
             id=data["id"],
             description=data["description"],

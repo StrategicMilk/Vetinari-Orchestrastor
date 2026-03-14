@@ -137,6 +137,9 @@ class MilestonePolicy:
         """Check if a milestone can be auto-approved.
 
         Auto-approves when: task succeeded + quality above threshold + no issues.
+
+        Returns:
+            True if successful, False otherwise.
         """
         if not self.auto_approve_on_success:
             return False
@@ -224,7 +227,7 @@ class MilestoneManager:
 
         # Check auto-approve
         if self._policy.should_auto_approve(milestone):
-            logger.info(f"[Milestone] Auto-approved: {milestone.milestone_name}")
+            logger.info("[Milestone] Auto-approved: %s", milestone.milestone_name)
             self._record(milestone, MilestoneApproval.approve(), auto=True)
             return MilestoneApproval.approve()
 
@@ -236,7 +239,7 @@ class MilestoneManager:
                 self._handle_action(approval)
                 return approval
             except Exception as e:
-                logger.warning(f"[Milestone] Callback failed: {e}, auto-approving")
+                logger.warning("[Milestone] Callback failed: %s, auto-approving", e)
                 return MilestoneApproval.approve()
 
         # No callback — auto-approve with warning

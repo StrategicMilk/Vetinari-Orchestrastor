@@ -24,7 +24,11 @@ learning_bp = Blueprint("learning", __name__)
 
 @learning_bp.route("/api/v1/learning/thompson")
 def get_thompson_arms():
-    """Return Thompson Sampling arm states."""
+    """Return Thompson Sampling arm states.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.model_selector import get_thompson_selector
 
@@ -49,7 +53,11 @@ def get_thompson_arms():
 
 @learning_bp.route("/api/v1/learning/quality-history")
 def get_quality_history():
-    """Return quality score time series."""
+    """Return quality score time series.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.quality_scorer import get_quality_scorer
 
@@ -74,7 +82,11 @@ def get_quality_history():
 
 @learning_bp.route("/api/v1/learning/training-stats")
 def get_training_stats():
-    """Return training data statistics."""
+    """Return training data statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.training_data import get_training_collector
 

@@ -58,12 +58,14 @@ logger = logging.getLogger(__name__)
 
 
 class AlertSeverity(Enum):
+    """Alert severity."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 
 class AlertCondition(Enum):
+    """Alert condition."""
     GREATER_THAN = "gt"
     LESS_THAN = "lt"
     EQUALS = "eq"
@@ -292,7 +294,11 @@ class AlertEngine:
             logger.debug("Registered alert threshold '%s'", threshold.name)
 
     def unregister_threshold(self, name: str) -> bool:
-        """Remove a threshold by name. Returns True if it existed."""
+        """Remove a threshold by name. Returns True if it existed.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             existed = name in self._thresholds
             self._thresholds.pop(name, None)
@@ -309,6 +315,11 @@ class AlertEngine:
             logger.debug("Cleared all alert thresholds")
 
     def list_thresholds(self) -> list[AlertThreshold]:
+        """List thresholds.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._thresholds.values())
 
@@ -426,16 +437,29 @@ class AlertEngine:
     # ------------------------------------------------------------------
 
     def get_active_alerts(self) -> list[AlertRecord]:
-        """Return currently active (firing) alerts."""
+        """Return currently active (firing) alerts.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._active.values())
 
     def get_history(self) -> list[AlertRecord]:
-        """Return all alerts that have ever fired in this session."""
+        """Return all alerts that have ever fired in this session.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._history)
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "registered_thresholds": len(self._thresholds),

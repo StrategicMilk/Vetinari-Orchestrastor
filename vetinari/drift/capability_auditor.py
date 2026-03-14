@@ -123,7 +123,12 @@ class CapabilityAuditor:
     # ------------------------------------------------------------------
 
     def register_documented(self, agent_name: str, capabilities: list[str]) -> None:
-        """Record the *documented* capabilities for an agent."""
+        """Record the *documented* capabilities for an agent.
+
+        Args:
+            agent_name: The agent name.
+            capabilities: The capabilities.
+        """
         with self._lock:
             self._documented[agent_name] = set(capabilities)
         logger.debug("Documented caps for %s: %s", agent_name, capabilities)
@@ -149,6 +154,9 @@ class CapabilityAuditor:
         """Audit a single agent by loading its class and comparing.
 
         ``get_capabilities()`` against the registered documented set.
+
+        Returns:
+            The CapabilityFinding result.
         """
         with self._lock:
             documented = set(self._documented.get(agent_name, []))
@@ -191,6 +199,9 @@ class CapabilityAuditor:
             only_documented: If True, only audit agents that have documented
                              capabilities registered.  Set to False to audit
                              all 15 agents even if no docs registered.
+
+        Returns:
+            List of results.
         """
         with self._lock:
             names = list(self._documented.keys()) if only_documented else list(_AGENT_MODULES.keys())
@@ -206,6 +217,11 @@ class CapabilityAuditor:
     # ------------------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         findings = self.audit_all(only_documented=False)
         return {
             "agents_audited": len(findings),
@@ -214,6 +230,7 @@ class CapabilityAuditor:
         }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._documented.clear()
 
@@ -228,5 +245,6 @@ def get_capability_auditor() -> CapabilityAuditor:
 
 
 def reset_capability_auditor() -> None:
+    """Reset capability auditor."""
     with CapabilityAuditor._class_lock:
         CapabilityAuditor._instance = None

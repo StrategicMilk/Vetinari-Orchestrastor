@@ -32,7 +32,7 @@ class MnemosyneMemoryStore(IMemoryStore):
 
         if self.data_file.exists():
             try:
-                with open(self.data_file) as f:
+                with open(self.data_file, encoding="utf-8") as f:
                     self._data = json.load(f)
                 logger.info("MnemosyneMemoryStore loaded %s entries", len(self._data.get("memories", [])))
             except json.JSONDecodeError as e:
@@ -47,11 +47,15 @@ class MnemosyneMemoryStore(IMemoryStore):
         self._data["metadata"]["last_updated"] = datetime.now().isoformat()
         self._data["metadata"]["entry_count"] = len(self._data["memories"])
 
-        with open(self.data_file, "w") as f:
+        with open(self.data_file, "w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=2, default=str)
 
     def remember(self, entry: MemoryEntry) -> str:
-        """Store a memory entry."""
+        """Store a memory entry.
+
+        Returns:
+            The result string.
+        """
         if "mnemosyne" not in entry.source_backends:
             entry.source_backends = [*entry.source_backends, "mnemosyne"]
 
@@ -93,7 +97,17 @@ class MnemosyneMemoryStore(IMemoryStore):
     def search(
         self, query: str, agent: str | None = None, entry_types: list[str] | None = None, limit: int = 10
     ) -> list[MemoryEntry]:
-        """Search memories by keyword."""
+        """Search memories by keyword.
+
+        Args:
+            query: The query.
+            agent: The agent.
+            entry_types: The entry types.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         query_lower = query.lower()
         results = []
 
@@ -121,7 +135,17 @@ class MnemosyneMemoryStore(IMemoryStore):
     def timeline(
         self, agent: str | None = None, start_time: int | None = None, end_time: int | None = None, limit: int = 100
     ) -> list[MemoryEntry]:
-        """Browse memories chronologically."""
+        """Browse memories chronologically.
+
+        Args:
+            agent: The agent.
+            start_time: The start time.
+            end_time: The end time.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         results = []
 
         for memory in self._data.get("memories", []):
@@ -143,7 +167,15 @@ class MnemosyneMemoryStore(IMemoryStore):
         return results[:limit]
 
     def ask(self, question: str, agent: str | None = None) -> list[MemoryEntry]:
-        """Ask a natural language question (simplified: keyword search)."""
+        """Ask a natural language question (simplified: keyword search).
+
+        Args:
+            question: The question.
+            agent: The agent.
+
+        Returns:
+            List of results.
+        """
         keywords = question.lower().split()
         if not keywords:
             return []
@@ -152,17 +184,29 @@ class MnemosyneMemoryStore(IMemoryStore):
         return self.search(query, agent=agent, limit=5)
 
     def export(self, path: str) -> bool:
-        """Export memories to JSON."""
+        """Export memories to JSON.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         export_data = {"memories": self._data.get("memories", []), "exported_at": datetime.now().isoformat()}
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=2, default=str)
 
         logger.info("MnemosyneMemoryStore: exported %s entries to %s", len(self._data.get("memories", [])), path)
         return True
 
     def forget(self, entry_id: str, reason: str) -> bool:
-        """Mark a memory as forgotten (tombstone)."""
+        """Mark a memory as forgotten (tombstone).
+
+        Args:
+            entry_id: The entry id.
+            reason: The reason.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         memories = self._data.get("memories", [])
 
         for memory in memories:
@@ -176,7 +220,11 @@ class MnemosyneMemoryStore(IMemoryStore):
         return False
 
     def compact(self, max_age_days: int | None = None) -> int:
-        """Remove forgotten entries and optionally prune old data."""
+        """Remove forgotten entries and optionally prune old data.
+
+        Returns:
+            The computed value.
+        """
         import time
 
         memories = self._data.get("memories", [])
@@ -198,7 +246,11 @@ class MnemosyneMemoryStore(IMemoryStore):
         return deleted
 
     def stats(self) -> MemoryStats:
-        """Get memory store statistics."""
+        """Get memory store statistics.
+
+        Returns:
+            The MemoryStats result.
+        """
         memories = [m for m in self._data.get("memories", []) if not m.get("forgotten", False)]
 
         file_size = self.data_file.stat().st_size if self.data_file.exists() else 0
@@ -227,7 +279,11 @@ class MnemosyneMemoryStore(IMemoryStore):
         )
 
     def get_entry(self, entry_id: str) -> MemoryEntry | None:
-        """Get a specific entry by ID."""
+        """Get a specific entry by ID.
+
+        Returns:
+            The MemoryEntry | None result.
+        """
         for memory in self._data.get("memories", []):
             if memory.get("id") == entry_id:
                 return self._dict_to_entry(memory)

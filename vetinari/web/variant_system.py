@@ -69,7 +69,11 @@ class VariantManager:
         return VARIANT_CONFIGS[self._current]
 
     def set_level(self, level: str) -> VariantConfig:
-        """Switch to a different variant level and return its config."""
+        """Switch to a different variant level and return its config.
+
+        Returns:
+            The VariantConfig result.
+        """
         self._current = VariantLevel(level)
         return self.get_config()
 

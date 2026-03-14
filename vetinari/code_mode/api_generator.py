@@ -84,6 +84,9 @@ def generate_api_docstring() -> str:
 
     This docstring is injected into the LLM prompt so it knows what
     methods are available on the ``VetinariAPI`` object.
+
+    Returns:
+        The result string.
     """
     lines = [
         "# VetinariAPI Reference",

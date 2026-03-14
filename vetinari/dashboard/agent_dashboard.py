@@ -134,7 +134,11 @@ class AgentDashboard:
         self._start_time = time.monotonic()
 
     def get_agent_metrics(self, agent_type: str) -> AgentMetrics:
-        """Get metrics for a specific agent type."""
+        """Get metrics for a specific agent type.
+
+        Returns:
+            The AgentMetrics result.
+        """
         metrics = AgentMetrics(
             agent_type=agent_type,
             active_modes=_AGENT_MODES.get(agent_type, []),
@@ -169,7 +173,11 @@ class AgentDashboard:
         return [self.get_agent_metrics(at) for at in _AGENT_TYPES]
 
     def get_system_health(self) -> SystemHealth:
-        """Get overall system health."""
+        """Get overall system health.
+
+        Returns:
+            The SystemHealth result.
+        """
         health = SystemHealth(
             uptime_seconds=time.monotonic() - self._start_time,
         )
@@ -219,6 +227,11 @@ _dashboard: AgentDashboard | None = None
 
 
 def get_agent_dashboard() -> AgentDashboard:
+    """Get agent dashboard.
+
+    Returns:
+        The AgentDashboard result.
+    """
     global _dashboard
     if _dashboard is None:
         _dashboard = AgentDashboard()

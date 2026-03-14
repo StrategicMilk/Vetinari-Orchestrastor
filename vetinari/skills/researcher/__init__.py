@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResearcherCapability(str, Enum):
+    """Researcher capability."""
     DEEP_DIVE = "deep_dive"
     SOURCE_VERIFICATION = "source_verification"
     COMPARATIVE_ANALYSIS = "comparative_analysis"
@@ -32,6 +33,7 @@ class ResearcherCapability(str, Enum):
 
 @dataclass
 class ResearchRequest:
+    """Research request."""
     capability: ResearcherCapability
     topic: str
     context: str | None = None
@@ -49,6 +51,7 @@ class ResearchRequest:
 
 @dataclass
 class ResearchResult:
+    """Research result."""
     success: bool
     findings: list[str] = field(default_factory=list)
     summary: str | None = None
@@ -66,6 +69,7 @@ class ResearchResult:
 
 
 class ResearcherSkillTool(Tool):
+    """Researcher skill tool."""
     def __init__(self):
         metadata = ToolMetadata(
             name="researcher",
@@ -100,6 +104,11 @@ class ResearcherSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             cap_str = kwargs.get("capability")
             topic = kwargs.get("topic")

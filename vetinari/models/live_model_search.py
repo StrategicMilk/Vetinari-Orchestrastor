@@ -1,3 +1,5 @@
+"""Live Model Search module."""
+
 from __future__ import annotations
 
 import logging
@@ -19,6 +21,7 @@ GITHUB_API_URL = "https://api.github.com"
 
 @dataclass
 class ModelCandidate:
+    """Model candidate."""
     id: str
     name: str
     source_type: str
@@ -56,6 +59,7 @@ class ModelCandidate:
 
 
 class HuggingFaceAdapter:
+    """Hugging face adapter."""
     def __init__(self):
         self.api_url = HF_API_URL
         self.token = credential_manager.get_token("huggingface")
@@ -65,6 +69,15 @@ class HuggingFaceAdapter:
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_models(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search models.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            limit: The limit.
+        """
         candidates = []
 
         try:
@@ -80,10 +93,10 @@ class HuggingFaceAdapter:
                         candidate = self._parse_model(model)
                         candidates.append(candidate)
                     except Exception as e:
-                        logger.warning(f"Error parsing HF model: {e}")
+                        logger.warning("Error parsing HF model: %s", e)
 
         except Exception as e:
-            logger.error(f"HF search error: {e}")
+            logger.error("HF search error: %s", e)
 
         return candidates
 
@@ -137,6 +150,7 @@ class HuggingFaceAdapter:
 
 
 class RedditAdapter:
+    """Reddit adapter."""
     def __init__(self):
         self.token = credential_manager.get_token("reddit")
         self.session = requests.Session()
@@ -146,6 +160,15 @@ class RedditAdapter:
             self.session.headers.update({"Authorization": f"Bearer {self.token}"})
 
     def search_local_llm_posts(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search local llm posts.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            limit: The limit.
+        """
         candidates = []
 
         subreddits = ["LocalLLaMA", "MachineLearning", "LLM", "LanguageTechnology"]
@@ -168,7 +191,7 @@ class RedditAdapter:
                             candidates.append(candidate)
 
             except Exception as e:
-                logger.warning(f"Reddit search error for {subreddit}: {e}")
+                logger.warning("Reddit search error for %s: %s", subreddit, e)
 
         return candidates[:limit]
 
@@ -261,6 +284,7 @@ class RedditAdapter:
 
 
 class GitHubAdapter:
+    """Git hub adapter."""
     def __init__(self):
         self.token = credential_manager.get_token("github")
         self.api_url = GITHUB_API_URL
@@ -271,6 +295,15 @@ class GitHubAdapter:
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_repos(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search repos.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            limit: The limit.
+        """
         candidates = []
 
         try:
@@ -287,10 +320,10 @@ class GitHubAdapter:
                         candidate = self._parse_repo(repo)
                         candidates.append(candidate)
                     except Exception as e:
-                        logger.warning(f"Error parsing GitHub repo: {e}")
+                        logger.warning("Error parsing GitHub repo: %s", e)
 
         except Exception as e:
-            logger.error(f"GitHub search error: {e}")
+            logger.error("GitHub search error: %s", e)
 
         return candidates
 
@@ -331,12 +364,22 @@ class GitHubAdapter:
 
 
 class PapersWithCodeAdapter:
+    """Papers with code adapter."""
     def __init__(self):
         self.api_url = PWC_API_URL
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_papers(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search papers.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            limit: The limit.
+        """
         candidates = []
 
         try:
@@ -353,10 +396,10 @@ class PapersWithCodeAdapter:
                         candidate = self._parse_paper(paper)
                         candidates.append(candidate)
                     except Exception as e:
-                        logger.warning(f"Error parsing PWC paper: {e}")
+                        logger.warning("Error parsing PWC paper: %s", e)
 
         except Exception as e:
-            logger.error(f"PapersWithCode search error: {e}")
+            logger.error("PapersWithCode search error: %s", e)
 
         return candidates
 
@@ -396,6 +439,7 @@ class PapersWithCodeAdapter:
 
 
 class LiveModelSearchAdapter:
+    """Live model search adapter."""
     WEIGHTS = {"hard_data": 0.55, "benchmarks": 0.25, "sentiment": 0.15, "recency": 0.05}
 
     def __init__(self):
@@ -405,6 +449,15 @@ class LiveModelSearchAdapter:
         self.pwc_adapter = PapersWithCodeAdapter()
 
     def search(self, query: str, lm_studio_models: list[dict] | None = None) -> list[ModelCandidate]:
+        """Search.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            lm_studio_models: The lm studio models.
+        """
         all_candidates = []
 
         if lm_studio_models:
@@ -412,23 +465,23 @@ class LiveModelSearchAdapter:
                 candidate = self._create_lmstudio_candidate(model)
                 all_candidates.append(candidate)
 
-        logger.info(f"Searching for: {query}")
+        logger.info("Searching for: %s", query)
 
         hf_candidates = self.hf_adapter.search_models(query, limit=8)
         all_candidates.extend(hf_candidates)
-        logger.info(f"HF found {len(hf_candidates)} candidates")
+        logger.info("HF found %s candidates", len(hf_candidates))
 
         reddit_candidates = self.reddit_adapter.search_local_llm_posts(query, limit=5)
         all_candidates.extend(reddit_candidates)
-        logger.info(f"Reddit found {len(reddit_candidates)} candidates")
+        logger.info("Reddit found %s candidates", len(reddit_candidates))
 
         github_candidates = self.github_adapter.search_repos(query, limit=5)
         all_candidates.extend(github_candidates)
-        logger.info(f"GitHub found {len(github_candidates)} candidates")
+        logger.info("GitHub found %s candidates", len(github_candidates))
 
         pwc_candidates = self.pwc_adapter.search_papers(query, limit=3)
         all_candidates.extend(pwc_candidates)
-        logger.info(f"PapersWithCode found {len(pwc_candidates)} candidates")
+        logger.info("PapersWithCode found %s candidates", len(pwc_candidates))
 
         seen = set()
         unique_candidates = []

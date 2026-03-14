@@ -1,3 +1,5 @@
+"""Code Search module."""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchBackendStatus(Enum):
+    """Search backend status."""
     AVAILABLE = "available"
     UNAVAILABLE = "unavailable"
     INDEXING = "indexing"
@@ -22,6 +25,7 @@ class SearchBackendStatus(Enum):
 
 @dataclass
 class CodeSearchResult:
+    """Code search result."""
     file_path: str
     language: str
     content: str
@@ -51,19 +55,30 @@ class CodeSearchAdapter(ABC):
 
     @abstractmethod
     def search(self, query: str, limit: int = 10, filters: dict | None = None) -> list[CodeSearchResult]:
-        pass
+        """Search for the current context.
+
+        Args:
+            query: The query.
+            limit: The limit.
+            filters: The filters.
+        """
 
     @abstractmethod
     def index_project(self, project_path: str, force: bool = False) -> bool:
-        pass
+        """Index project.
+
+        Args:
+            project_path: The project path.
+            force: The force.
+        """
 
     @abstractmethod
     def get_status(self) -> SearchBackendStatus:
-        pass
+        """Get status."""
 
     @abstractmethod
     def get_indexed_projects(self) -> list[str]:
-        pass
+        """Get indexed projects."""
 
 
 class CocoIndexAdapter(CodeSearchAdapter):
@@ -86,6 +101,16 @@ class CocoIndexAdapter(CodeSearchAdapter):
             return False
 
     def search(self, query: str, limit: int = 10, filters: dict | None = None) -> list[CodeSearchResult]:
+        """Search.
+
+        Returns:
+            List of results.
+
+        Args:
+            query: The query.
+            limit: The limit.
+            filters: The filters.
+        """
         cmd = [
             "uvx",
             "--prerelease=explicit",
@@ -214,6 +239,15 @@ class CocoIndexAdapter(CodeSearchAdapter):
         return results[:limit]
 
     def index_project(self, project_path: str, force: bool = False) -> bool:
+        """Index project.
+
+        Returns:
+            True if successful, False otherwise.
+
+        Args:
+            project_path: The project path.
+            force: The force.
+        """
         cmd = ["uvx", "--prerelease=explicit", "cocoindex-code@latest", "index", "--path", project_path]
 
         if force:
@@ -227,6 +261,11 @@ class CocoIndexAdapter(CodeSearchAdapter):
             return False
 
     def get_status(self) -> SearchBackendStatus:
+        """Get status.
+
+        Returns:
+            The SearchBackendStatus result.
+        """
         if self._status:
             return self._status
 
@@ -238,6 +277,11 @@ class CocoIndexAdapter(CodeSearchAdapter):
         return self._status
 
     def get_indexed_projects(self) -> list[str]:
+        """Get indexed projects.
+
+        Returns:
+            The result string.
+        """
         indexed = []
         for root, dirs, _files in os.walk(self.root_path):
             if ".cocoindex_code" in dirs:
@@ -258,13 +302,28 @@ class CodeSearchRegistry:
         self.backends["cocoindex"] = CocoIndexAdapter
 
     def register(self, name: str, adapter_class: type):
+        """Register for the current context.
+
+        Args:
+            name: The name.
+            adapter_class: The adapter class.
+        """
         self.backends[name] = adapter_class
 
     def unregister(self, name: str):
+        """Unregister."""
         if name != self.DEFAULT_BACKEND:
             self.backends.pop(name, None)
 
     def get_adapter(self, name: str | None = None, **kwargs) -> CodeSearchAdapter:
+        """Get adapter.
+
+        Returns:
+            The CodeSearchAdapter result.
+
+        Raises:
+            ValueError: If the operation fails.
+        """
         name = name or self.DEFAULT_BACKEND
 
         if name not in self.backends:
@@ -276,6 +335,11 @@ class CodeSearchRegistry:
         return list(self.backends.keys())
 
     def get_backend_info(self, name: str) -> dict:
+        """Get backend info.
+
+        Returns:
+            Dictionary of results.
+        """
         try:
             adapter = self.get_adapter(name)
             status = adapter.get_status()

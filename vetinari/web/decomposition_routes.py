@@ -11,6 +11,11 @@ bp = Blueprint("decomposition", __name__)
 
 @bp.route("/api/decomposition/templates", methods=["GET"])
 def api_decomposition_templates():
+    """Api decomposition templates.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -27,6 +32,11 @@ def api_decomposition_templates():
 
 @bp.route("/api/decomposition/dod-dor", methods=["GET"])
 def api_decomposition_dod_dor():
+    """Api decomposition dod dor.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -45,6 +55,11 @@ def api_decomposition_dod_dor():
 
 @bp.route("/api/decomposition/decompose", methods=["POST"])
 def api_decomposition_decompose():
+    """Api decomposition decompose.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -74,6 +89,11 @@ def api_decomposition_decompose():
 
 @bp.route("/api/decomposition/decompose-agent", methods=["POST"])
 def api_decomposition_decompose_agent():
+    """Api decomposition decompose agent.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -101,6 +121,11 @@ def api_decomposition_decompose_agent():
 
 @bp.route("/api/decomposition/knobs", methods=["GET"])
 def api_decomposition_knobs():
+    """Api decomposition knobs.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition_agent import (
             DEFAULT_MAX_DEPTH,
@@ -127,6 +152,11 @@ def api_decomposition_knobs():
 
 @bp.route("/api/decomposition/history", methods=["GET"])
 def api_decomposition_history():
+    """Api decomposition history.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 
@@ -157,6 +187,11 @@ def api_decomposition_history():
 
 @bp.route("/api/decomposition/seed-config", methods=["GET"])
 def api_decomposition_seed_config():
+    """Api decomposition seed config.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.decomposition import decomposition_engine
 

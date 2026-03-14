@@ -11,6 +11,11 @@ bp = Blueprint("adr", __name__)
 
 @bp.route("/api/adr", methods=["GET"])
 def api_adr_list():
+    """Api adr list.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -27,6 +32,11 @@ def api_adr_list():
 
 @bp.route("/api/adr/<adr_id>", methods=["GET"])
 def api_adr_get(adr_id):
+    """Api adr get.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -42,6 +52,11 @@ def api_adr_get(adr_id):
 
 @bp.route("/api/adr", methods=["POST"])
 def api_adr_create():
+    """Api adr create.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -69,6 +84,11 @@ def api_adr_create():
 
 @bp.route("/api/adr/<adr_id>", methods=["PUT"])
 def api_adr_update(adr_id):
+    """Api adr update.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -88,6 +108,11 @@ def api_adr_update(adr_id):
 
 @bp.route("/api/adr/<adr_id>/deprecate", methods=["POST"])
 def api_adr_deprecate(adr_id):
+    """Api adr deprecate.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -109,6 +134,11 @@ def api_adr_deprecate(adr_id):
 
 @bp.route("/api/adr/propose", methods=["POST"])
 def api_adr_propose():
+    """Api adr propose.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -135,6 +165,11 @@ def api_adr_propose():
 
 @bp.route("/api/adr/propose/accept", methods=["POST"])
 def api_adr_propose_accept():
+    """Api adr propose accept.
+
+    Returns:
+        Tuple of results.
+    """
     if not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -161,6 +196,11 @@ def api_adr_propose_accept():
 
 @bp.route("/api/adr/statistics", methods=["GET"])
 def api_adr_statistics():
+    """Api adr statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -172,6 +212,11 @@ def api_adr_statistics():
 
 @bp.route("/api/adr/is-high-stakes", methods=["GET"])
 def api_adr_is_high_stakes():
+    """Api adr is high stakes.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 

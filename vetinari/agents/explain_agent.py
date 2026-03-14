@@ -1,3 +1,5 @@
+"""Explain Agent module."""
+
 from __future__ import annotations
 
 import logging
@@ -52,12 +54,22 @@ class PlanExplanation:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to dict.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         data["blocks"] = [b.to_dict() for b in self.blocks]
         return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlanExplanation:
+        """Create from dict.
+
+        Returns:
+            The PlanExplanation result.
+        """
         if "blocks" in data and isinstance(data["blocks"], list):
             data["blocks"] = [ExplanationBlock.from_dict(b) if isinstance(b, dict) else b for b in data["blocks"]]
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
@@ -74,12 +86,22 @@ class SubtaskExplanation:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to dict.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         data["blocks"] = [b.to_dict() for b in self.blocks]
         return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SubtaskExplanation:
+        """Create from dict.
+
+        Returns:
+            The SubtaskExplanation result.
+        """
         if "blocks" in data and isinstance(data["blocks"], list):
             data["blocks"] = [ExplanationBlock.from_dict(b) if isinstance(b, dict) else b for b in data["blocks"]]
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
@@ -180,7 +202,7 @@ class ExplainAgent:
             logger.debug("Explainability disabled, returning empty explanation")
             return PlanExplanation(plan_id=plan.plan_id)
 
-        logger.info(f"Generating explanation for plan: {plan.plan_id}")
+        logger.info("Generating explanation for plan: %s", plan.plan_id)
 
         explanation = PlanExplanation(
             plan_id=plan.plan_id,
@@ -276,7 +298,7 @@ class ExplainAgent:
             logger.debug("Explainability disabled, returning empty subtask explanation")
             return SubtaskExplanation(subtask_id=subtask.subtask_id)
 
-        logger.info(f"Generating explanation for subtask: {subtask.subtask_id}")
+        logger.info("Generating explanation for subtask: %s", subtask.subtask_id)
 
         explanation = SubtaskExplanation(
             subtask_id=subtask.subtask_id,
@@ -456,7 +478,11 @@ _explain_agent: ExplainAgent | None = None
 
 
 def get_explain_agent() -> ExplainAgent:
-    """Get or create the global ExplainAgent instance."""
+    """Get or create the global ExplainAgent instance.
+
+    Returns:
+        The ExplainAgent result.
+    """
     global _explain_agent
     if _explain_agent is None:
         _explain_agent = ExplainAgent()

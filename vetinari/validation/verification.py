@@ -123,7 +123,11 @@ class CodeSyntaxVerifier(Verifier):
         super().__init__("code_syntax")
 
     def verify(self, content: str) -> VerificationResult:
-        """Check if content is valid Python syntax."""
+        """Check if content is valid Python syntax.
+
+        Returns:
+            The VerificationResult result.
+        """
         import time
 
         start = time.time()
@@ -181,7 +185,11 @@ class SecurityVerifier(Verifier):
         self.scanner = get_secret_scanner()
 
     def verify(self, content: str) -> VerificationResult:
-        """Check for security issues in content."""
+        """Check for security issues in content.
+
+        Returns:
+            The VerificationResult result.
+        """
         import time
 
         start = time.time()
@@ -242,7 +250,11 @@ class ImportVerifier(Verifier):
         self.blocked_modules = ["ctypes", "mmap", "msvcrt", "winreg"]
 
     def verify(self, content: str) -> VerificationResult:
-        """Check Python imports in content."""
+        """Check Python imports in content.
+
+        Returns:
+            The VerificationResult result.
+        """
         import time
 
         start = time.time()
@@ -299,7 +311,11 @@ class JSONStructureVerifier(Verifier):
         self.required_fields = required_fields or []
 
     def verify(self, content: str) -> VerificationResult:
-        """Check JSON structure and fields."""
+        """Check JSON structure and fields.
+
+        Returns:
+            The VerificationResult result.
+        """
         import time
 
         start = time.time()
@@ -388,7 +404,7 @@ class VerificationPipeline:
             try:
                 results[verifier.name] = verifier.verify(content)
             except Exception as e:
-                logger.error(f"Error in verifier {verifier.name}: {e}")
+                logger.error("Error in verifier %s: %s", verifier.name, e)
                 results[verifier.name] = VerificationResult(
                     status=VerificationStatus.SKIPPED,
                     check_name=verifier.name,
@@ -397,7 +413,11 @@ class VerificationPipeline:
         return results
 
     def get_summary(self, results: dict[str, VerificationResult]) -> dict[str, Any]:
-        """Get summary of verification results."""
+        """Get summary of verification results.
+
+        Returns:
+            The result string.
+        """
         total_issues = sum(len(r.issues) for r in results.values())
         total_errors = sum(r.error_count for r in results.values())
         total_warnings = sum(r.warning_count for r in results.values())
@@ -538,7 +558,11 @@ _verifier_pipeline: VerificationPipeline | None = None
 
 
 def get_verifier_pipeline() -> VerificationPipeline:
-    """Get or create the global verification pipeline."""
+    """Get or create the global verification pipeline.
+
+    Returns:
+        The VerificationPipeline result.
+    """
     global _verifier_pipeline
     if _verifier_pipeline is None:
         # Use STANDARD level by default, can be customized

@@ -55,14 +55,32 @@ class NoOpSpan:
     events: list[dict[str, Any]] = field(default_factory=list)
 
     def set_attribute(self, key: str, value: Any) -> None:
+        """Set attribute.
+
+        Args:
+            key: The key.
+            value: The value.
+        """
         self.attributes[key] = value
 
     def set_status(self, status: str, description: str = "") -> None:
+        """Set status.
+
+        Args:
+            status: The status.
+            description: The description.
+        """
         self.status = status
         if description:
             self.attributes["status_description"] = description
 
     def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
+        """Add event.
+
+        Args:
+            name: The name.
+            attributes: The attributes.
+        """
         self.events.append(
             {
                 "name": name,
@@ -72,6 +90,7 @@ class NoOpSpan:
         )
 
     def end(self) -> None:
+        """End for the current context."""
         self.end_time = time.monotonic()
         duration_ms = (self.end_time - self.start_time) * 1000
         logger.debug(
@@ -103,6 +122,14 @@ def start_span(
             span.set_attribute("model_id", "qwen-32b")
             result = agent.execute(task)
             span.set_attribute("success", result.success)
+
+    Args:
+        name: The name.
+        attributes: The attributes.
+        parent: The parent.
+
+    Raises:
+        Exception: Re-raises any exception raised inside the span body after recording it on the span.
     """
     if _OTEL_AVAILABLE and _tracer:
         with _tracer.start_as_current_span(name, attributes=attributes) as otel_span:
@@ -131,7 +158,12 @@ def start_span(
 
 @contextmanager
 def pipeline_span(goal: str, plan_id: str = "") -> Generator:
-    """Top-level pipeline span."""
+    """Top-level pipeline span.
+
+    Args:
+        goal: The goal.
+        plan_id: The plan id.
+    """
     with start_span(
         "vetinari.pipeline",
         {
@@ -144,7 +176,12 @@ def pipeline_span(goal: str, plan_id: str = "") -> Generator:
 
 @contextmanager
 def stage_span(stage_name: str, stage_number: int = 0) -> Generator:
-    """Pipeline stage span."""
+    """Pipeline stage span.
+
+    Args:
+        stage_name: The stage name.
+        stage_number: The stage number.
+    """
     with start_span(
         f"vetinari.stage.{stage_name}",
         {
@@ -161,7 +198,13 @@ def agent_span(
     mode: str = "",
     task_id: str = "",
 ) -> Generator:
-    """Agent execution span."""
+    """Agent execution span.
+
+    Args:
+        agent_type: The agent type.
+        mode: The mode.
+        task_id: The task id.
+    """
     with start_span(
         "vetinari.agent.execute",
         {
@@ -179,7 +222,13 @@ def llm_span(
     agent_type: str = "",
     max_tokens: int = 0,
 ) -> Generator:
-    """LLM inference call span."""
+    """LLM inference call span.
+
+    Args:
+        model_id: The model id.
+        agent_type: The agent type.
+        max_tokens: The max tokens.
+    """
     with start_span(
         "vetinari.llm.infer",
         {

@@ -1389,7 +1389,11 @@ def get_skill(skill_id: str) -> SkillSpec | None:
 
 
 def get_skill_for_agent_type(agent_type: str) -> SkillSpec | None:
-    """Map a legacy agent type string to its consolidated skill spec."""
+    """Map a legacy agent type string to its consolidated skill spec.
+
+    Returns:
+        The SkillSpec | None result.
+    """
     skill_id = _LEGACY_AGENT_TO_SKILL.get(agent_type.upper())
     if skill_id:
         return SKILL_REGISTRY.get(skill_id)
@@ -1417,7 +1421,11 @@ def get_skills_by_standard_category(category: str) -> list[SkillSpec]:
 
 
 def validate_all() -> list[str]:
-    """Validate every skill spec in the registry. Returns list of errors."""
+    """Validate every skill spec in the registry. Returns list of errors.
+
+    Returns:
+        The result string.
+    """
     errors = []
     for skill_id, spec in SKILL_REGISTRY.items():
         if spec.skill_id != skill_id:

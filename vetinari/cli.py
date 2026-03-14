@@ -62,7 +62,7 @@ def _load_config(config_path: str) -> dict:
 
 def _get_host(args_host: str | None) -> str:
     """Resolve host from args → env → default."""
-    return args_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+    return args_host or os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
 
 
 def _build_orchestrator(config_path: str, host: str, mode: str = "execution"):
@@ -100,7 +100,11 @@ def _check_drift_at_startup() -> None:
 
 
 def cmd_run(args) -> int:
-    """Execute a goal or manifest task."""
+    """Execute a goal or manifest task.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     _check_drift_at_startup()
     host = _get_host(args.host)
@@ -150,14 +154,18 @@ def cmd_run(args) -> int:
 
 
 def cmd_serve(args) -> int:
-    """Start the web dashboard."""
+    """Start the web dashboard.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     host = _get_host(args.host)
     port = args.port or int(os.environ.get("VETINARI_WEB_PORT", "5000"))
     web_host = args.web_host or "127.0.0.1"
 
     print(f"[Vetinari] Starting web dashboard on {web_host}:{port}")
-    print(f"[Vetinari] Dashboard URL: http://localhost:{port}")
+    print(f"[Vetinari] Dashboard URL: http://localhost:{port}")  # noqa: VET041
 
     try:
         from vetinari.web_ui import app
@@ -176,7 +184,11 @@ def cmd_serve(args) -> int:
 
 
 def cmd_start(args) -> int:
-    """Start CLI + optional web dashboard."""
+    """Start CLI + optional web dashboard.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     _check_drift_at_startup()
     host = _get_host(args.host)
@@ -200,7 +212,7 @@ def cmd_start(args) -> int:
             t = threading.Thread(target=_run_dashboard, daemon=True)
             t.start()
             time.sleep(1)  # Give Flask time to start
-            print(f"[Vetinari] Dashboard started: http://localhost:{port}")
+            print(f"[Vetinari] Dashboard started: http://localhost:{port}")  # noqa: VET041
             dashboard_started = True
         except Exception as e:
             print(f"[Vetinari] Dashboard unavailable: {e}")
@@ -235,7 +247,7 @@ def cmd_start(args) -> int:
 
     # Enter interactive REPL if no task specified
     if dashboard_started:
-        print(f"\n[Vetinari] Dashboard running at http://localhost:{port}")
+        print(f"\n[Vetinari] Dashboard running at http://localhost:{port}")  # noqa: VET041
         print("[Vetinari] Press Ctrl+C to exit")
         try:
             while True:
@@ -249,7 +261,11 @@ def cmd_start(args) -> int:
 
 
 def cmd_status(args) -> int:
-    """Show system status."""
+    """Show system status.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     host = _get_host(args.host)
 
@@ -300,7 +316,11 @@ def cmd_status(args) -> int:
 
 
 def cmd_health(args) -> int:
-    """Run health checks on all providers."""
+    """Run health checks on all providers.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     host = _get_host(args.host)
 
@@ -334,7 +354,11 @@ def _health_check_quiet(host: str) -> None:
 
 
 def cmd_upgrade(args) -> int:
-    """Check for model upgrades."""
+    """Check for model upgrades.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     host = _get_host(args.host)
 
@@ -348,7 +372,11 @@ def cmd_upgrade(args) -> int:
 
 
 def cmd_review(args) -> int:
-    """Run the self-improvement agent."""
+    """Run the self-improvement agent.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
 
     print("[Vetinari] Running self-improvement review...")
@@ -388,7 +416,11 @@ def cmd_review(args) -> int:
 
 
 def cmd_benchmark(args) -> int:
-    """Run agent benchmarks."""
+    """Run agent benchmarks.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     print("[Vetinari] Running agent benchmarks...")
     try:
@@ -411,7 +443,11 @@ def cmd_benchmark(args) -> int:
 
 
 def cmd_drift_check(args) -> int:
-    """Check for contract drift across agents."""
+    """Check for contract drift across agents.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     print("[Vetinari] Checking for contract drift...")
     try:
@@ -432,7 +468,11 @@ def cmd_drift_check(args) -> int:
 
 
 def cmd_interactive(args) -> int:
-    """Enter interactive REPL mode."""
+    """Enter interactive REPL mode.
+
+    Returns:
+        The computed value.
+    """
     _setup_logging(args.verbose)
     host = _get_host(args.host)
 
@@ -498,7 +538,11 @@ def cmd_interactive(args) -> int:
 
 
 def main() -> None:
-    """Main CLI entry point."""
+    """Main CLI entry point.
+
+    Returns:
+        The computed value.
+    """
     parser = argparse.ArgumentParser(
         prog="vetinari",
         description="Vetinari: Comprehensive AI Orchestration System",

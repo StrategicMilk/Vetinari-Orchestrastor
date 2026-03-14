@@ -138,15 +138,20 @@ class MemoryStore:
             self._json_data = {"plans": {}, "subtasks": {}, "model_performance": {}}
             self._save_json()
         else:
-            with open(self._json_path) as f:
+            with open(self._json_path, encoding="utf-8") as f:
                 self._json_data = json.load(f)
         logger.info("JSON fallback memory store initialized at %s", self._json_path)
 
     def _save_json(self):
-        with open(self._json_path, "w") as f:
+        with open(self._json_path, "w", encoding="utf-8") as f:
             json.dump(self._json_data, f, indent=2, default=str)
 
     def write_plan_history(self, plan_data: dict[str, Any]) -> bool:
+        """Write plan history.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if self.use_json_fallback:
             return self._write_plan_json(plan_data)
 
@@ -187,6 +192,11 @@ class MemoryStore:
         return True
 
     def write_subtask_memory(self, subtask_data: dict[str, Any]) -> bool:
+        """Write subtask memory.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if self.use_json_fallback:
             return self._write_subtask_json(subtask_data)
 
@@ -232,6 +242,16 @@ class MemoryStore:
     def query_plan_history(
         self, plan_id: str | None = None, goal_contains: str | None = None, limit: int = 10
     ) -> list[dict[str, Any]]:
+        """Query plan history.
+
+        Args:
+            plan_id: The plan id.
+            goal_contains: The goal contains.
+            limit: The limit.
+
+        Returns:
+            The result string.
+        """
         if self.use_json_fallback:
             return self._query_plan_json(plan_id, goal_contains, limit)
 
@@ -288,6 +308,16 @@ class MemoryStore:
     def query_subtasks(
         self, plan_id: str | None = None, subtask_id: str | None = None, depth: int | None = None
     ) -> list[dict[str, Any]]:
+        """Query subtasks.
+
+        Args:
+            plan_id: The plan id.
+            subtask_id: The subtask id.
+            depth: The depth.
+
+        Returns:
+            The result string.
+        """
         if self.use_json_fallback:
             return self._query_subtasks_json(plan_id, subtask_id, depth)
 
@@ -348,7 +378,15 @@ class MemoryStore:
         return subtasks
 
     def get_model_performance(self, model_id: str, task_type: str) -> dict[str, Any] | None:
-        """Retrieve model performance record for a given model and task type."""
+        """Retrieve model performance record for a given model and task type.
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+
+        Returns:
+            The result string.
+        """
         if self.use_json_fallback:
             key = f"{model_id}:{task_type}"
             return self._json_data.get("model_performance", {}).get(key)
@@ -365,7 +403,16 @@ class MemoryStore:
             return None
 
     def update_subtask_quality(self, subtask_id: str, quality_score: float = 0.0, succeeded: bool = True) -> bool:
-        """Annotate a SubtaskMemory record with a quality score and outcome."""
+        """Annotate a SubtaskMemory record with a quality score and outcome.
+
+        Args:
+            subtask_id: The subtask id.
+            quality_score: The quality score.
+            succeeded: The succeeded.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if self.use_json_fallback:
             subtask = self._json_data.get("subtasks", {}).get(subtask_id, {})
             if subtask:
@@ -400,6 +447,15 @@ class MemoryStore:
         Accepts two call signatures for backwards compatibility:
           - Legacy: update_model_performance(model_id, task_type, success: bool, latency: float)
           - New:    update_model_performance(model_id, task_type, data: dict)
+
+        Args:
+            model_id: The model id.
+            task_type: The task type.
+            success_or_dict: The success or dict.
+            latency: The latency.
+
+        Returns:
+            True if successful, False otherwise.
         """
         if isinstance(success_or_dict, dict):
             data = success_or_dict
@@ -481,6 +537,11 @@ class MemoryStore:
         return True
 
     def prune_old_plans(self, retention_days: int = PLAN_RETENTION_DAYS) -> int:
+        """Prune old plans.
+
+        Returns:
+            The computed value.
+        """
         if self.use_json_fallback:
             return self._prune_old_json(retention_days)
 
@@ -526,11 +587,17 @@ class MemoryStore:
         return len(to_delete)
 
     def close(self):
+        """Close for the current context."""
         if self._conn:
             self._conn.close()
             self._conn = None
 
     def get_memory_stats(self) -> dict[str, Any]:
+        """Get memory stats.
+
+        Returns:
+            The result string.
+        """
         if self.use_json_fallback:
             return {
                 "total_plans": len(self._json_data["plans"]),
@@ -568,7 +635,11 @@ _memory_store: MemoryStore | None = None
 
 
 def get_memory_store() -> MemoryStore:
-    """Get or create the global memory store instance."""
+    """Get or create the global memory store instance.
+
+    Returns:
+        The MemoryStore result.
+    """
     global _memory_store
     if _memory_store is None:
         use_json = os.environ.get("PLAN_USE_JSON_FALLBACK", "false").lower() in ("1", "true", "yes")
@@ -577,7 +648,15 @@ def get_memory_store() -> MemoryStore:
 
 
 def init_memory_store(db_path: str | None = None, use_json_fallback: bool = False) -> MemoryStore:
-    """Initialize a new memory store instance."""
+    """Initialize a new memory store instance.
+
+    Args:
+        db_path: The db path.
+        use_json_fallback: The use json fallback.
+
+    Returns:
+        The MemoryStore result.
+    """
     global _memory_store
     if db_path:
         _memory_store = MemoryStore(db_path=db_path, use_json_fallback=use_json_fallback)

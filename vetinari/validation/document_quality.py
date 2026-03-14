@@ -132,7 +132,7 @@ def _score_correctness(text: str) -> tuple[float, list[str]]:
     for pattern in placeholders:
         if re.search(pattern, text, re.I):
             score -= 0.2
-            findings.append(f"Placeholder found: {pattern}")
+            findings.append(f"Placeholder found: {pattern}")  # noqa: VET034
     return max(0.0, score), findings
 
 
@@ -194,7 +194,7 @@ def _score_organization(text: str) -> tuple[float, list[str]]:
     score = 1.0
     lines = text.split("\n")
     if len(lines) > 20:
-        headings = [l for l in lines if l.startswith("#")]
+        headings = [line for line in lines if line.startswith("#")]
         if not headings:
             score -= 0.3
             findings.append("Long document with no headings")

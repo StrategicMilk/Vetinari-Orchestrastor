@@ -1,4 +1,4 @@
-"""LLM-as-judge evaluator for document quality.
+r"""LLM-as-judge evaluator for document quality.
 
 Provides a higher-fidelity evaluation path that delegates to an LLM for
 dimensions that heuristics struggle with (accuracy, relevance, technical
@@ -11,7 +11,7 @@ Usage::
 
     judge = DocumentJudge()
     report = judge.evaluate("# My README\\n...", doc_type="readme")
-    print(report.overall_score, report.passed)
+    logger.info("Score: %s, Passed: %s", report.overall_score, report.passed)
 """
 
 from __future__ import annotations
@@ -102,6 +102,9 @@ class DocumentJudge:
 
         Returns:
             QualityReport with per-dimension scores.
+
+        Raises:
+            Exception: Re-raises LLM evaluation exceptions when ``fallback_to_heuristic`` is False.
         """
         type_key = doc_type.value if isinstance(doc_type, DocumentType) else doc_type
         if profile is None:
@@ -150,8 +153,8 @@ class DocumentJudge:
                 max_tokens=self._config.max_tokens,
             )
             return self._parse_llm_response(response)
-        except ImportError:
-            raise RuntimeError("AdapterManager not available for LLM judge")
+        except ImportError as exc:
+            raise RuntimeError("AdapterManager not available for LLM judge") from exc
 
     def _build_judge_prompt(self, text: str, doc_type: str, context: str) -> str:
         """Build the evaluation prompt for the LLM judge.
@@ -200,7 +203,7 @@ class DocumentJudge:
                     score = float(match.group(1))
                     scores[dim] = max(0.0, min(1.0, score))
                 except ValueError:
-                    pass
+                    logger.debug("Could not parse score for dimension %s", dim)
 
         return scores
 

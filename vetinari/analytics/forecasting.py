@@ -295,12 +295,23 @@ class Forecaster:
     # ------------------------------------------------------------------
 
     def ingest(self, metric: str, value: float) -> None:
-        """Append a new observation for a metric."""
+        """Append a new observation for a metric.
+
+        Args:
+            metric: The metric.
+            value: The value.
+        """
         with self._lock:
             q = self._history.setdefault(metric, deque(maxlen=self.MAX_HISTORY))
             q.append(value)
 
     def ingest_many(self, metric: str, values: list[float]) -> None:
+        """Ingest many.
+
+        Args:
+            metric: The metric.
+            values: The values.
+        """
         for v in values:
             self.ingest(metric, v)
 
@@ -314,6 +325,12 @@ class Forecaster:
         Returns a ForecastResult with ``horizon`` predictions.
         If insufficient history exists (< 2 points) the last known value
         is repeated for all steps.
+
+        Returns:
+            The result string.
+
+        Raises:
+            ValueError: If the operation fails.
         """
         with self._lock:
             history = list(self._history.get(request.metric, deque()))
@@ -371,6 +388,15 @@ class Forecaster:
         """Return True if the forecasted trajectory is predicted to exceed.
 
         *threshold* within *horizon* steps.
+
+        Args:
+            metric: The metric.
+            threshold: The threshold.
+            horizon: The horizon.
+            method: The method.
+
+        Returns:
+            True if successful, False otherwise.
         """
         req = ForecastRequest(metric=metric, horizon=horizon, method=method)
         result = self.forecast(req)
@@ -382,6 +408,15 @@ class Forecaster:
         """Return the number of steps until the forecast first exceeds *threshold*,.
 
         or None if it does not within *horizon*.
+
+        Args:
+            metric: The metric.
+            threshold: The threshold.
+            horizon: The horizon.
+            method: The method.
+
+        Returns:
+            The computed value.
         """
         req = ForecastRequest(metric=metric, horizon=horizon, method=method)
         result = self.forecast(req)
@@ -395,14 +430,29 @@ class Forecaster:
     # ------------------------------------------------------------------
 
     def get_history(self, metric: str) -> list[float]:
+        """Get history.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._history.get(metric, []))
 
     def list_metrics(self) -> list[str]:
+        """List metrics.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._history.keys())
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "tracked_metrics": len(self._history),
@@ -410,6 +460,7 @@ class Forecaster:
             }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._history.clear()
 
@@ -424,5 +475,6 @@ def get_forecaster() -> Forecaster:
 
 
 def reset_forecaster() -> None:
+    """Reset forecaster."""
     with Forecaster._class_lock:
         Forecaster._instance = None

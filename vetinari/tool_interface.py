@@ -52,7 +52,11 @@ class ToolParameter:
     allowed_values: list[Any] | None = None
 
     def validate(self, value: Any) -> bool:
-        """Validate a value against this parameter definition."""
+        """Validate a value against this parameter definition.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if value is None:
             return not self.required
 
@@ -255,7 +259,11 @@ class Tool(ABC):
             )
 
     def get_description(self) -> str:
-        """Get a formatted description of the tool."""
+        """Get a formatted description of the tool.
+
+        Returns:
+            The result string.
+        """
         lines = [
             f"Tool: {self.metadata.name}",
             f"Description: {self.metadata.description}",
@@ -314,7 +322,11 @@ _tool_registry: ToolRegistry | None = None
 
 
 def get_tool_registry() -> ToolRegistry:
-    """Get or create the global tool registry."""
+    """Get or create the global tool registry.
+
+    Returns:
+        The result string.
+    """
     global _tool_registry
     if _tool_registry is None:
         _tool_registry = ToolRegistry()

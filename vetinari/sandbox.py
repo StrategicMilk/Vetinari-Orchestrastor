@@ -1,3 +1,5 @@
+"""Sandbox module."""
+
 from __future__ import annotations
 
 import ast
@@ -28,11 +30,13 @@ except ImportError:
 
 
 class SandboxType(Enum):
+    """Sandbox type."""
     IN_PROCESS = "in_process"
     EXTERNAL = "external"
 
 
 class SandboxStatus(Enum):
+    """Sandbox status."""
     AVAILABLE = "available"
     BUSY = "busy"
     ERROR = "error"
@@ -40,6 +44,7 @@ class SandboxStatus(Enum):
 
 @dataclass
 class SandboxResult:
+    """Sandbox result."""
     execution_id: str
     success: bool
     result: Any = None
@@ -60,6 +65,7 @@ class SandboxResult:
 
 @dataclass
 class AuditEntry:
+    """Audit entry."""
     timestamp: str
     execution_id: str
     operation: str
@@ -160,6 +166,7 @@ BLOCKED_BUILTINS = {
 
 
 class InProcessSandbox:
+    """In process sandbox."""
     def __init__(self, timeout: int = 30, max_memory_mb: int = 512, allowed_builtins: set | None = None):
         self.timeout = timeout
         self.max_memory_mb = max_memory_mb
@@ -192,7 +199,7 @@ class InProcessSandbox:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
-                # Direct call: eval(...), open(...)
+                # Direct call: eval(...), open(..., encoding="utf-8")
                 if isinstance(node.func, ast.Name) and node.func.id in self._DANGEROUS_NAMES:
                     return node.func.id
                 # Attribute call: builtins.eval(...)
@@ -201,6 +208,15 @@ class InProcessSandbox:
         return None
 
     def execute(self, code: str, context: dict[str, Any] | None = None) -> SandboxResult:
+        """Execute.
+
+        Returns:
+            The SandboxResult result.
+
+        Args:
+            code: The code.
+            context: The context.
+        """
         execution_id = f"exec_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
@@ -221,6 +237,7 @@ class InProcessSandbox:
 
         def run_code():
             # Start tracemalloc inside the thread to track memory
+            """Run code for the current context."""
             tracemalloc.start()
             try:
                 restricted_globals = {"__builtins__": self._get_safe_builtins()}
@@ -302,6 +319,7 @@ class InProcessSandbox:
 
 
 class ExternalPluginSandbox:
+    """External plugin sandbox."""
     ALLOWED_HOOKS = ["read_file", "write_file", "search_code"]
 
     def __init__(self, plugin_dir: str = "./plugins", timeout: int = 300, max_memory_mb: int = 2048):
@@ -312,6 +330,11 @@ class ExternalPluginSandbox:
         self.audit_log: list[AuditEntry] = []
 
     def discover_plugins(self) -> list[dict]:
+        """Discover plugins.
+
+        Returns:
+            List of results.
+        """
         manifests = []
         if not self.plugin_dir.exists():
             return manifests
@@ -323,7 +346,7 @@ class ExternalPluginSandbox:
                     try:
                         import yaml
 
-                        with open(manifest_file) as f:
+                        with open(manifest_file, encoding="utf-8") as f:
                             data = yaml.safe_load(f)
                             manifests.append(data)
                     except (yaml.YAMLError, OSError):  # noqa: VET022
@@ -331,6 +354,16 @@ class ExternalPluginSandbox:
         return manifests
 
     def execute_hook(self, plugin_name: str, hook_name: str, params: dict) -> Any:
+        """Execute hook.
+
+        Returns:
+            The Any result.
+
+        Args:
+            plugin_name: The plugin name.
+            hook_name: The hook name.
+            params: The params.
+        """
         if hook_name not in self.ALLOWED_HOOKS:
             return {"error": f"Hook {hook_name} not allowed"}
 
@@ -419,6 +452,7 @@ class ExternalPluginSandbox:
 
 
 class SandboxManager:
+    """Sandbox manager."""
     _instance = None
 
     # Rate-limit: max executions per client per window (P1.C2)
@@ -427,6 +461,11 @@ class SandboxManager:
 
     @classmethod
     def get_instance(cls) -> SandboxManager:
+        """Get instance.
+
+        Returns:
+            The SandboxManager result.
+        """
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -468,6 +507,18 @@ class SandboxManager:
         client_id: str = "default",
     ) -> SandboxResult:
         # Rate-limit enforcement (P1.C2)
+        """Execute.
+
+        Returns:
+            The SandboxResult result.
+
+        Args:
+            code: The code.
+            sandbox_type: The sandbox type.
+            timeout: The timeout.
+            context: The context.
+            client_id: The client id.
+        """
         if not self._check_rate_limit(client_id):
             execution_id = f"exec_{uuid.uuid4().hex[:8]}"
             return SandboxResult(

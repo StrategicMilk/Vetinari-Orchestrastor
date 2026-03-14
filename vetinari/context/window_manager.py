@@ -49,6 +49,9 @@ def estimate_tokens(text: str) -> int:
 
     Average English text: ~1.3 tokens per word.
     Code tends to be ~1.5 tokens per word due to symbols.
+
+    Returns:
+        The computed value.
     """
     if not text:
         return 0
@@ -138,7 +141,16 @@ class ContextWindowManager:
         return self.used_tokens / self._window_size if self._window_size > 0 else 0.0
 
     def add_message(self, role: str, content: str, **metadata: Any) -> int:
-        """Add a message and return its estimated token count."""
+        """Add a message and return its estimated token count.
+
+        Args:
+            role: The role.
+            content: The content.
+            **metadata: Additional metadata key-value pairs for the message.
+
+        Returns:
+            The computed value.
+        """
         msg = ConversationMessage(role=role, content=content, metadata=metadata)
         with self._lock:
             self._messages.append(msg)
@@ -205,6 +217,9 @@ class ContextWindowManager:
 
         Called between pipeline stages to keep context lean. Only compresses
         if usage is above 50% (lower threshold than regular compression).
+
+        Returns:
+            The computed value.
         """
         if self.usage_ratio > 0.5:
             logger.info("Stage boundary compression at '%s'", stage_name)
@@ -258,7 +273,11 @@ _window_manager: ContextWindowManager | None = None
 
 
 def get_window_manager(model_id: str = "default") -> ContextWindowManager:
-    """Get or create the global context window manager."""
+    """Get or create the global context window manager.
+
+    Returns:
+        The ContextWindowManager result.
+    """
     global _window_manager
     if _window_manager is None:
         _window_manager = ContextWindowManager(model_id=model_id)

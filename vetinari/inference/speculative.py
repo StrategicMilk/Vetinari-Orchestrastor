@@ -82,6 +82,15 @@ class SpeculativeDecoder:
 
         Falls back to standard generation if speculative decoding is
         disabled or unavailable.
+
+        Args:
+            prompt: The prompt.
+            system_prompt: The system prompt.
+            max_tokens: The max tokens.
+            temperature: The temperature.
+
+        Returns:
+            The SpeculativeResult result.
         """
         self._total_requests += 1
         start = time.monotonic()
@@ -150,7 +159,7 @@ class SpeculativeDecoder:
         temperature: float,
     ) -> SpeculativeResult:
         """Draft-verify loop."""
-        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         import requests
 
         generated = ""
@@ -228,7 +237,7 @@ class SpeculativeDecoder:
     ) -> str:
         """Standard sequential generation via LM Studio."""
         try:
-            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+            host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
             import requests
 
             resp = requests.post(
@@ -270,6 +279,11 @@ _decoder: SpeculativeDecoder | None = None
 
 
 def get_speculative_decoder(config: SpeculativeConfig | None = None) -> SpeculativeDecoder:
+    """Get speculative decoder.
+
+    Returns:
+        The SpeculativeDecoder result.
+    """
     global _decoder
     if _decoder is None:
         _decoder = SpeculativeDecoder(config)

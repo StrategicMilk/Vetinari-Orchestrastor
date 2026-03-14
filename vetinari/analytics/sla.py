@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 class SLOType(Enum):
+    """Service level objective type classification."""
     LATENCY_P50 = "latency_p50"
     LATENCY_P95 = "latency_p95"
     LATENCY_P99 = "latency_p99"
@@ -200,12 +201,18 @@ class SLATracker:
     # ------------------------------------------------------------------
 
     def register_slo(self, slo: SLOTarget) -> None:
+        """Register slo."""
         with self._lock:
             self._slos[slo.name] = slo
             self._obs.setdefault(slo.name, deque())
             logger.debug("Registered SLO: %s (%s budget=%s)", slo.name, slo.slo_type.value, slo.budget)
 
     def unregister_slo(self, name: str) -> bool:
+        """Unregister slo.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             existed = name in self._slos
             self._slos.pop(name, None)
@@ -213,6 +220,11 @@ class SLATracker:
             return existed
 
     def list_slos(self) -> list[SLOTarget]:
+        """List slos.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             return list(self._slos.values())
 
@@ -221,7 +233,13 @@ class SLATracker:
     # ------------------------------------------------------------------
 
     def record_latency(self, key: str, latency_ms: float, success: bool = True) -> None:
-        """Feed a latency observation (ms) to all latency-type SLOs."""
+        """Feed a latency observation (ms) to all latency-type SLOs.
+
+        Args:
+            key: The key.
+            latency_ms: The latency ms.
+            success: The success.
+        """
         now = time.time()
         with self._lock:
             for slo in self._slos.values():
@@ -253,7 +271,13 @@ class SLATracker:
                     self._push(slo.name, _Obs(value=1.0 if approved else 0.0, timestamp=now, success=approved))
 
     def record_metric(self, slo_name: str, value: float, success: bool = True) -> None:
-        """Directly push a value to a named SLO's observation queue."""
+        """Directly push a value to a named SLO's observation queue.
+
+        Args:
+            slo_name: The slo name.
+            value: The value.
+            success: The success.
+        """
         with self._lock:
             if slo_name in self._slos:
                 self._push(slo_name, _Obs(value=value, timestamp=time.time(), success=success))
@@ -273,7 +297,11 @@ class SLATracker:
     # ------------------------------------------------------------------
 
     def get_report(self, slo_name: str) -> SLAReport | None:
-        """Compute the compliance report for a named SLO."""
+        """Compute the compliance report for a named SLO.
+
+        Returns:
+            The SLAReport | None result.
+        """
         with self._lock:
             slo = self._slos.get(slo_name)
             if slo is None:
@@ -344,7 +372,11 @@ class SLATracker:
         )
 
     def get_all_reports(self) -> list[SLAReport]:
-        """Return reports for every registered SLO."""
+        """Return reports for every registered SLO.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             names = list(self._slos.keys())
         return [r for name in names if (r := self.get_report(name)) is not None]
@@ -355,6 +387,13 @@ class SLATracker:
         Computes the percentage of recorded latency observations that were
         under *budget_ms*.  Returns ``None`` if no observations exist for
         the model.
+
+        Args:
+            model_id: The model id.
+            budget_ms: The budget ms.
+
+        Returns:
+            The computed value.
         """
         with self._lock:
             q = self._model_obs.get(model_id)
@@ -365,6 +404,7 @@ class SLATracker:
         return (good / len(vals)) * 100.0 if vals else None
 
     def record_breach(self, breach: SLABreach) -> None:
+        """Record breach."""
         with self._lock:
             self._breaches.append(breach)
 
@@ -373,6 +413,11 @@ class SLATracker:
     # ------------------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "registered_slos": len(self._slos),
@@ -381,6 +426,7 @@ class SLATracker:
             }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._obs.clear()
             self._breaches.clear()
@@ -399,6 +445,7 @@ def get_sla_tracker() -> SLATracker:
 
 
 def reset_sla_tracker() -> None:
+    """Reset sla tracker."""
     with SLATracker._class_lock:
         SLATracker._instance = None
 

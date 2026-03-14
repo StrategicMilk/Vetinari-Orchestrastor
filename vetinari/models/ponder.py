@@ -1,3 +1,5 @@
+"""Ponder module."""
+
 from __future__ import annotations
 
 import json
@@ -37,6 +39,7 @@ PONDER_CLOUD_WEIGHT = float(os.environ.get("PONDER_CLOUD_WEIGHT", "0.20"))
 
 @dataclass
 class ModelScore:
+    """Model score."""
     model_id: str
     model_name: str
     total_score: float
@@ -50,6 +53,7 @@ class ModelScore:
 
 @dataclass
 class PonderRanking:
+    """Ponder ranking."""
     task_id: str
     task_description: str
     rankings: list[ModelScore]
@@ -58,6 +62,7 @@ class PonderRanking:
 
 
 class PonderEngine:
+    """Ponder engine."""
     def __init__(self, template_version: str = "v1"):
         self.template_version = template_version
         self.templates = self._load_templates()
@@ -71,7 +76,7 @@ class PonderEngine:
         if not template_file.exists():
             return []
 
-        with open(template_file) as f:
+        with open(template_file, encoding="utf-8") as f:
             data = json.load(f)
             return data.get("templates", [])
 
@@ -205,6 +210,16 @@ class PonderEngine:
         return self.policy_penalty
 
     def score_models(self, available_models: list[dict], task_description: str, top_n: int = 3) -> PonderRanking:
+        """Score models.
+
+        Returns:
+            The PonderRanking result.
+
+        Args:
+            available_models: The available models.
+            task_description: The task description.
+            top_n: The top n.
+        """
         task_id = f"ponder_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         requirements = self._get_task_capability_requirements(task_description)
 
@@ -257,10 +272,15 @@ class PonderEngine:
 
 
 def get_available_models() -> list[dict]:
+    """Get available models.
+
+    Returns:
+        List of results.
+    """
     try:
         from vetinari.adapters.lmstudio_adapter import LMStudioAdapter
 
-        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         adapter = LMStudioAdapter(host=host)
         models = adapter.list_loaded_models()
 
@@ -303,6 +323,16 @@ def _get_fallback_models() -> list[dict]:
 
 
 def rank_models(task_description: str, top_n: int = 3, template_version: str = "v1") -> dict[str, Any]:
+    """Rank models.
+
+    Returns:
+        The result string.
+
+    Args:
+        task_description: The task description.
+        top_n: The top n.
+        template_version: The template version.
+    """
     engine = PonderEngine(template_version=template_version)
     models = get_available_models()
 
@@ -332,7 +362,11 @@ def rank_models(task_description: str, top_n: int = 3, template_version: str = "
 
 
 def get_cloud_models() -> list[dict]:
-    """Get available cloud models from ModelPool."""
+    """Get available cloud models from ModelPool.
+
+    Returns:
+        List of results.
+    """
     try:
         from .model_pool import ModelPool
 
@@ -345,7 +379,11 @@ def get_cloud_models() -> list[dict]:
 
 
 def get_all_models_with_cloud() -> list[dict]:
-    """Get all available models (local + cloud)."""
+    """Get all available models (local + cloud).
+
+    Returns:
+        List of results.
+    """
     local_models = get_available_models()
     cloud_models = get_cloud_models()
     return local_models + cloud_models
@@ -374,7 +412,16 @@ def _get_model_discovery_candidates(task_description: str, models: list[dict]) -
 
 
 def score_models_with_cloud(available_models: list[dict], task_description: str, top_n: int = 3) -> PonderRanking:
-    """Score models with cloud provider augmentation."""
+    """Score models with cloud provider augmentation.
+
+    Args:
+        available_models: The available models.
+        task_description: The task description.
+        top_n: The top n.
+
+    Returns:
+        The PonderRanking result.
+    """
     engine = PonderEngine()
 
     search_relevance = _get_model_discovery_candidates(task_description, available_models)
@@ -437,7 +484,11 @@ def score_models_with_cloud(available_models: list[dict], task_description: str,
 
 
 def ponder_project_for_plan(plan_id: str) -> dict[str, Any]:
-    """Run project-wide ponder pass for all subtasks in a plan."""
+    """Run project-wide ponder pass for all subtasks in a plan.
+
+    Returns:
+        The result string.
+    """
     from vetinari.planning.planning import plan_manager
     from vetinari.planning.subtask_tree import subtask_tree
 
@@ -497,7 +548,11 @@ def ponder_project_for_plan(plan_id: str) -> dict[str, Any]:
 
 
 def get_ponder_results_for_plan(plan_id: str) -> dict[str, Any]:
-    """Get ponder results for all subtasks in a plan."""
+    """Get ponder results for all subtasks in a plan.
+
+    Returns:
+        The result string.
+    """
     from vetinari.planning.subtask_tree import subtask_tree
 
     all_subtasks = subtask_tree.get_all_subtasks(plan_id)
@@ -525,7 +580,11 @@ def get_ponder_results_for_plan(plan_id: str) -> dict[str, Any]:
 
 
 def get_ponder_health() -> dict[str, Any]:
-    """Check health/status of cloud providers."""
+    """Check health/status of cloud providers.
+
+    Returns:
+        The result string.
+    """
     from .model_pool import ModelPool
 
     cloud_health = ModelPool.get_cloud_provider_health()

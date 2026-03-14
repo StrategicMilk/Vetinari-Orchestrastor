@@ -1,3 +1,5 @@
+"""Plan Api module."""
+
 from __future__ import annotations
 
 import contextlib
@@ -19,10 +21,19 @@ plan_api = Blueprint("plan_api", __name__)
 
 
 def require_admin_token(f):
-    """Decorator to require admin token for plan management endpoints."""
+    """Decorator to require admin token for plan management endpoints.
+
+    Returns:
+        The f result.
+    """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        """Decorated function.
+
+        Returns:
+            The f result.
+        """
         auth_header = request.headers.get("Authorization", "")
         token = ""
 
@@ -41,7 +52,11 @@ def require_admin_token(f):
 
 
 def check_plan_mode_enabled():
-    """Check if plan mode is enabled."""
+    """Check if plan mode is enabled.
+
+    Returns:
+        Tuple of results.
+    """
     if not PLAN_MODE_ENABLE:
         return False, "Plan mode is disabled"
     return True, None
@@ -62,6 +77,9 @@ def generate_plan():
         "dry_run": false,
         "risk_threshold": 0.25
     }
+
+    Returns:
+        Tuple of results.
     """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
@@ -111,14 +129,18 @@ def generate_plan():
         )
 
     except Exception as e:
-        logger.error(f"Plan generation failed: {e}")
+        logger.error("Plan generation failed: %s", e)
         return jsonify({"error": "Plan generation failed", "message": str(e)}), 500
 
 
 @plan_api.route("/api/plan/<plan_id>", methods=["GET"])
 @require_admin_token
 def get_plan(plan_id):
-    """Get plan details by ID."""
+    """Get plan details by ID.
+
+    Returns:
+        Tuple of results.
+    """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
         return jsonify({"error": "Plan mode disabled", "message": error}), 403
@@ -158,7 +180,7 @@ def get_plan(plan_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to get plan: {e}")
+        logger.error("Failed to get plan: %s", e)
         return jsonify({"error": "Failed to get plan", "message": str(e)}), 500
 
 
@@ -177,6 +199,9 @@ def approve_plan(plan_id):
         "timestamp": "ISO string", # optional - auto-generated if not provided
         "approval_schema_version": 1  # optional - int, default 1
     }
+
+    Returns:
+        Tuple of results.
     """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
@@ -238,7 +263,7 @@ def approve_plan(plan_id):
                 )
                 store.remember(approval_entry)
         except Exception as mem_err:
-            logger.warning(f"Failed to log approval to memory: {mem_err}")
+            logger.warning("Failed to log approval to memory: %s", mem_err)
 
         return jsonify(
             {
@@ -254,7 +279,7 @@ def approve_plan(plan_id):
     except ValueError as e:
         return jsonify({"error": "Plan not found", "message": str(e)}), 404
     except Exception as e:
-        logger.error(f"Failed to approve plan: {e}")
+        logger.error("Failed to approve plan: %s", e)
         return jsonify({"error": "Failed to approve plan", "message": str(e)}), 500
 
 
@@ -271,6 +296,13 @@ def approve_subtask(plan_id, subtask_id):
         "audit_id": "optional",    # optional - string
         "risk_score": 0.15         # optional - float
     }
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        Tuple of results.
     """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
@@ -325,14 +357,18 @@ def approve_subtask(plan_id, subtask_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to approve subtask: {e}")
+        logger.error("Failed to approve subtask: %s", e)
         return jsonify({"error": "Failed to approve subtask", "message": str(e)}), 500
 
 
 @plan_api.route("/api/plan/<plan_id>/history", methods=["GET"])
 @require_admin_token
 def get_plan_history(plan_id):
-    """Get plan history and memory for a plan."""
+    """Get plan history and memory for a plan.
+
+    Returns:
+        Tuple of results.
+    """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
         return jsonify({"error": "Plan mode disabled", "message": error}), 403
@@ -364,7 +400,7 @@ def get_plan_history(plan_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to get plan history: {e}")
+        logger.error("Failed to get plan history: %s", e)
         return jsonify({"error": "Failed to get plan history", "message": str(e)}), 500
 
 
@@ -376,6 +412,9 @@ def get_all_plan_history():
     Query params:
     - goal_contains: filter plans by goal containing this string
     - limit: max number of plans to return (default 10)
+
+    Returns:
+        Tuple of results.
     """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
@@ -391,14 +430,18 @@ def get_all_plan_history():
         return jsonify({"success": True, "plans": plans, "count": len(plans)})
 
     except Exception as e:
-        logger.error(f"Failed to get plan history: {e}")
+        logger.error("Failed to get plan history: %s", e)
         return jsonify({"error": "Failed to get plan history", "message": str(e)}), 500
 
 
 @plan_api.route("/api/plan/<plan_id>/subtasks", methods=["GET"])
 @require_admin_token
 def get_plan_subtasks(plan_id):
-    """Get all subtasks for a plan."""
+    """Get all subtasks for a plan.
+
+    Returns:
+        Tuple of results.
+    """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
         return jsonify({"error": "Plan mode disabled", "message": error}), 403
@@ -417,13 +460,17 @@ def get_plan_subtasks(plan_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to get subtasks: {e}")
+        logger.error("Failed to get subtasks: %s", e)
         return jsonify({"error": "Failed to get subtasks", "message": str(e)}), 500
 
 
 @plan_api.route("/api/plan/status", methods=["GET"])
 def get_plan_mode_status():
-    """Get plan mode status and configuration."""
+    """Get plan mode status and configuration.
+
+    Returns:
+        The jsonify result.
+    """
     from vetinari.memory import get_memory_store
 
     try:
@@ -449,7 +496,11 @@ def get_plan_mode_status():
 
 @plan_api.route("/api/plan/templates", methods=["GET"])
 def get_plan_templates():
-    """Get available plan templates by domain."""
+    """Get available plan templates by domain.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         engine = get_plan_engine()
 
@@ -470,7 +521,7 @@ def get_plan_templates():
         return jsonify({"success": True, "templates": templates, "domains": [d.value for d in TaskDomain]})
 
     except Exception as e:
-        logger.error(f"Failed to get templates: {e}")
+        logger.error("Failed to get templates: %s", e)
         return jsonify({"error": "Failed to get templates", "message": str(e)}), 500
 
 
@@ -482,6 +533,9 @@ def get_plan_explanations(plan_id):
     Returns the explanation for a plan including blocks and summary.
     Query params:
     - sanitized: if true, return sanitized version for public exposure (default: false)
+
+    Returns:
+        Tuple of results.
     """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
@@ -514,14 +568,22 @@ def get_plan_explanations(plan_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to get plan explanations: {e}")
+        logger.error("Failed to get plan explanations: %s", e)
         return jsonify({"error": "Failed to get explanations", "message": str(e)}), 500
 
 
 @plan_api.route("/api/plan/<plan_id>/subtasks/<subtask_id>/explanation", methods=["GET"])
 @require_admin_token
 def get_subtask_explanation(plan_id, subtask_id):
-    """Get explanation for a specific subtask."""
+    """Get explanation for a specific subtask.
+
+    Args:
+        plan_id: The plan id.
+        subtask_id: The subtask id.
+
+    Returns:
+        Tuple of results.
+    """
     enabled, error = check_plan_mode_enabled()
     if not enabled:
         return jsonify({"error": "Plan mode disabled", "message": error}), 403
@@ -549,7 +611,7 @@ def get_subtask_explanation(plan_id, subtask_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to get subtask explanation: {e}")
+        logger.error("Failed to get subtask explanation: %s", e)
         return jsonify({"error": "Failed to get subtask explanation", "message": str(e)}), 500
 
 
@@ -567,6 +629,9 @@ def create_coding_task():
         "target_files": ["file1.py", "file2.py"],
         "constraints": "optional constraints"
     }
+
+    Returns:
+        The jsonify result.
     """
     try:
         from vetinari.coding_agent import CodeTask, CodingTaskType, get_coding_agent
@@ -599,14 +664,18 @@ def create_coding_task():
         return jsonify({"success": True, "task_id": task.task_id, "artifact": artifact.to_dict()})
 
     except Exception as e:
-        logger.error(f"Failed to create coding task: {e}")
+        logger.error("Failed to create coding task: %s", e)
         return jsonify({"error": "Failed to create coding task", "message": str(e)}), 500
 
 
 @plan_api.route("/api/coding/task/<task_id>", methods=["GET"])
 @require_admin_token
 def get_coding_task(task_id):
-    """Get coding task status and result."""
+    """Get coding task status and result.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.coding_agent import get_coding_agent
 
@@ -619,7 +688,7 @@ def get_coding_task(task_id):
         return jsonify({"success": True, "task_id": task_id, "status": "completed"})
 
     except Exception as e:
-        logger.error(f"Failed to get coding task: {e}")
+        logger.error("Failed to get coding task: %s", e)
         return jsonify({"error": "Failed to get coding task", "message": str(e)}), 500
 
 
@@ -637,6 +706,9 @@ def create_multi_step_coding():
             {"subtask_id": "s3", "type": "test", "description": "..."}
         ]
     }
+
+    Returns:
+        The jsonify result.
     """
     try:
         from vetinari.coding_agent import CodeTask, CodingTaskType, get_coding_agent
@@ -681,7 +753,7 @@ def create_multi_step_coding():
         return jsonify({"success": True, "plan_id": plan_id, "results": results})
 
     except Exception as e:
-        logger.error(f"Failed to create multi-step coding: {e}")
+        logger.error("Failed to create multi-step coding: %s", e)
         return jsonify({"error": "Failed to create multi-step coding", "message": str(e)}), 500
 
 

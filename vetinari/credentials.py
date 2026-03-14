@@ -1,3 +1,5 @@
+"""Credentials module."""
+
 from __future__ import annotations
 
 import json
@@ -8,20 +10,20 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 try:
     from cryptography.fernet import Fernet
 
     CRYPTO_AVAILABLE = True
 except ImportError:
     CRYPTO_AVAILABLE = False
-    logging.warning("cryptography library not available - credentials will not be encrypted")
-
-
-logger = logging.getLogger(__name__)
+    logging.warning("cryptography library not available - credentials will not be encrypted")  # noqa: VET050 — module-level import warning
 
 
 @dataclass
 class Credential:
+    """Encrypted credential with metadata and rotation tracking."""
     source_type: str
     credential_type: str
     token: str
@@ -35,11 +37,21 @@ class Credential:
     enabled: bool = True
 
     def to_dict(self) -> dict:
+        """Convert to dict.
+
+        Returns:
+            Dictionary of results.
+        """
         d = asdict(self)
         d.pop("token", None)
         return d
 
     def needs_rotation(self) -> bool:
+        """Needs rotation.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self.next_rotation_due:
             return True
         try:
@@ -50,6 +62,7 @@ class Credential:
 
 
 class CredentialVault:
+    """Credential vault."""
     def __init__(self, vault_path: str | None = None):
         if vault_path is None:
             vault_path = Path.home() / ".lmstudio" / "projects" / "Vetinari" / "vault"
@@ -158,20 +171,36 @@ class CredentialVault:
         for source_type, cred in self._credentials.items():
             meta[source_type] = cred.to_dict()
 
-        with open(self.meta_file, "w") as f:
+        with open(self.meta_file, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
 
     def get_credential(self, source_type: str) -> Credential | None:
+        """Get credential.
+
+        Returns:
+            The Credential | None result.
+        """
         cred = self._credentials.get(source_type)
         if cred and cred.enabled:
             return cred
         return None
 
     def get_token(self, source_type: str) -> str | None:
+        """Get token.
+
+        Returns:
+            The result string.
+        """
         cred = self.get_credential(source_type)
         return cred.token if cred else None
 
     def set_credential(self, source_type: str, credential: Credential):
+        """Set credential.
+
+        Args:
+            source_type: The source type.
+            credential: The credential.
+        """
         credential.last_rotated = datetime.now().isoformat()
 
         due = datetime.now() + timedelta(days=credential.rotation_days)
@@ -182,11 +211,21 @@ class CredentialVault:
         logger.info("Credential set for %s", source_type)
 
     def remove_credential(self, source_type: str):
+        """Remove credential."""
         if source_type in self._credentials:
             del self._credentials[source_type]
             self._save()
 
     def rotate_credential(self, source_type: str, new_token: str) -> bool:
+        """Rotate credential.
+
+        Returns:
+            True if successful, False otherwise.
+
+        Args:
+            source_type: The source type.
+            new_token: The new token.
+        """
         if source_type not in self._credentials:
             return False
 
@@ -205,6 +244,11 @@ class CredentialVault:
         return {k: v.to_dict() for k, v in self._credentials.items()}
 
     def get_health(self) -> dict[str, Any]:
+        """Get health.
+
+        Returns:
+            The result string.
+        """
         health = {}
         for source_type, cred in self._credentials.items():
             health[source_type] = {
@@ -218,27 +262,34 @@ class CredentialVault:
         return health
 
     def is_admin(self, user_id: str) -> bool:
+        """Check if admin.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         admins_file = self.vault_path / "admins.json"
         if admins_file.exists():
-            with open(admins_file) as f:
+            with open(admins_file, encoding="utf-8") as f:
                 admins = json.load(f)
                 return user_id in admins.get("admins", [])
         return False
 
     def add_admin(self, user_id: str):
+        """Add admin."""
         admins_file = self.vault_path / "admins.json"
         admins = {"admins": []}
         if admins_file.exists():
-            with open(admins_file) as f:
+            with open(admins_file, encoding="utf-8") as f:
                 admins = json.load(f)
 
         if user_id not in admins.get("admins", []):
             admins["admins"].append(user_id)
-            with open(admins_file, "w") as f:
+            with open(admins_file, "w", encoding="utf-8") as f:
                 json.dump(admins, f, indent=2)
 
 
 class CredentialManager:
+    """Credential manager."""
     def __init__(self):
         self.vault = CredentialVault()
 
@@ -257,6 +308,16 @@ class CredentialManager:
         rotation_days: int = 30,
         note: str = "",
     ):
+        """Set credential.
+
+        Args:
+            source_type: The source type.
+            token: The token.
+            credential_type: The credential type.
+            scopes: The scopes.
+            rotation_days: The rotation days.
+            note: The note.
+        """
         cred = Credential(
             source_type=source_type,
             credential_type=credential_type,

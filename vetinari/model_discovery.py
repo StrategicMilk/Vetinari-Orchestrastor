@@ -47,6 +47,7 @@ class ModelSource:
 
 @dataclass
 class ModelCandidate:
+    """Model candidate."""
     id: str
     name: str
     source_type: str
@@ -64,6 +65,11 @@ class ModelCandidate:
     short_rationale: str = ""
 
     def to_dict(self) -> dict:
+        """To dict.
+
+        Returns:
+            Dictionary of results.
+        """
         provenance_out = []
         for p in self.provenance:
             if isinstance(p, dict):
@@ -109,7 +115,7 @@ def _load_from_cache(cache_file: Path) -> list[ModelCandidate] | None:
     if age >= timedelta(days=_CACHE_TTL_DAYS):
         return None
     try:
-        with open(cache_file) as f:
+        with open(cache_file, encoding="utf-8") as f:
             data = json.load(f)
         return [ModelCandidate(**c) for c in data]
     except Exception as e:
@@ -119,7 +125,7 @@ def _load_from_cache(cache_file: Path) -> list[ModelCandidate] | None:
 
 def _save_to_cache(cache_file: Path, candidates: list[ModelCandidate]) -> None:
     try:
-        with open(cache_file, "w") as f:
+        with open(cache_file, "w", encoding="utf-8") as f:
             json.dump([c.to_dict() for c in candidates], f)
     except Exception as e:
         logger.debug("Cache save failed for %s: %s", cache_file, e)
@@ -131,6 +137,7 @@ def _save_to_cache(cache_file: Path, candidates: list[ModelCandidate]) -> None:
 
 
 class HuggingFaceAdapter:
+    """Hugging face adapter."""
     def __init__(self):
         self.api_url = HF_API_URL
         self.token = credential_manager.get_token("huggingface")
@@ -140,6 +147,15 @@ class HuggingFaceAdapter:
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_models(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search models.
+
+        Args:
+            query: The query.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         candidates = []
         try:
             response = self.session.get(
@@ -199,6 +215,7 @@ class HuggingFaceAdapter:
 
 
 class RedditAdapter:
+    """Reddit adapter."""
     def __init__(self):
         self.token = credential_manager.get_token("reddit")
         self.session = requests.Session()
@@ -207,6 +224,15 @@ class RedditAdapter:
             self.session.headers.update({"Authorization": f"Bearer {self.token}"})
 
     def search_local_llm_posts(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search local llm posts.
+
+        Args:
+            query: The query.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         candidates: list[ModelCandidate] = []
         for subreddit in ["LocalLLaMA", "MachineLearning", "LLM", "LanguageTechnology"]:
             try:
@@ -283,6 +309,7 @@ class RedditAdapter:
 
 
 class GitHubAdapter:
+    """Git hub adapter."""
     def __init__(self):
         self.token = credential_manager.get_token("github")
         self.api_url = GITHUB_API_URL
@@ -292,6 +319,15 @@ class GitHubAdapter:
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_repos(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search repos.
+
+        Args:
+            query: The query.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         candidates = []
         try:
             response = self.session.get(
@@ -343,12 +379,22 @@ class GitHubAdapter:
 
 
 class PapersWithCodeAdapter:
+    """Papers with code adapter."""
     def __init__(self):
         self.api_url = PWC_API_URL
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Vetinari/1.0"})
 
     def search_papers(self, query: str, limit: int = 10) -> list[ModelCandidate]:
+        """Search papers.
+
+        Args:
+            query: The query.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         candidates = []
         try:
             response = self.session.get(f"{self.api_url}/papers/", params={"search": query}, timeout=30)
@@ -504,6 +550,15 @@ class ModelDiscovery:
     # -- main search ---------------------------------------------------------
 
     def search(self, query: str, lm_studio_models: list[dict] | None = None) -> list[ModelCandidate]:
+        """Search.
+
+        Args:
+            query: The query.
+            lm_studio_models: The lm studio models.
+
+        Returns:
+            List of results.
+        """
         all_candidates: list[ModelCandidate] = []
 
         if lm_studio_models:
@@ -578,11 +633,17 @@ class ModelDiscovery:
         return results
 
     def refresh_all_caches(self):
+        """Refresh all caches."""
         for cache_file in self.cache_dir.glob("*.json"):
             cache_file.unlink()
         logger.info("Model cache cleared")
 
     def get_cached_candidates(self) -> list[ModelCandidate]:
+        """Get cached candidates.
+
+        Returns:
+            List of results.
+        """
         candidates: list[ModelCandidate] = []
         for cache_file in self.cache_dir.glob("*.json"):
             cached = _load_from_cache(cache_file)

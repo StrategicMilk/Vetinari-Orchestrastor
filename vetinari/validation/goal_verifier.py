@@ -79,7 +79,11 @@ class GoalVerificationReport:
     model_used: str = ""
 
     def get_corrective_tasks(self) -> list[dict[str, Any]]:
-        """Generate corrective tasks for all identified gaps."""
+        """Generate corrective tasks for all identified gaps.
+
+        Returns:
+            The result string.
+        """
         tasks = []
 
         # Tasks for missing features
@@ -256,7 +260,7 @@ class GoalVerifier:
                 final_output, task_outputs
             )
         except Exception as e:
-            logger.warning(f"Security check failed: {e}")
+            logger.warning("Security check failed: %s", e)
             report.security_passed = True  # Don't block on security check failure
 
         # 7. Calculate overall compliance
@@ -435,7 +439,7 @@ For each required feature, check if it's implemented. Return JSON:
                 return result.output
 
         except Exception as e:
-            logger.debug(f"LLM evaluation in goal verifier failed: {e}")
+            logger.debug("LLM evaluation in goal verifier failed: %s", e)
         return None
 
     def _security_check(
@@ -468,7 +472,7 @@ For each required feature, check if it's implemented. Return JSON:
                 critical = [f for f in findings if f.get("severity") in ("critical", "high")]
                 return len(critical) == 0, findings, score
         except Exception as e:
-            logger.debug(f"Security check failed: {e}")
+            logger.debug("Security check failed: %s", e)
 
         return True, [], 1.0
 
@@ -479,6 +483,11 @@ _goal_verifier: GoalVerifier | None = None
 
 
 def get_goal_verifier() -> GoalVerifier:
+    """Get goal verifier.
+
+    Returns:
+        The GoalVerifier result.
+    """
     global _goal_verifier
     if _goal_verifier is None:
         _goal_verifier = GoalVerifier()

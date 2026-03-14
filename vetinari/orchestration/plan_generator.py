@@ -114,7 +114,7 @@ class PlanGenerator:
                     for i, t in enumerate(result.output["tasks"])
                 ]
         except Exception as e:
-            logger.warning(f"PlannerAgent decomposition failed: {e}, using keyword fallback")
+            logger.warning("PlannerAgent decomposition failed: %s, using keyword fallback", e)
 
         # Keyword-based fallback decomposition
         return self._keyword_decomposition(goal)
@@ -125,6 +125,11 @@ class PlanGenerator:
         counter = [1]
 
         def next_id(p: str = "t") -> str:
+            """Next id.
+
+            Returns:
+                The result string.
+            """
             tid = f"{p}{counter[0]}"
             counter[0] += 1
             return tid
@@ -266,6 +271,11 @@ class PlanGenerator:
         rec_stack: set = set()
 
         def visit(node_id: str) -> bool:
+            """Visit.
+
+            Returns:
+                True if successful, False otherwise.
+            """
             if node_id in rec_stack:
                 return True
             if node_id in visited:

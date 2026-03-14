@@ -129,7 +129,7 @@ class GoalTracker:
         self.original_goal = original_goal
         self._goal_keywords = self._extract_keywords(original_goal)
         self._deviation_history: list[AdherenceResult] = []
-        logger.debug(f"[GoalTracker] Tracking goal: {original_goal[:80]}... ({len(self._goal_keywords)} keywords)")
+        logger.debug(f"[GoalTracker] Tracking goal: {original_goal[:80]}... ({len(self._goal_keywords)} keywords)")  # noqa: VET051 — complex expression
 
     def check_adherence(
         self,
@@ -230,7 +230,11 @@ class GoalTracker:
         return flagged
 
     def get_drift_trend(self) -> dict[str, Any]:
-        """Get the trend of goal adherence over time."""
+        """Get the trend of goal adherence over time.
+
+        Returns:
+            The result string.
+        """
         if not self._deviation_history:
             return {"trend": "unknown", "avg_score": 0, "samples": 0}
         scores = [r.score for r in self._deviation_history]

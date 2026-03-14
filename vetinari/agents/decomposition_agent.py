@@ -37,6 +37,13 @@ class DecompositionAgent:
         """Decompose a prompt in the context of an existing plan.
 
         Returns a dict with tasks, depth info, and metadata.
+
+        Args:
+            plan: The plan.
+            prompt: The prompt.
+
+        Returns:
+            The result string.
         """
         try:
             from vetinari.decomposition import decomposition_engine
@@ -57,7 +64,7 @@ class DecompositionAgent:
                 "knobs": RECURSION_KNOBS,
             }
         except Exception as e:
-            logger.error(f"DecompositionAgent.decompose_from_prompt failed: {e}")
+            logger.error("DecompositionAgent.decompose_from_prompt failed: %s", e)
             return {"status": "error", "error": str(e)}
 
 

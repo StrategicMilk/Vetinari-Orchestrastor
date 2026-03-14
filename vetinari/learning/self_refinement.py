@@ -137,7 +137,7 @@ class SelfRefinementLoop:
 
             current_output = revised
             rounds_used = round_num
-            logger.info(f"[SelfRefinement] Round {round_num}/{max_rounds} completed for task '{task_description[:50]}'")
+            logger.info(f"[SelfRefinement] Round {round_num}/{max_rounds} completed for task '{task_description[:50]}'")  # noqa: VET051 — complex expression
 
         improved = rounds_used > 0 and current_output != initial_output
         final_quality = initial_quality or 0.7
@@ -223,7 +223,7 @@ class SelfRefinementLoop:
         temperature: float = 0.2,
     ) -> str | None:
         """Call LM Studio directly."""
-        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         from vetinari.adapters.lmstudio_adapter import get_lmstudio_headers, resolve_lmstudio_model
 
         resolved_model = resolve_lmstudio_model(model_id, host)
@@ -265,7 +265,11 @@ _refiner_lock = __import__("threading").Lock()
 
 
 def get_self_refiner(adapter_manager=None) -> SelfRefinementLoop:
-    """Return the global SelfRefinementLoop singleton."""
+    """Return the global SelfRefinementLoop singleton.
+
+    Returns:
+        The SelfRefinementLoop result.
+    """
     global _refiner
     if _refiner is None:
         with _refiner_lock:

@@ -83,18 +83,33 @@ class SchemaValidator:
     # ------------------------------------------------------------------
 
     def register_schema(self, name: str, schema: dict[str, Any]) -> None:
-        """Register (or replace) a named validation schema."""
+        """Register (or replace) a named validation schema.
+
+        Args:
+            name: The name.
+            schema: The schema.
+        """
         with self._lock:
             self._schemas[name] = schema
         logger.debug("Registered schema '%s'", name)
 
     def unregister_schema(self, name: str) -> bool:
+        """Unregister schema.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             existed = name in self._schemas
             self._schemas.pop(name, None)
             return existed
 
     def list_schemas(self) -> list[str]:
+        """List schemas.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return sorted(self._schemas.keys())
 
@@ -106,6 +121,13 @@ class SchemaValidator:
         """Validate ``obj`` against the named schema.
 
         Returns a list of error strings (empty = valid).
+
+        Args:
+            schema_name: The schema name.
+            obj: The obj.
+
+        Returns:
+            The result string.
         """
         with self._lock:
             schema = self._schemas.get(schema_name)
@@ -157,7 +179,15 @@ class SchemaValidator:
         schema_name: str,
         objects: list[Any],
     ) -> dict[int, list[str]]:
-        """Validate a list of objects.  Returns index → error list (only failures)."""
+        """Validate a list of objects.  Returns index → error list (only failures).
+
+        Args:
+            schema_name: The schema name.
+            objects: The objects.
+
+        Returns:
+            The result string.
+        """
         failures: dict[int, list[str]] = {}
         for i, obj in enumerate(objects):
             errs = self.validate(schema_name, obj)
@@ -240,6 +270,11 @@ class SchemaValidator:
     # ------------------------------------------------------------------
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "registered_schemas": len(self._schemas),
@@ -247,6 +282,7 @@ class SchemaValidator:
             }
 
     def clear(self) -> None:
+        """Clear for the current context."""
         with self._lock:
             self._schemas.clear()
 
@@ -261,5 +297,6 @@ def get_schema_validator() -> SchemaValidator:
 
 
 def reset_schema_validator() -> None:
+    """Reset schema validator."""
     with SchemaValidator._class_lock:
         SchemaValidator._instance = None

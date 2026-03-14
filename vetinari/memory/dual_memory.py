@@ -45,7 +45,14 @@ class DualMemoryStore(IMemoryStore):
         logger.info("DualMemoryStore initialized with primary=%s", self.primary_backend)
 
     def remember(self, entry: MemoryEntry) -> str:
-        """Write to both backends with secret sanitization."""
+        """Write to both backends with secret sanitization.
+
+        Returns:
+            The result string.
+
+        Raises:
+            RuntimeError: If the operation fails.
+        """
         # Filter secrets before persisting
         entry = self._filter_secrets(entry)
         entry.source_backends = []
@@ -96,7 +103,17 @@ class DualMemoryStore(IMemoryStore):
     def search(
         self, query: str, agent: str | None = None, entry_types: list[str] | None = None, limit: int = 10
     ) -> list[MemoryEntry]:
-        """Search with merged results from both backends."""
+        """Search with merged results from both backends.
+
+        Args:
+            query: The query.
+            agent: The agent.
+            entry_types: The entry types.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         oc_results = []
         mnemo_results = []
 
@@ -121,7 +138,17 @@ class DualMemoryStore(IMemoryStore):
     def timeline(
         self, agent: str | None = None, start_time: int | None = None, end_time: int | None = None, limit: int = 100
     ) -> list[MemoryEntry]:
-        """Timeline with merged results from both backends."""
+        """Timeline with merged results from both backends.
+
+        Args:
+            agent: The agent.
+            start_time: The start time.
+            end_time: The end time.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         oc_results = []
         mnemo_results = []
 
@@ -144,7 +171,15 @@ class DualMemoryStore(IMemoryStore):
         return all_results[:limit]
 
     def ask(self, question: str, agent: str | None = None) -> list[MemoryEntry]:
-        """Ask with merged results from both backends."""
+        """Ask with merged results from both backends.
+
+        Args:
+            question: The question.
+            agent: The agent.
+
+        Returns:
+            List of results.
+        """
         oc_results = []
         mnemo_results = []
 
@@ -167,7 +202,11 @@ class DualMemoryStore(IMemoryStore):
         return all_results[:5]
 
     def export(self, path: str) -> bool:
-        """Export from both backends to a combined JSON file."""
+        """Export from both backends to a combined JSON file.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         import json
 
         oc_path = path.replace(".json", "_oc.json")
@@ -193,13 +232,21 @@ class DualMemoryStore(IMemoryStore):
             "note": "DualMemoryStore writes to both backends separately",
         }
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(combined, f, indent=2)
 
         return oc_success or mnemo_success
 
     def forget(self, entry_id: str, reason: str) -> bool:
-        """Forget in both backends."""
+        """Forget in both backends.
+
+        Args:
+            entry_id: The entry id.
+            reason: The reason.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         oc_success = False
         mnemo_success = False
 
@@ -216,7 +263,11 @@ class DualMemoryStore(IMemoryStore):
         return oc_success or mnemo_success
 
     def compact(self, max_age_days: int | None = None) -> int:
-        """Compact both backends."""
+        """Compact both backends.
+
+        Returns:
+            The computed value.
+        """
         oc_deleted = 0
         mnemo_deleted = 0
 
@@ -233,7 +284,11 @@ class DualMemoryStore(IMemoryStore):
         return oc_deleted + mnemo_deleted
 
     def stats(self) -> MemoryStats:
-        """Get combined stats from both backends."""
+        """Get combined stats from both backends.
+
+        Returns:
+            The MemoryStats result.
+        """
         oc_stats = MemoryStats()
         mnemo_stats = MemoryStats()
 
@@ -263,7 +318,11 @@ class DualMemoryStore(IMemoryStore):
         return combined
 
     def get_entry(self, entry_id: str) -> MemoryEntry | None:
-        """Get entry from primary backend first, then fallback."""
+        """Get entry from primary backend first, then fallback.
+
+        Returns:
+            The MemoryEntry | None result.
+        """
         try:
             if self.primary_backend == "oc":
                 entry = self.oc_store.get_entry(entry_id)
@@ -349,7 +408,11 @@ _dual_store: DualMemoryStore | None = None
 
 
 def get_dual_memory_store() -> DualMemoryStore:
-    """Get or create the global dual memory store instance."""
+    """Get or create the global dual memory store instance.
+
+    Returns:
+        The DualMemoryStore result.
+    """
     global _dual_store
     if _dual_store is None:
         _dual_store = DualMemoryStore()
@@ -357,7 +420,15 @@ def get_dual_memory_store() -> DualMemoryStore:
 
 
 def init_dual_memory_store(oc_path: str | None = None, mnemosyne_path: str | None = None) -> DualMemoryStore:
-    """Initialize a new dual memory store instance."""
+    """Initialize a new dual memory store instance.
+
+    Args:
+        oc_path: The oc path.
+        mnemosyne_path: The mnemosyne path.
+
+    Returns:
+        The DualMemoryStore result.
+    """
     global _dual_store
     _dual_store = DualMemoryStore(oc_path=oc_path, mnemosyne_path=mnemosyne_path)
     return _dual_store

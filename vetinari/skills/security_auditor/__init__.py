@@ -63,6 +63,11 @@ class SecurityAuditorSkill(Tool):
         return self._agent
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         target = kwargs.get("target", "")
         focus = kwargs.get("focus", "all")
         severity = kwargs.get("severity_threshold", "low")

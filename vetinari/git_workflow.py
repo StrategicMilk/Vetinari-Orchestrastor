@@ -40,7 +40,11 @@ class CommitInfo:
     files_changed: list[str] = field(default_factory=list)
 
     def format_message(self) -> str:
-        """Format as a conventional commit message string."""
+        """Format as a conventional commit message string.
+
+        Returns:
+            The result string.
+        """
         prefix = self.type
         if self.scope:
             prefix = f"{self.type}({self.scope})"
@@ -109,6 +113,9 @@ class GitWorkflow:
 
         If *diff_text* is ``None`` the method inspects the currently staged
         changes, falling back to unstaged changes.
+
+        Returns:
+            The result string.
         """
         if diff_text is None:
             _, diff_text, _ = self._run_git("diff", "--cached", "--stat")
@@ -137,7 +144,15 @@ class GitWorkflow:
     # ------------------------------------------------------------------
 
     def generate_commit_message(self, description: str | None = None, scope: str | None = None) -> CommitInfo:
-        """Generate a conventional commit message from staged changes."""
+        """Generate a conventional commit message from staged changes.
+
+        Args:
+            description: The description.
+            scope: The scope.
+
+        Returns:
+            The CommitInfo result.
+        """
         _, diff_stat, _ = self._run_git("diff", "--cached", "--stat")
         _, diff_names, _ = self._run_git("diff", "--cached", "--name-only")
 
@@ -197,12 +212,24 @@ class GitWorkflow:
     # ------------------------------------------------------------------
 
     def create_branch(self, name: str, base: str = "HEAD") -> bool:
-        """Create and checkout a new branch from *base*."""
+        """Create and checkout a new branch from *base*.
+
+        Args:
+            name: The name.
+            base: The base.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         code, _, _ = self._run_git("checkout", "-b", name, base)
         return code == 0
 
     def get_branches(self) -> list[BranchInfo]:
-        """List all local branches with metadata."""
+        """List all local branches with metadata.
+
+        Returns:
+            List of results.
+        """
         code, output, _ = self._run_git("branch", "-v")
         branches: list = []
         if code != 0:
@@ -228,7 +255,11 @@ class GitWorkflow:
     # ------------------------------------------------------------------
 
     def generate_pr_description(self, base_branch: str = "main") -> dict[str, str]:
-        """Generate a PR description from commit history since *base_branch*."""
+        """Generate a PR description from commit history since *base_branch*.
+
+        Returns:
+            The result string.
+        """
         _, log_output, _ = self._run_git("log", f"{base_branch}..HEAD", "--oneline")
         _, diff_stat, _ = self._run_git("diff", f"{base_branch}..HEAD", "--stat")
 
@@ -254,7 +285,11 @@ class GitWorkflow:
     # ------------------------------------------------------------------
 
     def detect_conflicts(self, target_branch: str = "main") -> list[ConflictInfo]:
-        """Detect potential merge conflicts with *target_branch*."""
+        """Detect potential merge conflicts with *target_branch*.
+
+        Returns:
+            List of results.
+        """
         code, _, stderr = self._run_git("merge", "--no-commit", "--no-ff", target_branch, "--dry-run")
 
         conflicts: list = []
@@ -281,7 +316,11 @@ class GitWorkflow:
     # ------------------------------------------------------------------
 
     def get_status(self) -> dict[str, Any]:
-        """Get current repository status as a structured dict."""
+        """Get current repository status as a structured dict.
+
+        Returns:
+            The result string.
+        """
         _, status, _ = self._run_git("status", "--porcelain")
         _, branch, _ = self._run_git("rev-parse", "--abbrev-ref", "HEAD")
         _, commit, _ = self._run_git("rev-parse", "--short", "HEAD")
@@ -322,7 +361,11 @@ _git_workflow: GitWorkflow | None = None
 
 
 def get_git_workflow(repo_path: str = ".") -> GitWorkflow:
-    """Return a module-level :class:`GitWorkflow` singleton."""
+    """Return a module-level :class:`GitWorkflow` singleton.
+
+    Returns:
+        The GitWorkflow result.
+    """
     global _git_workflow
     if _git_workflow is None:
         _git_workflow = GitWorkflow(repo_path)

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class UIPlannerCapability(str, Enum):
+    """Uiplanner capability."""
     CSS_DESIGN = "css_design"
     RESPONSIVE_LAYOUT = "responsive_layout"
     ANIMATION = "animation"
@@ -37,6 +38,7 @@ class UIPlannerCapability(str, Enum):
 
 @dataclass
 class UIRequest:
+    """Request payload for UI planning operations."""
     capability: UIPlannerCapability
     element: str
     context: str | None = None
@@ -53,6 +55,7 @@ class UIRequest:
 
 @dataclass
 class UIResult:
+    """Result payload from UI planning operations."""
     success: bool
     css_code: str | None = None
     summary: str | None = None
@@ -63,6 +66,7 @@ class UIResult:
 
 
 class UIPlannerSkillTool(Tool):
+    """Uiplanner skill tool."""
     def __init__(self):
         import warnings
 
@@ -104,6 +108,11 @@ class UIPlannerSkillTool(Tool):
         super().__init__(metadata)
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         try:
             cap_str = kwargs.get("capability")
             element = kwargs.get("element")

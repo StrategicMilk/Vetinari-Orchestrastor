@@ -40,13 +40,22 @@ class SSETransport:
         self._server = server
 
     def create_flask_routes(self):
-        """Create Flask Blueprint for SSE-based MCP transport."""
+        """Create Flask Blueprint for SSE-based MCP transport.
+
+        Returns:
+            The jsonify result.
+        """
         from flask import Blueprint, jsonify, request
 
         bp = Blueprint("mcp", __name__)
 
         @bp.route("/mcp/message", methods=["POST"])
         def handle_message():
+            """Handle message.
+
+            Returns:
+                The jsonify result.
+            """
             message = request.get_json(silent=True)
             if not message:
                 return jsonify({"error": "Invalid JSON"}), 400

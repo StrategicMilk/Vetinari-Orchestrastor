@@ -96,7 +96,7 @@ class PolicyEnforcer:
         decision = enforcer.check_action(
             agent_type="builder",
             action="write",
-            target="vetinari/agents/foo.py",
+            target="vetinari/agents/foo.py",  # noqa: VET034
             context={"delegation_depth": 1},
         )
         if not decision.allowed:

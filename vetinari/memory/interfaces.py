@@ -35,7 +35,11 @@ class MemoryEntry:
     metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            The result string.
+        """
         data = asdict(self)
         if isinstance(self.entry_type, MemoryEntryType):
             data["entry_type"] = self.entry_type.value
@@ -43,7 +47,11 @@ class MemoryEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MemoryEntry:
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Returns:
+            The MemoryEntry result.
+        """
         if "entry_type" in data and isinstance(data["entry_type"], str):
             data["entry_type"] = MemoryEntryType(data["entry_type"])
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
@@ -116,17 +124,36 @@ class IMemoryStore(ABC):
     def search(
         self, query: str, agent: str | None = None, entry_types: list[str] | None = None, limit: int = 10
     ) -> list[MemoryEntry]:
-        """Search memories by keyword or semantic similarity."""
+        """Search memories by keyword or semantic similarity.
+
+        Args:
+            query: The query.
+            agent: The agent.
+            entry_types: The entry types.
+            limit: The limit.
+        """
 
     @abstractmethod
     def timeline(
         self, agent: str | None = None, start_time: int | None = None, end_time: int | None = None, limit: int = 100
     ) -> list[MemoryEntry]:
-        """Browse memories chronologically."""
+        """Browse memories chronologically.
+
+        Args:
+            agent: The agent.
+            start_time: The start time.
+            end_time: The end time.
+            limit: The limit.
+        """
 
     @abstractmethod
     def ask(self, question: str, agent: str | None = None) -> list[MemoryEntry]:
-        """Ask a natural language question against the memory store."""
+        """Ask a natural language question against the memory store.
+
+        Args:
+            question: The question.
+            agent: The agent.
+        """
 
     @abstractmethod
     def export(self, path: str) -> bool:
@@ -134,7 +161,12 @@ class IMemoryStore(ABC):
 
     @abstractmethod
     def forget(self, entry_id: str, reason: str) -> bool:
-        """Mark a memory as obsolete (tombstone)."""
+        """Mark a memory as obsolete (tombstone).
+
+        Args:
+            entry_id: The entry id.
+            reason: The reason.
+        """
 
     @abstractmethod
     def compact(self, max_age_days: int | None = None) -> int:

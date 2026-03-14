@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 class EntryState(Enum):
+    """Entry state."""
     PENDING = "pending"
     CLAIMED = "claimed"
     COMPLETED = "completed"
@@ -139,6 +140,11 @@ class Blackboard:
 
     @classmethod
     def get_instance(cls) -> Blackboard:
+        """Get instance.
+
+        Returns:
+            The Blackboard result.
+        """
         with cls._cls_lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -157,7 +163,19 @@ class Blackboard:
         ttl_seconds: float = 3600.0,
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Post a new work item. Returns the entry_id."""
+        """Post a new work item. Returns the entry_id.
+
+        Args:
+            content: The content.
+            request_type: The request type.
+            requested_by: The requested by.
+            priority: The priority.
+            ttl_seconds: The ttl seconds.
+            metadata: The metadata.
+
+        Returns:
+            The result string.
+        """
         entry_id = f"bb_{uuid.uuid4().hex[:8]}"
         entry = BlackboardEntry(
             entry_id=entry_id,
@@ -182,6 +200,13 @@ class Blackboard:
         """Claim a pending entry for processing. Returns None if unavailable.
 
         Phase 7.9H: Checks MODEL_INFERENCE permission before allowing claim.
+
+        Args:
+            entry_id: The entry id.
+            agent_type: The agent type.
+
+        Returns:
+            The BlackboardEntry | None result.
         """
         # Permission check — agents can only claim work if permitted
         try:
@@ -209,7 +234,15 @@ class Blackboard:
         return entry
 
     def complete(self, entry_id: str, result: Any) -> bool:
-        """Mark an entry as completed with a result."""
+        """Mark an entry as completed with a result.
+
+        Args:
+            entry_id: The entry id.
+            result: The result.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             entry = self._entries.get(entry_id)
             if entry is None:
@@ -222,7 +255,15 @@ class Blackboard:
         return True
 
     def fail(self, entry_id: str, error: str) -> bool:
-        """Mark an entry as failed."""
+        """Mark an entry as failed.
+
+        Args:
+            entry_id: The entry id.
+            error: The error.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         with self._lock:
             entry = self._entries.get(entry_id)
             if entry is None:
@@ -239,7 +280,18 @@ class Blackboard:
     # ------------------------------------------------------------------
 
     def get_result(self, entry_id: str, timeout: float = 30.0) -> Any:
-        """Wait for a result using threading.Event (no polling)."""
+        """Wait for a result using threading.Event (no polling).
+
+        Args:
+            entry_id: The entry id.
+            timeout: The timeout.
+
+        Returns:
+            The Any result.
+
+        Raises:
+            RuntimeError: If the operation fails.
+        """
         with self._lock:
             entry = self._entries.get(entry_id)
         if entry is None:
@@ -262,7 +314,15 @@ class Blackboard:
         request_type: str | None = None,
         limit: int = 10,
     ) -> list[BlackboardEntry]:
-        """Return pending entries, optionally filtered by type, sorted by priority."""
+        """Return pending entries, optionally filtered by type, sorted by priority.
+
+        Args:
+            request_type: The request type.
+            limit: The limit.
+
+        Returns:
+            List of results.
+        """
         with self._lock:
             entries = [
                 e
@@ -275,6 +335,11 @@ class Blackboard:
         return entries[:limit]
 
     def get_entry(self, entry_id: str) -> BlackboardEntry | None:
+        """Get entry.
+
+        Returns:
+            The BlackboardEntry | None result.
+        """
         with self._lock:
             return self._entries.get(entry_id)
 
@@ -291,6 +356,13 @@ class Blackboard:
 
         Falls back to PLANNER for unknown types, then returns a failure result
         if no fallback exists.
+
+        Args:
+            task: The task.
+            available_agents: The available agents.
+
+        Returns:
+            The Any | None result.
         """
         from vetinari.agents.contracts import AgentTask
         from vetinari.types import AgentType
@@ -436,7 +508,11 @@ class Blackboard:
     # ------------------------------------------------------------------
 
     def purge_expired(self) -> int:
-        """Remove expired entries. Returns count of purged entries."""
+        """Remove expired entries. Returns count of purged entries.
+
+        Returns:
+            The computed value.
+        """
         with self._lock:
             expired = [eid for eid, e in self._entries.items() if e.is_expired]
             for eid in expired:
@@ -453,7 +529,11 @@ class Blackboard:
         return len(expired)
 
     def get_stats(self) -> dict[str, int]:
-        """Return a summary of entry states."""
+        """Return a summary of entry states.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             states: dict[str, int] = {}
             for e in self._entries.values():
@@ -519,29 +599,55 @@ class SharedExecutionContext:
         self._lock = threading.RLock()
 
     def set(self, key: str, value: Any, agent_type: str) -> None:
-        """Store a value, recording which agent wrote it."""
+        """Store a value, recording which agent wrote it.
+
+        Args:
+            key: The key.
+            value: The value.
+            agent_type: The agent type.
+        """
         with self._lock:
             self._store[key] = value
             self._provenance[key] = agent_type
         logger.debug("[SharedCtx:%s] %s set '%s'", self.plan_id, agent_type, key)
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Read a value (returns *default* if missing)."""
+        """Read a value (returns *default* if missing).
+
+        Args:
+            key: The key.
+            default: The default.
+
+        Returns:
+            The Any result.
+        """
         with self._lock:
             return self._store.get(key, default)
 
     def get_all(self) -> dict[str, Any]:
-        """Return a shallow copy of all stored key-value pairs."""
+        """Return a shallow copy of all stored key-value pairs.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return dict(self._store)
 
     def get_all_by_agent(self, agent_type: str) -> dict[str, Any]:
-        """Return all entries written by a specific agent type."""
+        """Return all entries written by a specific agent type.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {k: self._store[k] for k, a in self._provenance.items() if a == agent_type}
 
     def keys(self) -> list[str]:
-        """Return list of stored keys."""
+        """Return list of stored keys.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._store.keys())
 
@@ -561,7 +667,11 @@ _board_lock = threading.Lock()
 
 
 def get_blackboard() -> Blackboard:
-    """Return the global Blackboard singleton (created lazily)."""
+    """Return the global Blackboard singleton (created lazily).
+
+    Returns:
+        The Blackboard result.
+    """
     global _blackboard
     if _blackboard is None:
         with _board_lock:

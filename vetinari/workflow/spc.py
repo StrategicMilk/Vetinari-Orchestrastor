@@ -103,6 +103,13 @@ class ControlChart:
         * Cpk <= 1.0  -- needs intervention
 
         Returns ``None`` when sigma is zero or no spec limits are given.
+
+        Args:
+            spec_upper: The spec upper.
+            spec_lower: The spec lower.
+
+        Returns:
+            The computed value.
         """
         s = self.sigma
         if s == 0.0:
@@ -122,13 +129,22 @@ class ControlChart:
     # -- control check ------------------------------------------------------
 
     def is_in_control(self, value: float) -> bool:
-        """Return ``True`` if *value* falls within the control limits."""
+        """Return ``True`` if *value* falls within the control limits.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if self.sigma == 0.0:
             return True
         return self.lcl <= value <= self.ucl
 
     def add_value(self, value: float, timestamp: str | None = None) -> None:
-        """Append an observation to the chart."""
+        """Append an observation to the chart.
+
+        Args:
+            value: The value.
+            timestamp: The timestamp.
+        """
         self.values.append(value)
         self.timestamps.append(timestamp or datetime.now().isoformat())
 
@@ -169,7 +185,7 @@ class SPCMonitor:
         monitor = SPCMonitor()
         alert = monitor.update("quality_score", 0.92)
         if alert:
-            logger.debug(f"Out of control: {alert.alert_type}")
+            logger.debug("Out of control: %s", alert.alert_type)
     """
 
     DEFAULT_METRICS = ["quality_score", "latency_ms", "token_count", "drift_score"]
@@ -183,7 +199,15 @@ class SPCMonitor:
     # -- public API ---------------------------------------------------------
 
     def update(self, metric_name: str, value: float) -> SPCAlert | None:
-        """Record a new observation and return an alert if out of control."""
+        """Record a new observation and return an alert if out of control.
+
+        Args:
+            metric_name: The metric name.
+            value: The value.
+
+        Returns:
+            The SPCAlert | None result.
+        """
         chart = self._get_or_create_chart(metric_name)
 
         # We need at least a few data points before alerting.
@@ -209,13 +233,21 @@ class SPCMonitor:
         return self._charts.get(metric_name)
 
     def get_alerts(self, metric_name: str | None = None) -> list[SPCAlert]:
-        """Return alerts, optionally filtered by metric name."""
+        """Return alerts, optionally filtered by metric name.
+
+        Returns:
+            List of results.
+        """
         if metric_name is None:
             return list(self._alerts)
         return [a for a in self._alerts if a.metric_name == metric_name]
 
     def get_summary(self) -> dict[str, Any]:
-        """Return a summary dict of all monitored metrics."""
+        """Return a summary dict of all monitored metrics.
+
+        Returns:
+            The result string.
+        """
         summary: dict[str, Any] = {}
         for name, chart in self._charts.items():
             summary[name] = {
@@ -332,6 +364,15 @@ class AndonSystem:
 
         Signals with severity ``critical`` or ``emergency`` automatically
         pause execution.
+
+        Args:
+            source: The source.
+            severity: The severity.
+            message: The message.
+            affected_tasks: The affected tasks.
+
+        Returns:
+            The AndonSignal result.
         """
         signal = AndonSignal(
             source=source,
@@ -367,6 +408,9 @@ class AndonSystem:
         signals remain the system resumes (unpauses).
 
         Returns ``True`` if the signal was found and acknowledged.
+
+        Returns:
+            True if successful, False otherwise.
         """
         if signal_index < 0 or signal_index >= len(self._signals):
             return False
@@ -449,7 +493,11 @@ class WIPTracker:
     # -- queries ------------------------------------------------------------
 
     def can_start(self, agent_type: str) -> bool:
-        """Return ``True`` if the agent type has capacity for another task."""
+        """Return ``True`` if the agent type has capacity for another task.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         limit = self._config.get_limit(agent_type)
         current = len(self._active.get(agent_type, []))
         return current < limit
@@ -463,7 +511,11 @@ class WIPTracker:
         return len(self._queued)
 
     def get_utilization(self) -> dict[str, dict[str, Any]]:
-        """Return utilization info for every known agent type."""
+        """Return utilization info for every known agent type.
+
+        Returns:
+            The result string.
+        """
         types = set(self._config.limits.keys()) | set(self._active.keys())
         types.discard("default")
         result: dict[str, dict[str, Any]] = {}
@@ -481,7 +533,15 @@ class WIPTracker:
     # -- mutations ----------------------------------------------------------
 
     def start_task(self, agent_type: str, task_id: str) -> bool:
-        """Start a task if capacity allows.  Returns ``True`` on success."""
+        """Start a task if capacity allows.  Returns ``True`` on success.
+
+        Args:
+            agent_type: The agent type.
+            task_id: The task id.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         if not self.can_start(agent_type):
             logger.warning(
                 "WIP limit reached for %s (limit=%d) -- cannot start %s",
@@ -499,6 +559,13 @@ class WIPTracker:
         """Mark a task as complete and pull the next queued task (if any).
 
         Returns the dequeued task dict, or ``None`` if the queue is empty.
+
+        Args:
+            agent_type: The agent type.
+            task_id: The task id.
+
+        Returns:
+            The result string.
         """
         tasks = self._active.get(agent_type, [])
         if task_id in tasks:
@@ -521,7 +588,13 @@ class WIPTracker:
         return None
 
     def enqueue(self, agent_type: str, task_id: str, **extra: Any) -> None:
-        """Place a task in the waiting queue."""
+        """Place a task in the waiting queue.
+
+        Args:
+            agent_type: The agent type.
+            task_id: The task id.
+            **extra: Additional key-value pairs to store with the entry.
+        """
         entry: dict[str, Any] = {
             "agent_type": agent_type,
             "task_id": task_id,

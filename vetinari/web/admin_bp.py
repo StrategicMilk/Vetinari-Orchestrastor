@@ -27,6 +27,11 @@ admin_bp = Blueprint("admin", __name__)
 
 @admin_bp.route("/api/admin/credentials", methods=["GET"])
 def api_admin_list_credentials():
+    """Api admin list credentials.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -42,6 +47,11 @@ def api_admin_list_credentials():
 
 @admin_bp.route("/api/admin/credentials/<source_type>", methods=["POST"])
 def api_admin_set_credential(source_type):
+    """Api admin set credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -71,6 +81,11 @@ def api_admin_set_credential(source_type):
 
 @admin_bp.route("/api/admin/credentials/<source_type>/rotate", methods=["POST"])
 def api_admin_rotate_credential(source_type):
+    """Api admin rotate credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -94,6 +109,11 @@ def api_admin_rotate_credential(source_type):
 
 @admin_bp.route("/api/admin/credentials/<source_type>", methods=["DELETE"])
 def api_admin_delete_credential(source_type):
+    """Api admin delete credential.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -108,6 +128,11 @@ def api_admin_delete_credential(source_type):
 
 @admin_bp.route("/api/admin/credentials/health", methods=["GET"])
 def api_admin_credentials_health():
+    """Api admin credentials health.
+
+    Returns:
+        Tuple of results.
+    """
     if not _is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -131,6 +156,11 @@ def api_admin_permissions():
 @admin_bp.route("/api/agents/status", methods=["GET"])
 @require_admin
 def api_agents_status():
+    """Api agents status.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -148,6 +178,11 @@ def api_agents_status():
 @admin_bp.route("/api/agents/initialize", methods=["POST"])
 @require_admin
 def api_agents_initialize():
+    """Api agents initialize.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -167,6 +202,11 @@ def api_agents_initialize():
 @admin_bp.route("/api/agents/active", methods=["GET"])
 @require_admin
 def api_agents_active():
+    """Api agents active.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -216,6 +256,11 @@ def api_agents_active():
 @admin_bp.route("/api/agents/tasks", methods=["GET"])
 @require_admin
 def api_agents_tasks():
+    """Api agents tasks.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.multi_agent_orchestrator import MultiAgentOrchestrator
 
@@ -246,6 +291,11 @@ def api_agents_tasks():
 @admin_bp.route("/api/memory", methods=["GET"])
 @require_admin
 def api_memory():
+    """Api memory.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.shared_memory import SharedMemory
 
@@ -264,6 +314,11 @@ def api_memory():
 @admin_bp.route("/api/decisions/pending", methods=["GET"])
 @require_admin
 def api_decisions_pending():
+    """Api decisions pending.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.shared_memory import SharedMemory
 
@@ -291,6 +346,11 @@ def api_decisions_pending():
 @admin_bp.route("/api/decisions", methods=["POST"])
 @require_admin
 def api_decisions_submit():
+    """Api decisions submit.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         data = request.json
         decision_id = data.get("decision_id")
@@ -313,7 +373,11 @@ def api_decisions_submit():
 @admin_bp.route("/api/model-catalog", methods=["GET"])
 @require_admin
 def api_models_list():
-    """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery."""
+    """Model relay catalog (static/configured models). Use /api/models for live LM Studio discovery.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -327,6 +391,11 @@ def api_models_list():
 @admin_bp.route("/api/models/<model_id>", methods=["GET"])
 @require_admin
 def api_model_get(model_id):
+    """Api model get.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -343,6 +412,11 @@ def api_model_get(model_id):
 @admin_bp.route("/api/models/select", methods=["POST"])
 @require_admin
 def api_model_select():
+    """Api model select.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -358,6 +432,11 @@ def api_model_select():
 @admin_bp.route("/api/models/policy", methods=["GET"])
 @require_admin
 def api_model_policy_get():
+    """Api model policy get.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -371,6 +450,11 @@ def api_model_policy_get():
 @admin_bp.route("/api/models/policy", methods=["PUT"])
 @require_admin
 def api_model_policy_update():
+    """Api model policy update.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import RoutingPolicy, model_relay
 
@@ -387,6 +471,11 @@ def api_model_policy_update():
 @admin_bp.route("/api/models/reload", methods=["POST"])
 @require_admin
 def api_models_reload():
+    """Api models reload.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.model_relay import model_relay
 
@@ -403,6 +492,11 @@ def api_models_reload():
 @admin_bp.route("/api/sandbox/execute", methods=["POST"])
 @require_admin
 def api_sandbox_execute():
+    """Api sandbox execute.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.sandbox import sandbox_manager
 
@@ -423,6 +517,11 @@ def api_sandbox_execute():
 @admin_bp.route("/api/sandbox/status", methods=["GET"])
 @require_admin
 def api_sandbox_status():
+    """Api sandbox status.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.sandbox import sandbox_manager
 
@@ -436,6 +535,11 @@ def api_sandbox_status():
 @admin_bp.route("/api/sandbox/audit", methods=["GET"])
 @require_admin
 def api_sandbox_audit():
+    """Api sandbox audit.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.sandbox import sandbox_manager
 
@@ -454,7 +558,11 @@ def api_sandbox_audit():
 @admin_bp.route("/api/code-search", methods=["GET"])
 @require_admin
 def api_code_search():
-    """Search within project code using CocoIndex/ripgrep backends."""
+    """Search within project code using CocoIndex/ripgrep backends.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -479,6 +587,11 @@ def api_code_search():
 @admin_bp.route("/api/search/index", methods=["POST"])
 @require_admin
 def api_search_index():
+    """Api search index.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -502,6 +615,11 @@ def api_search_index():
 @admin_bp.route("/api/search/status", methods=["GET"])
 @require_admin
 def api_search_status():
+    """Api search status.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.code_search import code_search_registry
 
@@ -523,6 +641,11 @@ def api_search_status():
 @admin_bp.route("/api/adr", methods=["GET"])
 @require_admin
 def api_adr_list():
+    """Api adr list.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -540,6 +663,11 @@ def api_adr_list():
 @admin_bp.route("/api/adr/<adr_id>", methods=["GET"])
 @require_admin
 def api_adr_get(adr_id):
+    """Api adr get.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -556,6 +684,11 @@ def api_adr_get(adr_id):
 @admin_bp.route("/api/adr", methods=["POST"])
 @require_admin
 def api_adr_create():
+    """Api adr create.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -587,6 +720,11 @@ def api_adr_create():
 @admin_bp.route("/api/adr/<adr_id>", methods=["PUT"])
 @require_admin
 def api_adr_update(adr_id):
+    """Api adr update.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -605,6 +743,11 @@ def api_adr_update(adr_id):
 @admin_bp.route("/api/adr/<adr_id>/deprecate", methods=["POST"])
 @require_admin
 def api_adr_deprecate(adr_id):
+    """Api adr deprecate.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -625,6 +768,11 @@ def api_adr_deprecate(adr_id):
 @admin_bp.route("/api/adr/propose", methods=["POST"])
 @require_admin
 def api_adr_propose():
+    """Api adr propose.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -650,6 +798,11 @@ def api_adr_propose():
 @admin_bp.route("/api/adr/propose/accept", methods=["POST"])
 @require_admin
 def api_adr_propose_accept():
+    """Api adr propose accept.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -675,6 +828,11 @@ def api_adr_propose_accept():
 @admin_bp.route("/api/adr/statistics", methods=["GET"])
 @require_admin
 def api_adr_statistics():
+    """Api adr statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -687,6 +845,11 @@ def api_adr_statistics():
 @admin_bp.route("/api/adr/is-high-stakes", methods=["GET"])
 @require_admin
 def api_adr_is_high_stakes():
+    """Api adr is high stakes.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.adr import adr_system
 
@@ -703,6 +866,11 @@ def api_adr_is_high_stakes():
 @admin_bp.route("/api/ponder/choose-model", methods=["POST"])
 @require_admin
 def api_ponder_choose_model():
+    """Api ponder choose model.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import rank_models
 
@@ -723,6 +891,11 @@ def api_ponder_choose_model():
 @admin_bp.route("/api/ponder/templates", methods=["GET"])
 @require_admin
 def api_ponder_templates():
+    """Api ponder templates.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import PonderEngine
 
@@ -738,6 +911,11 @@ def api_ponder_templates():
 @admin_bp.route("/api/ponder/models", methods=["GET"])
 @require_admin
 def api_ponder_models():
+    """Api ponder models.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import get_available_models
 
@@ -750,6 +928,11 @@ def api_ponder_models():
 @admin_bp.route("/api/ponder/plan/<plan_id>", methods=["POST"])
 @require_admin
 def api_ponder_run_plan(plan_id):
+    """Api ponder run plan.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import ponder_project_for_plan
 
@@ -766,6 +949,11 @@ def api_ponder_run_plan(plan_id):
 @admin_bp.route("/api/ponder/plan/<plan_id>", methods=["GET"])
 @require_admin
 def api_ponder_get_plan(plan_id):
+    """Api ponder get plan.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import get_ponder_results_for_plan
 
@@ -778,6 +966,11 @@ def api_ponder_get_plan(plan_id):
 @admin_bp.route("/api/ponder/health", methods=["GET"])
 @require_admin
 def api_ponder_health():
+    """Api ponder health.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.ponder import get_ponder_health
 
@@ -793,7 +986,11 @@ def api_ponder_health():
 @admin_bp.route("/api/rules", methods=["GET"])
 @require_admin
 def api_rules_get():
-    """Get all rules configuration."""
+    """Get all rules configuration.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -806,7 +1003,11 @@ def api_rules_get():
 @admin_bp.route("/api/rules/global", methods=["GET", "POST"])
 @require_admin
 def api_rules_global():
-    """Get or set global rules."""
+    """Get or set global rules.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -826,7 +1027,11 @@ def api_rules_global():
 @admin_bp.route("/api/rules/global-prompt", methods=["GET", "POST"])
 @require_admin
 def api_rules_global_prompt():
-    """Get or set the global system prompt override."""
+    """Get or set the global system prompt override.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -843,7 +1048,11 @@ def api_rules_global_prompt():
 @admin_bp.route("/api/rules/project/<project_id>", methods=["GET", "POST"])
 @require_admin
 def api_rules_project(project_id):
-    """Get or set rules for a specific project."""
+    """Get or set rules for a specific project.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -863,7 +1072,11 @@ def api_rules_project(project_id):
 @admin_bp.route("/api/rules/model/<path:model_id>", methods=["GET", "POST"])
 @require_admin
 def api_rules_model(model_id):
-    """Get or set rules for a specific model."""
+    """Get or set rules for a specific model.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -886,7 +1099,11 @@ def api_rules_model(model_id):
 @admin_bp.route("/api/generate-image", methods=["POST"])
 @require_admin
 def api_generate_image():
-    """Generate an image asset via the ImageGeneratorAgent."""
+    """Generate an image asset via the ImageGeneratorAgent.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.agents.contracts import AgentTask
         from vetinari.agents.image_generator_agent import get_image_generator_agent
@@ -899,7 +1116,7 @@ def api_generate_image():
 
         agent = get_image_generator_agent(
             {
-                "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),
+                "sd_host": current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860")),  # noqa: VET041
                 "sd_enabled": data.get("sd_enabled", True),
                 "width": data.get("width", 512),
                 "height": data.get("height", 512),
@@ -929,11 +1146,15 @@ def api_generate_image():
 @admin_bp.route("/api/sd-status", methods=["GET"])
 @require_admin
 def api_sd_status():
-    """Check Stable Diffusion WebUI connection status."""
+    """Check Stable Diffusion WebUI connection status.
+
+    Returns:
+        Tuple of results.
+    """
     try:
         import requests as _req
 
-        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))
+        host = current_config.get("sd_host", os.environ.get("SD_WEBUI_HOST", "http://localhost:7860"))  # noqa: VET041
         resp = _req.get(f"{host}/sdapi/v1/options", timeout=5)
         if resp.status_code == 200:
             return jsonify({"status": "connected", "host": host})
@@ -948,7 +1169,11 @@ def api_sd_status():
 @admin_bp.route("/api/training/stats", methods=["GET"])
 @require_admin
 def api_training_stats():
-    """Get training data statistics."""
+    """Get training data statistics.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.training_data import get_training_collector
 
@@ -962,7 +1187,11 @@ def api_training_stats():
 @admin_bp.route("/api/training/export", methods=["POST"])
 @require_admin
 def api_training_export():
-    """Export training data for a given format."""
+    """Export training data for a given format.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.learning.training_data import get_training_collector
 
@@ -991,7 +1220,11 @@ def api_training_export():
 @admin_bp.route("/api/training/start", methods=["POST"])
 @require_admin
 def api_training_start():
-    """Start a training run (async)."""
+    """Start a training run (async).
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.training.pipeline import TrainingPipeline
 
@@ -1009,9 +1242,9 @@ def api_training_start():
                     training_type=tier,
                     min_quality_score=min_quality,
                 )
-                logger.info(f"Training run completed: tier={tier}, model={model_id}")
+                logger.info("Training run completed: tier=%s, model=%s", tier, model_id)
             except Exception as te:
-                logger.error(f"Training run failed: {te}")
+                logger.error("Training run failed: %s", te)
 
         import threading as _t
 

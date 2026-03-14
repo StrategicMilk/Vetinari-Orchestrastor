@@ -200,6 +200,9 @@ class AgentGraph:
         Phase 8.8: Validates delegation constraints between tasks — if task B
         depends on task A, the delegation from A's agent to B's agent must be
         allowed by architecture constraints.
+
+        Returns:
+            The ExecutionPlan result.
         """
         exec_plan = ExecutionPlan(plan_id=plan.plan_id, original_plan=plan)
 
@@ -269,7 +272,14 @@ class AgentGraph:
     # ------------------------------------------------------------------
 
     def execute_plan(self, plan: Plan) -> dict[str, AgentResult]:
-        """Execute a complete plan, parallelising independent tasks where possible."""
+        """Execute a complete plan, parallelising independent tasks where possible.
+
+        Returns:
+            The result string.
+
+        Raises:
+            RuntimeError: If the operation fails.
+        """
         exec_plan = self.create_execution_plan(plan)
         exec_plan.status = TaskStatus.RUNNING
         exec_plan.started_at = datetime.now().isoformat()
@@ -342,7 +352,7 @@ class AgentGraph:
                     if suggestion_result.success:
                         results["_suggestions"] = suggestion_result
                 except Exception as e:
-                    logger.debug(f"[AgentGraph] Suggestion generation failed: {e}")
+                    logger.debug("[AgentGraph] Suggestion generation failed: %s", e)
 
             # US-008: Operations auto-synthesis after plan completion
             if AgentType.OPERATIONS in self._agents:
@@ -438,7 +448,14 @@ class AgentGraph:
     # ------------------------------------------------------------------
 
     async def execute_plan_async(self, plan: Plan) -> dict[str, AgentResult]:
-        """Execute a plan asynchronously, running parallel layers via asyncio."""
+        """Execute a plan asynchronously, running parallel layers via asyncio.
+
+        Returns:
+            The result string.
+
+        Raises:
+            Exception: Re-raises any exception that occurs during layer execution after marking the plan as failed.
+        """
         exec_plan = self.create_execution_plan(plan)
         exec_plan.status = TaskStatus.RUNNING
         exec_plan.started_at = datetime.now().isoformat()
@@ -691,7 +708,7 @@ class AgentGraph:
                     # Phase 8.2: Log output schema deviations (non-blocking)
                     schema_issues = self._validate_output_schema(agent_type, result.output)
                     if schema_issues:
-                        logger.info(f"[AgentGraph] {task.id} output schema deviations: " + "; ".join(schema_issues))
+                        logger.info("[AgentGraph] %s output schema deviations: " + "; ", task.id.join(schema_issues))
 
                     # Phase 7.9K: Maker-checker for quality-reviewed agents (configurable)
                     if agent_type in self._quality_reviewed_agents and AgentType.QUALITY in self._agents:
@@ -778,11 +795,11 @@ class AgentGraph:
             return False
 
         if after_task_id not in plan.nodes:
-            logger.warning(f"[AgentGraph] inject_task: after_task {after_task_id} not in plan")
+            logger.warning("[AgentGraph] inject_task: after_task %s not in plan", after_task_id)
             return False
 
         if new_task.id in plan.nodes:
-            logger.warning(f"[AgentGraph] inject_task: task {new_task.id} already exists")
+            logger.warning("[AgentGraph] inject_task: task %s already exists", new_task.id)
             return False
 
         # Create the new node
@@ -810,7 +827,7 @@ class AgentGraph:
         # Rebuild execution order
         plan.execution_order = self._topological_sort(plan.nodes)
 
-        logger.info(f"[AgentGraph] Injected task {new_task.id} after {after_task_id} in plan {plan_id}")
+        logger.info("[AgentGraph] Injected task %s after %s in plan %s", new_task.id, after_task_id, plan_id)
         return True
 
     # ------------------------------------------------------------------
@@ -868,7 +885,9 @@ class AgentGraph:
                 review_verification = quality_agent.verify(review_result.output)
 
                 if review_result.success and review_verification.passed:
-                    logger.info(f"[AgentGraph] Maker-checker: QUALITY approved {task.id} on iteration {iteration + 1}")
+                    logger.info(
+                        "[AgentGraph] Maker-checker: QUALITY approved %s on iteration %s", task.id, iteration + 1
+                    )
                     # Enrich original result with review metadata
                     if current_result.metadata is None:
                         current_result.metadata = {}
@@ -1058,7 +1077,7 @@ class AgentGraph:
                     issues.append(f"Field '{key}' expected type {expected_type}, got {type(output[key]).__name__}")
 
         if issues:
-            logger.debug(f"[AgentGraph] Output schema issues for {agent_type.value}: " + "; ".join(issues))
+            logger.debug("[AgentGraph] Output schema issues for %s: " + "; ", agent_type.value.join(issues))
         return issues
 
     # ------------------------------------------------------------------
@@ -1084,6 +1103,9 @@ class AgentGraph:
         Consults the programmatic SkillSpec registry to map capabilities
         to agent types, then returns the live agent instance if registered.
         Prefers consolidated agents over legacy agents.
+
+        Returns:
+            The Any | None result.
         """
         try:
             from vetinari.skills.skill_registry import get_skills_by_capability
@@ -1122,7 +1144,11 @@ class AgentGraph:
         return None
 
     def get_skill_spec(self, agent_type: AgentType) -> Any | None:
-        """Return the SkillSpec for a given agent type, if one exists."""
+        """Return the SkillSpec for a given agent type, if one exists.
+
+        Returns:
+            The Any | None result.
+        """
         try:
             from vetinari.skills.skill_registry import get_skill_for_agent_type
 
@@ -1131,7 +1157,11 @@ class AgentGraph:
             return None
 
     def get_agents_for_task_type(self, task_type: str) -> list[AgentType]:
-        """Return agent types whose SkillSpec modes include the given task type."""
+        """Return agent types whose SkillSpec modes include the given task type.
+
+        Returns:
+            List of results.
+        """
         results = []
         try:
             from vetinari.skills.skill_registry import get_all_skills
@@ -1162,7 +1192,11 @@ _agent_graph: AgentGraph | None = None
 def get_agent_graph(
     strategy: ExecutionStrategy = ExecutionStrategy.ADAPTIVE,
 ) -> AgentGraph:
-    """Return the singleton AgentGraph, initializing it if needed."""
+    """Return the singleton AgentGraph, initializing it if needed.
+
+    Returns:
+        The AgentGraph result.
+    """
     global _agent_graph
     if _agent_graph is None:
         _agent_graph = AgentGraph(strategy=strategy)

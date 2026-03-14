@@ -11,7 +11,11 @@ bp = Blueprint("rules", __name__)
 
 @bp.route("/api/rules", methods=["GET"])
 def api_rules_get():
-    """Get all rules configuration."""
+    """Get all rules configuration.
+
+    Returns:
+        The jsonify result.
+    """
     try:
         from vetinari.rules_manager import get_rules_manager
 
@@ -23,7 +27,11 @@ def api_rules_get():
 
 @bp.route("/api/rules/global", methods=["GET", "POST"])
 def api_rules_global():
-    """Get or set global rules."""
+    """Get or set global rules.
+
+    Returns:
+        Tuple of results.
+    """
     if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -44,7 +52,11 @@ def api_rules_global():
 
 @bp.route("/api/rules/global-prompt", methods=["GET", "POST"])
 def api_rules_global_prompt():
-    """Get or set the global system prompt override."""
+    """Get or set the global system prompt override.
+
+    Returns:
+        Tuple of results.
+    """
     if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -62,7 +74,11 @@ def api_rules_global_prompt():
 
 @bp.route("/api/rules/project/<project_id>", methods=["GET", "POST"])
 def api_rules_project(project_id):
-    """Get or set rules for a specific project."""
+    """Get or set rules for a specific project.
+
+    Returns:
+        Tuple of results.
+    """
     if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:
@@ -83,7 +99,11 @@ def api_rules_project(project_id):
 
 @bp.route("/api/rules/model/<path:model_id>", methods=["GET", "POST"])
 def api_rules_model(model_id):
-    """Get or set rules for a specific model."""
+    """Get or set rules for a specific model.
+
+    Returns:
+        Tuple of results.
+    """
     if request.method == "POST" and not is_admin_user():
         return jsonify({"error": "Admin privileges required"}), 403
     try:

@@ -74,6 +74,11 @@ class WebSearchToolWrapper(Tool):
         return self._search_tool
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         query = kwargs.get("query", "")
         max_results = kwargs.get("max_results", 5)
         backend = kwargs.get("backend", "duckduckgo")
@@ -143,6 +148,11 @@ class ResearchTopicToolWrapper(Tool):
         return self._search_tool
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         topic = kwargs.get("topic", "")
         aspects = kwargs.get("aspects")
 
@@ -209,6 +219,11 @@ class CodeExecutionToolWrapper(Tool):
         return self._executor
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         code = kwargs.get("code", "")
         language = kwargs.get("language", "python")
         timeout = kwargs.get("timeout", 60)
@@ -277,6 +292,11 @@ class MemoryRecallToolWrapper(Tool):
         return self._memory
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         query = kwargs.get("query", "")
         kwargs.get("memory_type")
         limit = kwargs.get("limit", 5)
@@ -347,6 +367,11 @@ class MemoryRememberToolWrapper(Tool):
         return self._memory
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         content = kwargs.get("content", "")
         memory_type = kwargs.get("memory_type", "context")
         tags = kwargs.get("tags", [])
@@ -418,6 +443,11 @@ class ModelSelectToolWrapper(Tool):
         return self._router
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         task_type = kwargs.get("task_type", "general")
         task_description = kwargs.get("task_description", "")
 
@@ -495,6 +525,11 @@ class GeneratePlanToolWrapper(Tool):
         return self._orchestrator
 
     def execute(self, **kwargs) -> ToolResult:
+        """Execute.
+
+        Returns:
+            The ToolResult result.
+        """
         goal = kwargs.get("goal", "")
         constraints = kwargs.get("constraints", {})
 
@@ -537,7 +572,11 @@ def _make_git_tool() -> Tool | None:
 
 
 def register_all_tools():
-    """Register all tools in the global registry."""
+    """Register all tools in the global registry.
+
+    Returns:
+        The len result.
+    """
     registry = get_tool_registry()
 
     # List of tool instances to register

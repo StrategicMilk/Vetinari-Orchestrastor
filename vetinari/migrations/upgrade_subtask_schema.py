@@ -28,7 +28,7 @@ def migrate(storage_root: str | None = None):
         storage_root = Path(storage_root)
 
     if not storage_root.exists():
-        logger.warning(f"Storage path does not exist: {storage_root}")
+        logger.warning("Storage path does not exist: %s", storage_root)
         return
 
     migrated_count = 0
@@ -36,7 +36,7 @@ def migrate(storage_root: str | None = None):
 
     for file in storage_root.glob("*.json"):
         try:
-            with open(file) as f:
+            with open(file, encoding="utf-8") as f:
                 data = json.load(f)
 
             subtasks = data.get("subtasks", [])
@@ -57,18 +57,18 @@ def migrate(storage_root: str | None = None):
                     changed = True
 
             if changed:
-                with open(file, "w") as f:
+                with open(file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
-                logger.info(f"Migrated: {file.name}")
+                logger.info("Migrated: %s", file.name)
                 migrated_count += 1
             else:
-                logger.debug(f"Skipped (up to date): {file.name}")
+                logger.debug("Skipped (up to date): %s", file.name)
 
         except Exception as e:
-            logger.error(f"Error migrating {file.name}: {e}")
+            logger.error("Error migrating %s: %s", file.name, e)
             error_count += 1
 
-    logger.info(f"Migration complete: Migrated: {migrated_count} files, Errors: {error_count} files")
+    logger.info("Migration complete: Migrated: %s files, Errors: %s files", migrated_count, error_count)
 
 
 if __name__ == "__main__":

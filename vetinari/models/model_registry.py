@@ -166,7 +166,7 @@ class ModelRegistry:
         self._models: dict[str, ModelInfo] = {}
         self._last_refresh: float = 0.0
         self._refresh_lock = threading.Lock()
-        self._lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        self._lmstudio_host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         self._config_path = Path(__file__).parent.parent / "config" / "models.yaml"
 
         # Load static config immediately (no network call)
@@ -178,6 +178,11 @@ class ModelRegistry:
 
     @classmethod
     def get_instance(cls) -> ModelRegistry:
+        """Get instance.
+
+        Returns:
+            The result string.
+        """
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
@@ -197,7 +202,7 @@ class ModelRegistry:
 
             cfg = load_yaml(str(self._config_path))
         except Exception as e:
-            logger.warning(f"[ModelRegistry] Failed to load models.yaml: {e}")
+            logger.warning("[ModelRegistry] Failed to load models.yaml: %s", e)
             return
 
         all_model_configs = cfg.get("models", []) + cfg.get("cloud_models", [])
@@ -223,7 +228,7 @@ class ModelRegistry:
             )
             self._models[mid] = info
 
-        logger.debug(f"[ModelRegistry] Loaded {len(self._models)} models from config")
+        logger.debug("[ModelRegistry] Loaded %s models from config", len(self._models))
 
     # ------------------------------------------------------------------
     # LM Studio discovery
@@ -254,14 +259,14 @@ class ModelRegistry:
                 headers=self._build_auth_headers(),
             )
             if resp.status_code != 200:
-                logger.debug(f"[ModelRegistry] /v1/models returned {resp.status_code}")
+                logger.debug("[ModelRegistry] /v1/models returned %s", resp.status_code)
                 return
             data = resp.json()
             raw_models = data.get("data", data) if isinstance(data, dict) else data
             if not isinstance(raw_models, list):
                 return
         except Exception as e:
-            logger.debug(f"[ModelRegistry] LM Studio discovery failed: {e}")
+            logger.debug("[ModelRegistry] LM Studio discovery failed: %s", e)
             return
 
         # Mark all previously-loaded lmstudio models as unloaded
@@ -356,6 +361,9 @@ class ModelRegistry:
             provider:    Filter to a specific provider ("lmstudio", "openai", …)
             loaded_only: Only return models currently loaded in LM Studio
             capability:  Only return models with this capability tag
+
+        Returns:
+            List of results.
         """
         self.refresh()
         results = []
@@ -374,12 +382,20 @@ class ModelRegistry:
         return self.get_available_models(provider="lmstudio", loaded_only=True)
 
     def get_model_info(self, model_id: str) -> ModelInfo | None:
-        """Return info for a specific model ID, refreshing if needed."""
+        """Return info for a specific model ID, refreshing if needed.
+
+        Returns:
+            The ModelInfo | None result.
+        """
         self.refresh()
         return self._models.get(model_id)
 
     def get_all_as_dicts(self) -> list[dict[str, Any]]:
-        """Return all models as plain dicts (compatible with legacy routing code)."""
+        """Return all models as plain dicts (compatible with legacy routing code).
+
+        Returns:
+            The result string.
+        """
         self.refresh()
         return [m.to_dict() for m in self._models.values()]
 
@@ -396,7 +412,11 @@ class ModelRegistry:
         self._models[info.model_id] = info
 
     def get_registry_stats(self) -> dict[str, Any]:
-        """Return a summary of registry state."""
+        """Return a summary of registry state.
+
+        Returns:
+            The result string.
+        """
         all_models = list(self._models.values())
         loaded = [m for m in all_models if m.is_loaded]
         return {
@@ -418,7 +438,11 @@ _registry_lock = threading.Lock()
 
 
 def get_model_registry() -> ModelRegistry:
-    """Return the global ModelRegistry singleton (created lazily)."""
+    """Return the global ModelRegistry singleton (created lazily).
+
+    Returns:
+        The result string.
+    """
     global _registry
     if _registry is None:
         with _registry_lock:

@@ -70,12 +70,12 @@ class OpenAIProviderAdapter(ProviderAdapter):
     def _load_model_definitions(self) -> list[dict[str, Any]]:
         """Load model definitions from config/provider_models.yaml, falling back to hardcoded."""
         try:
-            config_path = os.path.join(
+            config_path = os.path.join(  # noqa: VET063
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "config", "provider_models.yaml"
             )
             import yaml
 
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             provider_models = config.get("providers", {}).get("openai", {}).get("models", [])
             if provider_models:
@@ -85,7 +85,11 @@ class OpenAIProviderAdapter(ProviderAdapter):
         return self._HARDCODED_MODELS
 
     def discover_models(self) -> list[ModelInfo]:
-        """Discover available models from OpenAI."""
+        """Discover available models from OpenAI.
+
+        Returns:
+            List of results.
+        """
         try:
             # Load model list from config file (falls back to hardcoded if unavailable)
             models_data = self._load_model_definitions()
@@ -116,7 +120,11 @@ class OpenAIProviderAdapter(ProviderAdapter):
             return []
 
     def health_check(self) -> dict[str, Any]:
-        """Check OpenAI API health."""
+        """Check OpenAI API health.
+
+        Returns:
+            The result string.
+        """
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -139,7 +147,11 @@ class OpenAIProviderAdapter(ProviderAdapter):
             }
 
     def infer(self, request: InferenceRequest) -> InferenceResponse:
-        """Run inference using OpenAI API."""
+        """Run inference using OpenAI API.
+
+        Returns:
+            The InferenceResponse result.
+        """
         start_time = time.time()
 
         try:

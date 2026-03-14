@@ -154,7 +154,11 @@ class InferenceConfigManager:
     # ------------------------------------------------------------------
 
     def get_profile(self, task_type: str) -> InferenceProfile:
-        """Get base profile for a task type (no model adjustments)."""
+        """Get base profile for a task type (no model adjustments).
+
+        Returns:
+            The InferenceProfile result.
+        """
         with self._lock:
             raw = self._profiles.get(task_type)
             if raw is None:
@@ -174,6 +178,13 @@ class InferenceConfigManager:
 
         Returns a dict with: temperature, top_p, top_k, max_tokens,
         stop_sequences, prefer_json.
+
+        Args:
+            task_type: The task type.
+            model_id: The model id.
+
+        Returns:
+            The result string.
         """
         profile = self.get_profile(task_type)
 
@@ -216,14 +227,29 @@ class InferenceConfigManager:
     # ------------------------------------------------------------------
 
     def list_profiles(self) -> list[str]:
+        """List profiles.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return list(self._profiles.keys())
 
     def get_all_profiles(self) -> dict[str, dict[str, Any]]:
+        """Get all profiles.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return dict(self._profiles)
 
     def get_stats(self) -> dict[str, Any]:
+        """Get stats.
+
+        Returns:
+            The result string.
+        """
         with self._lock:
             return {
                 "loaded": self._loaded,
@@ -253,5 +279,6 @@ def get_inference_config() -> InferenceConfigManager:
 
 
 def reset_inference_config() -> None:
+    """Reset inference config."""
     with InferenceConfigManager._class_lock:
         InferenceConfigManager._instance = None

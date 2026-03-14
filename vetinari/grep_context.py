@@ -108,7 +108,11 @@ class GrepContext:
         return "\n\n".join(results)
 
     def extract_imports(self, file_path: str) -> str:
-        """Extract only import statements from a file (~5% of file size)."""
+        """Extract only import statements from a file (~5% of file size).
+
+        Returns:
+            The result string.
+        """
         if not Path(file_path).is_file():
             return ""
         lines = Path(file_path).read_text(errors="replace").splitlines()
@@ -116,7 +120,11 @@ class GrepContext:
         return "\n".join(imports)
 
     def extract_security_patterns(self, file_paths: list[str]) -> list[GrepMatch]:
-        """Extract only security-relevant lines."""
+        """Extract only security-relevant lines.
+
+        Returns:
+            List of results.
+        """
         SECURITY_PATTERNS = [
             r"password\s*=|api_key\s*=|secret\s*=|token\s*=",
             r"\beval\s*\(|\bexec\s*\(|pickle\.loads",
@@ -197,7 +205,15 @@ class GrepContext:
         matches: list[GrepMatch],
         max_chars: int = 3000,
     ) -> str:
-        """Format grep matches into a compact prompt-ready string."""
+        """Format grep matches into a compact prompt-ready string.
+
+        Args:
+            matches: The matches.
+            max_chars: The max chars.
+
+        Returns:
+            The result string.
+        """
         parts = []
         total = 0
         for m in matches:
@@ -266,7 +282,7 @@ class GrepContext:
             )
             return self._parse_rg_output(result.stdout, context_lines)
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-            logger.debug(f"Ripgrep failed, falling back to Python: {e}")
+            logger.debug("Ripgrep failed, falling back to Python: %s", e)
             return self._python_extract(file_paths, patterns, context_lines, max_matches)
 
     def _parse_rg_output(self, output: str, context_lines: int) -> list[GrepMatch]:
@@ -339,6 +355,11 @@ _grep_context: GrepContext | None = None
 
 
 def get_grep_context() -> GrepContext:
+    """Get grep context.
+
+    Returns:
+        The GrepContext result.
+    """
     global _grep_context
     if _grep_context is None:
         _grep_context = GrepContext()

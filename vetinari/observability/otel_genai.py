@@ -136,7 +136,7 @@ class GenAITracer:
 
         tracer = get_genai_tracer()
         span = tracer.start_agent_span("builder", "chat", model="qwen-32b")
-        tracer.record_tool_call(span, "code_search", '{"q": "foo"}', '"bar"')
+        tracer.record_tool_call(span, "code_search", '{"q": "foo"}', '"bar"')  # noqa: VET034
         tracer.end_agent_span(span, status="ok", tokens_used=512)
         tracer.export_traces("/tmp/traces.json")
     """

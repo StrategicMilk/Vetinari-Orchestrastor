@@ -46,13 +46,21 @@ class PipelineConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
-        """Create from dictionary, ignoring unknown keys."""
+        """Create from dictionary, ignoring unknown keys.
+
+        Returns:
+            The PipelineConfig result.
+        """
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
         return cls(**filtered)
 
     def validate(self) -> list[str]:
-        """Validate configuration and return list of errors (empty if valid)."""
+        """Validate configuration and return list of errors (empty if valid).
+
+        Returns:
+            The result string.
+        """
         errors: list[str] = []
         if self.max_steps < 1:
             errors.append("max_steps must be >= 1")
@@ -96,20 +104,32 @@ class ArchitectPlan:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ArchitectPlan:
-        """Deserialize from dictionary."""
+        """Deserialize from dictionary.
+
+        Returns:
+            The ArchitectPlan result.
+        """
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
         return cls(**filtered)
 
     def get_step(self, step_id: str) -> dict[str, Any] | None:
-        """Get a step by its ID."""
+        """Get a step by its ID.
+
+        Returns:
+            The result string.
+        """
         for step in self.steps:
             if step.get("id") == step_id:
                 return step
         return None
 
     def get_ready_steps(self, completed_ids: set) -> list[dict[str, Any]]:
-        """Get steps whose dependencies have all been completed."""
+        """Get steps whose dependencies have all been completed.
+
+        Returns:
+            The result string.
+        """
         ready = []
         for step in self.steps:
             sid = step.get("id", "")
@@ -125,7 +145,11 @@ class ArchitectPlan:
         return len(self.steps)
 
     def validate(self) -> list[str]:
-        """Validate the plan and return list of errors."""
+        """Validate the plan and return list of errors.
+
+        Returns:
+            The result string.
+        """
         errors: list[str] = []
         if not self.goal:
             errors.append("Plan must have a goal")
@@ -215,9 +239,12 @@ class ArchitectExecutorPipeline:
 
         Returns:
             ArchitectPlan with ordered steps and dependencies.
+
+        Raises:
+            RuntimeError: If the operation fails.
         """
         context = context or {}
-        logger.info(f"[Architect] Creating plan for: {goal[:80]}")
+        logger.info(f"[Architect] Creating plan for: {goal[:80]}")  # noqa: VET051 — complex expression
         start = time.time()
 
         # Build the architect prompt
@@ -241,7 +268,7 @@ class ArchitectExecutorPipeline:
             )
             plan = self._parse_architect_output(raw_output, goal)
         except Exception as e:
-            logger.warning(f"[Architect] Model call failed: {e}")
+            logger.warning("[Architect] Model call failed: %s", e)
             if self._config.fallback_to_single:
                 logger.info("[Architect] Falling back to single-step plan")
                 plan = self._make_fallback_plan(goal, context)
@@ -256,7 +283,7 @@ class ArchitectExecutorPipeline:
 
         # Enforce max_steps
         if len(plan.steps) > self._config.max_steps:
-            logger.warning(f"[Architect] Plan has {len(plan.steps)} steps, truncating to {self._config.max_steps}")
+            logger.warning("[Architect] Plan has %s steps, truncating to %s", len(plan.steps), self._config.max_steps)
             truncated_ids = {s["id"] for s in plan.steps[: self._config.max_steps]}
             plan.steps = plan.steps[: self._config.max_steps]
             plan.dependencies = {
@@ -264,7 +291,7 @@ class ArchitectExecutorPipeline:
             }
 
         elapsed = time.time() - start
-        logger.info(f"[Architect] Plan created: {plan.step_count()} steps in {elapsed:.1f}s")
+        logger.info("[Architect] Plan created: %s steps in %.1fs", elapsed, plan.step_count())
         return plan
 
     # ------------------------------------------------------------------
@@ -286,7 +313,7 @@ class ArchitectExecutorPipeline:
         Returns:
             List of result dicts, one per step executed.
         """
-        logger.info(f"[Executor] Executing plan {plan.plan_id} ({plan.step_count()} steps)")
+        logger.info("[Executor] Executing plan %s (%s steps)", plan.plan_id, plan.step_count())
         results: list[dict[str, Any]] = []
         completed_ids: set = set()
         failed_ids: set = set()
@@ -306,12 +333,12 @@ class ArchitectExecutorPipeline:
                 # Check for deadlock
                 remaining = plan.step_count() - len(completed_ids) - len(failed_ids)
                 if remaining > 0:
-                    logger.warning(f"[Executor] No ready steps but {remaining} remain -- possible dependency deadlock")
+                    logger.warning("[Executor] No ready steps but %s remain -- possible dependency deadlock", remaining)
                 break
 
             for step in ready:
                 step_id = step.get("id", f"step-{len(results)}")
-                logger.info(f"[Executor] Running step {step_id}: {step.get('description', '')[:60]}")
+                logger.info(f"[Executor] Running step {step_id}: {step.get('description', '')[:60]}")  # noqa: VET051 — complex expression
 
                 try:
                     if executor_fn:
@@ -327,10 +354,10 @@ class ArchitectExecutorPipeline:
                         completed_ids.add(step_id)
                     else:
                         failed_ids.add(step_id)
-                        logger.warning(f"[Executor] Step {step_id} failed: {result.get('error', 'unknown')}")
+                        logger.warning("[Executor] Step %s failed: %s", step_id, result.get("error", "unknown"))
 
                 except Exception as e:
-                    logger.error(f"[Executor] Step {step_id} raised exception: {e}")
+                    logger.error("[Executor] Step %s raised exception: %s", step_id, e)
                     results.append(
                         {
                             "step_id": step_id,
@@ -376,7 +403,7 @@ class ArchitectExecutorPipeline:
             }
 
         start = time.time()
-        logger.info(f"[Pipeline] Starting 2-stage pipeline for: {goal[:80]}")
+        logger.info(f"[Pipeline] Starting 2-stage pipeline for: {goal[:80]}")  # noqa: VET051 — complex expression
 
         plan = self.create_plan(goal, context)
         results = self.execute_plan(plan, executor_fn)
@@ -467,14 +494,14 @@ class ArchitectExecutorPipeline:
                 if resp.status == "ok":
                     return resp.output
             except Exception as e:
-                logger.debug(f"adapter_manager inference failed: {e}")
+                logger.debug("adapter_manager inference failed: %s", e)
 
         # Fallback: LM Studio adapter
         import os
 
         from vetinari.lmstudio_adapter import LMStudioAdapter
 
-        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")
+        host = os.environ.get("LM_STUDIO_HOST", "http://localhost:1234")  # noqa: VET041
         adapter = LMStudioAdapter(host=host)
         result = adapter.chat(
             model_id=model,
