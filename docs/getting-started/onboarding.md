@@ -253,7 +253,8 @@ with CorrelationContext() as ctx:
 
 ## Getting Help
 
-- Internal docs: `docs/DEVELOPER_GUIDE.md`, `docs/ARCHITECTURE.md`
+- Architecture: `.claude/docs/architecture.md`
+- Code patterns: `.claude/docs/code-patterns.md`
 - Runbooks: `docs/runbooks/`
+- Configuration: `docs/reference/config.md`
 - Open an issue: follow the issue template in `.github/`
-- Check `QUICK_REFERENCE.md` for common commands

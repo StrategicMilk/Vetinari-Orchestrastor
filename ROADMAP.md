@@ -228,8 +228,7 @@ MCP subsystem (`vetinari/mcp/`) has 3 files with stub handlers. Not connected to
 #### 7. Documentation Drift
 
 - ROADMAP.md said v0.4.0, README.md said v0.5.0 — now aligned
-- `docs/IMPLEMENTATION_ROADMAP.md` overlaps heavily with ROADMAP.md
-- `docs/ARCHITECTURE.md` is at v0.3.0 — two major versions behind
+- `docs/IMPLEMENTATION_ROADMAP.md` and `docs/ARCHITECTURE.md` — removed (content consolidated into ROADMAP.md and `.claude/docs/architecture.md`)
 - README says "Python 3.9+", CLAUDE.md says "Python 3.10+"
 
 ---
@@ -317,8 +316,8 @@ For every remaining stub: implement fully OR delete entirely. No stub survives v
 ### 6.5 Documentation Alignment (HIGH)
 
 - Fix Python version everywhere to "3.10+"
-- Update `docs/ARCHITECTURE.md` from v0.3.0 to current
-- Consolidate `docs/IMPLEMENTATION_ROADMAP.md` into this ROADMAP.md (delete the duplicate)
+- ~~Update `docs/ARCHITECTURE.md` from v0.3.0 to current~~ — removed; architecture lives in `.claude/docs/architecture.md`
+- ~~Consolidate `docs/IMPLEMENTATION_ROADMAP.md` into this ROADMAP.md~~ — already removed
 - Update README project structure tree to match post-cleanup reality
 - Update file/test counts in all docs
 - Create `CHANGELOG.md` with entries for all completed phases

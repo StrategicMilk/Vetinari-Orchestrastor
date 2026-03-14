@@ -338,6 +338,6 @@ curl -H "Authorization: Bearer <PLAN_ADMIN_TOKEN>" \
 
 ## See Also
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
-- [cloud-ponder.md](cloud-ponder.md) - Ponder model selection
-- [api-contracts.md](api-contracts.md) - REST API documentation
+- [Architecture](../../.claude/docs/architecture.md) - System architecture
+- [Cloud Ponder](cloud-ponder.md) - Ponder model selection
+- [Ponder API](../api/ponder.md) - REST API documentation

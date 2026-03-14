@@ -397,8 +397,8 @@ performance baselines. Transforms Phase 3 telemetry into actionable visibility.
 | Alert Tests | Test | `tests/test_dashboard_alerts.py` | **Complete** — 37 tests |
 | Log Aggregator Tests | Test | `tests/test_dashboard_log_aggregator.py` | **Complete** — 43 tests |
 | Performance Tests | Test | `tests/test_dashboard_performance.py` | **Complete** — 21 tests |
-| Dashboard User Guide | Docs | `docs/runbooks/dashboard_guide.md` | **Complete** |
-| API Reference | Docs | `docs/api-reference-dashboard.md` | **Complete** |
+| Dashboard User Guide | Docs | `docs/runbooks/dashboard-guide.md` | **Complete** |
+| API Reference | Docs | `docs/api/dashboard.md` | **Complete** |
 | Python API Example | Example | `examples/dashboard_example.py` | **Complete** |
 | Server Example | Example | `examples/dashboard_rest_api_example.py` | **Complete** |
 | cURL Examples | Example | `examples/dashboard_curl_examples.sh` | **Complete** |
@@ -575,9 +575,15 @@ All master plan phases and deferred items are complete as of March 7, 2026.
 
 ## Related Documents
 
-- `SKILL_MIGRATION_GUIDE.md` — Migration process and agent prompts
-- `DEVELOPER_GUIDE.md` — Developer onboarding
-- `DRIFT_PREVENTION.md` — Code/docs alignment strategy
-- `ARCHITECTURE.md` — System architecture
-- `api-reference-dashboard.md` — Dashboard REST API reference
-- `runbooks/dashboard_guide.md` — Dashboard user guide
+- `archive/skill-migration-guide.md` — Legacy migration process and agent prompts (superseded by consolidated architecture)
+- `getting-started/onboarding.md` — Developer onboarding
+- `planning/drift-prevention.md` — Code/docs alignment strategy
+- `../AGENTS.md` — Agent specifications
+- `api/dashboard.md` — Dashboard REST API reference
+- `api/analytics.md` — Analytics REST API reference
+- `api/ponder.md` — Ponder API contracts
+- `reference/config.md` — Configuration reference
+- `reference/production.md` — Production deployment guide
+- `runbooks/dashboard-guide.md` — Dashboard user guide
+- `runbooks/end-to-end-workflow.md` — End-to-end orchestration workflow
+- `runbooks/ponder.md` — Ponder operations runbook
