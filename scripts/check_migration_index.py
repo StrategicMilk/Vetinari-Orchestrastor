@@ -129,8 +129,8 @@ def check_phase6_artifacts() -> bool:
         "tests/regression/test_regression_phase4.py":"Phase 4 regression",
         "tests/regression/test_regression_phase5.py":"Phase 5 regression",
         "templates/migrations/new_skill_template.py":"Migration template",
-        "docs/onboarding/ONBOARDING.md":             "Onboarding guide",
-        "docs/PRODUCTION.md":                        "Production guide",
+        "docs/getting-started/onboarding.md":        "Onboarding guide",
+        "docs/reference/production.md":              "Production guide",
     }
     ok = True
     for path, desc in artifacts.items():

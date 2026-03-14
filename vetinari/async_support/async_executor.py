@@ -63,9 +63,11 @@ class AsyncExecutor:
         logger.debug("Executing task %s via agent %s", task_id, agent_type)
 
         try:
-            async with asyncio.timeout(self.task_timeout):
-                result = await self._dispatch(task, agent_type)
-        except TimeoutError:
+            result = await asyncio.wait_for(
+                self._dispatch(task, agent_type),
+                timeout=self.task_timeout,
+            )
+        except (TimeoutError, asyncio.TimeoutError):
             logger.error(
                 "Task %s timed out after %s s (agent=%s)",
                 task_id,
