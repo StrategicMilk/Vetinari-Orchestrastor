@@ -1,6 +1,5 @@
-"""
-Consolidated Quality Agent (Phase 3)
-======================================
+"""Consolidated Quality Agent (Phase 3).
+
 Replaces: EVALUATOR + SECURITY_AUDITOR + TEST_AUTOMATION
 
 Modes:
@@ -14,10 +13,11 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from vetinari.agents.contracts import AgentResult, AgentTask, VerificationResult
 from vetinari.agents.multi_mode_agent import MultiModeAgent
-from vetinari.agents.contracts import AgentResult, AgentTask, AgentType, VerificationResult
+from vetinari.types import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Security heuristic patterns (preserved from SecurityAuditorAgent)
 # ---------------------------------------------------------------------------
 
-_SECURITY_PATTERNS: List[Tuple[str, str, str]] = [
+_SECURITY_PATTERNS: list[tuple[str, str, str]] = [
     # (pattern_regex, finding_name, severity)
     (r"subprocess\.(?:call|run|Popen)\(.*shell\s*=\s*True", "Shell injection risk", "HIGH"),
     (r"input\s*\(", "Unsanitized user input", "MEDIUM"),
@@ -60,7 +60,11 @@ _SECURITY_PATTERNS: List[Tuple[str, str, str]] = [
     (r"xml\.etree\.ElementTree\.parse\(|lxml\.etree\.parse\(", "Potential XXE — use defusedxml (CWE-611)", "HIGH"),
     (r"xml\.sax\.parse\(|xml\.parsers\.expat", "Potential XXE via SAX/expat (CWE-611)", "HIGH"),
     # CWE-918: Server-Side Request Forgery (SSRF)
-    (r"requests\.(?:get|post|put|delete|patch|head)\(.*(?:user|param|arg|input|query)", "Potential SSRF — validate URLs (CWE-918)", "HIGH"),
+    (
+        r"requests\.(?:get|post|put|delete|patch|head)\(.*(?:user|param|arg|input|query)",
+        "Potential SSRF — validate URLs (CWE-918)",
+        "HIGH",
+    ),
     # CWE-502: Insecure deserialization — detect usage of unsafe deserializers
     (r"shelve\.open\(|jsonpickle\.decode\(|dill\.loads?\(", "Insecure deserialization (CWE-502)", "CRITICAL"),
     # CWE-732: Incorrect permission assignment
@@ -80,7 +84,11 @@ _SECURITY_PATTERNS: List[Tuple[str, str, str]] = [
     # CWE-400: Uncontrolled resource consumption
     (r"while\s+True.*(?:recv|read|accept)", "Unbounded I/O loop — potential DoS (CWE-400)", "MEDIUM"),
     # CWE-312: Cleartext storage/logging of sensitive data
-    (r"log(?:ger)?\.(?:info|debug|warning|error).*(?:password|secret|token|api.?key)", "Logging sensitive data in cleartext (CWE-312)", "HIGH"),
+    (
+        r"log(?:ger)?\.(?:info|debug|warning|error).*(?:password|secret|token|api.?key)",
+        "Logging sensitive data in cleartext (CWE-312)",
+        "HIGH",
+    ),
     # CWE-942: CSRF protection disabled
     (r"csrf_exempt|WTF_CSRF_ENABLED\s*=\s*False", "CSRF protection disabled (CWE-942)", "HIGH"),
     # CWE-1004: Sensitive cookie without HttpOnly
@@ -99,12 +107,41 @@ class QualityAgent(MultiModeAgent):
     }
     DEFAULT_MODE = "code_review"
     MODE_KEYWORDS = {
-        "code_review": ["review", "quality", "maintainab", "readab", "refactor", "clean",
-                         "design pattern", "solid", "code smell"],
-        "security_audit": ["security", "vulnerab", "audit", "cwe", "owasp", "injection",
-                            "xss", "csrf", "auth", "encrypt", "credential"],
-        "test_generation": ["test", "pytest", "coverage", "unit test", "integration test",
-                             "mock", "fixture", "assert", "tdd"],
+        "code_review": [
+            "review",
+            "quality",
+            "maintainab",
+            "readab",
+            "refactor",
+            "clean",
+            "design pattern",
+            "solid",
+            "code smell",
+        ],
+        "security_audit": [
+            "security",
+            "vulnerab",
+            "audit",
+            "cwe",
+            "owasp",
+            "injection",
+            "xss",
+            "csrf",
+            "auth",
+            "encrypt",
+            "credential",
+        ],
+        "test_generation": [
+            "test",
+            "pytest",
+            "coverage",
+            "unit test",
+            "integration test",
+            "mock",
+            "fixture",
+            "assert",
+            "tdd",
+        ],
         "simplification": ["simplif", "complex", "reduce", "clean up", "streamline"],
     }
     LEGACY_TYPE_TO_MODE = {
@@ -113,7 +150,7 @@ class QualityAgent(MultiModeAgent):
         "TEST_AUTOMATION": "test_generation",
     }
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(AgentType.QUALITY, config)
 
     def _get_base_system_prompt(self) -> str:
@@ -178,17 +215,17 @@ class QualityAgent(MultiModeAgent):
                 'Issue: {severity:"medium",category:"logic",message:"Boundary condition excludes 18-year-olds",\n'
                 '  suggestion:"Change > to >= to include 18-year-olds",principle_violated:"fail-fast"}\n\n'
                 "FEW-SHOT EXAMPLE 2 — Resource leak:\n"
-                'Code: "f = open(path); data = f.read()"\n'
+                'Code: "f = open(path, encoding="utf-8"); data = f.read()"\n'
                 'Issue: {severity:"high",category:"error-handling",\n'
                 '  message:"File opened without context manager — will leak on exception",\n'
-                '  suggestion:"Use: with open(path) as f: data = f.read()",principle_violated:"fail-safe"}\n\n'
+                '  suggestion:"Use: with open(path, encoding="utf-8") as f: data = f.read()",principle_violated:"fail-safe"}\n\n'
                 "FEW-SHOT EXAMPLE 3 — Good code:\n"
-                'Code: Well-structured class with type hints, docstrings, specific exceptions\n'
+                "Code: Well-structured class with type hints, docstrings, specific exceptions\n"
                 'Output: score=0.85, strengths=["Comprehensive type annotations on all methods",\n'
                 '  "Specific exception types with informative messages"],\n'
-                'issues=[one low/info severity item at most]\n\n'
+                "issues=[one low/info severity item at most]\n\n"
                 "ERROR HANDLING:\n"
-                "- If code is empty or a placeholder, return score=0.0 with summary noting this\n"
+                "- If code is empty or a placeholder, return score=0.0 with summary noting this\n"  # noqa: VET034
                 "- If code is not Python, adapt category labels but retain the schema\n"
                 "- If code is very short (<10 lines), note limited scope in summary\n\n"
                 "QUALITY CRITERIA:\n"
@@ -249,7 +286,7 @@ class QualityAgent(MultiModeAgent):
                 "- CWE-327: Broken Cryptography | CWE-306: Missing Authentication\n"
                 "- CWE-295: Improper Certificate Validation | CWE-611: XXE | CWE-918: SSRF\n\n"
                 "FEW-SHOT EXAMPLE 1 — SQL injection:\n"
-                "Code: cursor.execute(f\"SELECT * FROM users WHERE email = {email}\")\n"
+                'Code: cursor.execute(f"SELECT * FROM users WHERE email = {email}")\n'
                 "Finding: {severity:CRITICAL, finding:SQL injection via f-string interpolation,\n"
                 "  cwe:CWE-89 (SQL Injection), owasp:A03:2021 Injection,\n"
                 "  remediation:Use parameterized query,\n"
@@ -323,20 +360,20 @@ class QualityAgent(MultiModeAgent):
                 "- Never use assert True or assert False — use specific assertions\n\n"
                 "FEW-SHOT EXAMPLE 1 — Function with validation:\n"
                 'Code: "def parse_age(value: str) -> int: return int(value)"\n'
-                'Tests:\n'
+                "Tests:\n"
                 '  test_parse_age_with_valid_integer_string_returns_int -> assert parse_age("25") == 25\n'
                 '  test_parse_age_with_negative_value -> assert parse_age("-1") == -1\n'
-                '  test_parse_age_with_non_numeric_raises_value_error -> pytest.raises(ValueError)\n'
-                '  test_parse_age_with_empty_string_raises_value_error -> pytest.raises(ValueError)\n\n'
+                "  test_parse_age_with_non_numeric_raises_value_error -> pytest.raises(ValueError)\n"
+                "  test_parse_age_with_empty_string_raises_value_error -> pytest.raises(ValueError)\n\n"
                 "FEW-SHOT EXAMPLE 2 — Database repository:\n"
-                'Code: UserRepository class with PostgreSQL backend\n'
-                'Tests: Use @pytest.fixture for mock db session, patch psycopg2.connect,\n'
-                'test create_user returns User object, test duplicate raises IntegrityError,\n'
-                'test get_by_id returns None for unknown id\n\n'
+                "Code: UserRepository class with PostgreSQL backend\n"
+                "Tests: Use @pytest.fixture for mock db session, patch psycopg2.connect,\n"
+                "test create_user returns User object, test duplicate raises IntegrityError,\n"
+                "test get_by_id returns None for unknown id\n\n"
                 "FEW-SHOT EXAMPLE 3 — HTTP client:\n"
-                'Code: API client that calls external service\n'
-                'Tests: Use responses library or unittest.mock to mock HTTP,\n'
-                'test successful response, test 404 raises NotFoundError, test timeout raises TimeoutError\n\n'
+                "Code: API client that calls external service\n"
+                "Tests: Use responses library or unittest.mock to mock HTTP,\n"
+                "test successful response, test 404 raises NotFoundError, test timeout raises TimeoutError\n\n"
                 "ERROR HANDLING:\n"
                 "- If code has no testable public API, note in missing_coverage\n"
                 "- If code requires external services, mock them — never make real network calls in tests\n"
@@ -408,16 +445,16 @@ class QualityAgent(MultiModeAgent):
                 "- Decompose Conditional: complex boolean -> named predicate function\n"
                 "- Consolidate Duplicate Conditional: repeated if body -> single function\n\n"
                 "FEW-SHOT EXAMPLE 1 — Deep nesting:\n"
-                'Code: if user: if user.active: if user.permissions: do_thing()\n'
-                'Suggestion: Guard clauses — if not user: return; if not user.active: return; ...\n'
+                "Code: if user: if user.active: if user.permissions: do_thing()\n"
+                "Suggestion: Guard clauses — if not user: return; if not user.active: return; ...\n"
                 'refactoring_pattern="Replace Nested Conditional with Guard Clauses"\n\n'
                 "FEW-SHOT EXAMPLE 2 — Magic numbers:\n"
                 'Code: "if timeout > 30: retry()"\n'
                 'Suggestion: "MAX_TIMEOUT_SECONDS = 30; if timeout > MAX_TIMEOUT_SECONDS: retry()"\n'
                 'refactoring_pattern="Replace Magic Number with Symbolic Constant"\n\n'
                 "FEW-SHOT EXAMPLE 3 — DRY violation:\n"
-                'Code: same validation logic in 4 functions\n'
-                'Suggestion: Extract _validate_input(data) called from all 4 locations\n'
+                "Code: same validation logic in 4 functions\n"
+                "Suggestion: Extract _validate_input(data) called from all 4 locations\n"
                 'refactoring_pattern="Extract Method"\n\n'
                 "ERROR HANDLING:\n"
                 "- If code is already simple (cyclomatic <= 3), return score >= 0.8 and empty complexity_issues\n"
@@ -437,12 +474,16 @@ class QualityAgent(MultiModeAgent):
         return prompts.get(mode, "")
 
     def verify(self, output: Any) -> VerificationResult:
+        """Verify.
+
+        Returns:
+            The VerificationResult result.
+        """
         if output is None:
             return VerificationResult(passed=False, issues=[{"message": "No output"}], score=0.0)
         if isinstance(output, dict):
             has_review = bool(
-                output.get("issues") or output.get("findings")
-                or output.get("tests") or output.get("score") is not None
+                output.get("issues") or output.get("findings") or output.get("tests") or output.get("score") is not None
             )
             return VerificationResult(passed=has_review, score=0.8 if has_review else 0.4)
         return VerificationResult(passed=True, score=0.6)
@@ -473,6 +514,11 @@ class QualityAgent(MultiModeAgent):
     # ------------------------------------------------------------------
 
     def _execute_security_audit(self, task: AgentTask) -> AgentResult:
+        """Execute security audit.
+
+        Returns:
+            The AgentResult result.
+        """
         code = task.context.get("code", task.description)
 
         # Phase 1: Heuristic pattern scan
@@ -481,9 +527,8 @@ class QualityAgent(MultiModeAgent):
         # Phase 2: LLM-based deep analysis
         heuristic_summary = ""
         if heuristic_findings:
-            heuristic_summary = (
-                "\n\nHeuristic scan found these preliminary issues:\n"
-                + "\n".join(f"- [{f['severity']}] {f['finding']}" for f in heuristic_findings[:10])
+            heuristic_summary = "\n\nHeuristic scan found these preliminary issues:\n" + "\n".join(
+                f"- [{f['severity']}] {f['finding']}" for f in heuristic_findings[:10]
             )
 
         prompt = (
@@ -513,8 +558,11 @@ class QualityAgent(MultiModeAgent):
                     llm_findings.append(hf)
             llm_result["findings"] = llm_findings
             llm_result.setdefault("heuristic_count", len(heuristic_findings))
-            return AgentResult(success=True, output=llm_result,
-                               metadata={"mode": "security_audit", "heuristic_findings": len(heuristic_findings)})
+            return AgentResult(
+                success=True,
+                output=llm_result,
+                metadata={"mode": "security_audit", "heuristic_findings": len(heuristic_findings)},
+            )
 
         # Heuristic-only fallback
         return AgentResult(
@@ -522,13 +570,15 @@ class QualityAgent(MultiModeAgent):
             output={
                 "findings": heuristic_findings,
                 "summary": f"Heuristic scan found {len(heuristic_findings)} issues (LLM unavailable)",
-                "overall_risk": "high" if any(f["severity"] in ("CRITICAL", "HIGH") for f in heuristic_findings) else "medium",
+                "overall_risk": "high"
+                if any(f["severity"] in ("CRITICAL", "HIGH") for f in heuristic_findings)
+                else "medium",
                 "score": max(0.0, 1.0 - len(heuristic_findings) * 0.1),
             },
             metadata={"mode": "security_audit", "heuristic_only": True},
         )
 
-    def _run_heuristic_scan(self, code: str) -> List[Dict[str, Any]]:
+    def _run_heuristic_scan(self, code: str) -> list[dict[str, Any]]:
         """Run regex-based security heuristic patterns against code."""
         findings = []
         lines = code.split("\n")
@@ -536,15 +586,17 @@ class QualityAgent(MultiModeAgent):
             for pattern, finding_name, severity in _SECURITY_PATTERNS:
                 try:
                     if re.search(pattern, line, re.IGNORECASE):
-                        findings.append({
-                            "severity": severity,
-                            "finding": finding_name,
-                            "line": line_num,
-                            "evidence": line.strip()[:120],
-                            "source": "heuristic",
-                        })
+                        findings.append(
+                            {
+                                "severity": severity,
+                                "finding": finding_name,
+                                "line": line_num,
+                                "evidence": line.strip()[:120],
+                                "source": "heuristic",
+                            }
+                        )
                 except re.error:
-                    pass
+                    logger.debug("Invalid regex in security pattern: %s", pattern)
         return findings
 
     # ------------------------------------------------------------------
@@ -572,8 +624,7 @@ class QualityAgent(MultiModeAgent):
             '"fixtures": [...], "edge_cases_covered": [...]}'
         )
         result = self._infer_json(prompt, fallback={"tests": "", "test_count": 0, "coverage_estimate": 0.0})
-        return AgentResult(success=True, output=result,
-                           metadata={"mode": "test_generation", "test_type": test_type})
+        return AgentResult(success=True, output=result, metadata={"mode": "test_generation", "test_type": test_type})
 
     # ------------------------------------------------------------------
     # Simplification
@@ -594,20 +645,32 @@ class QualityAgent(MultiModeAgent):
         result = self._infer_json(prompt, fallback={"score": 0.5, "complexity_issues": []})
         return AgentResult(success=True, output=result, metadata={"mode": "simplification"})
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
-            "code_review", "quality_scoring", "design_pattern_check",
-            "security_audit", "vulnerability_detection", "cwe_classification",
-            "test_generation", "coverage_analysis", "fixture_generation",
-            "code_simplification", "complexity_reduction",
+            "code_review",
+            "quality_scoring",
+            "design_pattern_check",
+            "security_audit",
+            "vulnerability_detection",
+            "cwe_classification",
+            "test_generation",
+            "coverage_analysis",
+            "fixture_generation",
+            "code_simplification",
+            "complexity_reduction",
         ]
 
 
 # Singleton
-_quality_agent: Optional[QualityAgent] = None
+_quality_agent: QualityAgent | None = None
 
 
-def get_quality_agent(config: Optional[Dict[str, Any]] = None) -> QualityAgent:
+def get_quality_agent(config: dict[str, Any] | None = None) -> QualityAgent:
+    """Get quality agent.
+
+    Returns:
+        The QualityAgent result.
+    """
     global _quality_agent
     if _quality_agent is None:
         _quality_agent = QualityAgent(config)
