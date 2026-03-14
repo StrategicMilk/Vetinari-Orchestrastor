@@ -32,14 +32,19 @@ from unittest.mock import MagicMock, patch
 
 from vetinari.dashboard.log_aggregator import (
     AggregatorHandler,
+    BackendBase,
     DatadogBackend,
     ElasticsearchBackend,
     FileBackend,
     LogAggregator,
     LogRecord,
+    SSEBackend,
     SplunkBackend,
+    WebhookBackend,
     get_log_aggregator,
+    get_sse_backend,
     reset_log_aggregator,
+    reset_sse_backend,
 )
 
 # ---------------------------------------------------------------------------
@@ -459,6 +464,239 @@ class TestAggregatorHandler(unittest.TestCase):
 
         results = agg.search(level="WARNING", message_contains="warn check")
         self.assertGreater(len(results), 0)
+
+
+# ---------------------------------------------------------------------------
+# BackendBase
+# ---------------------------------------------------------------------------
+
+class TestBackendBase(unittest.TestCase):
+
+    def test_send_raises_not_implemented(self):
+        b = BackendBase()
+        with self.assertRaises(NotImplementedError):
+            b.send([_rec()])
+
+
+# ---------------------------------------------------------------------------
+# FileBackend — error path
+# ---------------------------------------------------------------------------
+
+class TestFileBackendErrors(unittest.TestCase):
+
+    def test_send_os_error_returns_false(self):
+        fb = FileBackend()
+        fb._path = "/nonexistent/deeply/nested/path/out.jsonl"
+        result = fb.send([_rec()])
+        self.assertFalse(result)
+
+
+# ---------------------------------------------------------------------------
+# ElasticsearchBackend — additional paths
+# ---------------------------------------------------------------------------
+
+class TestElasticsearchBackendExtra(unittest.TestCase):
+
+    def test_configure_with_api_key(self):
+        b = ElasticsearchBackend()
+        b.configure(url="http://es:9200", api_key="my-api-key")
+        self.assertIn("Authorization", b._headers)
+        self.assertEqual(b._headers["Authorization"], "ApiKey my-api-key")
+
+    def test_send_missing_requests_returns_false(self):
+        b = ElasticsearchBackend()
+        b.configure(url="http://es:9200")
+        with patch.dict("sys.modules", {"requests": None}):
+            result = b.send([_rec()])
+            self.assertFalse(result)
+
+    def test_send_non_200_returns_false(self):
+        b = ElasticsearchBackend()
+        b.configure(url="http://es:9200")
+        mock_resp = MagicMock(status_code=500, text="server error")
+        with patch("requests.post", return_value=mock_resp):
+            self.assertFalse(b.send([_rec()]))
+
+    def test_send_exception_returns_false(self):
+        b = ElasticsearchBackend()
+        b.configure(url="http://es:9200")
+        with patch("requests.post", side_effect=ConnectionError("timeout")):
+            self.assertFalse(b.send([_rec()]))
+
+
+# ---------------------------------------------------------------------------
+# SplunkBackend — missing requests
+# ---------------------------------------------------------------------------
+
+class TestSplunkBackendExtra(unittest.TestCase):
+
+    def test_send_missing_requests_returns_false(self):
+        b = SplunkBackend()
+        b.configure(url="http://splunk:8088", token="tok")
+        with patch.dict("sys.modules", {"requests": None}):
+            result = b.send([_rec()])
+            self.assertFalse(result)
+
+    def test_send_exception_returns_false(self):
+        b = SplunkBackend()
+        b.configure(url="http://splunk:8088", token="tok")
+        with patch("requests.post", side_effect=ConnectionError("down")):
+            self.assertFalse(b.send([_rec()]))
+
+
+# ---------------------------------------------------------------------------
+# DatadogBackend — additional paths
+# ---------------------------------------------------------------------------
+
+class TestDatadogBackendExtra(unittest.TestCase):
+
+    def test_send_missing_requests_returns_false(self):
+        b = DatadogBackend()
+        b.configure(api_key="key123")
+        with patch.dict("sys.modules", {"requests": None}):
+            result = b.send([_rec()])
+            self.assertFalse(result)
+
+    def test_send_non_success_returns_false(self):
+        b = DatadogBackend()
+        b.configure(api_key="key123")
+        mock_resp = MagicMock(status_code=400, text="bad request")
+        with patch("requests.post", return_value=mock_resp):
+            self.assertFalse(b.send([_rec()]))
+
+    def test_send_exception_returns_false(self):
+        b = DatadogBackend()
+        b.configure(api_key="key123")
+        with patch("requests.post", side_effect=ConnectionError("err")):
+            self.assertFalse(b.send([_rec()]))
+
+
+# ---------------------------------------------------------------------------
+# WebhookBackend
+# ---------------------------------------------------------------------------
+
+class TestWebhookBackend(unittest.TestCase):
+
+    def test_not_configured_returns_false(self):
+        b = WebhookBackend()
+        self.assertFalse(b.send([_rec()]))
+
+    def test_configure_sets_url_and_headers(self):
+        b = WebhookBackend()
+        b.configure(url="http://hook.example.com", headers={"X-Key": "val"}, timeout=5)
+        self.assertEqual(b._url, "http://hook.example.com")
+        self.assertEqual(b._headers["X-Key"], "val")
+        self.assertEqual(b._timeout, 5)
+
+    def test_send_success(self):
+        b = WebhookBackend()
+        b.configure(url="http://hook.example.com")
+        mock_resp = MagicMock(ok=True, status_code=200)
+        with patch("requests.post", return_value=mock_resp):
+            self.assertTrue(b.send([_rec("webhook msg")]))
+
+    def test_send_non_ok_returns_false(self):
+        b = WebhookBackend()
+        b.configure(url="http://hook.example.com")
+        mock_resp = MagicMock(ok=False, status_code=500, text="error")
+        with patch("requests.post", return_value=mock_resp):
+            self.assertFalse(b.send([_rec()]))
+
+    def test_send_exception_returns_false(self):
+        b = WebhookBackend()
+        b.configure(url="http://hook.example.com")
+        with patch("requests.post", side_effect=ConnectionError("down")):
+            self.assertFalse(b.send([_rec()]))
+
+    def test_send_missing_requests_returns_false(self):
+        b = WebhookBackend()
+        b.configure(url="http://hook.example.com")
+        with patch.dict("sys.modules", {"requests": None}):
+            self.assertFalse(b.send([_rec()]))
+
+
+# ---------------------------------------------------------------------------
+# SSEBackend
+# ---------------------------------------------------------------------------
+
+class TestSSEBackend(unittest.TestCase):
+
+    def test_send_buffers_records(self):
+        b = SSEBackend()
+        self.assertTrue(b.send([_rec("a"), _rec("b")]))
+        self.assertEqual(len(b.get_recent()), 2)
+
+    def test_configure_changes_buffer_size(self):
+        b = SSEBackend()
+        b.configure(max_buffer=5)
+        for i in range(10):
+            b.send([_rec(f"m{i}")])
+        self.assertEqual(len(b.get_recent(limit=100)), 5)
+
+    def test_get_recent_respects_limit(self):
+        b = SSEBackend()
+        b.send([_rec(f"m{i}") for i in range(10)])
+        self.assertEqual(len(b.get_recent(limit=3)), 3)
+
+    def test_close_clears_buffer(self):
+        b = SSEBackend()
+        b.send([_rec("x")])
+        b.close()
+        self.assertEqual(len(b.get_recent()), 0)
+
+
+# ---------------------------------------------------------------------------
+# SSE singleton helpers
+# ---------------------------------------------------------------------------
+
+class TestSSESingleton(unittest.TestCase):
+
+    def setUp(self):
+        reset_sse_backend()
+
+    def tearDown(self):
+        reset_sse_backend()
+
+    def test_get_returns_same_instance(self):
+        s1 = get_sse_backend()
+        s2 = get_sse_backend()
+        self.assertIs(s1, s2)
+
+    def test_reset_creates_fresh_instance(self):
+        s1 = get_sse_backend()
+        reset_sse_backend()
+        s2 = get_sse_backend()
+        self.assertIsNot(s1, s2)
+
+
+# ---------------------------------------------------------------------------
+# Flush error handling
+# ---------------------------------------------------------------------------
+
+class TestFlushErrorHandling(unittest.TestCase):
+
+    def setUp(self):
+        reset_log_aggregator()
+        self.agg = get_log_aggregator()
+
+    def tearDown(self):
+        reset_log_aggregator()
+
+    def test_backend_exception_during_flush_is_caught(self):
+        mock_backend = MagicMock()
+        mock_backend.send.side_effect = RuntimeError("boom")
+        self.agg._backends["broken"] = mock_backend
+        self.agg.ingest(_rec("test"))
+        # Should not raise
+        self.agg.flush()
+
+    def test_backend_returns_false_logs_warning(self):
+        mock_backend = MagicMock()
+        mock_backend.send.return_value = False
+        self.agg._backends["failing"] = mock_backend
+        self.agg.ingest(_rec("test"))
+        self.agg.flush()
+        mock_backend.send.assert_called()
 
 
 if __name__ == "__main__":

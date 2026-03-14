@@ -73,13 +73,24 @@ class _PlanExplanation:
 # Install ALL stubs before importing any vetinari sub-package
 # ---------------------------------------------------------------------------
 def _stub(name, **attrs):
-    """Register a stub module in sys.modules; return it."""
+    """Register a stub module in sys.modules; return it.
+
+    Also sets the module as an attribute on its parent so that
+    ``patch("vetinari.sub.attr")`` works on Python 3.10, which does
+    not auto-resolve sys.modules entries via parent attribute lookup.
+    """
     mod = sys.modules.get(name)
     if mod is None:
         mod = types.ModuleType(name)
         sys.modules[name] = mod
     for k, v in attrs.items():
         setattr(mod, k, v)
+    # Ensure parent module exposes this child as an attribute (Python 3.10 compat)
+    parts = name.rsplit(".", 1)
+    if len(parts) == 2:
+        parent = sys.modules.get(parts[0])
+        if parent is not None:
+            setattr(parent, parts[1], mod)
     return mod
 
 

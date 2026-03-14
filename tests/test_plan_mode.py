@@ -44,6 +44,11 @@ _coding_agent_stub.get_coding_agent = _get_coding_agent
 
 sys.modules.setdefault("vetinari.coding_agent", _coding_agent_stub)
 
+# Python 3.10 does not auto-resolve sys.modules entries via parent attribute
+# lookup, so patch("vetinari.coding_agent.X") needs this explicit binding.
+import vetinari as _vetinari_pkg  # noqa: E402
+_vetinari_pkg.coding_agent = _coding_agent_stub
+
 # Now import the module under test.
 import vetinari.plan_mode as plan_mode_module
 from vetinari.plan_mode import (

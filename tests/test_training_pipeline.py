@@ -37,7 +37,14 @@ _fake_training_data_mod = _make_stub("vetinari.learning.training_data")
 # Pre-populate the attribute so patch() can find and replace it
 _fake_training_data_mod.get_training_collector = lambda: None
 sys.modules.setdefault("vetinari.learning.training_data", _fake_training_data_mod)
-sys.modules.setdefault("vetinari.learning", _make_stub("vetinari.learning"))
+_learning_stub = _make_stub("vetinari.learning")
+sys.modules.setdefault("vetinari.learning", _learning_stub)
+
+# Python 3.10 does not auto-resolve sys.modules entries via parent attribute
+# lookup, so patch("vetinari.learning.training_data.X") needs explicit bindings.
+import vetinari as _vetinari_pkg  # noqa: E402
+_vetinari_pkg.learning = sys.modules["vetinari.learning"]
+sys.modules["vetinari.learning"].training_data = _fake_training_data_mod
 
 import pytest
 
