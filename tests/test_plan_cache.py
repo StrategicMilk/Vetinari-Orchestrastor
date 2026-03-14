@@ -112,4 +112,4 @@ class TestPlanCache:
 
 
 # Need pytest for approx
-import pytest  # noqa: E402
+import pytest

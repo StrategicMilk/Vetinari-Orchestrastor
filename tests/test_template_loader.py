@@ -7,9 +7,9 @@ import tempfile
 from pathlib import Path
 
 from vetinari.template_loader import (
-    TemplateLoader,
     _AGENT_FILE_MAP,
     _CONSOLIDATED_AGENTS,
+    TemplateLoader,
     template_loader,
 )
 

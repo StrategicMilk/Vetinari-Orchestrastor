@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ── Helpers ───────────────────────────────────────────────────────────
 
 def _measure_latency(fn, iterations=50):
@@ -151,7 +150,7 @@ class TestSecurityScanPerformance:
             agent._run_heuristic_scan = QualityAgent._run_heuristic_scan.__get__(agent)
 
         code_lines = [
-            'password = "secret123"',
+            'password = "secret123"',  # noqa: VET040
             'subprocess.call(cmd, shell=True)',
             'result = input("Enter value: ")',
             'yaml.load(data)',
@@ -170,7 +169,6 @@ class TestMemoryUsage:
 
     def test_circuit_breaker_registry_memory(self):
         """Registry with 100 breakers should use < 1MB."""
-        import sys
         from vetinari.resilience.circuit_breaker import CircuitBreakerRegistry
 
         reg = CircuitBreakerRegistry()

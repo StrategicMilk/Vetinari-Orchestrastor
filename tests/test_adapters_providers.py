@@ -1,12 +1,16 @@
 """Tests for all provider adapters (LMStudio, OpenAI, Anthropic, Gemini, Cohere) — Phase 7B"""
 import unittest
 from unittest.mock import MagicMock, patch
+
 from vetinari.adapters.base import (
-    ProviderType, ProviderConfig, InferenceRequest, ModelInfo,
+    InferenceRequest,
+    ModelInfo,
+    ProviderConfig,
+    ProviderType,
 )
 
 
-def _cfg(pt, endpoint="http://ep", api_key="test-key"):
+def _cfg(pt, endpoint="http://ep", api_key="test-key"):  # noqa: VET040
     return ProviderConfig(provider_type=pt, name="test", endpoint=endpoint, api_key=api_key)
 
 
