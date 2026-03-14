@@ -98,7 +98,7 @@ print(snap.to_dict()["adapters"])
 
 ## Next steps
 
-- Read `docs/onboarding/ONBOARDING.md` for a full onboarding guide
-- Read `docs/DEVELOPER_GUIDE.md` for architecture and conventions
-- See `docs/PRODUCTION.md` before deploying to production
+- Read `docs/getting-started/onboarding.md` for a full onboarding guide
+- Read `.claude/docs/architecture.md` for architecture and conventions
+- See `docs/reference/production.md` before deploying to production
 - Browse `examples/` for more usage patterns

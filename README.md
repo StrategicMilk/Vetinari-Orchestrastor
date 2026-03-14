@@ -310,7 +310,13 @@ Vetinari/
 |   +-- drift/                    # Contract drift prevention
 |   +-- sandbox.py                # Code execution sandbox (rate-limited)
 |   +-- credentials.py            # Fail-closed credential vault
-+-- docs/                          # 30+ documentation files
++-- docs/                          # Documentation (organized by category)
+|   +-- api/                      # API references (dashboard, analytics, ponder)
+|   +-- getting-started/          # Onboarding and quick-start guides
+|   +-- planning/                 # Feature research, drift prevention
+|   +-- reference/                # Config, production, cloud-ponder, etc.
+|   +-- runbooks/                 # Operational runbooks
+|   +-- archive/                  # Superseded documents
 +-- tests/                         # 60+ test files, 6100+ tests
 +-- ui/                            # Web UI (HTML/CSS/JS)
 ```
