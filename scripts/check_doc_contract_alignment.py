@@ -181,15 +181,14 @@ def check_documentation_files() -> bool:
     _section("DOCUMENTATION FILES CHECK")
     required = [
         "docs/MIGRATION_INDEX.md",
-        "docs/DRIFT_PREVENTION.md",
-        "docs/DEVELOPER_GUIDE.md",
-        "docs/SKILL_MIGRATION_GUIDE.md",
-        "docs/api-reference-dashboard.md",
-        "docs/api-reference-analytics.md",
-        "docs/runbooks/dashboard_guide.md",
-        "docs/onboarding/ONBOARDING.md",
-        "docs/onboarding/QUICK_START.md",
-        "docs/PRODUCTION.md",
+        "docs/planning/drift-prevention.md",
+        "docs/archive/skill-migration-guide.md",
+        "docs/api/dashboard.md",
+        "docs/api/analytics.md",
+        "docs/runbooks/dashboard-guide.md",
+        "docs/getting-started/onboarding.md",
+        "docs/getting-started/quick-start.md",
+        "docs/reference/production.md",
     ]
     missing = []
     for p in required:
