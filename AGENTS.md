@@ -646,6 +646,7 @@ Every mode's system prompt must include:
 4. **Output format specification** (5-10 lines): Exact JSON schema or document structure expected.
 5. **Error handling** (3-5 lines): What to do when the task cannot be completed normally.
 6. **Do not** list (3-5 lines): Explicit prohibitions relevant to this mode.
+7. **Project standards** (2-5 lines): Inline Vetinari coding conventions applicable to this agent's role. Must include the "Do Not Cheat" principle and role-relevant rules (imports, logging, error handling, type hints, etc.). Standards must be self-contained — never reference external files that may not be available at runtime.
 
 ### Context Engineering Principles
 
