@@ -477,21 +477,3 @@ def get_search_tool() -> WebSearchTool:
             if _search_tool is None:
                 _search_tool = WebSearchTool()
     return _search_tool
-
-
-def init_search_tool(backend: str | None = None, **kwargs) -> WebSearchTool:
-    """Create and register a new global search tool instance.
-
-    Replaces any existing singleton. Use this to reconfigure the backend at
-    runtime (e.g. switch from duckduckgo to searxng).
-
-    Args:
-        backend: Search backend name (e.g. "duckduckgo", "searxng").
-        **kwargs: Additional keyword arguments forwarded to WebSearchTool.
-
-    Returns:
-        The newly created WebSearchTool, now registered as the global instance.
-    """
-    global _search_tool
-    _search_tool = WebSearchTool(backend=backend, **kwargs)  # noqa: VET111 - stateful fallback preserves legacy compatibility
-    return _search_tool

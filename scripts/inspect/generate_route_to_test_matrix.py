@@ -1,5 +1,5 @@
 """Route-to-test coverage matrix generator — scans Litestar handler modules
-and maps each route to its test file(s), producing a markdown audit report.
+and maps each route to its test file(s), producing a markdown reference report.
 
 Post-Flask-cutover version: all routes are Litestar. Flask code paths removed.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LITESTAR_APP = ROOT / "vetinari" / "web" / "litestar_app.py"
-OUTPUT = ROOT / "docs" / "audit" / "ROUTE-TO-TEST-MATRIX.md"
+OUTPUT = ROOT / "docs" / "reference" / "route-to-test-matrix.md"
 TESTS_ROOT = ROOT / "tests"
 
 HTTP_DECORATORS = {"get", "post", "put", "delete", "patch"}

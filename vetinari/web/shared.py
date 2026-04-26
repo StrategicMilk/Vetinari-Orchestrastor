@@ -462,23 +462,6 @@ def set_orchestrator(orch: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Model search helpers
-# ---------------------------------------------------------------------------
-def refresh_model_cache() -> None:
-    """Refresh the model search engine cache by re-fetching all model sources."""
-    try:
-        from vetinari.model_discovery import ModelSearchEngine
-
-        search_engine = ModelSearchEngine()
-        search_engine.refresh_all_caches()
-        from datetime import datetime, timezone
-
-        logger.info("Model cache refreshed at %s", datetime.now(timezone.utc))
-    except Exception as e:
-        logger.error("Error refreshing model cache: %s", e)
-
-
-# ---------------------------------------------------------------------------
 # Request validation helpers (consolidated from web/utils.py)
 # ---------------------------------------------------------------------------
 

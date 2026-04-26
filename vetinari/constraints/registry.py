@@ -219,18 +219,6 @@ class ConstraintRegistry:
                 self._violations = self._violations[-500:]
         logger.warning("[Constraint violation] %s: %s", constraint_type, details)
 
-    def get_violations(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Return recent constraint violations.
-
-        Returns:
-            The most recent up to ``limit`` violation records, each a dict
-            with ``constraint_type``, ``agent_type``, ``details``, and
-            ``timestamp``.  Oldest violations are discarded first once the
-            buffer exceeds 1000 entries.
-        """
-        with self._lock:
-            return list(self._violations[-limit:])
-
     def get_violation_stats(self) -> dict[str, int]:
         """Return violation counts by type.
 

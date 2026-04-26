@@ -158,54 +158,6 @@ def load_sqlite_vec(conn: sqlite3.Connection | None) -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# Embedding storage helpers (connection-aware)
-# ---------------------------------------------------------------------------
-
-
-def store_embedding(
-    conn: sqlite3.Connection,
-    memory_id: str,
-    text: str,
-    api_url: str,
-    model: str,
-    has_vec: bool,
-) -> None:
-    """Generate and persist an embedding for a memory entry (best-effort).
-
-    Stores in the ``embeddings`` table and, when ``has_vec`` is True, also
-    inserts into the sqlite-vec ``memory_vec`` virtual table for fast KNN.
-
-    Args:
-        conn: Active SQLite connection.
-        memory_id: The memory entry ID to associate the embedding with.
-        text: The text to embed.
-        api_url: Embedding endpoint base URL.
-        model: Embedding model identifier.
-        has_vec: Whether the sqlite-vec extension is loaded.
-    """
-    from datetime import datetime, timezone
-
-    vec = embed_via_local_inference(text, api_url, model)
-    if vec is None:
-        return
-    blob = pack_embedding(vec)
-    try:
-        conn.execute(
-            "INSERT OR REPLACE INTO embeddings "
-            "(memory_id, embedding_blob, model, dimensions, created_at) VALUES (?, ?, ?, ?, ?)",
-            (memory_id, blob, model, len(vec), datetime.now(timezone.utc).isoformat()),
-        )
-        if has_vec:
-            conn.execute(
-                "INSERT OR REPLACE INTO memory_vec (memory_id, embedding) VALUES (?, ?)",
-                (memory_id, blob),
-            )
-        conn.commit()
-    except sqlite3.Error as exc:
-        logger.warning("Failed to store embedding for %s: %s", memory_id, exc)
-
-
 def embed_all_missing(
     conn: sqlite3.Connection,
     api_url: str,

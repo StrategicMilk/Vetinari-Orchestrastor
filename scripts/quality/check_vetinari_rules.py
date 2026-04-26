@@ -2500,6 +2500,26 @@ def _get_line_text(filepath: str, lineno: int) -> str:
         return ""
 
 
+def _is_ast_visitor_dispatch_method(name: str, parent_class: str | None, index: dict) -> bool:
+    """Return True for ``ast.NodeVisitor`` hooks called by dynamic dispatch."""
+    if parent_class is None or not name.startswith("visit_"):
+        return False
+
+    seen: set[str] = set()
+    stack = [parent_class]
+    class_defs = index["class_defs"]
+    while stack:
+        class_name = stack.pop()
+        if class_name in seen:
+            continue
+        seen.add(class_name)
+        for _filepath, _lineno, bases in class_defs.get(class_name, []):
+            if "NodeVisitor" in bases:
+                return True
+            stack.extend(bases)
+    return False
+
+
 def _check_unwired_functions(index: dict) -> None:
     """VET120: Flag public functions/methods defined but never referenced.
 
@@ -2529,6 +2549,11 @@ def _check_unwired_functions(index: dict) -> None:
 
             # Skip CLI entry points
             if name in entry_funcs:
+                continue
+
+            # Skip AST visitor hooks: ast.NodeVisitor.visit() invokes
+            # visit_Foo methods through getattr-based dynamic dispatch.
+            if _is_ast_visitor_dispatch_method(name, parent_class, index):
                 continue
 
             # Skip method overrides: if parent class inherits from a base

@@ -27,6 +27,8 @@ from unittest.mock import patch
 
 import pytest
 
+ROOT = Path(__file__).resolve().parents[1]
+
 # ---------------------------------------------------------------------------
 # Helpers to load script modules by path
 # ---------------------------------------------------------------------------
@@ -161,7 +163,7 @@ class TestGenerateArchitectureRelativeImports:
     def parse_imports(self):
         mod = _load_script(
             "generate_architecture",
-            "C:/dev/Vetinari/scripts/inspect/generate_architecture.py",
+            str(ROOT / "scripts" / "inspect" / "generate_architecture.py"),
         )
         return mod._parse_imports
 
@@ -213,7 +215,7 @@ class TestImpactAnalysisRelativeImports:
     def parse_imports(self):
         mod = _load_script(
             "impact_analysis",
-            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
+            str(ROOT / "scripts" / "inspect" / "impact_analysis.py"),
         )
         return mod._parse_imports
 
@@ -246,7 +248,7 @@ class TestImpactAnalysisNoneModule:
     def parse_imports(self):
         mod = _load_script(
             "impact_analysis_d5",
-            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
+            str(ROOT / "scripts" / "inspect" / "impact_analysis.py"),
         )
         return mod._parse_imports
 
@@ -282,7 +284,7 @@ class TestPackageIdsInKnown:
     def impact_mod(self):
         return _load_script(
             "impact_analysis_d6",
-            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
+            str(ROOT / "scripts" / "inspect" / "impact_analysis.py"),
         )
 
     def test_package_dep_is_included_in_graph(self, tmp_path: Path, impact_mod) -> None:

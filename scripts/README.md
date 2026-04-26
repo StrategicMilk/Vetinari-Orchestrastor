@@ -30,8 +30,8 @@ tools.
 
 - `inspect/generate_architecture.py`, `inspect/generate_config_docs.py`,
   `inspect/generate_route_to_test_matrix.py` - generated reference material.
-- `inspect/impact_analysis.py`, `inspect/impact_map.py`, `dev/file_context.py`
-  - change impact and context helpers.
+- `inspect/impact_analysis.py`, `dev/file_context.py` - change impact and
+  context helpers.
 - `maintenance/migrate_to_unified_db.py`, `maintenance/validate_vetinari.py` -
   maintenance utilities.
 - `inspect/run_benchmarks.py` - smoke benchmark helper.

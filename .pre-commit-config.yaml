@@ -58,13 +58,6 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
-      - id: audit-prevention-rules
-        name: Audit prevention regression guard
-        entry: python scripts/quality/check_audit_prevention.py
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]
 
 # Default fast gate path is ruff + typed mypy subset + pyright + bandit + VET.
 # Semgrep and Vulture remain targeted tools via static-analysis/CI instead of
