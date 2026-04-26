@@ -27,8 +27,8 @@ public runtime identity is the three-agent pipeline.
 
 `ui/svelte` is the canonical UI source.
 
-`ui/static/svelte` is generated output from the Svelte build. `ui/legacy/templates`
-contains legacy HTML shells and should not receive new feature work.
+`ui/static/svelte` is generated output from the Svelte build. The public export
+does not keep a separate legacy template UI.
 
 ## Release Boundary
 

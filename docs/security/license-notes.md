@@ -18,12 +18,10 @@ closure.
 ## Frontend Assets
 
 `ui/svelte` is source. `ui/static/svelte` is generated build output, including
-bundles such as `ui/static/svelte/js/main.js`. `ui/legacy/templates` is
-legacy/dormant.
+bundles such as `ui/static/svelte/js/main.js`.
 
-Generated bundles and legacy HTML templates must not be treated as final
-public web assets until source, license, attribution, CSP, and rebuild
-provenance are reviewed.
+Generated bundles must not be treated as final public web assets until source,
+license, attribution, CSP, and rebuild provenance are reviewed.
 
 ## Model Artifacts
 

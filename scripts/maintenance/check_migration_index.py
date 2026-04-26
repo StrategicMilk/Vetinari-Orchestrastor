@@ -88,7 +88,7 @@ def check_phase4_artifacts() -> bool:
         "vetinari/dashboard/rest_api.py": "Dashboard REST API",
         "vetinari/dashboard/alerts.py": "Alert engine",
         "vetinari/dashboard/log_aggregator.py": "Log aggregator",
-        "ui/legacy/templates/dashboard.html": "Dashboard UI",
+        "ui/svelte/src/views/Dashboard.svelte": "Dashboard UI",
         "tests/test_dashboard_api.py": "Dashboard API tests",
         "tests/test_dashboard_alerts.py": "Alert tests",
         "tests/test_dashboard_log_aggregator.py": "Log aggregator tests",

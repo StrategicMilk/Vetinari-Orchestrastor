@@ -9,9 +9,8 @@ The current public UI direction is Svelte-first.
 | Svelte UI source | `ui/svelte` | Canonical UI source for new work |
 | Generated Svelte assets | `ui/static/svelte` | Rebuildable output from `ui/svelte` |
 | Litestar API | `vetinari/web/litestar_app.py` | Runtime API server |
-| Legacy HTML templates | `ui/legacy/templates` | Historical/dormant reference |
 
-`ui/legacy/templates` is not the real UI path for new work. Do not add features there.
+There is no supported legacy template UI in the public export.
 
 ## Running The Backend
 
@@ -63,8 +62,6 @@ Before publishing:
 - keep `ui/svelte/models/` and all model weights out of Git history
 - keep `node_modules/` out of the repository
 - rebuild generated Svelte assets from source when they are needed
-- do not mount legacy templates as public routes without a license, CSP, and
-  attribution review
 - do not include UI workspaces in Python package artifacts unless the package
   contract is intentionally changed
 

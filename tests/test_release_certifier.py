@@ -53,8 +53,8 @@ def _write_package_fixture(root: Path) -> None:
                 "pyproject.toml",
                 "missing.py",
                 "../outside.py",
-                "ui/src/App.svelte",
-                "ui/legacy/static/js/app.js.map",
+                "ui/svelte/src/App.svelte",
+                "ui/static/svelte/js/app.js.map",
                 "ui/node_modules/pkg/index.js",
                 "models/native/model.safetensors",
                 "vetinari/native/extension.node",
@@ -84,8 +84,8 @@ def test_release_certifier_detects_package_metadata_parity_failures(tmp_path: Pa
 def test_release_manifest_rejects_workspace_and_binary_sweeps() -> None:
     entries = [
         "ui/node_modules/vite/index.js",
-        "ui/src/App.svelte",
-        "ui/legacy/static/js/main.js.map",
+        "ui/svelte/src/App.svelte",
+        "ui/static/svelte/js/main.js.map",
         "vetinari/native/addon.pyd",
         "models/native/shard-00001.safetensors",
         ".ai-codex/wiki.md",

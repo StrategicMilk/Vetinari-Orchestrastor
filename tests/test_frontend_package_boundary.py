@@ -46,6 +46,9 @@ def test_package_boundary_excludes_frontend_parent_globs() -> None:
 
 def test_package_boundary_sources_manifest_excludes_frontend_artifacts() -> None:
     """Generated package metadata must not include dormant UI or local frontend state."""
+    if not SOURCES.exists():
+        pytest.skip("generated egg-info metadata is not present; run package build before checking SOURCES.txt")
+
     lines = [line.strip().replace("\\", "/") for line in SOURCES.read_text(encoding="utf-8").splitlines()]
     forbidden_fragments = (
         "ui/",
@@ -67,7 +70,7 @@ def test_package_boundary_sources_manifest_excludes_frontend_artifacts() -> None
     assert offenders == []
 
 
-def test_mounted_route_inventory_keeps_legacy_frontend_dormant() -> None:
+def test_mounted_route_inventory_keeps_frontend_routes_unmounted() -> None:
     """The current mounted route table must not include excluded UI entry points."""
     app = create_app(debug=True)
     route_paths = {route.path for route in app.routes}
@@ -82,9 +85,7 @@ def test_frontend_public_docs_record_required_release_decisions() -> None:
     text = "\n".join(path.read_text(encoding="utf-8") for path in PROOF_NOTES)
 
     for required in (
-        "`ui/legacy/templates`",
         "`ui/static/svelte/js/main.js`",
-        "legacy/dormant",
         "excluded from Python package artifacts",
         "license",
         "CSP",

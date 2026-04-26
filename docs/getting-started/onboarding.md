@@ -13,7 +13,6 @@ docs/              Public documentation
 scripts/           Developer, release, and maintenance utilities
 ui/svelte/         Canonical Svelte UI source
 ui/static/svelte/  Generated Svelte bundles, rebuildable from ui/svelte
-ui/legacy/templates/      Legacy HTML templates retained for reference only
 ```
 
 The Python release artifact is intentionally package-first. UI workspaces,
@@ -100,8 +99,7 @@ npm run build
 ```
 
 The Svelte build emits generated assets into `ui/static/svelte`. Those files are
-workspace artifacts, not Python package contents. `ui/legacy/templates` contains older
-HTML shells and should not be used as the active UI path for new work.
+workspace artifacts, not Python package contents.
 
 ## Making A Change
 

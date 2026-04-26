@@ -54,7 +54,7 @@
     /* Layout Dimensions */
     --header-height: 64px;
 
-    /* Surface Aliases (used by legacy components) */
+    /* Surface aliases used across Svelte components */
     --bg-primary: var(--surface-bg);
     --bg-secondary: var(--surface-elevated);
     --bg-tertiary: var(--surface-hover);

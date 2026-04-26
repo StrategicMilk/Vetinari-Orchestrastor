@@ -13,8 +13,8 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 - Keep the shipped Python package bounded to the `vetinari` runtime package,
   public docs, configuration, and license files.
 - Keep the Svelte application as the canonical UI source under `ui/svelte`.
-- Keep generated Svelte bundles and legacy HTML templates out of Python release
-  artifacts until the web server mounts a single supported UI shell.
+- Keep generated Svelte bundles out of Python release artifacts until the web
+  server mounts a single supported UI shell.
 - Preserve local-first inference with native `vllm` or NIM endpoints preferred
   and GGUF llama.cpp fallback available.
 - Maintain the three-agent factory pipeline: Foreman, Worker, Inspector.
@@ -35,8 +35,6 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 - Treat `ui/svelte` as the real UI path.
 - Decide whether the Litestar server should mount the Svelte build directly or
   whether the Svelte dev/build workflow remains a separate frontend surface.
-- Retire or quarantine `ui/legacy/templates` once the Svelte shell is mounted and the
-  old HTML entry points are no longer needed for historical reference.
 - Keep generated bundles under `ui/static/svelte` rebuildable from source and
   excluded from Python package artifacts until their release contract is clear.
 

@@ -45,12 +45,10 @@ body {
     width: 8px;
     height: 8px;
 
-    &-track {
-        background: transparent;
+    ::-webkit-scrollbar-track {        background: transparent;
     }
 
-    &-thumb {
-        background: var(--border-strong);
+    ::-webkit-scrollbar-thumb {        background: var(--border-strong);
         border-radius: var(--radius-full);
 
         &:hover {
