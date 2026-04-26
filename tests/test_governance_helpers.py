@@ -5,11 +5,10 @@ everything as passing. Each test is designed to FAIL on the old (buggy)
 version of the script it covers.
 
 Scripts under test:
-  scripts/check_migration_index.py
-  scripts/check_syntax.py
-  scripts/check_test_quality.py
-  scripts/hook_pre_commit_gate.py
-  scripts/run_tests.py
+  scripts/maintenance/check_migration_index.py
+  scripts/quality/check_syntax.py
+  scripts/quality/check_test_quality.py
+  scripts/dev/run_tests.py
 """
 
 from __future__ import annotations
@@ -25,6 +24,12 @@ import pytest
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_SCRIPT_PATHS = {
+    "check_migration_index": Path("maintenance/check_migration_index.py"),
+    "check_syntax": Path("quality/check_syntax.py"),
+    "check_test_quality": Path("quality/check_test_quality.py"),
+    "run_tests": Path("dev/run_tests.py"),
+}
 
 
 def _import_script(name: str):
@@ -36,7 +41,7 @@ def _import_script(name: str):
     Returns:
         Imported module object.
     """
-    path = _SCRIPTS_DIR / f"{name}.py"
+    path = _SCRIPTS_DIR / _SCRIPT_PATHS.get(name, Path(f"{name}.py"))
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None, f"Could not find script: {path}"
     mod = importlib.util.module_from_spec(spec)
@@ -57,10 +62,8 @@ class TestCheckSyntax:
         scripts/ so only scripts/*.py were checked.
         """
         mod = _import_script("check_syntax")
-        # Recompute the same expression the script uses
-        script_path = _SCRIPTS_DIR / "check_syntax.py"
-        computed_base = os.path.dirname(os.path.dirname(os.path.abspath(str(script_path))))
-        assert computed_base == str(_PROJECT_ROOT), (
+        computed_base = Path(mod.__file__).resolve().parents[2]
+        assert computed_base == _PROJECT_ROOT, (
             f"base resolves to {computed_base!r} but expected project root {_PROJECT_ROOT!r}"
         )
         # Also confirm it is NOT the scripts dir
@@ -222,42 +225,6 @@ class TestCheckTestQuality:
         )
 
 
-# -- hook_pre_commit_gate tests -----------------------------------------------
-
-
-class TestHookPreCommitGate:
-    """Tests for hook_pre_commit_gate.py."""
-
-    def test_pre_commit_gate_no_errors_only_flag(self) -> None:
-        """_build_checks() must NOT pass --errors-only to check_vetinari_rules.
-
-        Old bug: --errors-only suppressed WARNING-level violations including
-        VET024/VET025 success-masking findings.
-        """
-        mod = _import_script("hook_pre_commit_gate")
-        checks = mod._build_checks()
-
-        check_vetinari_args: list[str] | None = None
-        for label, argv in checks:
-            if label == "check_vetinari_rules":
-                check_vetinari_args = argv
-                break
-
-        assert check_vetinari_args is not None, "_build_checks() returned no 'check_vetinari_rules' entry"
-        assert "--errors-only" not in check_vetinari_args, (
-            f"check_vetinari_rules is still invoked with --errors-only: {check_vetinari_args}"
-        )
-
-    def test_pre_commit_gate_runs_audit_prevention(self) -> None:
-        """Commit/push gate must include the full-spectrum audit prevention guard."""
-        mod = _import_script("hook_pre_commit_gate")
-        checks = mod._build_checks()
-
-        labels = [label for label, _argv in checks]
-
-        assert "check_audit_prevention" in labels
-
-
 # -- run_tests tests ----------------------------------------------------------
 
 
@@ -270,7 +237,7 @@ class TestRunTests:
         os._exit() bypasses pytest teardown, atexit handlers, and finally
         blocks — it suppresses cleanup rather than fixing the root cause.
         """
-        script = _SCRIPTS_DIR / "run_tests.py"
+        script = _SCRIPTS_DIR / "dev" / "run_tests.py"
         source = script.read_text(encoding="utf-8")
         assert "os._exit" not in source, (
             "run_tests.py still uses os._exit() — replace with sys.exit() "
@@ -290,7 +257,7 @@ class TestCheckMigrationIndex:
         Regression guard: the canonical architecture is 3-agent factory
         (Foreman, Worker, Inspector) per ADR-0061.
         """
-        script = _SCRIPTS_DIR / "check_migration_index.py"
+        script = _SCRIPTS_DIR / "maintenance" / "check_migration_index.py"
         source = script.read_text(encoding="utf-8")
         assert "6 CONSOLIDATED" not in source, (
             "check_migration_index.py still claims '6 CONSOLIDATED AGENT IMPLEMENTATIONS' — "
@@ -369,7 +336,7 @@ class TestCheckMigrationIndex:
 
         Regression guard against the stale label reappearing.
         """
-        script = _SCRIPTS_DIR / "check_migration_index.py"
+        script = _SCRIPTS_DIR / "maintenance" / "check_migration_index.py"
         source = script.read_text(encoding="utf-8")
         assert "3-Agent Factory Pipeline" in source, (
             "check_migration_index.py main() does not contain the '3-Agent Factory Pipeline' "

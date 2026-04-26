@@ -618,10 +618,10 @@ class TestReleaseDoctorWiring:
     ) -> None:
         import importlib.util
 
-        # Load the script as a module from disk (it lives in scripts/, not in
-        # the package). Once imported it's reachable via sys.modules.
+        # Load the script as a module from disk. Once imported it's reachable
+        # via sys.modules.
         repo_root = Path(__file__).resolve().parent.parent
-        script_path = repo_root / "scripts" / "release_doctor.py"
+        script_path = repo_root / "scripts" / "release" / "release_doctor.py"
         spec = importlib.util.spec_from_file_location("_release_doctor_under_test", script_path)
         assert spec is not None and spec.loader is not None
         rd = importlib.util.module_from_spec(spec)

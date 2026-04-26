@@ -13,7 +13,7 @@ docs/              Public documentation
 scripts/           Developer, release, and maintenance utilities
 ui/svelte/         Canonical Svelte UI source
 ui/static/svelte/  Generated Svelte bundles, rebuildable from ui/svelte
-ui/templates/      Legacy HTML templates retained for reference only
+ui/legacy/templates/      Legacy HTML templates retained for reference only
 ```
 
 The Python release artifact is intentionally package-first. UI workspaces,
@@ -52,14 +52,14 @@ pip install -e ".[vllm]"
 python -c "import vetinari; print('OK')"
 python -m pytest tests/ -x -q
 python -m ruff check vetinari/
-python scripts/check_vetinari_rules.py
+python scripts/quality/check_vetinari_rules.py
 ```
 
 On Windows, the repo-root `python.cmd` helper can run the same commands through
 the project environment:
 
 ```powershell
-.\python.cmd scripts/run_tests.py
+.\python.cmd scripts/dev/run_tests.py
 .\python.cmd -m pytest tests/ -x -q
 ```
 
@@ -100,7 +100,7 @@ npm run build
 ```
 
 The Svelte build emits generated assets into `ui/static/svelte`. Those files are
-workspace artifacts, not Python package contents. `ui/templates` contains older
+workspace artifacts, not Python package contents. `ui/legacy/templates` contains older
 HTML shells and should not be used as the active UI path for new work.
 
 ## Making A Change

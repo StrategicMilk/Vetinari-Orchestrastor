@@ -11,7 +11,7 @@ from pathlib import Path
 from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = ROOT / "scripts" / "check_release_artifacts.py"
+SCRIPT_PATH = ROOT / "scripts" / "release" / "check_release_artifacts.py"
 
 
 def _load_checker() -> ModuleType:

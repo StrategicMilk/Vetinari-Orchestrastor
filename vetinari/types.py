@@ -208,7 +208,7 @@ class MemoryType(Enum):
     CODE = "code"
     CONVERSATION = "conversation"
     RESULT = "result"
-    # User-facing types (documented in CLAUDE.md / memory CLI)
+    # User-facing memory and project reference types.
     FEEDBACK = "feedback"
     USER = "user"
     PROJECT = "project"

@@ -9,9 +9,9 @@ The current public UI direction is Svelte-first.
 | Svelte UI source | `ui/svelte` | Canonical UI source for new work |
 | Generated Svelte assets | `ui/static/svelte` | Rebuildable output from `ui/svelte` |
 | Litestar API | `vetinari/web/litestar_app.py` | Runtime API server |
-| Legacy HTML templates | `ui/templates` | Historical/dormant reference |
+| Legacy HTML templates | `ui/legacy/templates` | Historical/dormant reference |
 
-`ui/templates` is not the real UI path for new work. Do not add features there.
+`ui/legacy/templates` is not the real UI path for new work. Do not add features there.
 
 ## Running The Backend
 

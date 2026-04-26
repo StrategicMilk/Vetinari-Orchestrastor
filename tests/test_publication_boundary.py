@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.check_publication_boundary import (
+from scripts.release.check_publication_boundary import (
     BlobRecord,
     inspect_blob_records,
     inspect_file_contents,

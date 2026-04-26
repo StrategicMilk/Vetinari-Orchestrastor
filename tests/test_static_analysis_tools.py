@@ -13,7 +13,7 @@ from vetinari.tools.static_analysis import run_static_analysis, run_static_analy
 
 def _load_rules_module():
     """Load the standalone rules-checker script as an importable test module."""
-    module_path = Path(__file__).resolve().parent.parent / "scripts" / "check_vetinari_rules.py"
+    module_path = Path(__file__).resolve().parent.parent / "scripts" / "quality" / "check_vetinari_rules.py"
     spec = importlib.util.spec_from_file_location("vetinari_rules_checker_test", module_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

@@ -11,7 +11,7 @@ with ``passed=False`` (fail-closed, Rule 2).
 
 This is part of the release pipeline: ``release_doctor.py`` builds the wheel
 and smoke evidence; ``ClaimsLedger`` persists those claims for later audit by
-``scripts/pre_release_gate.py``.
+``scripts/release/pre_release_gate.py``.
 """
 
 from __future__ import annotations

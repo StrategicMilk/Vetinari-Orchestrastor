@@ -1,4 +1,4 @@
-"""Tests for scripts/release_doctor.py and vetinari/release/proof_schema.py.
+"""Tests for scripts/release/release_doctor.py and vetinari/release/proof_schema.py.
 
 Covers:
     - ReleaseProof / ReleaseClaimRecord JSON round-trip (Task 2.1)
@@ -24,10 +24,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Ensure scripts/ is importable.
+# Ensure release scripts are importable.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+if str(_REPO_ROOT / "scripts" / "release") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "scripts" / "release"))
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

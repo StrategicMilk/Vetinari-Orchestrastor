@@ -4,7 +4,7 @@ Proves that every owned route in litestar_projects_api.py rejects traversal-styl
 project_id and task_id values ('..', '../outside', '..\\\\outside') with HTTP 400
 instead of operating on parent-root files.
 
-Session 27B ownership artifact  -  see docs/audit/session-27b-route-owners.md.
+This protects project-owned routes from escaping the project root.
 """
 
 from __future__ import annotations

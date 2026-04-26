@@ -1,6 +1,6 @@
 # VET Rule Fixture Inventory
 
-Catalogue of all VET rules enforced by `scripts/check_vetinari_rules.py`, with one bad/good fixture pair per rule.
+Catalogue of all VET rules enforced by `scripts/quality/check_vetinari_rules.py`, with one bad/good fixture pair per rule.
 
 Each bad fixture MUST trigger the rule when passed to `check_file()`.
 Each good fixture MUST produce zero violations for that rule.

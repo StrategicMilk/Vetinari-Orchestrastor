@@ -6,7 +6,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts" / "quality"
 MODULE_PATH = SCRIPTS_DIR / "check_noqa_suppressions.py"
 SPEC = importlib.util.spec_from_file_location("check_noqa_suppressions", MODULE_PATH)
 assert SPEC is not None

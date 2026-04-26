@@ -770,7 +770,7 @@ def _is_vetinari_pytest_process(pid: int) -> bool:
     normalized = command_line.replace("\\", "/").lower()
     return (
         "vetinari" in normalized
-        and ("pytest" in normalized or "scripts/run_tests.py" in normalized)
+        and ("pytest" in normalized or "scripts/dev/run_tests.py" in normalized)
         and ("python" in normalized or "pytest" in normalized)
     )
 

@@ -216,9 +216,7 @@ def enforce_blocked_paths(target: Path, policy_path: Path | None = None) -> None
         raise
     except Exception as exc:
         # Fail closed: ANY unexpected error during the check is a denial.
-        # Lines 181-186 implement the Rule 2 fail-closed contract from
-        # .claude/rules/governance-rules.md — no exception may silently permit
-        # a write that the policy was meant to block.
+        # No exception may silently permit a write that the policy was meant to block.
         logger.warning(
             "Sandbox denied write to %s — error during policy check: %s",
             target,

@@ -360,7 +360,7 @@ def _run_standards_scan(code: str) -> list[dict[str, Any]]:
 
     Checks for missing type annotations on def statements, unresolved
     TODO/FIXME/HACK comments, print() calls in production code, and
-    other project-specific conventions from ``.claude/rules/``.
+    other project-specific conventions.
 
     Args:
         code: The source code string to scan.

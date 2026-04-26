@@ -2,7 +2,7 @@
 # Schema version: 1
 #
 # Populate via: python scripts/promote_findings_to_rules.py --run-root <path>
-# Consumed by:  python scripts/check_vetinari_rules.py (--yaml path optional, defaults here)
+# Consumed by:  python scripts/quality/check_vetinari_rules.py (--yaml path optional, defaults here)
 #
 # Each rule entry shape:
 #   - id: VET<NNN>               # allocate from next unused ID
@@ -65,7 +65,7 @@ rules:
     # which short-circuits to True regardless of <expr>.
     pattern: 'assert\s+.*\s+or\s+True\b'
     exclude_globs:
-      - "scripts/validate_vetinari.py"
+      - "scripts/maintenance/validate_vetinari.py"
       - "tests/chaos/**"
       - "tests/runtime/test_config_matrix_*.py"
     severity: warning
@@ -140,53 +140,6 @@ rules:
     pattern: '(?s)if\s+not\s+candidates\s*:\s*(?:logger\.\w+\([^)]*\)\s*)?return\s+0'
     severity: warning
     source_finding: pass-2345-zero-candidate-promotion-pass
-    promoted_from_run: audit-prevention-2026-04-19
-    promoted_at: "2026-04-19T00:00:00Z"
-  - id: VET312
-    category: toolchain_portability
-    description: "Hook or maintainer config uses bare python with an absolute local path; use the repo virtualenv/interpreter contract or a portable launcher."
-    pattern_type: regex
-    include_globs:
-      - ".claude/settings*.json"
-      - ".codex/**/*.json"
-      - ".github/workflows/**/*.yml"
-      - ".github/workflows/**/*.yaml"
-    pattern: '\bpython\s+[A-Za-z]:[\\/][^\n"`]*Vetinari'
-    severity: warning
-    source_finding: pass-2345-bare-python-hook-path
-    promoted_from_run: audit-prevention-2026-04-19
-    promoted_at: "2026-04-19T00:00:00Z"
-  - id: VET313
-    category: prompt_authority
-    description: "Active agent prompt frontmatter names a non-runtime model alias; map it through models.yaml or demote the field as documentation-only."
-    pattern_type: regex
-    include_globs:
-      - ".claude/agents/**/*.md"
-      - ".claude/skills/**/*.md"
-      - ".codex/agents/**/*.toml"
-      - ".codex/skills/**/*.md"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-    pattern: '(?m)^model:\s*(?:opus|sonnet)\s*$'
-    severity: warning
-    source_finding: pass-2345-agent-frontmatter-model-alias
-    promoted_from_run: audit-prevention-2026-04-19
-    promoted_at: "2026-04-19T00:00:00Z"
-  - id: VET314
-    category: prompt_authority
-    description: "Agent prompt/config advertises delegation depth above the canonical limit; keep AGENTS.md, prompts, and runtime guards aligned."
-    pattern_type: regex
-    include_globs:
-      - ".claude/agents/**/*.md"
-      - ".claude/skills/**/*.md"
-      - ".codex/agents/**/*.toml"
-      - ".codex/skills/**/*.md"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-      - "docs/internal/ai-workflows/**/*.md"
-    pattern: '(?i)max(?:imum)? delegation depth\s*:?\s*5|delegation depth[^\n]{0,80}\b5\b'
-    severity: warning
-    source_finding: pass-2345-delegation-depth-drift
     promoted_from_run: audit-prevention-2026-04-19
     promoted_at: "2026-04-19T00:00:00Z"
   - id: VET315

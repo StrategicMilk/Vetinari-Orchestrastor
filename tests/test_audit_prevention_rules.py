@@ -8,7 +8,7 @@ from pathlib import Path
 from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = ROOT / "scripts" / "check_audit_prevention.py"
+SCRIPT_PATH = ROOT / "scripts" / "quality" / "check_audit_prevention.py"
 VALID_ACTION_SHA = "c5a7806660adbe173f04e3e038b0ccdcd758773c"
 
 

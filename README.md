@@ -333,10 +333,10 @@ VETINARI_WEB_PORT=5000
 ## Testing
 
 ```bash
-.\python.cmd scripts/run_tests.py                 # Run tests + readable summary on Windows
+.\python.cmd scripts/dev/run_tests.py                 # Run tests + readable summary on Windows
 .\python.cmd -m pytest tests/ --cov=vetinari      # With coverage
 python -c "import vetinari; print('OK')"          # Verify import
-python scripts/check_vetinari_rules.py            # Custom VET rule gate
+python scripts/quality/check_vetinari_rules.py            # Custom VET rule gate
 ```
 
 ## Known Limitations
@@ -350,7 +350,7 @@ Detailed public status lives in `docs/status/known-limitations.md`.
 - **Async pipeline**: The canonical Foreman/Worker/Inspector pipeline is still mostly synchronous and uses thread pools for parallelism. Async support modules exist, but they are not the main execution path.
 - **MCP integration**: Stdio server/client paths and external tool registration exist. MCP is still not the canonical Worker execution pipeline, HTTP is the Litestar JSON-RPC endpoint at `/mcp/message`, and HTTP+SSE resource streaming is future work.
 - **Training pipeline**: Local QLoRA/DoRA training is optional and gated by the `training` extra plus usable ML dependencies. Training jobs now record failed/degraded outcomes, but cloud training and fully automated production retraining remain unsupported.
-- **Benchmarks**: `python scripts/run_benchmarks.py` and `run_ci_benchmarks()` are smoke gates, not canonical runtime p50/p95/p99 claims. Benchmark adapters now fail closed when the live planner/orchestrator/tool path is unavailable instead of scoring expected-output fallbacks.
+- **Benchmarks**: `python scripts/inspect/run_benchmarks.py` and `run_ci_benchmarks()` are smoke gates, not canonical runtime p50/p95/p99 claims. Benchmark adapters now fail closed when the live planner/orchestrator/tool path is unavailable instead of scoring expected-output fallbacks.
 - **Model discovery**: GGUF and native Hugging Face-format assets are discovered under configured roots, but new files still require `vetinari models scan` or a running native endpoint to be visible.
 - **Dashboard metrics**: Telemetry counters restore from the latest SQLite snapshot on startup. Counters after the last snapshot and before a crash are still lost.
 

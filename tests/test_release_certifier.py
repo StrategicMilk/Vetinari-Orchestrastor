@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-from scripts import analysis_router, check_agent_capabilities
-from scripts import release_certifier as cert
+from scripts.release import release_certifier as cert
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "scripts"
 
 
 def _write_package_fixture(root: Path) -> None:
@@ -57,7 +54,7 @@ def _write_package_fixture(root: Path) -> None:
                 "missing.py",
                 "../outside.py",
                 "ui/src/App.svelte",
-                "ui/static/js/app.js.map",
+                "ui/legacy/static/js/app.js.map",
                 "ui/node_modules/pkg/index.js",
                 "models/native/model.safetensors",
                 "vetinari/native/extension.node",
@@ -88,7 +85,7 @@ def test_release_manifest_rejects_workspace_and_binary_sweeps() -> None:
     entries = [
         "ui/node_modules/vite/index.js",
         "ui/src/App.svelte",
-        "ui/static/js/main.js.map",
+        "ui/legacy/static/js/main.js.map",
         "vetinari/native/addon.pyd",
         "models/native/shard-00001.safetensors",
         ".ai-codex/wiki.md",
@@ -144,94 +141,6 @@ def test_plan_index_requires_child_shards_and_rejects_coordination_parent() -> N
     messages = "\n".join(failure.message for failure in result.failures)
     assert "omits child shard: SESSION-34D5.md" in messages
     assert "coordination-only parent: SESSION-34D.md" in messages
-
-
-def test_analysis_router_cfg_dfg_tools_are_executable_or_labeled() -> None:
-    valid_result = cert.certify_analysis_router_tools(analysis_router.merge_tools(["cfg", "dfg"]))
-    invalid_result = cert.certify_analysis_router_tools(
-        ["scripts/cfg_dfg_analysis.py analyze --category unused-var,shadowed-var"]
-    )
-
-    assert valid_result.ok
-    assert not invalid_result.ok
-
-
-def test_agent_capability_audit_rejects_order_instability(monkeypatch) -> None:
-    class AlternatingAgent:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        def get_capabilities(self) -> list[str]:
-            self.calls += 1
-            if self.calls == 1:
-                return ["b", "a"]
-            return ["a", "b"]
-
-    monkeypatch.setattr(check_agent_capabilities, "_load", lambda _dotpath: AlternatingAgent())
-
-    result = check_agent_capabilities.audit_agent("WORKER", "fake.Worker", verbose=False)
-
-    assert result["ok"] is False
-    assert "non-deterministic order" in str(result["error"])
-
-
-def test_accelerator_status_detects_empty_sources_missing_outputs_and_digest_changes(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    if str(SCRIPTS_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPTS_DIR))
-    import refresh_ai_accelerators as refresh
-    from ai_accelerators import ArtifactSpec
-
-    monkeypatch.setattr(refresh, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(refresh, "SOURCE_SNAPSHOT_PATH", tmp_path / ".ai-codex" / "accelerator-source-snapshot.json")
-
-    source_dir = tmp_path / "src"
-    source_dir.mkdir()
-    source = source_dir / "input.py"
-    source.write_text("print('one')\n", encoding="utf-8")
-    output = tmp_path / ".ai-codex" / "out.md"
-    spec = ArtifactSpec(
-        name="fixture",
-        description="fixture",
-        outputs=(output,),
-        source_roots=(source_dir,),
-        source_suffixes=(".py",),
-    )
-
-    missing_output = refresh._status_for(spec)
-    assert missing_output.stale
-    assert "missing outputs" in missing_output.reason
-
-    output.parent.mkdir(parents=True)
-    output.write_text("generated\n", encoding="utf-8")
-    no_snapshot = refresh._status_for(spec)
-    assert no_snapshot.stale
-    assert "no recorded refresh snapshot" in no_snapshot.reason
-
-    snapshot = {"fixture": refresh._source_signature(refresh._iter_source_files(spec))}
-    refresh._write_source_snapshot(snapshot)
-    assert refresh._status_for(spec).stale is False
-
-    source.write_text("print('two')\n", encoding="utf-8")
-    changed_source = refresh._status_for(spec)
-    assert changed_source.stale
-    assert "source input set changed" in changed_source.reason
-
-    empty_dir = tmp_path / "empty"
-    empty_dir.mkdir()
-    empty_spec = ArtifactSpec(
-        name="empty",
-        description="empty",
-        outputs=(output,),
-        source_roots=(empty_dir,),
-        source_suffixes=(".py",),
-    )
-    empty_sources = refresh._status_for(empty_spec)
-    assert empty_sources.stale
-    assert empty_sources.source_count == 0
-    assert "no source files discovered" in empty_sources.reason
 
 
 def test_release_certifier_cli_fails_bad_evidence_json(tmp_path: Path, capsys) -> None:

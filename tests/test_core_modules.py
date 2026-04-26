@@ -180,8 +180,7 @@ class TestADRDataclasses:
             "notes",
         }
         assert required_keys.issubset(set(d.keys()))
-        # superseded_by is a permitted additive field (added 2026-04-24 for the
-        # supersession protocol in .claude/rules/agents.md).
+        # superseded_by is a permitted additive field.
         assert "superseded_by" in d
 
 

@@ -207,31 +207,5 @@ The embedding API endpoint defaults to `DEFAULT_EMBEDDING_API_URL` from
 
 ## CLI Usage
 
-The memory CLI (`scripts/memory_cli.py`) provides direct access to the store:
-
-```bash
-# Store a new entry
-python scripts/memory_cli.py store --type feedback --title "..." --content "..."
-
-# FTS5 keyword search
-python scripts/memory_cli.py search "query"
-
-# Embedding semantic search
-python scripts/memory_cli.py semantic-search "query"
-
-# Session management
-python scripts/memory_cli.py session start
-python scripts/memory_cli.py session end
-
-# Backfill embeddings for entries that lack them
-python scripts/memory_cli.py embed-all
-
-# Rebuild the FTS5 index
-python scripts/memory_cli.py refresh-index
-
-# Aggregate statistics
-python scripts/memory_cli.py stats
-```
-
-The `--type` flag accepts any `MemoryType` value (e.g. `feedback`, `decision`,
-`discovery`).
+The old maintainer memory CLI is not part of the public export. Public callers
+should use the Python API above or the application routes that wrap it.

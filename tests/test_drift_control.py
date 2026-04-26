@@ -617,7 +617,7 @@ class TestDocContractAlignmentBehavior(TestCheckerBehavior):
     the correct agent count in its output.
     """
 
-    def _load_script(self, rel_path: str = "scripts/check_doc_contract_alignment.py"):
+    def _load_script(self, rel_path: str = "scripts/maintenance/check_doc_contract_alignment.py"):
         return super()._load_script(rel_path)
 
     def test_missing_snapshot_fails_closed(self, tmp_path, monkeypatch):
@@ -811,7 +811,7 @@ class TestCoverageGateBehavior(TestCheckerBehavior):
     Proves unlisted modules at 0% coverage fail instead of passing silently.
     """
 
-    def _load_script(self, rel_path: str = "scripts/check_coverage_gate.py"):
+    def _load_script(self, rel_path: str = "scripts/quality/check_coverage_gate.py"):
         return super()._load_script(rel_path)
 
     def test_unlisted_module_at_zero_percent_fails(self):

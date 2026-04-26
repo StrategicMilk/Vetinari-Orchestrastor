@@ -1,4 +1,4 @@
-"""Tests for vetinari/release/claims_ledger.py and scripts/pre_release_gate.py.
+"""Tests for vetinari/release/claims_ledger.py and scripts/release/pre_release_gate.py.
 
 Covers:
     - ClaimsLedger.append: happy-path round-trip (Task 3.1)
@@ -25,10 +25,10 @@ from unittest.mock import patch
 
 import pytest
 
-# Ensure repo root and scripts/ are importable.
+# Ensure repo root and release scripts are importable.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+if str(_REPO_ROOT / "scripts" / "release") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "scripts" / "release"))
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

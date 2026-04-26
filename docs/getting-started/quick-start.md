@@ -55,7 +55,7 @@ NIM, keep those assets under `./models/native` or set
 python -c "import vetinari; print('OK')"
 python -m pytest tests/ -x -q
 python -m ruff check vetinari/
-python scripts/check_vetinari_rules.py
+python scripts/quality/check_vetinari_rules.py
 ```
 
 ## 4. Start The System

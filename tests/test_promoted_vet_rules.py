@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
-_SCRIPTS_DIR = _ROOT / "scripts"
+_SCRIPTS_DIR = _ROOT / "scripts" / "quality"
 _CONFIG = _ROOT / "config" / "vet_rules.yaml"
 _FIXTURE_DIR = _ROOT / "tests" / "fixtures" / "vet_rules" / "promoted"
 

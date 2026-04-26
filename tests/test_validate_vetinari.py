@@ -1,4 +1,4 @@
-"""Direct behavior tests for scripts/validate_vetinari.py.
+"""Direct behavior tests for scripts/maintenance/validate_vetinari.py.
 
 Exercises the validate_vetinari helper's search-tool check and the
 check() pass/fail recording mechanism. These are behavior tests, not
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts" / "maintenance"
 
 
 @pytest.fixture

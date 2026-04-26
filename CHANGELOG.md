@@ -21,7 +21,7 @@ Example annotated entry:
 
 Entries in versions **prior to v0.7.0** (i.e., v0.6.0 and earlier) were written
 before this convention existed and are **not** retroactively annotated.
-`scripts/pre_release_gate.py` enforces the convention on the latest version
+`scripts/release/pre_release_gate.py` enforces the convention on the latest version
 heading only; historical sections are not checked.
 
 The public convention is intentionally simple: new release claims should point
@@ -53,7 +53,7 @@ output. Private maintainer evidence is not required to read this changelog.
 ### Fixed
 
 - The full pytest baseline is green again, including prior route/auth/protocol, runtime, dashboard, training, and shutdown regressions.
-- `scripts/check_test_quality.py` now correctly maps package stems and reports a clean suite instead of false blocker counts.
+- `scripts/quality/check_test_quality.py` now correctly maps package stems and reports a clean suite instead of false blocker counts.
 - Packaging/install proof now succeeds from built wheel and sdist artifacts, with the installed `vetinari` wrapper exporting a real `main()` entry point.
 - Release artifacts are bounded to intended package inputs rather than leaking maintainer roots, audit trees, frontend dependency trees, or model payloads.
 - Visible mojibake and non-ASCII drift in release-facing CLI/runtime files were cleaned so installed help and metadata read cleanly.

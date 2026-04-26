@@ -79,9 +79,7 @@ class ADR:
         consequences: Known positive and negative consequences.
         related_adrs: IDs of related ADRs.
         superseded_by: When ``status`` is ``superseded``, the ADR ID that
-            replaces this one (e.g. ``ADR-0065``). ``None`` otherwise. Added
-            2026-04-24 per supersession protocol in ``.claude/rules/agents.md``
-            (@skip-validation: additive-only field per safety.md Safe Modification).
+            replaces this one (e.g. ``ADR-0065``). ``None`` otherwise.
         created_at: ISO-8601 creation timestamp.
         updated_at: ISO-8601 last-update timestamp.
         created_by: Author identifier.
@@ -412,9 +410,8 @@ class ADRSystem:
     def supersede_adr(self, adr_id: str, replacement_id: str) -> ADR | None:
         """Mark an ADR as superseded by a replacement and link both sides.
 
-        Use this when a newer ADR replaces an older one (per the supersession
-        protocol in ``.claude/rules/agents.md``). Sets the superseded ADR's
-        status to ``superseded`` and populates its ``superseded_by`` field.
+        Use this when a newer ADR replaces an older one. Sets the superseded
+        ADR's status to ``superseded`` and populates its ``superseded_by`` field.
         Adds a bidirectional entry to both ADRs' ``related_adrs``. Persists
         both sides in one call.
 

@@ -5,10 +5,8 @@ These tests prove that:
   1. The bad fixture triggers the expected rule code (checker catches violations).
   2. The good fixture does NOT trigger that rule code (checker accepts valid code).
 
-This satisfies Governance Rule 7: no import-only or AST-only certification.
+This satisfies the project rule that checks need real failing and passing inputs:
 The checker must be exercised with real failing and passing inputs.
-
-Governance reference: .claude/rules/governance-rules.md, Rule 7.
 """
 
 from __future__ import annotations
@@ -27,9 +25,9 @@ if TYPE_CHECKING:
 
 # -- Locate the scripts directory and import the checker ----------------------
 # The test file lives at tests/test_vet_rules_fixtures.py.
-# The scripts directory is at ../../scripts/ relative to this file.
+# The rules checker lives under scripts/quality/ relative to this file.
 _TESTS_DIR = Path(__file__).parent
-_SCRIPTS_DIR = _TESTS_DIR.parent / "scripts"
+_SCRIPTS_DIR = _TESTS_DIR.parent / "scripts" / "quality"
 
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))

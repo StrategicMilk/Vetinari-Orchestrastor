@@ -850,7 +850,7 @@ class TestPlannerAgentInit:
     def test_get_system_prompt_nonempty(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
-        # Runtime prompt loading from .claude/agents/planner.md
+        # Runtime prompt loading should provide a non-empty prompt.
         assert prompt  # Non-empty
         # Prompt describes the planning role (may say "Planner", "Planning", etc.)
         assert any(kw in prompt for kw in ("Planner", "Planning", "FOREMAN", "Foreman"))
@@ -858,13 +858,13 @@ class TestPlannerAgentInit:
     def test_system_prompt_mentions_agent_role(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
-        # Prompt loaded from .claude/agents/planner.md describes planning responsibilities
+        # Prompt describes planning responsibilities.
         assert "task" in prompt.lower() or "plan" in prompt.lower()
 
     def test_system_prompt_is_substantial(self):
         agent = PlannerAgent()
         prompt = agent.get_system_prompt()
-        # Runtime-loaded prompts should be substantial (40+ lines per AGENTS.md spec)
+        # Runtime-loaded prompts should be substantial.
         assert len(prompt) > 200
 
 

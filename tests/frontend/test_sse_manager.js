@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Behavioral proof tests for ui/static/js/sse-manager.js (SESSION-33F fixes).
+ * Behavioral proof tests for ui/legacy/static/js/sse-manager.js (SESSION-33F fixes).
  *
  * Tests three runtime behaviors:
  *  1. close() during retry backoff cancels the pending setTimeout timer.
@@ -17,7 +17,7 @@ const assert = require('assert');
 // ---------------------------------------------------------------------------
 // Load module source once; each test re-executes it into a fresh scope.
 // ---------------------------------------------------------------------------
-const SOURCE_PATH = path.join(__dirname, '../../ui/static/js/sse-manager.js');
+const SOURCE_PATH = path.join(__dirname, '../../ui/legacy/static/js/sse-manager.js');
 const moduleSource = fs.readFileSync(SOURCE_PATH, 'utf8');
 
 /**

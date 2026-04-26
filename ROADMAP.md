@@ -35,7 +35,7 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 - Treat `ui/svelte` as the real UI path.
 - Decide whether the Litestar server should mount the Svelte build directly or
   whether the Svelte dev/build workflow remains a separate frontend surface.
-- Retire or quarantine `ui/templates` once the Svelte shell is mounted and the
+- Retire or quarantine `ui/legacy/templates` once the Svelte shell is mounted and the
   old HTML entry points are no longer needed for historical reference.
 - Keep generated bundles under `ui/static/svelte` rebuildable from source and
   excluded from Python package artifacts until their release contract is clear.

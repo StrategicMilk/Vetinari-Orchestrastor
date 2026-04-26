@@ -82,7 +82,7 @@ def test_frontend_public_docs_record_required_release_decisions() -> None:
     text = "\n".join(path.read_text(encoding="utf-8") for path in PROOF_NOTES)
 
     for required in (
-        "`ui/templates`",
+        "`ui/legacy/templates`",
         "`ui/static/svelte/js/main.js`",
         "legacy/dormant",
         "excluded from Python package artifacts",

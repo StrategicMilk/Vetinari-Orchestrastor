@@ -57,7 +57,7 @@ closure.
 
 | Surface | Evidence | Release disposition |
 | --- | --- | --- |
-| Legacy HTML templates | `ui/templates/index.html` and `ui/templates/dashboard.html` reference Google Fonts, Font Awesome/cdnjs, highlight.js/cdnjs, and Chart.js/jsDelivr. | package-excluded and dormant; release-blocking if remounted without vendoring, attribution, CSP, and disclosure. |
+| Legacy HTML templates | `ui/legacy/templates/index.html` and `ui/legacy/templates/dashboard.html` reference Google Fonts, Font Awesome/cdnjs, highlight.js/cdnjs, and Chart.js/jsDelivr. | quarantined outside the active Svelte path; release-blocking if remounted without vendoring, attribution, CSP, and disclosure. |
 | Svelte source dependencies | `ui/svelte/package-lock.json` records Chart.js 4.5.1 MIT, highlight.js 11.11.1 BSD-3-Clause, marked 9.1.6 MIT, Svelte 5.55.1 MIT, Vite 6.4.1 MIT, and `@sveltejs/vite-plugin-svelte` 5.1.1 MIT. | dev-only while frontend is package-excluded; attribution required if shipped. |
 | Generated Svelte bundles | `ui/static/svelte/js/main.js`, `vendor-chart-*`, `vendor-hljs-*`, and `vendor-marked-*` exist in the workspace. | generated dormant bundles; release-blocking if included without source, license, and rebuild provenance. |
 | Frontend local dependency tree | `ui/svelte/node_modules/**` contains generated package state and native helper binaries such as esbuild variants. | remove-before-release. |

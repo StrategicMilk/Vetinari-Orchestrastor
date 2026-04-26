@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-# Ensure scripts/ is importable when tests run from the project root.
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+# Ensure the quality scripts are importable when tests run from the project root.
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "quality"))
 
 import check_vetinari_rules as checker
 

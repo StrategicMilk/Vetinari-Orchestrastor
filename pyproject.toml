@@ -207,7 +207,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# VET* are custom project rules from scripts/check_vetinari_rules.py; mark as external
+# VET* are custom project rules from scripts/quality/check_vetinari_rules.py; mark as external
 # so ruff does not flag them as unknown noqa codes.
 external = ["VET"]
 select = [
@@ -281,7 +281,7 @@ ignore = [
     "F841",                              # unused locals OK in tests when patch handles are intentionally retained for clarity
     "RUF029",                            # async test/lifespan helpers mirror framework protocols
 ]
-"scripts/*" = ["T20", "D", "PIE810", "PERF401", "RUF005", "FURB113", "S108", "S324"]  # CLI-style scripts favor clarity over micro-optimizations; S108/S324 suppressed for intentional temp-dir and md5 hash usage in non-security session tooling
+"scripts/**/*.py" = ["T20", "D", "PIE810", "PERF401", "RUF005", "FURB113", "S108", "S324"]  # CLI-style scripts favor clarity over micro-optimizations; S108/S324 suppressed for intentional temp-dir and md5 hash usage in non-security session tooling
 "vetinari/__main__.py" = ["T20"]          # print ok in entry point
 "vetinari/cli.py" = ["T20"]              # print ok in CLI interface
 "vetinari/cli_commands.py" = ["T20"]     # print ok in CLI interface
@@ -305,7 +305,6 @@ ignore = [
 "vetinari/benchmarks/*" = ["T20", "D"]   # print ok, docstrings relaxed in benchmarks
 "vetinari/web/*.py" = ["RUF029"]  # Litestar route/lifespan callables are async protocols even when bodies do not await
 "tests/runtime/test_restart_recovery.py" = ["S603", "S608"]  # subprocess/SQL snippets are the persistence contract under test
-"scripts/hook_*.py" = ["S110"]                                             # hook scripts intentionally suppress exceptions to avoid disrupting tool flow
 "conftest.py" = ["S101", "D", "E402", "RUF003", "S105", "S110", "SIM105"]  # test harness intentionally mutates import state and uses benign test-only secrets/cleanup
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]

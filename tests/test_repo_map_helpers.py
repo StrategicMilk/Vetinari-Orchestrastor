@@ -161,7 +161,7 @@ class TestGenerateArchitectureRelativeImports:
     def parse_imports(self):
         mod = _load_script(
             "generate_architecture",
-            "C:/dev/Vetinari/scripts/generate_architecture.py",
+            "C:/dev/Vetinari/scripts/inspect/generate_architecture.py",
         )
         return mod._parse_imports
 
@@ -213,7 +213,7 @@ class TestImpactAnalysisRelativeImports:
     def parse_imports(self):
         mod = _load_script(
             "impact_analysis",
-            "C:/dev/Vetinari/scripts/impact_analysis.py",
+            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
         )
         return mod._parse_imports
 
@@ -246,7 +246,7 @@ class TestImpactAnalysisNoneModule:
     def parse_imports(self):
         mod = _load_script(
             "impact_analysis_d5",
-            "C:/dev/Vetinari/scripts/impact_analysis.py",
+            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
         )
         return mod._parse_imports
 
@@ -282,7 +282,7 @@ class TestPackageIdsInKnown:
     def impact_mod(self):
         return _load_script(
             "impact_analysis_d6",
-            "C:/dev/Vetinari/scripts/impact_analysis.py",
+            "C:/dev/Vetinari/scripts/inspect/impact_analysis.py",
         )
 
     def test_package_dep_is_included_in_graph(self, tmp_path: Path, impact_mod) -> None:
