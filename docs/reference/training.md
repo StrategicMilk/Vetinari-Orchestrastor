@@ -152,7 +152,7 @@ read routes without `admin_guard`:
 
 Do not describe adapter paths, base model IDs, eval scores, or deployment state
 as safe public data. Keep these endpoints on trusted localhost or route them to
-Session 34F/34G for guarded, redacted, paginated behavior.
+future public proof for guarded, redacted, paginated behavior.
 
 ---
 

@@ -278,7 +278,7 @@ Authorization: Bearer <VETINARI_ADMIN_TOKEN>
 
 Current mounted behavior is not "all plan API calls require auth": `GET /api/plan/status`
 and `GET /api/plan/templates` are public read surfaces in `litestar_plan_api.py`.
-Treat those as localhost-only/operator surfaces until Session 34F1 proves scoped
+Treat those as localhost-only/operator surfaces until scoped
 auth and redaction or routes implementation to guard them.
 
 ### POST /api/plan/generate

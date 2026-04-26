@@ -8,7 +8,7 @@ Mutating routes (POST / PUT / DELETE) across all live Litestar handlers.
 - `public` — no auth required (read-only or low-risk utility)
 - `exempt` — internal/framework path (A2A machine-to-machine, MCP transport — separately guarded)
 
-**Changed this session (SESSION-28):** Routes marked `*` had `admin_guard` added.
+**Recent hardening note:** Routes marked `*` had `admin_guard` added.
 
 ---
 
@@ -355,7 +355,9 @@ Mutating routes (POST / PUT / DELETE) across all live Litestar handlers.
 
 ## Routes Still csrf-Only (not escalated to admin)
 
-These routes were identified in the SESSION-28 security audit as CSRF-only. They were intentionally left as `csrf` because they are user-facing UI operations, not admin-level server control:
+These routes were identified as CSRF-only. They were intentionally left as
+`csrf` because they are user-facing UI operations, not admin-level server
+control:
 
 | Route | Rationale for csrf-only |
 |---|---|

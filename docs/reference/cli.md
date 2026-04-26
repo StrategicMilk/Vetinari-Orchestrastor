@@ -9,7 +9,7 @@
 | Command | Category | Summary |
 |---|---|---|
 | `run` | Core | Execute a goal or manifest task |
-| `serve` | Core | Start the web dashboard |
+| `serve` | Core | Start the API/backend server |
 | `start` | Core | Start Vetinari (default command) |
 | `status` | Core | Show system status |
 | `health` | Core | Health check all providers |
@@ -69,7 +69,7 @@ vetinari run --task auth-refactor-001
 
 ### `serve`
 
-Start the web dashboard.
+Start the Litestar API/backend server.
 
 ```bash
 vetinari serve
@@ -87,7 +87,7 @@ vetinari serve --debug
 
 ### `start`
 
-Start Vetinari with optional dashboard. This is the default command when no subcommand is given.
+Start Vetinari with backend services and optional goal execution. This is the default command when no subcommand is given.
 
 ```bash
 vetinari start
@@ -100,7 +100,7 @@ vetinari start --no-dashboard --skip-preflight
 | `--goal` / `-g` TEXT | str | — | Execute goal on startup |
 | `--task` / `-t` TEXT | str | — | Execute task on startup |
 | `--port` INT | int | — | Dashboard port |
-| `--no-dashboard` | flag | — | Disable web dashboard |
+| `--no-dashboard` | flag | — | Disable background server startup |
 | `--skip-preflight` | flag | — | Skip dependency preflight check |
 
 ---

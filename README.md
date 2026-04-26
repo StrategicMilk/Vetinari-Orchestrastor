@@ -1,10 +1,19 @@
-# Vetinari
+# AM Workbench
 
 **v0.6.0** - Local-first multi-agent LLM orchestration with self-improving model routing, quality gates, and cost-optimised inference.
 
 ## What It Is
 
-Vetinari is an orchestration system that coordinates multiple LLM agents to plan, research, build, and verify complex software tasks. It now prefers native-model backends such as vLLM and NVIDIA NIM, with local GGUF inference via llama-cpp-python kept as the fallback path.
+AM Workbench is a local-first automation and orchestration workbench. Vetinari
+is its orchestration engine, Python package, and CLI command.
+
+In day-to-day development it is fine to keep calling the project "Vetinari".
+For public release, repository naming, and user-facing docs, use AM Workbench.
+
+Vetinari coordinates multiple LLM agents to plan, research, build, and verify
+complex software tasks. It now prefers native-model backends such as vLLM and
+NVIDIA NIM, with local GGUF inference via llama-cpp-python kept as the fallback
+path.
 
 Three specialised agents form a factory pipeline (ADR-0061):
 
@@ -127,7 +136,7 @@ All system improvements are tracked as first-class entities with PDCA lifecycle:
 ### Setup
 
 ```bash
-cd Vetinari
+cd am-workbench
 
 # Create the canonical project environment
 python -m venv .venv312
@@ -188,23 +197,23 @@ python -c "import vllm, torch; print('vllm', vllm.__version__); print('torch', t
 vllm serve Qwen/Qwen2.5-3B-Instruct --host 0.0.0.0 --port 8000
 
 # Or serve a native local model directory:
-vllm serve /mnt/c/dev/Vetinari/models/native/YOUR_MODEL_DIR --host 0.0.0.0 --port 8000
+vllm serve /mnt/c/dev/am-workbench/models/native/YOUR_MODEL_DIR --host 0.0.0.0 --port 8000
 ```
 
 Windows-side shell setup for Vetinari:
 
 ```powershell
-. C:\dev\Vetinari\enter-vetinari-shell.ps1
+. .\enter-vetinari-shell.ps1
 $env:VETINARI_VLLM_ENDPOINT = "http://localhost:8000"
-$env:VETINARI_NATIVE_MODELS_DIR = "C:\dev\Vetinari\models\native"
+$env:VETINARI_NATIVE_MODELS_DIR = ".\models\native"
 python -m vetinari doctor --json
 ```
 
 Repo helper for repeatable WSL startup:
 
 ```powershell
-. C:\dev\Vetinari\enter-vetinari-shell.ps1
-C:\dev\Vetinari\start-vllm-wsl.ps1
+. .\enter-vetinari-shell.ps1
+.\start-vllm-wsl.ps1
 python -m vetinari doctor --json
 ```
 
@@ -212,22 +221,22 @@ Optional variants:
 
 ```powershell
 # Serve a specific local native model directory
-C:\dev\Vetinari\start-vllm-wsl.ps1 -Model C:\dev\Vetinari\models\native\YOUR_MODEL_DIR
+.\start-vllm-wsl.ps1 -Model .\models\native\YOUR_MODEL_DIR
 
 # Force-restart the server on the default port
-C:\dev\Vetinari\start-vllm-wsl.ps1 -ForceRestart
+.\start-vllm-wsl.ps1 -ForceRestart
 
 # Stop the WSL-hosted server later
-C:\dev\Vetinari\stop-vllm-wsl.ps1
+.\stop-vllm-wsl.ps1
 ```
 
 Optional permanent PowerShell setup:
 
 ```powershell
 if (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
-Add-Content $PROFILE "`n. C:\dev\Vetinari\enter-vetinari-shell.ps1"
+Add-Content $PROFILE "`n. <repo>\\enter-vetinari-shell.ps1"
 Add-Content $PROFILE "`n`$env:VETINARI_VLLM_ENDPOINT = 'http://localhost:8000'"
-Add-Content $PROFILE "`n`$env:VETINARI_NATIVE_MODELS_DIR = 'C:\dev\Vetinari\models\native'"
+Add-Content $PROFILE "`n`$env:VETINARI_NATIVE_MODELS_DIR = '<repo>\\models\\native'"
 . $PROFILE
 ```
 
@@ -256,13 +265,13 @@ Workspace cleanup note:
 ### Run
 
 ```bash
-# Start with dashboard
+# Start backend services and optional goal execution
 python -m vetinari start
 
 # Goal-based execution
 python -m vetinari start --goal "Build a Python REST API with user authentication"
 
-# Dashboard only
+# API/backend server only
 python -m vetinari serve --port 5000
 
 # CLI only
@@ -274,8 +283,8 @@ python -m vetinari start --no-dashboard --goal "Research best practices for micr
 ```
 vetinari run       --goal "..."    Execute a goal through the pipeline
 vetinari run       --task t1       Execute a specific manifest task
-vetinari serve     --port 5000     Start web dashboard
-vetinari start                     Start with dashboard
+vetinari serve     --port 5000     Start API/backend server
+vetinari start                     Start backend services and optional goal execution
 vetinari status                    Show system status
 vetinari health                    Health check all providers
 vetinari upgrade                   Check for model upgrades
@@ -332,7 +341,7 @@ python scripts/check_vetinari_rules.py            # Custom VET rule gate
 
 ## Known Limitations
 
-Detailed status and proof links live in `docs/audit/KNOWN-LIMITATIONS-STATUS.md`.
+Detailed public status lives in `docs/status/known-limitations.md`.
 
 - **Single-user/local-only**: The dashboard and API assume a trusted local operator. They do not provide multi-user tenancy, per-user data isolation, or internet-facing auth hardening. Put an external proxy/auth layer in front before exposing anything beyond localhost.
 - **Cloud fallback**: Cloud API adapters (Anthropic, OpenAI, Gemini) are integrated but minimally tested in production workflows. Native vLLM/NIM endpoints are the intended primary path; local GGUF inference remains the backup.

@@ -1,6 +1,7 @@
 # Changelog
 
-All notable changes to Vetinari are documented in this file.
+All notable changes to AM Workbench and the Vetinari engine are documented in
+this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -23,7 +24,9 @@ before this convention existed and are **not** retroactively annotated.
 `scripts/pre_release_gate.py` enforces the convention on the latest version
 heading only; historical sections are not checked.
 
-See `docs/internal/release-claims.md` for the full convention reference.
+The public convention is intentionally simple: new release claims should point
+to reproducible public evidence such as tests, build logs, or release-gate
+output. Private maintainer evidence is not required to read this changelog.
 
 ---
 
@@ -35,7 +38,9 @@ See `docs/internal/release-claims.md` for the full convention reference.
 
 ### Added
 
-- Final release signoff package under `docs/audit/`, including the refreshed release verification report, evidence matrix, and signoff summary.
+- Final release signoff evidence was produced privately; the public release now
+  carries only the source, package boundaries, and user-facing documentation
+  needed for external review.
 - Blocking CI release-proof coverage for package build/install smoke, route-auth proof, audit-prevention checks, and release-certifier wiring.
 - Explicit package-boundary proof for shipped runtime assets, including `LICENSE`, `NOTICE`, bounded `vetinari/config/**` data, and clean install smoke from built artifacts.
 

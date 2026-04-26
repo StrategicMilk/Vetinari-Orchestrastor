@@ -1,6 +1,7 @@
 # Vetinari Pipeline
 
-This page is the current quick-start reference for the runtime pipeline. For maintainer-level authority details, see `docs/internal/ai-workflows/vetinari-agent-system-reference.md` and `docs/audit/ONTOLOGY-AND-ARCHITECTURE-TRUTH-TABLE.md`.
+This page is the current public quick-start reference for the runtime pipeline.
+Vetinari is the orchestration engine inside AM Workbench.
 
 ## Runtime Shape
 

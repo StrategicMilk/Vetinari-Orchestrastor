@@ -32,7 +32,7 @@ client-side bridge. Those tools are not automatically exposed through the
 served `/mcp/tools` or JSON-RPC `tools/list` registry unless the server-side
 `MCPToolRegistry.register_external_server()` path is explicitly wired for that
 running client. Document this as a split between Worker-consumed external MCP
-tools and tools exposed to remote MCP clients until Session 34F2 proves a
+tools and tools exposed to remote MCP clients until public proof establishes a
 single shared runtime registry.
 
 To add, remove, or disable an external server, edit `config/mcp_servers.yaml`

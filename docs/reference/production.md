@@ -8,7 +8,7 @@
 
 1. [Prerequisites](#prerequisites)
 2. [Environment Configuration](#environment-configuration)
-3. [Running the Dashboard Server](#running-the-dashboard-server)
+3. [Running the Backend Server](#running-the-backend-server)
 4. [Configuring Alerts](#configuring-alerts)
 5. [Log Aggregation Setup](#log-aggregation-setup)
 6. [Analytics & SLA Monitoring](#analytics--sla-monitoring)
@@ -61,8 +61,8 @@ pip install -e ".[dev,local,ml,search,notifications]"
 | `VETINARI_NATIVE_MODELS_DIR` | `./models/native` | Native-model directory for `vllm`/NIM |
 | `VETINARI_VLLM_ENDPOINT` | `http://localhost:8000` | OpenAI-compatible `vllm` endpoint |
 | `VETINARI_NIM_ENDPOINT` | `http://localhost:8001` | OpenAI-compatible NVIDIA NIM endpoint |
-| `VETINARI_WEB_PORT` | `5000` | Dashboard server port |
-| `VETINARI_WEB_HOST` | `127.0.0.1` | Dashboard bind address |
+| `VETINARI_WEB_PORT` | `5000` | Backend server port |
+| `VETINARI_WEB_HOST` | `127.0.0.1` | Backend bind address |
 | `VETINARI_LOG_LEVEL` | `INFO` | Python log level |
 | `LOG_FILE` | `logs/vetinari.log` | Log output path |
 | `TELEMETRY_EXPORT_PATH` | `logs/telemetry.json` | Telemetry export file |
@@ -72,11 +72,13 @@ pip install -e ".[dev,local,ml,search,notifications]"
 
 ### Native backend note
 
-On Windows, the supported `vllm` path is to run `vllm` inside WSL and export `VETINARI_VLLM_ENDPOINT` in the Windows shell that starts Vetinari. See [README.md](C:/dev/Vetinari/README.md) for the operator steps and download links.
+On Windows, the supported `vllm` path is to run `vllm` inside WSL and export
+`VETINARI_VLLM_ENDPOINT` in the Windows shell that starts Vetinari. See
+`README.md` for the operator steps and download links.
 
 ---
 
-## Running the Dashboard Server
+## Running the Backend Server
 
 ### Development
 
@@ -95,15 +97,15 @@ uvicorn vetinari.web.litestar_app:get_app --factory \
 
 The supported deployment topology is one Litestar/Uvicorn process with the
 current SQLite-backed state stores. Do not scale this guide with multi-worker
-Uvicorn/Gunicorn or PostgreSQL remediation claims until Session 34I2 implements
-and verifies that topology.
+Uvicorn/Gunicorn or PostgreSQL claims until that topology is implemented and
+verified publicly.
 
 ### systemd service
 
 ```ini
 # /etc/systemd/system/vetinari-dashboard.service
 [Unit]
-Description=Vetinari Monitoring Dashboard
+Description=AM Workbench Vetinari backend
 After=network.target
 
 [Service]

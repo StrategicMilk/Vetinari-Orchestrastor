@@ -1,19 +1,19 @@
 # Third-Party Licenses And Attribution Ledger
 
-> Release status: initial Session 34H ledger. This is a root attribution
+> Release status: initial public ledger. This is a root attribution
 > artifact, but it is not final legal signoff. Rows marked `release-blocking`
 > or `unresolved` must be closed before a release artifact can claim complete
 > license, NOTICE, provenance, or privacy proof.
 
-Checked in `C:\dev\Vetinari` on 2026-04-22.
+Checked for the AM Workbench public export on 2026-04-22.
 
 ## Project License
 
 | Surface | Evidence | Disposition |
 | --- | --- | --- |
-| Vetinari package metadata | `pyproject.toml` declares `license = { text = "MIT" }`. | Root `LICENSE` now matches MIT. |
-| Root NOTICE state | `NOTICE` was absent before Session 34H. | Created this NOTICE and ledger. |
-| Root third-party ledger state | `THIRD-PARTY-LICENSES.md` was absent before Session 34H. | Created this release-blocking ledger. |
+| Vetinari package metadata | `pyproject.toml` declares `license = "MIT"`. | Root `LICENSE` matches MIT. |
+| Root NOTICE state | `NOTICE` exists in the public export. | Maintained as root notice metadata. |
+| Root third-party ledger state | `THIRD-PARTY-LICENSES.md` exists in the public export. | Maintained as the release-blocking ledger. |
 
 ## Python Dependency Ledger
 
@@ -57,15 +57,14 @@ closure.
 
 | Surface | Evidence | Release disposition |
 | --- | --- | --- |
-| Dormant HTML templates | `ui/templates/index.html` and `ui/templates/dashboard.html` reference Google Fonts, Font Awesome/cdnjs, highlight.js/cdnjs, and Chart.js/jsDelivr. | package-excluded and dormant per `docs/audit/SESSION-34C-FRONTEND-PACKAGE-PROOF.md`; release-blocking if remounted without vendoring, attribution, CSP, and disclosure. |
+| Legacy HTML templates | `ui/templates/index.html` and `ui/templates/dashboard.html` reference Google Fonts, Font Awesome/cdnjs, highlight.js/cdnjs, and Chart.js/jsDelivr. | package-excluded and dormant; release-blocking if remounted without vendoring, attribution, CSP, and disclosure. |
 | Svelte source dependencies | `ui/svelte/package-lock.json` records Chart.js 4.5.1 MIT, highlight.js 11.11.1 BSD-3-Clause, marked 9.1.6 MIT, Svelte 5.55.1 MIT, Vite 6.4.1 MIT, and `@sveltejs/vite-plugin-svelte` 5.1.1 MIT. | dev-only while frontend is package-excluded; attribution required if shipped. |
 | Generated Svelte bundles | `ui/static/svelte/js/main.js`, `vendor-chart-*`, `vendor-hljs-*`, and `vendor-marked-*` exist in the workspace. | generated dormant bundles; release-blocking if included without source, license, and rebuild provenance. |
 | Frontend local dependency tree | `ui/svelte/node_modules/**` contains generated package state and native helper binaries such as esbuild variants. | remove-before-release. |
 
 ## Model, Dataset, And Tool Provenance Ledger
 
-Detailed rows live in
-`docs/audit/licensing-compliance/01-model-and-asset-licenses.md`.
+Public status lives in `docs/security/license-notes.md`.
 
 | Surface | Evidence | Release disposition |
 | --- | --- | --- |
@@ -76,8 +75,7 @@ Detailed rows live in
 
 ## Privacy And Data-Flow Ledger
 
-Detailed rows live in `docs/audit/licensing-compliance/02-data-handling-map.md`
-and `03-privacy-compliance-gaps.md`.
+Public status lives in `docs/security/license-notes.md`.
 
 | Surface | Classification | Release disposition |
 | --- | --- | --- |

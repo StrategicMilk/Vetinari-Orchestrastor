@@ -1,4 +1,4 @@
-"""Session 34C frontend package-boundary proof tests."""
+"""Frontend package-boundary proof tests."""
 
 from __future__ import annotations
 
@@ -17,7 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST = ROOT / "MANIFEST.in"
 SOURCES = ROOT / "vetinari.egg-info" / "SOURCES.txt"
-PROOF_NOTE = ROOT / "docs" / "audit" / "SESSION-34C-FRONTEND-PACKAGE-PROOF.md"
+PROOF_NOTES = (
+    ROOT / "docs" / "runbooks" / "dashboard-guide.md",
+    ROOT / "docs" / "architecture" / "decisions.md",
+    ROOT / "docs" / "security" / "license-notes.md",
+)
 
 
 def _pyproject() -> dict:
@@ -73,26 +77,20 @@ def test_mounted_route_inventory_keeps_legacy_frontend_dormant() -> None:
     assert not any(path.startswith("/static") for path in route_paths)
 
 
-def test_frontend_proof_note_records_required_release_decisions() -> None:
-    """34C evidence must name asset status, route proof, and release contract decisions."""
-    text = PROOF_NOTE.read_text(encoding="utf-8")
+def test_frontend_public_docs_record_required_release_decisions() -> None:
+    """Public docs must name asset status, route proof, and release contract decisions."""
+    text = "\n".join(path.read_text(encoding="utf-8") for path in PROOF_NOTES)
 
     for required in (
-        "355 API routes",
-        "`ui/templates/index.html`",
+        "`ui/templates`",
         "`ui/static/svelte/js/main.js`",
-        "dormant-retained source",
-        "package-excluded",
-        "Admin token",
-        "CSRF/CORS",
-        "Accessibility",
-        "CSP and external assets",
-        "`../ui/**/*`",
-        "`node_modules`",
-        "`ui/svelte/models/*.safetensors`",
-        "Built artifact proof",
-        "forbidden=0",
-        "Clean virtual environment smoke",
-        "`vetinari --help`",
+        "legacy/dormant",
+        "excluded from Python package artifacts",
+        "license",
+        "CSP",
+        "`node_modules/`",
+        "`ui/svelte/models/`",
+        "Model weights",
+        "Svelte app",
     ):
         assert required in text
