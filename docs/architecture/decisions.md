@@ -1,7 +1,4 @@
-# Public Architecture Decisions
-
-This file is the public decision summary for AM Workbench. It replaces private
-working ADR and audit corpora in the public export.
+# Architecture Decisions
 
 ## Naming
 
@@ -27,7 +24,7 @@ public runtime identity is the three-agent pipeline.
 
 `ui/svelte` is the canonical UI source.
 
-`ui/static/svelte` is generated output from the Svelte build. The public export
+`ui/static/svelte` is generated output from the Svelte build. The repository
 does not keep a separate legacy template UI.
 
 ## Release Boundary
@@ -35,8 +32,7 @@ does not keep a separate legacy template UI.
 Python release artifacts are package-first. They include the `vetinari` package,
 runtime config data, public metadata, license files, and public docs needed for
 installation and review. They exclude UI workspaces, tests, local state,
-generated dependency trees, model files, private maintainer assets, and working
-audit corpora.
+generated dependency trees, and model files.
 
 ## Model Artifacts
 
@@ -46,5 +42,4 @@ remote model stores, not in the repository or Git history.
 ## Public Documentation
 
 Public docs should describe how to install, run, test, operate, and understand
-the system. Private investigation notes, AI-assistant workflow instructions,
-and raw audit corpora should remain outside the public export.
+the system.

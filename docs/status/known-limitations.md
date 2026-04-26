@@ -25,8 +25,7 @@ AM Workbench is local-first and still assumes a trusted single-operator setup.
 
 ## Resolved Or Bounded
 
-- Private maintainer assets are excluded from the public export boundary.
-- Python release artifacts exclude UI workspaces, model files, generated local
-  state, and private working audit corpora.
-- The public branch keeps the Python package name `vetinari` for compatibility
+- Python release artifacts exclude UI workspaces, model files, and generated
+  local state.
+- The repository keeps the Python package name `vetinari` for compatibility
   while presenting the product as AM Workbench.

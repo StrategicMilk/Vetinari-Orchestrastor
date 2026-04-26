@@ -26,7 +26,7 @@ heading only; historical sections are not checked.
 
 The public convention is intentionally simple: new release claims should point
 to reproducible public evidence such as tests, build logs, or release-gate
-output. Private maintainer evidence is not required to read this changelog.
+output.
 
 ---
 
@@ -38,9 +38,8 @@ output. Private maintainer evidence is not required to read this changelog.
 
 ### Added
 
-- Final release signoff evidence was produced privately; the public release now
-  carries only the source, package boundaries, and user-facing documentation
-  needed for external review.
+- The release now carries the source, package boundaries, and user-facing
+  documentation needed for external review.
 - Blocking CI release-proof coverage for package build/install smoke, route-auth proof, audit-prevention checks, and release-certifier wiring.
 - Explicit package-boundary proof for shipped runtime assets, including `LICENSE`, `NOTICE`, bounded `vetinari/config/**` data, and clean install smoke from built artifacts.
 
@@ -55,13 +54,13 @@ output. Private maintainer evidence is not required to read this changelog.
 - The full pytest baseline is green again, including prior route/auth/protocol, runtime, dashboard, training, and shutdown regressions.
 - `scripts/quality/check_test_quality.py` now correctly maps package stems and reports a clean suite instead of false blocker counts.
 - Packaging/install proof now succeeds from built wheel and sdist artifacts, with the installed `vetinari` wrapper exporting a real `main()` entry point.
-- Release artifacts are bounded to intended package inputs rather than leaking maintainer roots, audit trees, frontend dependency trees, or model payloads.
+- Release artifacts are bounded to intended package inputs rather than leaking local-only roots, frontend dependency trees, or model payloads.
 - Visible mojibake and non-ASCII drift in release-facing CLI/runtime files were cleaned so installed help and metadata read cleanly.
 
 ### Removed
 
 - The broken `vetinari-asgi` console-script release surface is no longer published.
-- Internal maintainer-only roots and accidental packaging residues are excluded from shipped artifacts.
+- Local-only roots and accidental packaging residues are excluded from shipped artifacts.
 
 ### Security
 

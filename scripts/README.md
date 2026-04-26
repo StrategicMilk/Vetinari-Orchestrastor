@@ -1,12 +1,11 @@
 # Scripts
 
 These scripts are public developer and release utilities. They are grouped by
-purpose so the public tree does not read like a pile of one-off maintainer
-tools.
+purpose for discoverability.
 
 ## Release And Publication
 
-- `release/check_publication_boundary.py` - rejects private paths, model blobs, and
+- `release/check_publication_boundary.py` - rejects local-only paths, model blobs, and
   oversized history blobs before publishing.
 - `release/check_release_artifacts.py` - inspects wheel/sdist contents.
 - `release/pre_release_gate.py` - checks changelog/release claim discipline.
@@ -38,7 +37,7 @@ tools.
 
 ## One-Off Repair Helpers
 
-Historical one-off repair helpers were removed from the public export. If a
+Historical one-off repair helpers are not included in this repository. If a
 repair workflow is still useful, promote it into one of the categories above
 with public documentation and tests.
 

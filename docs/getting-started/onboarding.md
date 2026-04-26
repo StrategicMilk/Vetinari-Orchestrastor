@@ -16,7 +16,7 @@ ui/static/svelte/  Generated Svelte bundles, rebuildable from ui/svelte
 ```
 
 The Python release artifact is intentionally package-first. UI workspaces,
-tests, generated bundles, local state, model files, and maintainer-only assets
+tests, generated bundles, local state, and model files
 are excluded from wheel/sdist artifacts unless a future release explicitly
 changes that boundary.
 
@@ -108,17 +108,15 @@ workspace artifacts, not Python package contents.
 3. Add or update focused tests for the changed behavior.
 4. Run the smallest credible validation set first, then broaden if the change
    touches shared behavior.
-5. Keep public docs free of private maintainer paths, local audit corpora, and
-   AI-assistant workflow instructions.
+5. Keep docs focused on install, operation, architecture, API/reference,
+   security, and troubleshooting material.
 
 ## Decision Records
 
-Do not ship private working ADRs or audit corpora. Public architecture decisions
-belong in `docs/architecture/decisions.md`.
+Public architecture decisions belong in `docs/architecture/decisions.md`.
 
 If a future change needs a detailed decision record, add a concise public
-summary there and keep any private investigation notes outside the public
-export.
+summary there.
 
 ## Useful References
 

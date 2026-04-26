@@ -207,5 +207,5 @@ The embedding API endpoint defaults to `DEFAULT_EMBEDDING_API_URL` from
 
 ## CLI Usage
 
-The old maintainer memory CLI is not part of the public export. Public callers
+The legacy memory CLI is not part of the supported public interface. Callers
 should use the Python API above or the application routes that wrap it.

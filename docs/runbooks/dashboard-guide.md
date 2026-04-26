@@ -10,7 +10,7 @@ The current public UI direction is Svelte-first.
 | Generated Svelte assets | `ui/static/svelte` | Rebuildable output from `ui/svelte` |
 | Litestar API | `vetinari/web/litestar_app.py` | Runtime API server |
 
-There is no supported legacy template UI in the public export.
+There is no supported legacy template UI in the repository.
 
 ## Running The Backend
 

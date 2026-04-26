@@ -1,10 +1,7 @@
 # AM Workbench Roadmap
 
 AM Workbench is the public project name. Vetinari remains the orchestration
-engine, Python package, CLI command, and internal architecture name.
-
-This roadmap is intentionally public-facing. It does not include private
-maintainer audit notes, AI-assistant work logs, or working decision corpora.
+engine, Python package, CLI command, and runtime architecture name.
 
 ## Current Release Line
 
@@ -25,10 +22,9 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 
 - Keep the GitHub project and public docs aligned with AM Workbench while preserving
   `vetinari` as the import package and CLI for compatibility.
-- Add CI for the public export branch: publication-boundary gate, package build,
+- Add CI for release publication: repository-boundary gate, package build,
   release-artifact inspection, focused unit tests, and optional frontend build.
-- Publish a concise release checklist that can be run by contributors without
-  access to private maintainer artifacts.
+- Publish a concise release checklist that can be run from a fresh checkout.
 
 ### UI Direction
 
@@ -42,8 +38,7 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 
 - Keep public docs limited to install, operation, architecture, API/reference,
   security, and troubleshooting material.
-- Maintain public architecture decisions in
-  `docs/architecture/decisions.md` instead of shipping private working ADRs.
+- Maintain public architecture decisions in `docs/architecture/decisions.md`.
 - Maintain known limitations in `docs/status/known-limitations.md`.
 - Maintain license and provenance notes in `docs/security/license-notes.md`.
 
