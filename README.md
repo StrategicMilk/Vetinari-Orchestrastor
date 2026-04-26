@@ -7,9 +7,6 @@
 AM Workbench is a local-first automation and orchestration workbench. Vetinari
 is its orchestration engine, Python package, and CLI command.
 
-In day-to-day development it is fine to keep calling the project "Vetinari".
-For public release, repository naming, and user-facing docs, use AM Workbench.
-
 Vetinari coordinates multiple LLM agents to plan, research, build, and verify
 complex software tasks. It now prefers native-model backends such as vLLM and
 NVIDIA NIM, with local GGUF inference via llama-cpp-python kept as the fallback

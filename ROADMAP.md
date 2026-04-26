@@ -23,7 +23,7 @@ maintainer audit notes, AI-assistant work logs, or working decision corpora.
 
 ### Public Packaging
 
-- Rename the GitHub project and public docs to AM Workbench while preserving
+- Keep the GitHub project and public docs aligned with AM Workbench while preserving
   `vetinari` as the import package and CLI for compatibility.
 - Add CI for the public export branch: publication-boundary gate, package build,
   release-artifact inspection, focused unit tests, and optional frontend build.
@@ -72,8 +72,4 @@ Use **AM Workbench** for the repository, product, public documentation, and
 release presentation.
 
 Use **Vetinari** for the orchestration engine, Python package, CLI command,
-runtime logs, and day-to-day shorthand inside the project.
-
-That gives the project a broader public name without forcing every developer
-conversation to distinguish between "the project" and "the brain" when the
-current code, package, and mental model still revolve around Vetinari.
+and runtime logs.

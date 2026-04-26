@@ -148,7 +148,7 @@ all = [
 vetinari = "vetinari.__main__:main"
 
 [project.urls]
-Repository = "https://github.com/StrategicMilk/Vetinari-Orchestrastor"
+Repository = "https://github.com/StrategicMilk/AM-Workbench"
 
 # ---------------------------------------------------------------------------
 # Tool Configuration
