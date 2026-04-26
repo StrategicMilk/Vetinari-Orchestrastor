@@ -1,0 +1,27 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Keep source and generated web assets LF in the working tree on Windows so
+# lint and diff checks do not emit autocrlf churn warnings.
+*.py text eol=lf
+*.pyi text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.ts text eol=lf
+*.svelte text eol=lf
+*.sh text eol=lf
+
+# Windows launchers keep CRLF for maximum compatibility with cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf

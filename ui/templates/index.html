@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vetinari - Local LLM Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+    <link rel="stylesheet" href="/static/css/tokens.css" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="/static/css/base.css" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="/static/css/layout.css?v=20260330a" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="/static/css/components.css?v=20260330a" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="/static/css/dashboard.css" nonce="{{ csp_nonce() }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" nonce="{{ csp_nonce() }}">
+    <link rel="stylesheet" href="/static/svelte/css/main.css" nonce="{{ csp_nonce() }}">
+</head>
+<body>
+    <!-- Svelte 5 application — all UI rendered by compiled components -->
+    <div id="svelte-root"></div>
+    <!--
+      STALE BUNDLE — DO NOT SHIP WITHOUT REBUILDING.
+      ui/static/svelte/js/main.js is a pre-compiled artifact that still contains
+      the defects fixed in source (Defect B: listProjects POST→GET; Defect D:
+      dot-notation SSE event names).  Rebuild with `npm run build` inside
+      ui/svelte/ before deploying so the fixes in api.js and ChatView.svelte
+      take effect in the browser.
+    -->
+    <script type="module" src="/static/svelte/js/main.js" nonce="{{ csp_nonce() }}"></script>
+</body>
+</html>

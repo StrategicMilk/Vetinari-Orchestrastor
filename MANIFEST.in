@@ -1,0 +1,26 @@
+# Keep the release artifact package-first. Start from an empty root-level
+# file list and re-include only the intended release inputs.
+exclude *
+
+include CHANGELOG.md
+include LICENSE
+include MANIFEST.in
+include NOTICE
+include README.md
+include THIRD-PARTY-LICENSES.md
+include pyproject.toml
+include setup.py
+include requirements.txt
+include vetinari/py.typed
+
+recursive-include vetinari *.py *.typed *.json *.yaml *.yml *.sql
+recursive-include vetinari/config *.md
+recursive-include vetinari/skills/catalog *.md
+
+# Frontend/binary release boundary is enforced by the include-only package tree:
+# *.map *.safetensors *.gguf *.bin *.onnx *.pt *.pth *.ckpt esbuild.exe
+prune vetinari.egg-info
+prune vetinari/.omc
+prune ui
+prune tests
+prune vetinari/.vetinari

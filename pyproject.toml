@@ -1,0 +1,435 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vetinari"
+dynamic = ["version"]
+description = "Comprehensive AI Orchestration System with multi-agent factory pipeline execution, token optimization, and local-cloud hybrid inference"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.10"
+authors = [{ name = "Vetinari" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "requests>=2.28.0",
+    "httpx>=0.27.0",
+    "urllib3>=1.26.0",
+    "pyyaml>=6.0",
+    "apscheduler>=3.10.0",
+    "psutil>=5.9.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "huggingface-hub>=0.20",
+    "rich>=13.0",
+    "structlog>=24.0",
+    "litestar>=2.12",
+    "msgspec>=0.18.0",
+    "uvicorn>=0.30",
+    "asgiref>=3.7",
+    "stamina>=24.0.0",
+    "defusedxml>=0.7.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "llama-cpp-python>=0.3.0",
+]
+watcher = [
+    "watchfiles>=0.21",
+]
+cloud = [
+    "anthropic>=0.20.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.4.0",
+    "cohere>=5.0.0",
+    "litellm>=1.50,<2.0,!=1.82.7,!=1.82.8",
+]
+vllm = [
+    # vLLM 0.13.0 is the first release with SM120 (Blackwell) NVFP4 MoE kernels;
+    # 0.18.1 is a known-bad release on SM120 RTX PRO 4000 — see
+    # config/runtime/supported_matrix.yaml and the runtime doctor for details.
+    "vllm>=0.13,!=0.18.1; platform_system != 'Windows'",  # Optional GPU-only local inference backend (ADR-0066); Windows uses WSL/endpoint mode
+]
+crypto = ["cryptography>=41.0.0"]
+image = [
+    "diffusers>=0.31.0",
+    # torch 2.7 is the first stable release with official sm_120 cu128 wheels;
+    # earlier wheels compile up to sm_90 only (see supported_matrix.yaml).
+    "torch>=2.7.0",
+    "accelerate>=0.25.0",
+    "Pillow>=10.0.0",
+    "transformers>=4.30.0",
+]
+search = [
+    "ddgs>=9.0.0",
+    "brave-search-python-client>=0.4.0",
+]
+ml = [
+    "numpy>=1.24.0",
+    "sqlite-vec>=0.1.6",
+    "nvidia-ml-py>=12.0",
+    "onnxruntime>=1.16.0",
+    "joblib>=1.3.0",
+    "gguf>=0.6.0",
+    "scikit-learn>=1.3.0",
+    "sentence-transformers>=3.0.0",
+    "lancedb>=0.20.0",
+]
+guardrails = [
+    "nemoguardrails>=0.20.0",
+    "llm_guard==0.3.16",
+    "fastembed>=0.8.0",
+]
+observability = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+    "opentelemetry-sdk>=1.20",
+]
+training = [
+    "sentence-transformers>=2.2",
+    "faiss-cpu>=1.7",
+    "scipy>=1.10",
+    "tiktoken>=0.5",
+    # torch 2.7 is the first stable release with official sm_120 cu128 wheels.
+    "torch>=2.7.0",
+    "datasets>=2.14",
+    "peft>=0.9",
+    "trl>=0.14",
+    "transformers>=4.30.0",
+    # bitsandbytes has no stable sm_120 wheel as of April 2026
+    # (https://github.com/bitsandbytes-foundation/bitsandbytes/issues/1642);
+    # the runtime doctor warns when this is imported on a Blackwell GPU
+    # without a source build. Keeping the existing floor for CPU/older GPUs.
+    "bitsandbytes>=0.42",
+    "unsloth",
+    "huggingface-hub>=0.20",
+]
+llmlingua = [
+    "llmlingua>=0.1.0",
+]
+notifications = [
+    "desktop-notifier>=5.0.0",
+    "pystray>=0.19.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "build>=1.2.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-timeout>=2.0.0",
+    "pytest-randomly>=3.15.0",
+    "hypothesis>=6.100.0",
+    "schemathesis>=3.25.0",
+    "pre-commit>=3.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+    "cryptography>=41.0.0",
+    "pytest-asyncio>=0.24.0",
+    "semgrep==1.161.0; platform_system != 'Windows'",
+    "pyright>=1.1.380",
+    "types-PyYAML>=6.0.12",
+    "vulture>=2.11",
+]
+all = [
+    "vetinari[local,cloud,vllm,crypto,image,search,ml,guardrails,observability,training,watcher,notifications,llmlingua,dev]",
+]
+
+[project.scripts]
+vetinari = "vetinari.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/StrategicMilk/Vetinari-Orchestrastor"
+
+# ---------------------------------------------------------------------------
+# Tool Configuration
+# ---------------------------------------------------------------------------
+
+[tool.setuptools.dynamic]
+version = { attr = "vetinari.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["vetinari*"]
+exclude = ["tests*", "outputs*", "projects*", "examples*"]
+
+[tool.setuptools.package-data]
+vetinari = [
+    "py.typed",
+    "context_registry.json",
+    "skills_registry.json",
+    "config/**/*.yaml",
+    "config/**/*.yml",
+    "config/**/*.json",
+    "config/**/*.md",
+    "config/runtime/**/*",
+    "migrations/*.sql",
+    "skills/catalog/**/*.md",
+]
+
+[tool.setuptools.exclude-package-data]
+vetinari = [
+    ".omc/**",
+    ".vetinari/**",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — fast Python linter & formatter (replaces flake8 + isort + black)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["vetinari"]
+preview = true
+cache-dir = ".vetinari/ruff-cache"
+extend-exclude = [
+    ".agents",
+    ".claude",
+    ".claire",
+    ".codex",
+    ".omc",
+    ".venv",
+    ".venv312",
+    "examples",
+    "templates",
+    # Intentionally-bad Python used by VET rule fixture tests — ruff should not
+    # enforce style on files whose only purpose is to contain violations.
+    "tests/fixtures/vet_rules",
+]
+
+[tool.ruff.lint]
+# VET* are custom project rules from scripts/check_vetinari_rules.py; mark as external
+# so ruff does not flag them as unknown noqa codes.
+external = ["VET"]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade (modern syntax)
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "RUF",  # ruff-specific
+    "C4",   # flake8-comprehensions (unnecessary list/dict/set calls)
+    "PT",   # flake8-pytest-style (test conventions)
+    "ERA",  # eradicate (commented-out code detection)
+    "TID",  # flake8-tidy-imports (banned imports enforcement)
+    "T20",  # flake8-print (print statement detection)
+    "S",    # flake8-bandit (security, supplements standalone bandit)
+    "D",    # pydocstyle (docstring conventions — Google style)
+    "FURB", # refurb (refactoring suggestions)
+    "PERF", # perflint (performance anti-patterns)
+    "LOG",  # flake8-logging (logging best practices)
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function call in argument defaults
+    "B905",   # zip strict (not always needed)
+    "SIM108", # ternary operator (readability preference)
+    "RUF012", # mutable class variables (dataclass pattern)
+    # UP007 removed — full migration to X | Y union syntax now active
+    "ERA001", # commented-out code (use VET036 custom rule instead — fewer false positives)
+    "S101",   # assert in non-test code (handled per-file)
+    "D100",   # missing module docstring (use VET095 custom rule instead — smarter exemptions)
+    "D101",   # missing class docstring (use VET090 custom rule — smarter exemptions)
+    "D102",   # missing method docstring (use VET090 custom rule — smarter exemptions)
+    "D103",   # missing function docstring (use VET090 custom rule — smarter exemptions)
+    "D104",   # missing public package docstring (__init__.py)
+    "D105",   # missing magic method docstring (dunder methods)
+    "D106",   # missing nested class docstring
+    "D107",   # missing __init__ docstring
+    "D203",   # one blank line before class docstring (conflicts with D211)
+    "D213",   # multi-line docstring summary on second line (conflicts with D212)
+    # Preview rule ignores — kept with documented rationale after S42 audit
+    "RUF052", # used-dummy-variable: 188 hits — _var naming is conventional Python for intentionally-unused loop variables; renaming all would reduce readability
+    "RUF067", # non-empty-init-module: __init__.py files export public APIs (S40 enforced this); rule conflicts with project convention
+    "PERF203", # try-except-in-loop: intentional in adapter resilience patterns, streaming parsers, and retry loops where per-iteration error isolation is required
+    "RUF069", # float-equality-comparison (11 hits — often intentional in tests/configs)
+    "D420",   # incorrect-section-order (22 hits — Google-style section ordering preference)
+    "FURB118", # reimplemented-operator (15 hits — explicit lambdas are often clearer)
+    "PERF102", # incorrect-dict-iterator (13 hits — .items() iteration is idiomatic)
+    "S404",   # suspicious-subprocess-import (12 hits — subprocess is intentional for sandbox)
+    "S405",   # suspicious-xml-import (1 hit — xml.etree is standard library)
+    "F822",   # undefined-export in __all__ (33 hits — lazy re-export packages still need a dedicated cleanup pass)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S101", "T20", "ERA", "D",          # assert ok, print ok, commented code ok, docstrings relaxed
+    "PT009", "PT013", "PT017", "PT019",  # unittest-style assertions OK in tests
+    "PT006", "PT018",                    # stylistic pytest tuple/composite-assertion rules are too noisy in legacy tests
+    "TID251",                            # banned imports OK in tests (typing.Optional etc.)
+    "S105", "S106", "S107", "S108", "S110", "S113", "S104", "S324", "S607", "S311",  # security OK in test fixtures
+    "E402",                              # late imports OK in tests (imports after fixture setup)
+    "E701", "E702",                      # multiple statements OK in test helpers
+    "RUF001", "RUF002", "RUF003",        # ambiguous unicode OK in test strings/data
+    "RUF005", "RUF059",                  # readability-focused test helpers often prefer concatenation / unpacked values
+    "SIM105", "SIM115", "SIM117",        # simplification preferences flexible in tests
+    "FURB", "PERF",                      # refactoring and performance rules relaxed in tests
+    "PT012",                             # multiple statements in pytest.raises OK for context manager combos
+    "F401",                              # unused imports OK (imports for side-effects / conftest)
+    "F841",                              # unused locals OK in tests when patch handles are intentionally retained for clarity
+    "RUF029",                            # async test/lifespan helpers mirror framework protocols
+]
+"scripts/*" = ["T20", "D", "PIE810", "PERF401", "RUF005", "FURB113", "S108", "S324"]  # CLI-style scripts favor clarity over micro-optimizations; S108/S324 suppressed for intentional temp-dir and md5 hash usage in non-security session tooling
+"vetinari/__main__.py" = ["T20"]          # print ok in entry point
+"vetinari/cli.py" = ["T20"]              # print ok in CLI interface
+"vetinari/cli_commands.py" = ["T20"]     # print ok in CLI interface
+"vetinari/cli_command_groups.py" = ["T20"]  # print ok in CLI interface
+"vetinari/cli_devops.py" = ["T20"]       # print ok in CLI interface
+"vetinari/cli_startup.py" = ["T20"]      # print ok in CLI interface
+"vetinari/cli_training.py" = ["T20"]     # print ok in CLI interface (legacy — kept for transition)
+"vetinari/cli_kaizen.py" = ["T20"]       # print ok in CLI interface (legacy — kept for transition)
+"vetinari/cli_watch.py" = ["T20"]        # print ok in CLI interface (legacy — kept for transition)
+"vetinari/cli_packaging.py" = ["T20", "S105"]  # print ok in CLI; _CHECK_PASS string constants are not passwords
+"vetinari/cli_packaging_data.py" = ["T20", "S105"]  # print ok in CLI; _CHECK_PASS string constants are not passwords
+"vetinari/cli_packaging_doctor.py" = ["T20", "S105"]  # print ok in CLI; _CHECK_PASS string constants are not passwords
+"vetinari/cli_packaging_models.py" = ["T20", "S105"]  # print ok in CLI; _CHECK_PASS string constants are not passwords
+"vetinari/cli_init.py" = ["T20"]             # print ok in CLI interface
+"vetinari/cli_doctor.py" = ["T20"]           # print ok in CLI interface
+"vetinari/cli_models.py" = ["T20"]           # print ok in CLI interface
+"vetinari/setup/init_wizard.py" = ["T20"]  # print ok in setup wizard (CLI-facing)
+"vetinari/preflight.py" = ["T20", "S110", "S603"]  # print ok in CLI-facing preflight; subprocess calls are trusted pip/torch installs
+"vetinari/system/hardware_detect.py" = ["S110", "S603", "S607"]  # subprocess calls for hardware probing are trusted
+"vetinari/tools/static_analysis.py" = ["S603", "S607"]  # subprocess calls to known hardcoded tools (pyright, ruff, vulture)
+"vetinari/benchmarks/*" = ["T20", "D"]   # print ok, docstrings relaxed in benchmarks
+"vetinari/web/*.py" = ["RUF029"]  # Litestar route/lifespan callables are async protocols even when bodies do not await
+"tests/runtime/test_restart_recovery.py" = ["S603", "S608"]  # subprocess/SQL snippets are the persistence contract under test
+"scripts/hook_*.py" = ["S110"]                                             # hook scripts intentionally suppress exceptions to avoid disrupting tool flow
+"conftest.py" = ["S101", "D", "E402", "RUF003", "S105", "S110", "SIM105"]  # test harness intentionally mutates import state and uses benign test-only secrets/cleanup
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"vetinari.agents.contracts.AgentType".msg = "Import AgentType from vetinari.types instead"
+"vetinari.agents.contracts.TaskStatus".msg = "Import TaskStatus from vetinari.types instead"
+"vetinari.agents.contracts.ExecutionMode".msg = "Import ExecutionMode from vetinari.types instead"
+"vetinari.agents.contracts.PlanStatus".msg = "Import PlanStatus from vetinari.types instead"
+
+[tool.ruff.lint.isort]
+known-first-party = ["vetinari"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-q",
+    "--tb=short",
+    "--strict-markers",
+    "--timeout=30",
+    "--junitxml=.vetinari/test-results.xml",
+    "-m", "not benchmark",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring LM Studio",
+    "security: marks security-related tests",
+    "benchmark: marks performance benchmark tests",
+    "chaos: marks chaos injection tests",
+    "replay: marks deterministic replay tests",
+    "property: marks property-based (Hypothesis) tests",
+]
+filterwarnings = [
+    # Litestar's pydantic plugin imports pydantic.v1 which is incompatible with Python 3.14+.
+    # This is a third-party issue tracked upstream — suppress until litestar releases a fix.
+    "ignore:Core Pydantic V1 functionality:UserWarning",
+    # SWIG-generated wrappers (SwigPyPacked/SwigPyObject) emit DeprecationWarnings in Python 3.12+.
+    # These come from third-party C extensions (e.g. llama-cpp-python) and are not actionable.
+    "ignore:.*SwigPyPacked.*:DeprecationWarning",
+    "ignore:.*SwigPyObject.*:DeprecationWarning",
+    # SWIG bindings in llama-cpp-python lack __module__ on builtin types — upstream issue.
+    "ignore:builtin type Swig.*has no __module__:DeprecationWarning",
+    # desktop_notifier uses deprecated asyncio.DefaultEventLoopPolicy — upstream issue (6.2.0 is latest).
+    "ignore:'asyncio.DefaultEventLoopPolicy' is deprecated:DeprecationWarning",
+    # scipy may emit RuntimeWarning about precision loss in statistical functions.
+    # This is expected for edge-case inputs in tests.
+    "ignore:.*invalid value encountered.*:RuntimeWarning:scipy",
+    "ignore:.*divide by zero encountered.*:RuntimeWarning:scipy",
+    "ignore:.*overflow encountered.*:RuntimeWarning:scipy",
+    "ignore:.*Precision loss occurred in moment calculation.*:RuntimeWarning:scipy",
+]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false          # too strict for existing codebase
+check_untyped_defs = true
+ignore_missing_imports = true          # many optional deps
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = "vetinari.adapters.*"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "vetinari.analytics.*"
+disallow_untyped_defs = true
+
+# ---------------------------------------------------------------------------
+# Bandit (security linter)
+# ---------------------------------------------------------------------------
+
+[tool.bandit]
+exclude_dirs = ["tests", "outputs", "projects", "examples"]
+skips = [
+    "B101",  # assert used intentionally in validation helpers and guard code
+    "B105",  # Ruff S105 remains the primary hardcoded-secret check; Bandit is too noisy on status constants/tests
+    "B311",  # Ruff S311 already covers non-crypto randomness with narrower local suppressions
+    "B404",  # Ruff S404 already flags subprocess imports where we care about them
+    "B603",  # Ruff S603 already governs trusted subprocess usage with per-file exceptions
+    "B607",  # Ruff S607 already governs partial executable paths with per-file exceptions
+    "B608",  # Ruff S608 already covers string-built SQL and the repo carries explicit local suppressions
+]
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["vetinari"]
+# Store coverage data under the writable repo state directory instead of the
+# repo root, which can hit Windows rename/ACL issues during pytest-cov finalization.
+data_file = ".vetinari/coverage/.coverage"
+omit = [
+    "vetinari/__pycache__/*",
+    "vetinari/training/*",
+    "vetinari/benchmarks/*",
+]
+
+[tool.coverage.report]
+# Coverage remains report-only for now while training code stays omitted and
+# the route-level hardening work continues to replace broad harness coverage.
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+show_missing = true

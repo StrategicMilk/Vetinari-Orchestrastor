@@ -1,0 +1,432 @@
+# Inference parameter knowledge base for Vetinari domain expertise.
+# Enables reasoning about parameter effects for task-adaptive prompt routing and model configuration.
+
+parameters:
+  temperature:
+    name: "Temperature"
+    what_it_controls: >
+      Scales the logits before the softmax step, controlling how peaked or flat the token probability
+      distribution is. Lower values make the model more deterministic; higher values increase randomness.
+    type: float
+    range:
+      min: 0.0
+      max: 2.0
+      default: 0.7
+    low_value:
+      effect: "Distribution becomes sharper — the highest-probability token is selected almost exclusively. Output is more focused, consistent, and repetitive."
+      good_for:
+        - coding
+        - classification
+        - factual_qa
+        - json_output
+        - code_review
+    high_value:
+      effect: "Distribution flattens — lower-probability tokens become eligible. Output is more diverse, creative, and unpredictable."
+      good_for:
+        - brainstorming
+        - creative_writing
+        - exploration
+    task_recommendations:
+      coding: "0.05-0.1"
+      reasoning: "0.2-0.4"
+      classification: "0.0-0.1"
+      creative: "0.7-0.9"
+      documentation: "0.3-0.5"
+      general: "0.5-0.7"
+    interaction_effects:
+      - params: [temperature, top_p]
+        description: "Higher temperature combined with low top_p produces diverse but still coherent output. Higher temperature combined with high top_p produces very random output. These two parameters compound — reduce one if increasing the other."
+      - params: [temperature, top_k]
+        description: "Temperature 0 makes top_k irrelevant because only the single highest-probability token is ever chosen."
+    notes: "For tasks with one correct answer, use 0.0-0.3. For tasks with many valid answers, use 0.5-0.8. Never exceed 1.0 for production use."
+
+  top_p:
+    name: "Top-P (Nucleus Sampling)"
+    what_it_controls: >
+      Sets a cumulative probability cutoff: the model considers only the smallest set of tokens whose
+      cumulative probability meets or exceeds top_p. Tokens outside that nucleus are discarded.
+    type: float
+    range:
+      min: 0.0
+      max: 1.0
+      default: 0.9
+    low_value:
+      effect: "Only the highest-probability tokens are considered. Output is focused but may repeat patterns."
+      good_for:
+        - coding
+        - classification
+        - factual_qa
+    high_value:
+      effect: "Nearly all tokens remain eligible. Output is more diverse and exploratory."
+      good_for:
+        - creative_writing
+        - brainstorming
+    task_recommendations:
+      coding: "0.85-0.95"
+      creative: "0.9-0.95"
+      classification: "0.5-0.8"
+    interaction_effects:
+      - params: [top_p, temperature]
+        description: "top_p and temperature compound — reduce one if increasing the other. Most practitioners recommend adjusting one at a time."
+    notes: "Most practitioners recommend adjusting temperature OR top_p, not both simultaneously."
+
+  top_k:
+    name: "Top-K"
+    what_it_controls: >
+      Limits token selection to the K highest-probability tokens at each generation step. Tokens
+      ranked below K are excluded entirely before any other sampling method is applied.
+    type: int
+    range:
+      min: 1
+      max: 100
+      default: 40
+    low_value:
+      effect: "Only the very top tokens are eligible. Highly deterministic and focused, minimal vocabulary diversity."
+      good_for:
+        - coding
+        - classification
+        - factual_qa
+    high_value:
+      effect: "A broader set of tokens is eligible. Increases diversity and stylistic range."
+      good_for:
+        - creative_writing
+        - brainstorming
+    task_recommendations:
+      coding: "10-20"
+      creative: "40-60"
+      classification: "5-10"
+    interaction_effects:
+      - params: [top_k, top_p]
+        description: "top_k is applied before top_p. A very low top_k (e.g., 1-5) effectively overrides the top_p effect because only a handful of tokens survive to the nucleus stage."
+    notes: "In llama.cpp, min_p is generally preferred over top_k because it adapts to the model's confidence distribution rather than using a fixed count."
+
+  min_p:
+    name: "Min-P"
+    what_it_controls: >
+      Filters tokens whose individual probability falls below min_p multiplied by the probability of
+      the most likely token. This is a relative threshold, not an absolute one, so the effective
+      cutoff adapts based on how confident the model is at each step.
+    type: float
+    range:
+      min: 0.0
+      max: 1.0
+      default: 0.05
+    low_value:
+      effect: "Fewer tokens are filtered — similar behavior to a high top_p. Allows more diversity when the model is uncertain."
+      good_for:
+        - creative_writing
+        - brainstorming
+    high_value:
+      effect: "More tokens are filtered relative to the top token. Tightens output toward the model's most confident choices."
+      good_for:
+        - coding
+        - factual_qa
+        - classification
+    task_recommendations:
+      coding: "0.05-0.1"
+      creative: "0.02-0.05"
+      general: "0.05"
+    interaction_effects:
+      - params: [min_p, top_k]
+        description: "min_p is the recommended replacement for top_k in llama.cpp. Using both is redundant; prefer min_p alone."
+    notes: "Preferred over top_k in llama.cpp. Adaptive: filters more tokens when the model is confident (high max probability), and fewer when it is uncertain (low max probability). This gives better results than a fixed-count cutoff."
+
+  max_tokens:
+    name: "Max Tokens"
+    what_it_controls: >
+      Sets a hard upper limit on the number of tokens the model will generate in a single response.
+      Generation halts when this limit is reached, which may produce truncated output.
+    type: int
+    range:
+      min: 1
+      max: "model_context_length"
+      default: 2048
+    low_value:
+      effect: "Responses are capped at a short length. May truncate mid-sentence or mid-function. Reduces cost and latency."
+      good_for:
+        - classification
+        - simple_qa
+        - summarization
+    high_value:
+      effect: "Model can produce long, detailed responses without truncation."
+      good_for:
+        - documentation
+        - research
+        - code_generation
+        - long_form_writing
+    task_recommendations:
+      classification: "50-200"
+      coding: "1024-4096"
+      documentation: "2048-8192"
+      research: "4096-8192"
+    interaction_effects:
+      - params: [max_tokens, context_length]
+        description: "max_tokens + prompt_tokens must not exceed the model's context window. For multi-turn conversations, reserve tokens for history by keeping max_tokens conservatively sized."
+    notes: "Set to expected output length plus a 20% buffer. Setting too high wastes context window space in multi-turn conversations and can cause unnecessary padding in some implementations."
+
+  repeat_penalty:
+    name: "Repeat Penalty (Presence Penalty)"
+    what_it_controls: >
+      Divides the logit score of any token that has already appeared in the output by this value,
+      making previously generated tokens less likely to be selected again.
+    type: float
+    range:
+      min: 1.0
+      max: 2.0
+      default: 1.1
+    low_value:
+      effect: "No penalty applied. The model may naturally repeat tokens, phrases, or structures. Appropriate when repetition is semantically correct."
+      good_for:
+        - coding
+        - structured_output
+    high_value:
+      effect: "Strong discouragement of any repeated token. May reduce coherence or prevent valid reuse of terminology."
+      good_for:
+        - creative_writing
+        - long_form_generation
+    task_recommendations:
+      coding: "1.0-1.05"
+      creative: "1.1-1.2"
+      documentation: "1.05-1.1"
+    interaction_effects:
+      - params: [repeat_penalty, frequency_penalty]
+        description: "repeat_penalty applies a flat multiplier on any token that appeared at all; frequency_penalty scales the penalty proportionally to occurrence count. Using both together compounds the effect."
+    notes: "For code generation, keep low (1.0-1.05) — variable names, keywords, and structural tokens SHOULD repeat. Aggressive repeat penalties will cause variable names to drift and break valid syntax."
+
+  frequency_penalty:
+    name: "Frequency Penalty"
+    what_it_controls: >
+      Reduces the logit of each token proportionally to how many times it has already appeared in
+      the output. Unlike repeat_penalty, the penalty grows with each additional occurrence.
+    type: float
+    range:
+      min: 0.0
+      max: 2.0
+      default: 0.0
+    low_value:
+      effect: "No frequency-based penalty. Tokens may recur any number of times without additional penalty."
+      good_for:
+        - coding
+        - structured_output
+        - factual_qa
+    high_value:
+      effect: "Tokens are progressively discouraged with each reuse. Strongly promotes lexical diversity but can harm coherence."
+      good_for:
+        - creative_writing
+        - descriptive_prose
+    task_recommendations:
+      coding: "0.0"
+      creative: "0.1-0.3"
+      general: "0.0-0.1"
+    interaction_effects:
+      - params: [frequency_penalty, repeat_penalty]
+        description: "Both penalize repetition through different mechanisms. Using both at elevated values can cause incoherent output. In llama.cpp, prefer repeat_penalty alone."
+    notes: "Keep at 0.0 for code and structured tasks. For prose, a small value (0.1-0.2) reduces monotony without harming coherence."
+
+  mirostat:
+    name: "Mirostat Mode"
+    what_it_controls: >
+      Enables adaptive sampling that targets a specified perplexity level (tau) during generation.
+      When active, the sampler continuously adjusts the effective top-k to maintain the target
+      perplexity, replacing the role of temperature, top_p, and top_k.
+    type: int
+    range:
+      min: 0
+      max: 2
+      default: 0
+    low_value:
+      effect: "Mode 0 disables mirostat entirely. Standard temperature/top_p/top_k sampling is used."
+      good_for:
+        - all_tasks_when_disabled
+    high_value:
+      effect: "Mode 2 (Mirostat 2.0) enables improved adaptive sampling. Provides consistent output quality regardless of prompt complexity."
+      good_for:
+        - long_generation
+        - variable_complexity_inputs
+        - consistent_quality_requirements
+    task_recommendations:
+      coding: "0 (disabled, use temperature)"
+      creative: "2 with tau=6.0"
+      general: "2 with tau=5.0"
+    interaction_effects:
+      - params: [mirostat, temperature, top_p, top_k]
+        description: "When mirostat is enabled (mode 1 or 2), temperature, top_p, and top_k are ignored. mirostat_tau and mirostat_eta become the relevant parameters."
+    notes: "Mirostat 2.0 (mode=2) is preferred over mode 1. When using mirostat, temperature/top_p/top_k are ignored — do not configure them simultaneously. Best suited for tasks where output consistency matters more than exact determinism."
+
+  mirostat_tau:
+    name: "Mirostat Tau (Target Entropy)"
+    what_it_controls: >
+      The target perplexity value for mirostat sampling. Controls the desired complexity of the
+      generated text — lower values produce more focused output, higher values produce more diverse output.
+    type: float
+    range:
+      min: 0.0
+      max: 10.0
+      default: 5.0
+    low_value:
+      effect: "Sampler targets low perplexity — output is more predictable and focused, similar to low temperature."
+      good_for:
+        - coding
+        - factual_qa
+        - classification
+    high_value:
+      effect: "Sampler targets higher perplexity — output is more diverse and creative, similar to high temperature."
+      good_for:
+        - creative_writing
+        - brainstorming
+    task_recommendations:
+      coding: "3.0"
+      creative: "6.0-7.0"
+      general: "5.0"
+    interaction_effects:
+      - params: [mirostat_tau, mirostat]
+        description: "Only effective when mirostat mode is 1 or 2. Has no effect when mirostat=0."
+    notes: "Analogous to temperature when mirostat is active. Adjust tau to tune output style rather than changing temperature."
+
+  mirostat_eta:
+    name: "Mirostat Eta (Learning Rate)"
+    what_it_controls: >
+      The learning rate for mirostat's internal adaptation algorithm. Controls how quickly the
+      sampler adjusts its internal state in response to the measured perplexity of recent tokens.
+    type: float
+    range:
+      min: 0.0
+      max: 1.0
+      default: 0.1
+    low_value:
+      effect: "Slow adaptation — sampler adjusts gradually, which smooths out local spikes but may lag behind sudden content shifts."
+      good_for:
+        - uniform_content
+        - long_documents
+    high_value:
+      effect: "Fast adaptation — sampler reacts quickly to perplexity changes, which handles varied content well but can produce jitter."
+      good_for:
+        - mixed_content
+        - dialogue
+    task_recommendations:
+      general: "0.1"
+      mixed_content: "0.15-0.2"
+    interaction_effects:
+      - params: [mirostat_eta, mirostat]
+        description: "Only effective when mirostat mode is 1 or 2."
+    notes: "The default of 0.1 is appropriate for most use cases. Only adjust if output quality is inconsistent across a long generation."
+
+  seed:
+    name: "Random Seed"
+    what_it_controls: >
+      Initializes the random number generator used during sampling. A fixed seed with an identical
+      prompt and model produces deterministic output; -1 selects a random seed at each call.
+    type: int
+    range:
+      min: -1
+      max: 2147483647
+      default: -1
+    low_value:
+      effect: "Value -1 means random seed — output varies between calls with identical prompts."
+      good_for:
+        - production_diversity
+        - multi-sample_generation
+    high_value:
+      effect: "Any fixed positive integer produces reproducible output for a given prompt and model."
+      good_for:
+        - testing
+        - benchmarking
+        - debugging
+        - evaluation
+    task_recommendations:
+      testing: "any fixed int (e.g., 42)"
+      benchmarking: "any fixed int (e.g., 42)"
+      production: "-1"
+    interaction_effects:
+      - params: [seed, temperature]
+        description: "Seed reproducibility only holds when temperature > 0 AND all other sampling parameters are identical. At temperature=0 the output is already deterministic regardless of seed."
+    notes: "Same seed + same prompt + same model = same output (usually — minor differences can occur across hardware or llama.cpp versions). Essential for evaluation pipelines and regression testing."
+
+  stop_sequences:
+    name: "Stop Sequences"
+    what_it_controls: >
+      A list of strings that, when generated, immediately halt further token generation. The stop
+      sequence itself is typically not included in the returned output.
+    type: string
+    range:
+      min: "empty list"
+      max: "implementation-dependent count of strings"
+      default: "[]"
+    low_value:
+      effect: "Empty list — generation continues until max_tokens is reached or the model emits an EOS token."
+      good_for:
+        - open_ended_generation
+    high_value:
+      effect: "One or more stop strings — generation halts as soon as any stop string is produced."
+      good_for:
+        - structured_output
+        - json_output
+        - conversation_turns
+        - code_blocks
+    task_recommendations:
+      json_output: '["}", "```"]'
+      conversation: '["<|im_end|>", "User:", "Human:"]'
+      code_generation: '["```"]'
+    interaction_effects:
+      - params: [stop_sequences, max_tokens]
+        description: "Stop sequences provide semantic termination; max_tokens provides a hard length cap. Both should be set for structured tasks."
+    notes: "For structured output tasks, always define stop sequences to prevent the model from generating trailing text after the structured block. Chat templates typically define end-of-turn tokens that should be included here."
+
+  n_predict:
+    name: "N Predict (llama.cpp alias)"
+    what_it_controls: >
+      llama-cpp-python specific alias for max_tokens. Sets the maximum number of tokens to generate.
+      Behavior is identical to max_tokens.
+    type: int
+    range:
+      min: 1
+      max: "model_context_length"
+      default: 2048
+    low_value:
+      effect: "Short response cap. May truncate output."
+      good_for:
+        - classification
+        - simple_qa
+    high_value:
+      effect: "Allows long responses without truncation."
+      good_for:
+        - code_generation
+        - documentation
+    task_recommendations:
+      classification: "50-200"
+      coding: "1024-4096"
+      documentation: "2048-8192"
+    interaction_effects:
+      - params: [n_predict, max_tokens]
+        description: "n_predict and max_tokens refer to the same underlying parameter in llama-cpp-python. Do not set both — use whichever the API surface exposes."
+    notes: "Use this parameter when interfacing directly with llama-cpp-python's Llama() class. The llama.cpp HTTP server may expose it as n_predict or max_tokens depending on the API endpoint."
+
+parameter_presets:
+  deterministic:
+    temperature: 0.0
+    top_p: 1.0
+    top_k: 1
+    description: "Maximum determinism. Use for classification, factual QA, JSON output."
+  balanced:
+    temperature: 0.5
+    top_p: 0.9
+    top_k: 40
+    description: "Default for most tasks. Good balance of quality and diversity."
+  creative:
+    temperature: 0.8
+    top_p: 0.95
+    top_k: 60
+    description: "For creative writing, brainstorming, exploration."
+  code:
+    temperature: 0.05
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.05
+    repeat_penalty: 1.02
+    description: "Optimized for code generation. Near-deterministic with slight diversity."
+  reasoning:
+    temperature: 0.3
+    top_p: 0.9
+    top_k: 30
+    min_p: 0.05
+    description: "For chain-of-thought, math, logical reasoning."

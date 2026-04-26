@@ -1,0 +1,529 @@
+# =============================================================================
+# Vetinari Model Configuration
+# Hardware: RTX 5090 (32 GB VRAM), 9950X3D CPU, 64 GB DDR5-6000 RAM
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Hardware profile — used by VRAMManager and model routing decisions
+# ---------------------------------------------------------------------------
+hardware:
+  gpu_vram_gb: 32
+  system_ram_gb: 64
+  cpu_offload_enabled: true
+  # RAM available for model CPU-offload after OS + apps
+  max_cpu_offload_gb: 30
+  # Estimated tokens/sec by model size tier (Q4 on 5090)
+  throughput_estimates:
+    tiny_1b_3b: 120     # tokens/sec
+    small_7b_8b: 70
+    medium_14b_15b: 45
+    large_30b_32b: 25
+    xlarge_70b_72b: 10  # requires partial CPU offload
+
+# ---------------------------------------------------------------------------
+# Local inference provider (llama-cpp-python)
+# ---------------------------------------------------------------------------
+local_inference:
+  # Path to directory containing GGUF model files.
+  # Override with VETINARI_MODELS_DIR environment variable.
+  models_dir: "./models"
+  # Number of transformer layers to offload to GPU (-1 = all layers).
+  # Override with VETINARI_GPU_LAYERS environment variable.
+  gpu_layers: -1
+  # Default context window size in tokens for unknown models.
+  # Most modern models support 8192+ tokens; 4096 was too conservative.
+  # Override with VETINARI_CONTEXT_LENGTH environment variable.
+  context_length: 8192
+  # CPU RAM (GB) available for layers offloaded when a model exceeds VRAM.
+  # Mirrors hardware.max_cpu_offload_gb; set to 0 to disable CPU offload.
+  ram_budget_gb: 30
+  # Allow partial GPU + CPU split-loading for models larger than VRAM budget.
+  # When true, oversized models are loaded with a layer fraction on GPU and
+  # the remainder on CPU rather than evicting other models entirely.
+  cpu_offload_enabled: true
+
+# ---------------------------------------------------------------------------
+# Speculative decoding — accelerates generation via draft model or prompt lookup
+# ---------------------------------------------------------------------------
+speculative_decoding:
+  # Strategy: "draft_model" (use small model as draft), "prompt_lookup" (built-in,
+  # no extra VRAM), "auto" (try draft first, fall back to prompt lookup), "disabled"
+  strategy: "auto"
+  # Number of tokens to predict speculatively per step (PromptLookupDecoding)
+  num_pred_tokens: 10
+  # Draft model filename (stem, no .gguf). Auto-detected if null.
+  draft_model_id: null
+  # Agent roles that benefit most from speculative decoding (structured output)
+  prioritize_for:
+    - "inspector"   # Validation produces structured JSON — high acceptance rate
+    - "worker"      # Code generation has repetitive patterns
+
+# ---------------------------------------------------------------------------
+# Model routing — how models are managed (loading, swapping, lifecycle)
+# ---------------------------------------------------------------------------
+model_routing:
+  # "internal" = Vetinari manages VRAM directly via VRAMManager
+  # "llama-swap" = delegate model loading/unloading to external llama-swap server
+  model_router: "internal"
+  # URL of the llama-swap server (only used when model_router is "llama-swap")
+  router_url: ""  # e.g. "http://localhost:8081"
+
+# ---------------------------------------------------------------------------
+# Inference backend configuration — which adapter to use
+# ---------------------------------------------------------------------------
+inference_backend:
+  # Setup-generated configs use hardware-aware ordering:
+  # NIM first on NVIDIA/CUDA when reachable, vLLM as native-model fallback,
+  # and llama_cpp for explicit preference, weak/no server setups, GGUF-only
+  # models, CPU/RAM+VRAM offload, oversized local models, and recovery.
+  selection_policy: "configured"
+  # Project default order before user hardware is known.
+  primary: "vllm"
+  fallback: "nim"
+  fallback_order: ["vllm", "nim", "llama_cpp"]
+  llama_cpp_use_cases:
+    - "explicit_user_preference"
+    - "weak_or_no_server_setup"
+    - "gguf_only_models"
+    - "cpu_ram_vram_offload"
+    - "oversized_local_models"
+    - "recovery_fallback"
+  # Native Hugging Face-format model root for vLLM/NIM workflows.
+  # Override with VETINARI_NATIVE_MODELS_DIR.
+  native_models_dir: "./models/native"
+  # Supported model formats per backend
+  model_format:
+    llama_cpp: ["gguf"]
+    llama_server: ["gguf"]
+    vllm: ["safetensors", "gguf", "awq", "gptq"]  # GPU-only — no CPU offload
+    nim: ["safetensors", "gguf", "awq", "gptq"]    # GPU-only — no CPU offload
+    litellm: []  # Cloud models — no local format
+
+  # vLLM backend — GPU-only, high-throughput local inference (ADR-0066)
+  # Requires the pyproject-managed [vllm] extra, or a separately pinned vLLM server environment.
+  # vLLM cannot offload model layers to RAM — models must fit in VRAM.
+  # For models larger than VRAM, use llama_cpp with cpu_offload_enabled.
+  vllm:
+    enabled: false
+    endpoint: "http://localhost:8000"  # vLLM OpenAI-compatible API server
+    gpu_only: true  # Cannot offload to RAM — VRAM only
+    semantic_cache_enabled: true
+    cache_namespace: "vetinari"
+    # Optional per-request prefix-cache isolation. Prefer a long random value
+    # in VETINARI_VLLM_CACHE_SALT for shared servers.
+    cache_salt: ""
+    # Used by start-vllm-wsl.ps1 and recorded in cache provenance.
+    prefix_caching_enabled: true
+    prefix_caching_hash_algo: "sha256"
+    # Setup writes a secret-free container_setup plan when a vLLM endpoint is
+    # absent and a Docker/server path is available.
+    container_setup: {}
+
+  # NVIDIA NIMs backend — containerized GPU inference (ADR-0066)
+  # Requires: NVIDIA NIM container running locally or on network
+  nim:
+    enabled: false
+    endpoint: "http://localhost:8001"  # NIM inference endpoint
+    gpu_only: true  # Usually GPU-only
+    semantic_cache_enabled: true
+    cache_namespace: "vetinari"
+    # NIM KV reuse is a server/container setting, not an OpenAI request field.
+    # Set true only when the NIM service is actually started with
+    # NIM_ENABLE_KV_CACHE_REUSE=1.
+    kv_cache_reuse_enabled: false
+    kv_cache_host_offload_enabled: null
+    supports_cache_salt: false
+
+# ---------------------------------------------------------------------------
+# Model tier hierarchy — used by DynamicModelRouter for tier-aware routing
+# Tiers define capability bands: routing picks the cheapest tier that meets
+# the task's requirements, then escalates if confidence is low.
+# ---------------------------------------------------------------------------
+model_tiers:
+  # Tier 0: Tiny models for classification, extraction, routing (1-3B)
+  - tier: 0
+    name: "tiny"
+    description: "Fast classification and routing (1-3B params)"
+    max_params_b: 3
+    min_quantization: "q4_k_m"
+    preferred_for: ["classification", "extraction", "triage", "routing"]
+    cost_per_1k_tokens: 0.0
+    latency_hint: "fast"
+
+  # Tier 1: Small models for code generation and quick tasks (7-8B)
+  - tier: 1
+    name: "small"
+    description: "Fast coding and routine tasks (7-8B params)"
+    max_params_b: 8
+    min_quantization: "q4_k_m"
+    preferred_for: ["coding", "quick_review", "documentation"]
+    cost_per_1k_tokens: 0.0
+    latency_hint: "fast"
+
+  # Tier 2: Medium models for reasoning and planning (14-32B)
+  - tier: 2
+    name: "medium"
+    description: "Strong reasoning and planning (14-32B params)"
+    max_params_b: 32
+    min_quantization: "q4_k_m"
+    preferred_for: ["reasoning", "planning", "analysis", "general"]
+    cost_per_1k_tokens: 0.0
+    latency_hint: "medium"
+
+  # Tier 3: Large models for complex tasks requiring deep reasoning (70B+)
+  - tier: 3
+    name: "large"
+    description: "Deep reasoning and complex analysis (70B+ params)"
+    max_params_b: 999
+    min_quantization: "q4_k_m"
+    preferred_for: ["complex_reasoning", "research", "security_audit"]
+    cost_per_1k_tokens: 0.0
+    latency_hint: "slow"
+    requires_cpu_offload: true
+
+  # Tier 4: Cloud models for overflow or specialized capabilities
+  - tier: 4
+    name: "cloud"
+    description: "Cloud API models for overflow and special capabilities"
+    max_params_b: 999
+    preferred_for: ["vision", "long_context", "creative"]
+    cost_per_1k_tokens: 0.01
+    latency_hint: "medium"
+    privacy_level: "public"
+
+# ---------------------------------------------------------------------------
+# Local models (llama-cpp-python — GGUF files)
+# NOTE: These entries are examples. Set status: "available" only for models
+# you have downloaded as GGUF files in your local models_dir. The model_id
+# must match the filename stem discovered by the adapter at runtime.
+# ---------------------------------------------------------------------------
+models:
+  # ── PRIMARY MODEL ──────────────────────────────────────────────────────────
+  # Your main model: discovered dynamically, VL + reasoning + uncensored thinking
+  - model_id: "qwen3-vl-32b-gemini-heretic-uncensored-thinking"
+    provider: "local"
+    display_name: "Qwen3 VL 32B Gemini Heretic (Uncensored)"
+    capabilities:
+      - coding
+      - reasoning
+      - vision
+      - analysis
+      - creative
+      - uncensored
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "local"
+    # Q4_K_M quantisation fits in 32 GB VRAM
+    memory_requirements_gb: 20
+    quantization: "q4_k_m"
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - general
+      - planning
+      - reasoning
+      - vision
+      - creative
+
+  # ── FAST CODER ─────────────────────────────────────────────────────────────
+  - model_id: "qwen2.5-coder-7b"
+    provider: "local"
+    display_name: "Qwen 2.5 Coder 7B"
+    capabilities:
+      - coding
+      - fast
+    context_window: 32768
+    latency_hint: "fast"
+    privacy_level: "local"
+    memory_requirements_gb: 6
+    quantization: "q4_k_m"
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - code_generation
+      - quick_review
+      - classification
+
+  # ── MEDIUM REASONING ───────────────────────────────────────────────────────
+  - model_id: "qwen3-30b-a3b"
+    provider: "local"
+    display_name: "Qwen 3 30B A3B"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "local"
+    # 30B Q4 fits comfortably within 32 GB VRAM
+    memory_requirements_gb: 18
+    quantization: "q4_k_m"
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - planning
+      - architecture
+      - complex_reasoning
+
+  # ── VISION + CODING ────────────────────────────────────────────────────────
+  - model_id: "qwen2.5-vl-32b"
+    provider: "local"
+    display_name: "Qwen 2.5 VL 32B"
+    capabilities:
+      - vision
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "local"
+    memory_requirements_gb: 20
+    quantization: "q4_k_m"
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - ui_design
+      - image_analysis
+      - visual_tasks
+
+  # ── LARGE REASONING (CPU offload required) ─────────────────────────────────
+  - model_id: "qwen2.5-72b"
+    provider: "local"
+    display_name: "Qwen 2.5 72B"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "slow"
+    privacy_level: "local"
+    # 72B Q4 ~ 42 GB total; ~32 GB on GPU + ~10 GB CPU offload
+    memory_requirements_gb: 42
+    quantization: "q4_k_m"
+    requires_cpu_offload: true
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - complex_analysis
+      - deep_reasoning
+
+  - model_id: "llama-3.3-70b"
+    provider: "local"
+    display_name: "Llama 3.3 70B"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 131072
+    latency_hint: "slow"
+    privacy_level: "local"
+    memory_requirements_gb: 40
+    quantization: "q4_k_m"
+    requires_cpu_offload: true
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - long_context
+      - complex_reasoning
+
+  # ── TINY / UTILITY ─────────────────────────────────────────────────────────
+  - model_id: "llama-3.2-1b"
+    provider: "local"
+    display_name: "Llama 3.2 1B"
+    capabilities:
+      - fast
+      - classification
+    context_window: 131072
+    latency_hint: "fast"
+    privacy_level: "local"
+    memory_requirements_gb: 2
+    quantization: "q4_k_m"
+    status: "example"  # change to "available" if you have this GGUF
+
+    preferred_for:
+      - classification
+      - extraction
+      - compression
+      - triage
+
+# ---------------------------------------------------------------------------
+# Per-task-type default models — used when no explicit model is selected.
+# Fallback chain: task default → agent default → global default → any available.
+# ---------------------------------------------------------------------------
+task_defaults:
+  coding: "qwen2.5-coder-7b"        # Fast coding model for build tasks
+  research: "qwen2.5-72b"           # Large context for research and analysis
+  reasoning: "qwen2.5-72b"          # Complex reasoning needs capable model
+  planning: "qwen2.5-72b"           # Plan decomposition needs strong reasoning
+  review: "qwen2.5-coder-7b"        # Code review needs code understanding
+  security: "qwen2.5-72b"           # Security audit needs thorough analysis
+  documentation: "qwen2.5-coder-7b" # Docs generation can use smaller model
+  creative: "qwen2.5-72b"           # Creative tasks benefit from larger model
+  classification: "llama-3.2-1b"    # Classification is fast and simple
+  general: "qwen2.5-72b"            # Fallback for unclassified tasks
+
+# ---------------------------------------------------------------------------
+# Routing policy — local-first, privacy-weighted
+# ---------------------------------------------------------------------------
+policy:
+  local_first: true
+  # Weights for scoring: higher = more important
+  privacy_weight: 1.0
+  latency_weight: 0.5
+  cost_weight: 0.3
+  # Null = no cloud cost ceiling; set a positive value to cap (e.g. 0.01)
+  max_cost_per_1k_tokens: null
+  # Provider preference order (first = highest priority)
+  preferred_providers:
+    - local
+    - ollama
+    - claude
+    - gemini
+    - huggingface
+    - replicate
+  # Fallback: if local inference is unavailable, allow cloud escalation
+  allow_cloud_fallback: true
+  cloud_fallback_trigger: "local_unavailable"
+
+# ---------------------------------------------------------------------------
+# Cloud models (require API keys via environment variables)
+# ---------------------------------------------------------------------------
+cloud_models:
+  # Claude (Anthropic) ───────────────────────────────────────────────────────
+  - model_id: "claude-sonnet-4"
+    provider: "claude"
+    display_name: "Claude Sonnet 4"
+    capabilities:
+      - reasoning
+      - coding
+      - analysis
+    context_window: 200000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.015
+    status: "available"
+    endpoint: "https://api.anthropic.com/v1/messages"
+    requires_env:
+      - ANTHROPIC_API_KEY  # Also accepts CLAUDE_API_KEY as fallback
+
+  - model_id: "claude-haiku-4"
+    provider: "claude"
+    display_name: "Claude Haiku 4"
+    capabilities:
+      - fast
+      - coding
+    context_window: 200000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0008
+    status: "available"
+    endpoint: "https://api.anthropic.com/v1/messages"
+    requires_env:
+      - ANTHROPIC_API_KEY  # Also accepts CLAUDE_API_KEY as fallback
+
+  # Gemini (Google) ──────────────────────────────────────────────────────────
+  - model_id: "gemini-2.5-flash"
+    provider: "gemini"
+    display_name: "Gemini 2.5 Flash"
+    capabilities:
+      - reasoning
+      - vision
+      - coding
+    context_window: 1000000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    requires_env:
+      - GEMINI_API_KEY
+
+  - model_id: "gemini-2.5-pro"
+    provider: "gemini"
+    display_name: "Gemini 2.5 Pro"
+    capabilities:
+      - reasoning
+      - vision
+      - coding
+    context_window: 2000000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.00125
+    status: "available"
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models"
+    requires_env:
+      - GEMINI_API_KEY
+
+  # OpenAI ───────────────────────────────────────────────────────────────────
+  - model_id: "gpt-4o"
+    provider: "openai"
+    display_name: "GPT-4o"
+    capabilities:
+      - reasoning
+      - vision
+      - coding
+    context_window: 128000
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.005
+    status: "available"
+    endpoint: "https://api.openai.com/v1/chat/completions"
+    requires_env:
+      - OPENAI_API_KEY
+
+  - model_id: "gpt-4o-mini"
+    provider: "openai"
+    display_name: "GPT-4o Mini"
+    capabilities:
+      - coding
+      - fast
+    context_window: 128000
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0006
+    status: "available"
+    endpoint: "https://api.openai.com/v1/chat/completions"
+    requires_env:
+      - OPENAI_API_KEY
+
+  # HuggingFace Inference ────────────────────────────────────────────────────
+  - model_id: "hf-inference-meta-llama-3.1-70b"
+    provider: "huggingface"
+    display_name: "Llama 3.1 70B (HF)"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://api-inference.huggingface.co/meta-llama/Llama-3.1-70B-Instruct"
+    requires_env:
+      - HF_HUB_TOKEN
+
+  - model_id: "hf-inference-mistral-7b"
+    provider: "huggingface"
+    display_name: "Mistral 7B (HF)"
+    capabilities:
+      - coding
+      - fast
+    context_window: 32768
+    latency_hint: "fast"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.0
+    status: "available"
+    endpoint: "https://api-inference.huggingface.co/mistralai/Mistral-7B-Instruct-v0.2"
+    requires_env:
+      - HF_HUB_TOKEN
+
+  # Replicate ────────────────────────────────────────────────────────────────
+  - model_id: "replicate-llama-3.1-70b"
+    provider: "replicate"
+    display_name: "Llama 3.1 70B (Replicate)"
+    capabilities:
+      - reasoning
+      - coding
+    context_window: 32768
+    latency_hint: "medium"
+    privacy_level: "public"
+    cost_per_1k_tokens: 0.001
+    status: "available"
+    endpoint: "https://api.replicate.com/v1/models/meta/llama-3.1-70b-instruct"
+    requires_env:
+      - REPLICATE_API_TOKEN

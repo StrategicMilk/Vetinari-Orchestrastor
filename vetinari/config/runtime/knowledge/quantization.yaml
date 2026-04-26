@@ -1,0 +1,849 @@
+# Quantization knowledge base for model loading and inference configuration.
+#
+# This file describes GGUF quantization types used by llama-cpp-python.
+# Values inform model routing, temperature compensation, task suitability,
+# and VRAM estimation in ModelProfiler.
+#
+# quality_retention: fraction of FP16 quality retained, measured by perplexity
+#   degradation on standard text corpora. 1.0 = indistinguishable from FP16.
+# speed_factor: relative throughput vs FP16 (>1.0 = faster). Varies by GPU.
+# vram_factor: fraction of FP16 VRAM required for weights only (not KV cache).
+# temperature_offset: added to base temperature to compensate for reduced output
+#   diversity caused by quantization error. Migrated from model_profiler_data.py
+#   _QUANT_TEMP_OFFSETS table; values must stay in sync.
+# kv_cache_compatible: whether this format can be used for KV cache quantization
+#   (set via llama.cpp type_k / type_v parameters).
+
+quantization_methods:
+
+  # ── GGML legacy integer quant types ──────────────────────────────────────────
+  # These are the original llama.cpp quant formats. K-quants are preferred for
+  # new models, but many models in the wild still use these formats.
+
+  q4_0:
+    name: "Q4_0 (4-bit, basic)"
+    bits_per_weight: 4.0
+    quality_retention: 0.85
+    speed_factor: 1.8
+    vram_factor: 0.25
+    recommended_for:
+      - general
+      - creative
+      - classification
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.05
+    kv_cache_compatible: true
+    notes: >
+      Oldest 4-bit format. Uses simple uniform block quantization with no
+      scaling improvement. Noticeably lower quality than K-quants at the same
+      bit width. Use q4_k_m instead when available — same VRAM cost, better
+      quality. Only reason to use q4_0 is compatibility with very old runtimes.
+
+  q4_1:
+    name: "Q4_1 (4-bit with delta)"
+    bits_per_weight: 4.125
+    quality_retention: 0.87
+    speed_factor: 1.7
+    vram_factor: 0.27
+    recommended_for:
+      - general
+      - creative
+      - classification
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+    temperature_offset: 0.04
+    kv_cache_compatible: true
+    notes: >
+      Slight improvement over q4_0 via an added delta (min) parameter per block.
+      Marginally better quality at fractionally higher VRAM. Still inferior to
+      K-quants. Prefer q4_k_s or q4_k_m over this format.
+
+  q5_0:
+    name: "Q5_0 (5-bit, basic)"
+    bits_per_weight: 5.0
+    quality_retention: 0.92
+    speed_factor: 1.5
+    vram_factor: 0.31
+    recommended_for:
+      - general
+      - documentation
+      - creative
+    not_recommended_for:
+      - security_audit
+      - reasoning
+    temperature_offset: 0.02
+    kv_cache_compatible: true
+    notes: >
+      5-bit basic format. Good quality retention but prefer q5_k_m at the same
+      bit width for better quality through importance-aware quantization.
+
+  q5_1:
+    name: "Q5_1 (5-bit with delta)"
+    bits_per_weight: 5.125
+    quality_retention: 0.93
+    speed_factor: 1.4
+    vram_factor: 0.33
+    recommended_for:
+      - general
+      - documentation
+      - creative
+    not_recommended_for:
+      - security_audit
+    temperature_offset: 0.02
+    kv_cache_compatible: true
+    notes: >
+      5-bit with delta parameter. Slightly better than q5_0 but noticeably
+      worse than q5_k_m at comparable bit width. Legacy format — prefer K-quants.
+
+  q8_0:
+    name: "Q8_0 (8-bit, near-lossless)"
+    bits_per_weight: 8.0
+    quality_retention: 0.99
+    speed_factor: 1.1
+    vram_factor: 0.50
+    recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - analysis
+    not_recommended_for: []
+    temperature_offset: 0.0
+    kv_cache_compatible: true
+    notes: >
+      Near-lossless quantization. Perplexity difference from FP16 is negligible
+      for almost all tasks. Used as the default KV cache quantization type in
+      ModelProfiler (kv_type = "q8_0") because it halves KV cache VRAM with
+      minimal quality impact. Ideal when you need near-FP16 quality but the
+      model does not fit in VRAM at FP16.
+
+  # ── K-quant types (preferred for weight quantization) ────────────────────────
+  # K-quants use importance-matrix-aware quantization: critical weights (embed,
+  # output, attention) use higher precision than feed-forward weights. This gives
+  # significantly better quality than legacy types at the same average bit width.
+
+  q2_k:
+    name: "Q2_K (2-bit K-quant, extreme compression)"
+    bits_per_weight: 2.63
+    quality_retention: 0.70
+    speed_factor: 2.2
+    vram_factor: 0.16
+    recommended_for:
+      - classification
+      - speculative_decoding_draft
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - analysis
+      - documentation
+    temperature_offset: 0.10
+    kv_cache_compatible: false
+    notes: >
+      Extreme compression with significant quality loss. Only viable for tasks
+      where factual precision is unimportant (basic classification, yes/no
+      answering). Primary use case is as a draft model in speculative decoding
+      pipelines where a small fast model feeds a larger verifier. Not suitable
+      for any task requiring coherent multi-sentence output.
+
+  q3_k_s:
+    name: "Q3_K_S (3-bit K-quant, small variant)"
+    bits_per_weight: 3.0
+    quality_retention: 0.78
+    speed_factor: 2.0
+    vram_factor: 0.19
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.06
+    kv_cache_compatible: false
+    notes: >
+      Low quality. Use only when VRAM is extremely constrained and even q4_k_s
+      will not fit. Quality degradation is noticeable in coherence and factual
+      accuracy. The "small" variant allocates fewer bits to attention weights
+      than q3_k_m.
+
+  q3_k_m:
+    name: "Q3_K_M (3-bit K-quant, medium variant)"
+    bits_per_weight: 3.35
+    quality_retention: 0.80
+    speed_factor: 1.9
+    vram_factor: 0.21
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.05
+    kv_cache_compatible: false
+    notes: >
+      Slightly better than q3_k_s by allocating more bits to attention layers.
+      Still noticeably below q4_k_m in quality. Use only when fitting the model
+      in VRAM requires dropping to 3-bit. Most tasks show visible degradation
+      compared to 4-bit K-quants.
+
+  q3_k_l:
+    name: "Q3_K_L (3-bit K-quant, large variant)"
+    bits_per_weight: 3.6
+    quality_retention: 0.82
+    speed_factor: 1.8
+    vram_factor: 0.23
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - coding
+      - security_audit
+      - math
+    temperature_offset: 0.05
+    kv_cache_compatible: false
+    notes: >
+      Best of the 3-bit K-quants. Allocates more bits to critical layers.
+      Approaches q4_k_s quality while using noticeably less VRAM. If the choice
+      is between q3_k_l and q4_k_s and VRAM permits q4_k_s, prefer q4_k_s.
+
+  q4_k_s:
+    name: "Q4_K_S (4-bit K-quant, small variant)"
+    bits_per_weight: 4.37
+    quality_retention: 0.90
+    speed_factor: 1.6
+    vram_factor: 0.26
+    recommended_for:
+      - general
+      - creative
+      - documentation
+      - classification
+    not_recommended_for:
+      - security_audit
+      - reasoning
+    temperature_offset: 0.04
+    kv_cache_compatible: false
+    notes: >
+      Good balance of compression and quality. The "small" variant uses slightly
+      fewer bits for some layer types than q4_k_m. Suitable for general tasks
+      where a few VRAM percentage points matter. Prefer q4_k_m if VRAM allows.
+
+  q4_k_m:
+    name: "Q4_K_M (4-bit K-quant, medium variant — sweet spot)"
+    bits_per_weight: 4.5
+    quality_retention: 0.92
+    speed_factor: 1.5
+    vram_factor: 0.27
+    recommended_for:
+      - general
+      - creative
+      - documentation
+      - classification
+      - coding
+      - analysis
+    not_recommended_for:
+      - security_audit
+      - reasoning  # q5_k_m or higher preferred for deep reasoning chains
+    temperature_offset: 0.03
+    kv_cache_compatible: false
+    notes: >
+      The recommended default for most use cases. Excellent quality-to-VRAM
+      ratio — quality is close to FP16 for most practical tasks while using
+      only 27% of FP16 VRAM. This is the "sweet spot" that the task_recommendations
+      section defaults to for general tasks. Embedding and output layers use
+      higher precision (Q6_K internally), preserving token prediction quality.
+
+  q5_k_s:
+    name: "Q5_K_S (5-bit K-quant, small variant)"
+    bits_per_weight: 5.52
+    quality_retention: 0.95
+    speed_factor: 1.3
+    vram_factor: 0.33
+    recommended_for:
+      - coding
+      - reasoning
+      - analysis
+      - documentation
+    not_recommended_for:
+      - security_audit  # prefer q6_k or higher
+    temperature_offset: 0.02
+    kv_cache_compatible: false
+    notes: >
+      High quality. The small variant uses fewer bits for some non-critical
+      layers. Quality difference from q5_k_m is minimal. Use when 5-bit quality
+      is needed but VRAM is tight.
+
+  q5_k_m:
+    name: "Q5_K_M (5-bit K-quant, medium variant)"
+    bits_per_weight: 5.68
+    quality_retention: 0.96
+    speed_factor: 1.25
+    vram_factor: 0.35
+    recommended_for:
+      - coding
+      - reasoning
+      - analysis
+      - research
+      - documentation
+      - math
+    not_recommended_for:
+      - security_audit  # prefer q6_k or higher for subtle issue detection
+    temperature_offset: 0.01
+    kv_cache_compatible: false
+    notes: >
+      Near-FP16 quality for most tasks. Recommended for coding tasks where
+      even small errors have compounding effects. The 0.01 temperature offset
+      is negligible in practice. Good choice when q4_k_m shows quality issues
+      but q6_k exceeds VRAM budget.
+
+  q6_k:
+    name: "Q6_K (6-bit K-quant)"
+    bits_per_weight: 6.57
+    quality_retention: 0.97
+    speed_factor: 1.15
+    vram_factor: 0.40
+    recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - analysis
+    not_recommended_for: []
+    temperature_offset: 0.01
+    kv_cache_compatible: false
+    notes: >
+      Virtually indistinguishable from FP16 on most benchmarks. The minimal
+      0.01 temperature offset is effectively zero. Recommended for tasks where
+      subtle reasoning errors are costly (security audits, formal verification,
+      scientific analysis). Uses 40% of FP16 VRAM — practical for loading
+      large models partially on GPU when FP16 does not fit.
+
+  # ── Full precision formats ────────────────────────────────────────────────────
+
+  f16:
+    name: "FP16 (16-bit float, full precision)"
+    bits_per_weight: 16.0
+    quality_retention: 1.0
+    speed_factor: 1.0
+    vram_factor: 1.0
+    recommended_for:
+      - security_audit
+      - reasoning
+      - math
+      - research
+    not_recommended_for:
+      - general  # usually impractical VRAM cost
+      - creative  # q4_k_m sufficient
+    temperature_offset: 0.0
+    kv_cache_compatible: true
+    notes: >
+      Reference baseline. All quality_retention values are measured relative to
+      FP16. Most practical models cannot be loaded in FP16 on consumer hardware
+      due to VRAM requirements (2 bytes per parameter). Use q6_k or q8_0 as
+      practical substitutes with negligible quality difference.
+
+  bf16:
+    name: "BF16 (16-bit bfloat, full precision)"
+    bits_per_weight: 16.0
+    quality_retention: 1.0
+    speed_factor: 1.0
+    vram_factor: 1.0
+    recommended_for:
+      - security_audit
+      - reasoning
+      - math
+    not_recommended_for:
+      - general  # usually impractical VRAM cost
+      - creative
+    temperature_offset: 0.0
+    kv_cache_compatible: true
+    notes: >
+      Same memory footprint as FP16. BF16 has wider exponent range, better
+      for training stability, but practical inference quality is equivalent to
+      FP16. Most modern GPU hardware (Ampere and later) supports native BF16
+      operations. Preferred over FP16 for training; interchangeable for inference.
+
+  f32:
+    name: "FP32 (32-bit float, double size)"
+    bits_per_weight: 32.0
+    quality_retention: 1.0
+    speed_factor: 0.5
+    vram_factor: 2.0
+    recommended_for: []
+    not_recommended_for:
+      - general
+      - coding
+      - reasoning
+      - creative
+      - documentation
+      - research
+      - analysis
+      - classification
+      - security_audit
+      - math
+    temperature_offset: 0.0
+    kv_cache_compatible: false
+    notes: >
+      Double the VRAM of FP16 with no quality benefit for inference. FP32
+      weights are not useful for inference in any practical scenario — they
+      exist only for compatibility with some CPU-only runtimes that do not
+      support FP16. Never load a model in FP32 on hardware that supports FP16.
+
+  # ── I-quant types (importance matrix quantization) ────────────────────────────
+  # I-quants use a calibration dataset to identify which weights matter most,
+  # then allocate bits accordingly. Generally better than GGML types at extreme
+  # compression ratios but require an importance matrix computed at quantization
+  # time.
+
+  iq1_s:
+    name: "IQ1_S (1.56-bit importance quant, ultra-extreme)"
+    bits_per_weight: 1.56
+    quality_retention: 0.50
+    speed_factor: 2.5
+    vram_factor: 0.10
+    recommended_for:
+      - speculative_decoding_draft
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - analysis
+      - documentation
+      - general
+    temperature_offset: 0.15
+    kv_cache_compatible: false
+    notes: >
+      Extreme compression. Quality is severely degraded — model produces
+      coherent text but makes frequent factual and logical errors. Useful only
+      as a speculative decoding draft model or for research into extreme
+      quantization limits.
+
+  iq1_m:
+    name: "IQ1_M (1.75-bit importance quant)"
+    bits_per_weight: 1.75
+    quality_retention: 0.55
+    speed_factor: 2.4
+    vram_factor: 0.11
+    recommended_for:
+      - speculative_decoding_draft
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - analysis
+      - documentation
+      - general
+    temperature_offset: 0.12
+    kv_cache_compatible: false
+    notes: >
+      Slight improvement over iq1_s. Still severely lossy. Use the same
+      guidance as iq1_s.
+
+  iq2_xxs:
+    name: "IQ2_XXS (2.06-bit importance quant, extra-extra-small)"
+    bits_per_weight: 2.06
+    quality_retention: 0.60
+    speed_factor: 2.2
+    vram_factor: 0.13
+    recommended_for:
+      - classification
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.10
+    kv_cache_compatible: false
+    notes: >
+      Significantly compressed with noticeable quality loss. Marginally better
+      than 1-bit types. Suitable only for simple classification where output
+      diversity is unimportant.
+
+  iq2_xs:
+    name: "IQ2_XS (2.31-bit importance quant)"
+    bits_per_weight: 2.31
+    quality_retention: 0.63
+    speed_factor: 2.1
+    vram_factor: 0.14
+    recommended_for:
+      - classification
+      - general
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.09
+    kv_cache_compatible: false
+    notes: >
+      Better than iq2_xxs but still significantly below q3_k levels.
+
+  iq2_s:
+    name: "IQ2_S (2.5-bit importance quant)"
+    bits_per_weight: 2.50
+    quality_retention: 0.67
+    speed_factor: 2.0
+    vram_factor: 0.16
+    recommended_for:
+      - general
+      - classification
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+    temperature_offset: 0.08
+    kv_cache_compatible: false
+    notes: >
+      Approaches q3_k_s quality at lower bit width due to importance matrix.
+
+  iq2_m:
+    name: "IQ2_M (2.7-bit importance quant)"
+    bits_per_weight: 2.70
+    quality_retention: 0.72
+    speed_factor: 1.95
+    vram_factor: 0.17
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - coding
+      - security_audit
+    temperature_offset: 0.07
+    kv_cache_compatible: false
+    notes: >
+      Best of the 2-bit I-quants. Approaches q3_k_s in practice. Use when
+      fitting the model in VRAM requires extreme compression.
+
+  iq3_xxs:
+    name: "IQ3_XXS (3.06-bit importance quant)"
+    bits_per_weight: 3.06
+    quality_retention: 0.75
+    speed_factor: 1.85
+    vram_factor: 0.19
+    recommended_for:
+      - general
+    not_recommended_for:
+      - coding
+      - security_audit
+      - reasoning
+    temperature_offset: 0.06
+    kv_cache_compatible: false
+    notes: >
+      Roughly comparable to q3_k_s via importance weighting.
+
+  iq3_xs:
+    name: "IQ3_XS (3.3-bit importance quant)"
+    bits_per_weight: 3.30
+    quality_retention: 0.78
+    speed_factor: 1.80
+    vram_factor: 0.21
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - security_audit
+    temperature_offset: 0.05
+    kv_cache_compatible: false
+    notes: >
+      Approaches q3_k_m quality. Importance matrix gives it an edge over
+      uniform quantization at the same bit width.
+
+  iq3_s:
+    name: "IQ3_S (3.5-bit importance quant)"
+    bits_per_weight: 3.50
+    quality_retention: 0.80
+    speed_factor: 1.75
+    vram_factor: 0.22
+    recommended_for:
+      - general
+      - creative
+      - documentation
+    not_recommended_for:
+      - security_audit
+    temperature_offset: 0.05
+    kv_cache_compatible: false
+    notes: >
+      Comparable to q3_k_l. Good quality for the bit width.
+
+  iq3_m:
+    name: "IQ3_M (3.7-bit importance quant)"
+    bits_per_weight: 3.70
+    quality_retention: 0.82
+    speed_factor: 1.70
+    vram_factor: 0.23
+    recommended_for:
+      - general
+      - creative
+      - documentation
+      - classification
+    not_recommended_for:
+      - security_audit
+    temperature_offset: 0.04
+    kv_cache_compatible: false
+    notes: >
+      Best of the 3-bit I-quants. Approaches q4_k_s quality at lower average
+      bits per weight. Consider when VRAM permits q3 range but not q4.
+
+  iq4_xs:
+    name: "IQ4_XS (4.25-bit importance quant)"
+    bits_per_weight: 4.25
+    quality_retention: 0.88
+    speed_factor: 1.55
+    vram_factor: 0.27
+    recommended_for:
+      - general
+      - coding
+      - documentation
+      - analysis
+    not_recommended_for:
+      - security_audit  # prefer q5_k_m or higher
+    temperature_offset: 0.04
+    kv_cache_compatible: false
+    notes: >
+      High quality 4-bit I-quant. Comparable to q4_k_m in practice.
+      Use when the model distributor provides iq4_xs but not q4_k_m.
+
+  iq4_nl:
+    name: "IQ4_NL (4.5-bit importance quant, nonlinear)"
+    bits_per_weight: 4.50
+    quality_retention: 0.92
+    speed_factor: 1.5
+    vram_factor: 0.28
+    recommended_for:
+      - general
+      - coding
+      - documentation
+      - analysis
+      - reasoning
+    not_recommended_for:
+      - security_audit  # prefer q5_k_m or higher
+    temperature_offset: 0.03
+    kv_cache_compatible: false
+    notes: >
+      Nonlinear quantization codebook. Quality is very close to q4_k_m.
+      Effectively interchangeable with q4_k_m for most tasks.
+
+  # ── TurboQuant types (experimental / emerging) ────────────────────────────────
+  # TurboQuant is a newer quantization scheme in llama.cpp development.
+  # Values for tq3_0 and tq4_0 are forward estimates — not yet widely deployed.
+
+  tq1_0:
+    name: "TQ1_0 (1.69-bit TurboQuant)"
+    bits_per_weight: 1.69
+    quality_retention: 0.45
+    speed_factor: 2.6
+    vram_factor: 0.11
+    recommended_for:
+      - speculative_decoding_draft
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+      - research
+      - general
+    temperature_offset: 0.15
+    kv_cache_compatible: false
+    notes: >
+      Extreme 1.69-bit compression. Higher throughput than iq1_s due to
+      TurboQuant's trit-based encoding which maps better to hardware.
+      Quality is severely degraded. Experimental — few models available in
+      this format as of early 2026.
+
+  tq2_0:
+    name: "TQ2_0 (2.06-bit TurboQuant)"
+    bits_per_weight: 2.06
+    quality_retention: 0.65
+    speed_factor: 2.3
+    vram_factor: 0.13
+    recommended_for:
+      - classification
+      - speculative_decoding_draft
+    not_recommended_for:
+      - coding
+      - reasoning
+      - security_audit
+      - math
+    temperature_offset: 0.10
+    kv_cache_compatible: false
+    notes: >
+      2-bit TurboQuant. Better quality than iq2_xxs at the same bit width
+      due to improved quantization scheme. Still heavily lossy. Experimental.
+
+  tq3_0:
+    name: "TQ3_0 (3-bit TurboQuant, estimated)"
+    bits_per_weight: 3.0
+    quality_retention: 0.78
+    speed_factor: 1.95
+    vram_factor: 0.19
+    recommended_for:
+      - general
+    not_recommended_for:
+      - security_audit
+      - coding
+    temperature_offset: 0.06
+    kv_cache_compatible: false
+    notes: >
+      Forward estimate — not yet widely deployed as of early 2026. Values
+      are projected from tq1_0/tq2_0 quality curves and iq3 comparisons.
+      Treat as approximate until empirical benchmarks are available.
+
+  tq4_0:
+    name: "TQ4_0 (4-bit TurboQuant, estimated)"
+    bits_per_weight: 4.0
+    quality_retention: 0.88
+    speed_factor: 1.65
+    vram_factor: 0.25
+    recommended_for:
+      - general
+      - creative
+    not_recommended_for:
+      - security_audit
+    temperature_offset: 0.04
+    kv_cache_compatible: false
+    notes: >
+      Forward estimate — not yet widely deployed as of early 2026. Values
+      projected from tq2_0 quality curves and q4 comparisons. Use q4_k_m
+      instead until empirical benchmarks confirm tq4_0 performance.
+
+# ── KV cache quantization ─────────────────────────────────────────────────────
+# KV cache quantization (llama.cpp type_k / type_v parameters) reduces VRAM
+# used by the attention key-value cache independently of weight quantization.
+# Only f16, q8_0, and q4_0 are supported for KV cache in llama.cpp.
+
+kv_cache_quantization:
+
+  f16:
+    name: "FP16 KV cache (default)"
+    quality_retention: 1.0
+    memory_saving_vs_f16: 0.0
+    notes: >
+      Default KV cache format. Full quality. No memory saving vs baseline.
+      Use when context length is modest and VRAM permits.
+
+  q8_0:
+    name: "Q8_0 KV cache (recommended)"
+    quality_retention: 0.99
+    memory_saving_vs_f16: 0.50
+    notes: >
+      50% memory saving vs FP16 KV cache with negligible quality loss.
+      The recommended KV cache quantization for most deployments. Enables
+      fitting significantly longer contexts in the same VRAM. ModelProfiler
+      defaults to q8_0 KV cache (kv_type = "q8_0").
+
+  q4_0:
+    name: "Q4_0 KV cache (aggressive)"
+    quality_retention: 0.91
+    memory_saving_vs_f16: 0.75
+    notes: >
+      75% memory saving vs FP16 KV cache. Noticeable quality degradation
+      for long contexts because quantization errors in attention accumulate
+      over many tokens. Use only when context must exceed what q8_0 allows
+      and the quality trade-off is acceptable. Avoid for tasks requiring
+      precise recall of early context (long document QA, multi-turn coding).
+
+# ── Task-based quantization recommendations ───────────────────────────────────
+# Minimum recommended quantization for each task type. Models at or above
+# the listed quant are suitable; below it, quality degradation is measurable.
+# "or higher" means any format with bits_per_weight >= the listed format.
+
+task_recommendations:
+
+  coding:
+    minimum: q5_k_m
+    preferred: q6_k
+    rationale: >
+      Code errors compound — a wrong variable name or off-by-one error in
+      generated code propagates silently. Q5_K_M provides near-FP16 quality
+      for token prediction, reducing syntax and logic errors. Q6_K preferred
+      for complex multi-file generation.
+
+  reasoning:
+    minimum: q6_k
+    preferred: q6_k
+    rationale: >
+      Reasoning chains amplify quantization errors — an incorrect intermediate
+      conclusion leads to a wrong final answer even if later reasoning steps
+      are correct. Q6_K's 0.97 quality retention keeps reasoning chains
+      coherent. Below Q5_K_M, chain-of-thought reliability degrades measurably.
+
+  math:
+    minimum: q5_k_m
+    preferred: q6_k
+    rationale: >
+      Mathematical computation requires precise token selection for digits,
+      operators, and variable names. Q5_K_M provides sufficient precision for
+      most math tasks; Q6_K preferred for multi-step proofs and competition math.
+
+  creative:
+    minimum: q4_k_m
+    preferred: q4_k_m
+    rationale: >
+      Creative writing benefits from output diversity. Q4_K_M's slight
+      temperature offset (0.03) is compensated automatically. Lower quants
+      reduce coherence rather than improving creativity.
+
+  documentation:
+    minimum: q4_k_m
+    preferred: q5_k_m
+    rationale: >
+      Documentation requires factual accuracy and coherent structure.
+      Q4_K_M is sufficient for most documentation tasks. Q5_K_M preferred
+      when technical precision and API accuracy are critical.
+
+  classification:
+    minimum: q4_k_s
+    preferred: q4_k_m
+    rationale: >
+      Simple categorical output is robust to quantization — the correct class
+      label is typically far ahead of alternatives in probability. Q4_K_S
+      is sufficient; Q4_K_M preferred for subtle or multi-label classification.
+
+  security_audit:
+    minimum: q6_k
+    preferred: q8_0
+    rationale: >
+      Security analysis must catch subtle vulnerabilities — a quantization-
+      induced error that overlooks an injection point or a race condition is
+      a real-world security failure. Q6_K minimum; Q8_0 preferred for
+      adversarial or compliance-critical audits.
+
+  general:
+    minimum: q4_k_m
+    preferred: q4_k_m
+    rationale: >
+      Q4_K_M is the sweet spot for general tasks — 92% quality retention,
+      27% of FP16 VRAM, and fast inference. The default choice when no
+      specific task type has been identified.
+
+  research:
+    minimum: q5_k_m
+    preferred: q6_k
+    rationale: >
+      Research assistance requires accurate recall of domain knowledge and
+      reliable multi-step reasoning. Q5_K_M minimum; Q6_K preferred for
+      scientific and technical research where precision errors are costly.
+
+  analysis:
+    minimum: q5_k_m
+    preferred: q6_k
+    rationale: >
+      Data analysis and structured reasoning require consistent token
+      selection across long analytical chains. Same guidance as research.

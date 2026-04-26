@@ -1,0 +1,30 @@
+{
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "exclude": [
+    ".agents",
+    ".claude",
+    ".claire",
+    ".codex",
+    ".omc",
+    ".venv",
+    ".venv312",
+    "tests",
+    "docs",
+    "outputs",
+    "projects",
+    "examples"
+  ],
+  "include": [
+    "vetinari/adapters",
+    "vetinari/analytics",
+    "vetinari/adapter_manager.py",
+    "vetinari/backend_config.py",
+    "vetinari/cli_packaging_doctor.py",
+    "vetinari/preflight.py",
+    "vetinari/setup/init_wizard.py",
+    "vetinari/system/health_monitor.py"
+  ]
+}

@@ -1,0 +1,107 @@
+# LLM Guard Configuration — vetinari safety scanning
+# https://llm-guard.com/
+#
+# LLM Guard provides ML-based input/output scanning for LLM applications.
+# This config controls which scanners are enabled and their thresholds.
+# Gracefully degrades if llm-guard is not installed.
+
+version: "1.0"
+
+# ── Input scanners ─────────────────────────────────────────────────────
+# Applied to user prompts before they reach the LLM.
+input_scanners:
+  prompt_injection:
+    enabled: true
+    threshold: 0.9  # High threshold — avoid false positives on coding prompts
+    model: "deepset/deberta-v3-base-injection"
+
+  ban_topics:
+    enabled: true
+    topics:
+      - "violence"
+      - "illegal_activity"
+    threshold: 0.75
+
+  toxicity:
+    enabled: true
+    threshold: 0.8
+    # Use built-in regex checks as primary; ML model as secondary
+    use_onnx: true  # Faster inference on CPU
+
+  secrets_detection:
+    enabled: true
+    # Detects API keys, tokens, passwords in prompts
+    redact: true  # Replace detected secrets with [REDACTED]
+
+  invisible_text:
+    enabled: true
+    # Detects hidden Unicode characters used for prompt injection
+
+  code:
+    enabled: false  # Disabled — Vetinari is a coding assistant
+    # Would block code snippets, counterproductive for our use case
+
+# ── Output scanners ────────────────────────────────────────────────────
+# Applied to LLM responses before they reach the user.
+output_scanners:
+  ban_topics:
+    enabled: true
+    topics:
+      - "violence"
+      - "illegal_activity"
+    threshold: 0.75
+
+  no_refusal:
+    enabled: false  # We want the model to refuse unsafe requests
+
+  relevance:
+    enabled: false  # Not useful for multi-step agent workflows
+
+  sensitive:
+    enabled: true
+    # Detects PII, credentials, and other sensitive data in output
+    entity_types:
+      - "CREDIT_CARD"
+      - "CRYPTO"
+      - "EMAIL_ADDRESS"
+      - "IBAN_CODE"
+      - "IP_ADDRESS"
+      - "PERSON"
+      - "PHONE_NUMBER"
+      - "US_SSN"
+      - "US_BANK_NUMBER"
+    threshold: 0.5
+    redact: true
+
+  toxicity:
+    enabled: true
+    threshold: 0.8
+    use_onnx: true
+
+  bias:
+    enabled: true
+    threshold: 0.75
+
+# ── Performance tuning ─────────────────────────────────────────────────
+# Local hardware (5090) considerations.
+performance:
+  use_onnx: true  # Prefer ONNX Runtime for scanner models
+  batch_size: 1  # Single-request scanning (not batch inference)
+  max_text_length: 4096  # Truncate very long inputs for scanner perf
+  cache_models: true  # Keep scanner models in memory between calls
+
+# ── Context-based scanning ─────────────────────────────────────────────
+# Which scanners apply in which trust context.
+contexts:
+  user_facing:
+    input_scanners: ["prompt_injection", "ban_topics", "toxicity", "secrets_detection", "invisible_text"]
+    output_scanners: ["ban_topics", "sensitive", "toxicity", "bias"]
+
+  code_execution:
+    input_scanners: ["prompt_injection", "secrets_detection", "invisible_text"]
+    output_scanners: ["secrets_detection", "sensitive"]
+
+  internal_agent:
+    # Internal agent traffic uses the same scanners as user_facing — no bypass for agent-generated content
+    input_scanners: ["prompt_injection", "ban_topics", "toxicity", "secrets_detection", "invisible_text"]
+    output_scanners: ["ban_topics", "sensitive", "toxicity", "bias"]

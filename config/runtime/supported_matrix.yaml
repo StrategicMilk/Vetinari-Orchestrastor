@@ -1,0 +1,66 @@
+# Runtime supported matrix for Vetinari.
+#
+# Each row lists a minimum version (optionally with known-bad ranges) for a
+# runtime component. The runtime doctor (vetinari.runtime.runtime_doctor)
+# loads this file at call time and fails closed on any minimum violation or
+# known-bad-range hit.
+#
+# Values here come from a dated verification artifact under
+# outputs/runtime/supported_matrix_verification_<YYYY-MM-DD>.json — NEVER edit
+# this file without regenerating that artifact. The executor must re-verify
+# from primary sources before changing versions.
+#
+# Staleness: `verified_at` is the ISO date of the last verification. The
+# runtime doctor surfaces a warning if verified_at is older than
+# staleness_window_days. A stale matrix combined with an unknown component
+# version is a blocker.
+
+schema_version: 1
+staleness_window_days: 90
+
+components:
+  - component: python
+    minimum_version: "3.10.0"
+    known_bad_ranges: []
+    required_compute_capability: null
+    verified_at: "2026-04-24"
+    verified_sources:
+      - "https://devguide.python.org/versions/"
+      - "pyproject.toml requires-python = '>=3.10'"
+    notes: "Vetinari package requires-python is >=3.10; ensure interpreter matches."
+
+  - component: torch
+    minimum_version: "2.7.0"
+    known_bad_ranges: []
+    required_compute_capability: "12.0"
+    verified_at: "2026-04-24"
+    verified_sources:
+      - "https://pytorch.org/blog/pytorch-2-7/"
+      - "https://github.com/pytorch/pytorch/issues/159207"
+      - "https://github.com/pytorch/pytorch/issues/164342"
+    notes: "PyTorch 2.7 is the first stable release shipping official sm_120 cu128 wheels. Prior stable wheels compile up to sm_90 only."
+
+  - component: vllm
+    minimum_version: "0.13.0"
+    known_bad_ranges:
+      - "==0.18.1"
+    required_compute_capability: "12.0"
+    platform_skip:
+      - "Windows"
+    verified_at: "2026-04-24"
+    verified_sources:
+      - "https://github.com/vllm-project/vllm/issues/31085"
+      - "https://github.com/vllm-project/vllm/issues/36865"
+      - "https://discuss.vllm.ai/t/vllm-on-rtx5090-working-gpu-setup-with-torch-2-9-0-cu128/1492"
+      - "https://discuss.vllm.ai/t/sm120-rtx-pro-4000-6-5x-throughput-gain-and-v0-18-1-regression-findings/2525"
+    notes: "vLLM 0.13.0 is the first release compiling NVFP4 MoE kernels for SM120 (RTX 5090 / RTX PRO 6000 Blackwell). 0.18.1 carries a reported SM120 RTX PRO 4000 regression. Windows uses WSL or a remote vLLM endpoint per pyproject's platform_system != 'Windows' marker."
+
+  - component: bitsandbytes
+    minimum_version: null
+    known_bad_ranges: []
+    required_compute_capability: "12.0"
+    verified_at: "2026-04-24"
+    verified_sources:
+      - "https://github.com/bitsandbytes-foundation/bitsandbytes/issues/1642"
+    notes: "No stable sm_120 release as of April 2026. Training on SM120 requires source-built bitsandbytes or WSL2 nightly. When the project depends on bitsandbytes on a Blackwell GPU, the doctor raises a blocker."
+    optional: true

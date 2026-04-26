@@ -1,0 +1,48 @@
+# Agent Resource Constraints
+# Single source of truth for per-agent token limits, timeouts, retries.
+# Loaded by StandardsLoader.get_constraints().
+# Canonical 3-agent pipeline: FOREMAN → WORKER → INSPECTOR (ADR-0061)
+
+agents:
+  foreman:
+    max_tokens: 32768
+    timeout_seconds: 300
+    max_retries: 3
+    max_cost_usd: 1.00
+    max_delegation_calls: 10
+    max_parallel_tasks: 1
+    priority: high
+
+  worker:
+    max_tokens: 32768
+    timeout_seconds: 300
+    max_retries: 3
+    max_cost_usd: 1.00
+    max_delegation_calls: 3
+    max_parallel_tasks: 3
+    priority: critical
+
+  inspector:
+    max_tokens: 24576
+    timeout_seconds: 300
+    max_retries: 2
+    max_cost_usd: 1.00
+    max_delegation_calls: 2
+    max_parallel_tasks: 2
+    priority: high
+
+global:
+  max_concurrent_tasks: 4
+  max_rework_cycles: 3
+  express_timeout_seconds: 60
+  default_max_tokens: 8192
+  default_timeout_seconds: 120
+  default_max_retries: 3
+
+# WIP limits per agent type (kanban-style pull system, Dept 4.6)
+# Prevents resource contention by limiting concurrent tasks per agent
+wip_limits:
+  foreman: 1
+  worker: 2
+  inspector: 3
+  global_max: 8

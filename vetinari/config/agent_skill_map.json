@@ -1,0 +1,74 @@
+{
+  "agents": {
+    "foreman_agent": {
+      "description": "Foreman agent — planning, decomposition, and orchestration",
+      "default_skills": [
+        {"skill_id": "foreman", "default_capability": "goal_decomposition"},
+        {"skill_id": "foreman", "default_capability": "clarification"}
+      ],
+      "secondary_skills": []
+    },
+    "worker_agent": {
+      "description": "Worker agent — all-purpose execution across research, architecture, build, and operations",
+      "default_skills": [
+        {"skill_id": "worker", "default_capability": "feature_implementation"},
+        {"skill_id": "worker", "default_capability": "code_discovery"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "worker", "default_capability": "documentation_generation"},
+        {"skill_id": "worker", "default_capability": "architecture_review"}
+      ]
+    },
+    "inspector_agent": {
+      "description": "Inspector agent — independent quality gate",
+      "default_skills": [
+        {"skill_id": "inspector", "default_capability": "code_review"},
+        {"skill_id": "inspector", "default_capability": "security_audit"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "inspector", "default_capability": "test_generation"},
+        {"skill_id": "inspector", "default_capability": "simplification"}
+      ]
+    },
+    "general_agent": {
+      "description": "General-purpose agent — routes to appropriate specialist",
+      "default_skills": [
+        {"skill_id": "worker", "default_capability": "feature_implementation"}
+      ],
+      "secondary_skills": [
+        {"skill_id": "foreman", "default_capability": "goal_decomposition"},
+        {"skill_id": "inspector", "default_capability": "code_review"}
+      ]
+    }
+  },
+  "workflows": {
+    "code_review_pipeline": {
+      "description": "End-to-end code review workflow",
+      "steps": [
+        {"agent": "worker_agent", "skill": "worker", "capability": "code_discovery"},
+        {"agent": "inspector_agent", "skill": "inspector", "capability": "code_review"},
+        {"agent": "inspector_agent", "skill": "inspector", "capability": "security_audit"}
+      ]
+    },
+    "feature_implementation_pipeline": {
+      "description": "Full feature implementation workflow",
+      "steps": [
+        {"agent": "foreman_agent", "skill": "foreman", "capability": "goal_decomposition"},
+        {"agent": "worker_agent", "skill": "worker", "capability": "code_discovery"},
+        {"agent": "worker_agent", "skill": "worker", "capability": "feature_implementation"},
+        {"agent": "inspector_agent", "skill": "inspector", "capability": "code_review"},
+        {"agent": "worker_agent", "skill": "worker", "capability": "documentation_generation"}
+      ]
+    }
+  },
+  "compatibility_matrix": {
+    "vetinari_core": {
+      "version": "2.0.0",
+      "compatibility": {
+        "foreman": {"min_version": "2.0.0", "max_version": "3.0.0"},
+        "worker": {"min_version": "2.0.0", "max_version": "3.0.0"},
+        "inspector": {"min_version": "2.0.0", "max_version": "3.0.0"}
+      }
+    }
+  }
+}

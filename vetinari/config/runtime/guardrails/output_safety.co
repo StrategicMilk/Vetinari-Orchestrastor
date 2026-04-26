@@ -1,0 +1,52 @@
+# Colang DSL — output content safety flows.
+#
+# These flows prevent the bot from generating harmful content in its responses.
+# They complement the regex-based sensitive_data and toxic checks in
+# GuardrailsManager by catching policy violations in generated text that
+# pattern matching may miss due to paraphrasing or indirect expression.
+
+define bot provide harmful instructions
+  "here is how to make a weapon"
+  "step by step instructions to harm"
+  "detailed guide to synthesize"
+  "recipe for illegal substances"
+  "how to bypass security systems"
+  "here is the exploit code"
+
+define bot generate hate speech
+  "all [group] should be"
+  "the reason [group] is inferior"
+  "why [group] deserves to"
+
+define bot encourage self harm
+  "the most effective method to hurt yourself"
+  "here are the steps to end your life"
+  "best ways to self-harm"
+
+define bot reveal system prompt
+  "my system prompt says"
+  "my instructions are to"
+  "i was told by my operator to"
+  "the hidden instructions given to me"
+
+define bot refuse to generate harmful output
+  "I can't generate that type of content."
+
+define bot refuse to reveal internals
+  "I'm not able to share details about my internal configuration."
+
+define flow check output safety
+  bot provide harmful instructions
+  bot refuse to generate harmful output
+
+define flow check harmful content
+  bot generate hate speech
+  bot refuse to generate harmful output
+
+define flow check self harm output
+  bot encourage self harm
+  bot refuse to generate harmful output
+
+define flow check system prompt leakage
+  bot reveal system prompt
+  bot refuse to reveal internals

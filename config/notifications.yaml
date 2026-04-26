@@ -1,0 +1,29 @@
+# Notification webhook configuration.
+#
+# Each webhook receives notifications matching its event filter.
+# Supported formats: discord (rich embed), slack (block kit), generic (JSON POST).
+# Events: task_completed, training_completed, approval_needed, error,
+#          quality_alert, daily_digest, trust_promotion, cost_alert
+
+webhooks: []
+  # Example configurations (uncomment and fill in URLs):
+  #
+  # - url: "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN"
+  #   format: discord
+  #   events:
+  #     - task_completed
+  #     - training_completed
+  #     - approval_needed
+  #     - error
+  #     - daily_digest
+  #
+  # - url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  #   format: slack
+  #   events:
+  #     - approval_needed
+  #     - error
+  #     - quality_alert
+  #
+  # - url: "https://your-server.com/api/vetinari-events"
+  #   format: generic
+  #   events: null  # null = receive all events

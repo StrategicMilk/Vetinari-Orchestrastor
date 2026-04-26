@@ -1,0 +1,308 @@
+# Per-Mode Verification Requirements
+# Defines what Quality checks after each agent completes a task.
+# Loaded by StandardsLoader.get_verification_checklist(mode).
+
+modes:
+  # --- Builder modes (2) ---
+  build:
+    checks:
+      - "All functions have type annotations"
+      - "All public functions have Google-style docstrings"
+      - "No TODO/FIXME/placeholder code"
+      - "Tests exist for new functions"
+      - "Imports from canonical sources (vetinari.types, vetinari.agents.contracts)"
+      - "encoding='utf-8' on file I/O"
+      - "No print() in production code"
+    auto_fail:
+      - "NotImplementedError in non-abstract method"
+      - "Hallucinated import (package not in pyproject.toml)"
+      - "Unwired code (new function never called)"
+
+  image_generation:
+    checks:
+      - "Image matches description specifications"
+      - "Format and dimensions as requested"
+      - "Fallback to SVG documented if Stable Diffusion unavailable"
+    auto_fail:
+      - "Generated image contains text artifacts or distortion"
+
+  # --- Planner modes (6) ---
+  plan:
+    checks:
+      - "Task DAG is acyclic with clear dependencies"
+      - "Each task has acceptance criteria"
+      - "Agent assignments match task requirements"
+      - "Scope is bounded — no unbounded exploration tasks"
+    auto_fail:
+      - "Circular dependency in task DAG"
+      - "Task assigned to non-existent agent type"
+
+  clarify:
+    checks:
+      - "Questions are specific and actionable"
+      - "Multiple choice options provided where possible"
+      - "Questions resolve actual ambiguity (not pedantic)"
+    auto_fail:
+      - "Zero questions generated for ambiguous input"
+
+  consolidate:
+    checks:
+      - "All task outputs referenced and integrated"
+      - "Conflicts between outputs identified and resolved"
+    auto_fail:
+      - "Task output silently dropped without explanation"
+
+  summarise:
+    checks:
+      - "Summary captures key decisions and outcomes"
+      - "Actionable next steps identified"
+    auto_fail:
+      - "Summary contradicts source material"
+
+  prune:
+    checks:
+      - "Pruned tasks have clear justification"
+      - "Dependencies of pruned tasks are handled"
+    auto_fail:
+      - "Active/in-progress task pruned"
+
+  extract:
+    checks:
+      - "Extracted entities are structured and typed"
+      - "Source text is cited for each extraction"
+    auto_fail:
+      - "Fabricated entity not present in source"
+
+  # --- Researcher modes (8) ---
+  code_discovery:
+    checks:
+      - "File paths verified to exist"
+      - "Function signatures accurately captured"
+      - "Dependencies and callers identified"
+    auto_fail:
+      - "Hallucinated file path or function name"
+
+  domain_research:
+    checks:
+      - "Sources cited for claims"
+      - "Multiple perspectives considered"
+      - "Findings actionable for downstream agents"
+    auto_fail:
+      - "Unsourced factual claim presented as certain"
+
+  api_lookup:
+    checks:
+      - "API signatures include parameter types and return types"
+      - "Usage examples are syntactically correct"
+      - "Version compatibility noted"
+    auto_fail:
+      - "Hallucinated API method or parameter"
+
+  lateral_thinking:
+    checks:
+      - "At least 3 alternative approaches proposed"
+      - "Trade-offs for each alternative documented"
+      - "Recommendation justified"
+    auto_fail:
+      - "Single approach presented without alternatives"
+
+  ui_design:
+    checks:
+      - "Accessibility considerations included"
+      - "Responsive design addressed"
+      - "Component library compatibility verified"
+    auto_fail:
+      - "Design violates WCAG 2.1 AA requirements"
+
+  database:
+    checks:
+      - "Schema normalized appropriately"
+      - "Index recommendations included"
+      - "Migration path from current schema documented"
+    auto_fail:
+      - "SQL injection vulnerability in query examples"
+
+  devops:
+    checks:
+      - "Security implications documented"
+      - "Rollback procedure included"
+      - "Resource requirements estimated"
+    auto_fail:
+      - "Credentials or secrets in plain text"
+
+  git_workflow:
+    checks:
+      - "Branch topology accurately described"
+      - "Commit history analysis is factual"
+      - "Recommendations follow project conventions"
+    auto_fail:
+      - "Fabricated commit hash or author"
+
+  # --- Oracle modes (4) ---
+  architecture:
+    checks:
+      - "At least 3 alternatives evaluated"
+      - "Trade-offs quantified where possible"
+      - "ADR created with context/decision/consequences"
+      - "Existing ADRs checked for conflicts"
+    auto_fail:
+      - "Decision contradicts accepted ADR without supersession"
+      - "Zero alternatives considered for high-stakes decision"
+
+  risk_assessment:
+    checks:
+      - "Risks scored by likelihood and impact"
+      - "Mitigation strategies provided for high risks"
+      - "Dependencies and assumptions explicit"
+    auto_fail:
+      - "Critical risk identified but no mitigation proposed"
+
+  ontological_analysis:
+    checks:
+      - "Entities and relationships clearly defined"
+      - "Invariants and constraints documented"
+      - "Domain boundaries explicit"
+    auto_fail:
+      - "Circular definition without resolution"
+
+  contrarian_review:
+    checks:
+      - "Genuine weaknesses identified (not straw men)"
+      - "Counter-arguments are substantive"
+      - "Constructive alternatives suggested"
+    auto_fail:
+      - "Rubber-stamp approval without critique"
+
+  # --- Quality modes (4) ---
+  code_review:
+    checks:
+      - "Security patterns checked (45+ patterns)"
+      - "OWASP Top 10 coverage"
+      - "Code style compliance verified"
+      - "Findings include file path and line number"
+    auto_fail:
+      - "Critical security vulnerability unaddressed"
+
+  security_audit:
+    checks:
+      - "OWASP Top 10 categories all addressed"
+      - "45+ security patterns checked"
+      - "Severity ratings for each finding"
+      - "Remediation steps provided"
+    auto_fail:
+      - "Critical vulnerability missed (SQLi, RCE, path traversal)"
+
+  test_generation:
+    checks:
+      - "Happy path, edge cases, and error cases covered"
+      - "Tests are independent (no shared mutable state)"
+      - "Mock boundaries match real interfaces"
+      - "Test naming follows test_<function>_<scenario>"
+    auto_fail:
+      - "Test imports non-existent module"
+      - "Test modifies global state without cleanup"
+
+  simplification:
+    checks:
+      - "Suggestions preserve existing behavior"
+      - "Complexity reduction is measurable"
+      - "No feature removal disguised as simplification"
+    auto_fail:
+      - "Suggested change alters public API without noting it"
+
+  # --- Operations modes (9) ---
+  documentation:
+    checks:
+      - "Google-style docstrings with Args/Returns/Raises"
+      - "Module-level docstring present"
+      - "Cross-references use correct paths"
+      - "Code examples are syntactically correct"
+    auto_fail:
+      - "Documentation contradicts actual code behavior"
+
+  creative_writing:
+    checks:
+      - "Content is accurate and specific"
+      - "Target audience appropriate"
+      - "Formatting follows project markdown standards"
+    auto_fail:
+      - "Factual error in technical explanation"
+
+  cost_analysis:
+    checks:
+      - "Token counts from actual measurements (not estimates)"
+      - "Cost projections include confidence intervals"
+      - "Comparison with alternatives included"
+    auto_fail:
+      - "Cost estimate off by more than 2x from actuals"
+
+  experiment:
+    checks:
+      - "Hypothesis clearly stated"
+      - "Control and treatment groups defined"
+      - "Statistical significance threshold set before running"
+      - "Results reproducible"
+    auto_fail:
+      - "Conclusion drawn from insufficient sample size"
+
+  error_recovery:
+    checks:
+      - "Root cause identified (not just symptoms)"
+      - "Recovery steps are reversible"
+      - "Prevention measures proposed"
+    auto_fail:
+      - "Recovery action causes data loss"
+
+  synthesis:
+    checks:
+      - "All input sources referenced"
+      - "Conflicts between sources identified"
+      - "Synthesis adds value beyond concatenation"
+    auto_fail:
+      - "Input source silently omitted"
+
+  improvement:
+    checks:
+      - "Baseline metrics documented"
+      - "Improvement targets are measurable"
+      - "Rollback plan included"
+    auto_fail:
+      - "Improvement claim without supporting data"
+
+  monitor:
+    checks:
+      - "All subsystem statuses checked"
+      - "Anomalies flagged with severity"
+      - "Trends identified (not just point-in-time)"
+    auto_fail:
+      - "Subsystem down but reported as healthy"
+
+  devops_ops:
+    checks:
+      - "Dry-run mode available for destructive operations"
+      - "Backup taken before destructive changes"
+      - "Operation is idempotent"
+    auto_fail:
+      - "Destructive operation without confirmation"
+
+# Deny patterns: code constructs that must never appear in production code.
+# Evaluated by StandardsLoader.evaluate_deny_patterns(code).
+deny_patterns:
+  - pattern: "security_passed\\s*=\\s*True"
+    severity: critical
+    description: "Fail-open security pattern — must use security_passed=False on exception"
+  - pattern: "except.*:\\s*pass"
+    severity: high
+    description: "Silent exception swallowing — log or re-raise"
+  - pattern: "password\\s*=\\s*['\"]"
+    severity: critical
+    description: "Hardcoded password string"
+  - pattern: "api_key\\s*=\\s*['\"]"
+    severity: critical
+    description: "Hardcoded API key"
+  - pattern: "return\\s+['\"]['\"]\\s*#.*fail"
+    severity: high
+    description: "Silent empty return on failure"
+  - pattern: "is_safe\\s*=\\s*True"
+    severity: high
+    description: "Fail-open safety check — default should be is_safe=False"

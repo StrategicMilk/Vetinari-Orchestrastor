@@ -1,0 +1,77 @@
+models:
+- capabilities:
+  - coding
+  - fast
+  context_window: 32768
+  cost_per_1k_tokens: 0.0
+  current_load: 0.0
+  display_name: Qwen 2.5 Coder 7B
+  endpoint: ''
+  latency_hint: fast
+  memory_requirements_gb: 8
+  model_id: qwen2.5-coder-7b
+  privacy_level: local
+  provider: local
+  status: declared
+- capabilities:
+  - reasoning
+  - coding
+  context_window: 32768
+  cost_per_1k_tokens: 0.0
+  current_load: 0.0
+  display_name: Qwen 2.5 72B
+  endpoint: ''
+  latency_hint: medium
+  memory_requirements_gb: 48
+  model_id: qwen2.5-72b
+  privacy_level: local
+  provider: local
+  status: declared
+- capabilities:
+  - reasoning
+  - coding
+  context_window: 32768
+  cost_per_1k_tokens: 0.0
+  current_load: 0.0
+  display_name: Llama 3.3 70B
+  endpoint: ''
+  latency_hint: medium
+  memory_requirements_gb: 48
+  model_id: llama-3.3-70b
+  privacy_level: local
+  provider: local
+  status: declared
+- capabilities:
+  - reasoning
+  - vision
+  - coding
+  context_window: 128000
+  cost_per_1k_tokens: 0.005
+  current_load: 0.0
+  display_name: GPT-4o
+  endpoint: https://api.openai.com/v1/chat/completions
+  latency_hint: medium
+  memory_requirements_gb: 0.0
+  model_id: gpt-4o
+  privacy_level: public
+  provider: openai
+  status: declared
+- capabilities: []
+  context_window: 4096
+  cost_per_1k_tokens: 0.0
+  current_load: 0.0
+  display_name: m1
+  endpoint: ''
+  latency_hint: medium
+  memory_requirements_gb: 0.0
+  model_id: m1
+  privacy_level: local
+  provider: local
+  status: declared
+policy:
+  cost_weight: 0.3
+  latency_weight: 0.5
+  local_first: true
+  max_cost_per_1k_tokens: 0.0
+  preferred_providers: []
+  privacy_weight: 1.0

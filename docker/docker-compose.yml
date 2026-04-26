@@ -1,0 +1,25 @@
+# Vetinari companion services
+# Run with: docker compose -f docker/docker-compose.yml up -d
+#
+# Security defaults:
+#   - SearXNG is bound to 127.0.0.1 only (loopback), not all interfaces.
+#   - The rate limiter is enabled.
+#   - Image is pinned to a specific digest for reproducibility.
+#     Update the digest after reviewing the release notes for the new version.
+#
+# To expose SearXNG on the network, change the ports entry to:
+#   - "0.0.0.0:8888:8080"
+# and understand the security implications before doing so.
+services:
+  searxng:
+    # Pin to a specific digest — avoids silent breaking changes from :latest.
+    # Verified 2026-04-17: searxng/searxng 2024.12.2
+    image: searxng/searxng:2024.12.2
+    container_name: vetinari-searxng
+    ports:
+      - "127.0.0.1:8888:8080"
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    restart: unless-stopped

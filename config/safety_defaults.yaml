@@ -1,0 +1,17 @@
+# Safety defaults for lifecycle-fenced destructive operations (LW-UX-07).
+# These values are loaded by RecycleStore and ArchiveStore at init time.
+# Override per-deployment via environment-specific config layers.
+
+recycle_policy:
+  grace_hours: 72  # How many hours a recycled entity stays restorable
+  recycle_root: outputs/recycle  # Root directory for recycle bin records
+
+archive_policy:
+  recent_days: 7    # Records younger than this appear in the "recent" tier
+  cooling_days: 30  # Records older than recent_days but younger than this are "cooling"
+  archive_root: outputs/archive  # Root directory for archive records
+  # Per-entity-type overrides (not yet implemented — hook for LW-UX-07 followup):
+  # entity_thresholds:
+  #   project:
+  #     recent_days: 14
+  #     cooling_days: 60

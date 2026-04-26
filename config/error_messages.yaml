@@ -1,0 +1,29 @@
+# Error message humanization mapping
+# Maps technical error patterns to user-friendly messages.
+# Used by vetinari.web.error_handlers to translate raw exceptions.
+
+# Match by exception class name
+exception_types:
+  TimeoutError: "The model took too long to respond (>30s). Try a smaller model or simpler task."
+  TimeoutExpired: "The model took too long to respond (>30s). Try a smaller model or simpler task."
+  subprocess.TimeoutExpired: "The model took too long to respond (>30s). Try a smaller model or simpler task."
+  ConnectionRefusedError: "Could not connect to the model server. Is LM Studio/Ollama running?"
+  ConnectionError: "Could not connect to the model server. Check that the inference backend is running."
+  MemoryError: "Not enough memory to complete this operation. Try a smaller model or simpler task."
+  FileNotFoundError: "A required file was not found. Check server configuration."
+  PermissionError: "Insufficient permissions to complete this operation."
+  json.JSONDecodeError: "The model returned invalid output format. The system will retry automatically."
+
+# Match by error message substring patterns
+message_patterns:
+  "out of memory": "Not enough GPU memory. Try a smaller model or enable KV cache quantization."
+  "OOM": "Not enough GPU memory. Try a smaller model or enable KV cache quantization."
+  "CUDA out of memory": "Not enough GPU memory. Try a smaller model or enable KV cache quantization."
+  "model not found": "The requested model was not found. Check available models in the Models panel."
+  "context length exceeded": "The input is too long for this model. Try a shorter prompt or a model with a larger context window."
+  "rate limit": "Too many requests. Please wait a moment and try again."
+  "connection refused": "Could not connect to the model server. Is LM Studio/Ollama running?"
+  "timed out": "The operation timed out. Try a simpler task or check server load."
+
+# Default message when no pattern matches
+default: "An unexpected error occurred. Check server logs for details."

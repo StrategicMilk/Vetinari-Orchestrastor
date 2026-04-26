@@ -1,0 +1,165 @@
+{
+  "registry_version": "2.0.0",
+  "registry_generated_at": "2026-03-19T00:00:00Z",
+  "description": "Central registry for Vetinari skills aligned to the 3-agent factory pipeline (ADR-0061): Foreman, Worker, Inspector.",
+  "skills": [
+    {
+      "id": "foreman",
+      "name": "Foreman",
+      "version": "2.0.0",
+      "description": "Goal decomposition, task scheduling, dependency mapping, clarification, context consolidation, and knowledge extraction.",
+      "manifest_path": "vetinari/skills/foreman/manifest.json",
+      "tools_exported": ["ForemanSkillTool"],
+      "permissions_required": ["MODEL_INFERENCE"],
+      "thinking_modes": ["medium", "high", "xhigh"],
+      "execution_modes": ["PLANNING", "EXECUTION"],
+      "capabilities": [
+        "goal_decomposition",
+        "task_scheduling",
+        "dependency_mapping",
+        "specification",
+        "clarification",
+        "context_consolidation",
+        "summarization",
+        "token_management",
+        "knowledge_extraction"
+      ],
+      "triggers": ["plan", "decompose", "clarify", "schedule", "summarise", "consolidate", "prune", "extract"],
+      "sample_usage": {
+        "capability": "goal_decomposition",
+        "parameters": {
+          "goal": "Implement user authentication with OAuth2 support",
+          "mode": "plan"
+        }
+      }
+    },
+    {
+      "id": "worker",
+      "name": "Worker",
+      "version": "2.0.0",
+      "description": "All-purpose execution agent with 24 modes across research, architecture, build, and operations groups.",
+      "manifest_path": "vetinari/skills/worker/manifest.json",
+      "tools_exported": ["WorkerSkillTool"],
+      "permissions_required": ["FILE_READ", "FILE_WRITE", "MODEL_INFERENCE"],
+      "thinking_modes": ["low", "medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION"],
+      "capabilities": [
+        "code_discovery",
+        "api_research",
+        "domain_research",
+        "lateral_thinking",
+        "dependency_analysis",
+        "git_archaeology",
+        "database_analysis",
+        "infrastructure_research",
+        "architecture_review",
+        "risk_assessment",
+        "contrarian_analysis",
+        "ontological_mapping",
+        "api_contract_validation",
+        "feature_implementation",
+        "refactoring",
+        "test_writing",
+        "bug_diagnosis",
+        "error_handling_hardening",
+        "code_generation",
+        "image_generation",
+        "documentation_generation",
+        "cost_analysis",
+        "error_recovery",
+        "continuous_improvement",
+        "experiment_runner",
+        "monitoring",
+        "synthesis",
+        "creative_writing"
+      ],
+      "triggers": ["build", "implement", "create", "research", "explore", "design", "document", "fix", "debug", "refactor", "test"],
+      "sample_usage": {
+        "capability": "feature_implementation",
+        "parameters": {
+          "task": "Implement OAuth2 login flow with token refresh",
+          "mode": "build"
+        }
+      }
+    },
+    {
+      "id": "inspector",
+      "name": "Inspector",
+      "version": "2.0.0",
+      "description": "Independent quality gate for code review, security audit, test generation, and code simplification.",
+      "manifest_path": "vetinari/skills/inspector/manifest.json",
+      "tools_exported": ["InspectorSkillTool"],
+      "permissions_required": ["FILE_READ", "MODEL_INFERENCE"],
+      "thinking_modes": ["medium", "high", "xhigh"],
+      "execution_modes": ["EXECUTION"],
+      "capabilities": [
+        "code_review",
+        "security_audit",
+        "test_generation",
+        "simplification",
+        "performance_review",
+        "best_practices_enforcement",
+        "vulnerability_detection",
+        "complexity_analysis"
+      ],
+      "triggers": ["review", "audit", "check", "inspect", "simplify", "security", "test coverage"],
+      "sample_usage": {
+        "capability": "code_review",
+        "parameters": {
+          "code": "def process_user_input(data): ...",
+          "mode": "code_review"
+        }
+      }
+    }
+  ],
+  "workflow_templates": {
+    "full_stack_feature": {
+      "description": "Complete feature implementation from research to deployment-ready code",
+      "stages": [
+        {"skill": "foreman", "skill_id": "foreman", "capability": "goal_decomposition", "purpose": "Plan and decompose goal into tasks"},
+        {"skill": "worker", "skill_id": "worker", "capability": "code_discovery", "purpose": "Analyze and explore codebase"},
+        {"skill": "worker", "skill_id": "worker", "capability": "feature_implementation", "purpose": "Build and implement code"},
+        {"skill": "inspector", "skill_id": "inspector", "capability": "code_review", "purpose": "Review and verify quality"},
+        {"skill": "worker", "skill_id": "worker", "capability": "documentation_generation", "purpose": "Document and report results"}
+      ]
+    },
+    "security_audit": {
+      "description": "Comprehensive security audit with remediation",
+      "stages": [
+        {"skill": "worker", "skill_id": "worker", "capability": "code_discovery", "purpose": "Analyze code for security context"},
+        {"skill": "inspector", "skill_id": "inspector", "capability": "security_audit", "purpose": "Security audit and vulnerability detection"},
+        {"skill": "worker", "skill_id": "worker", "capability": "feature_implementation", "purpose": "Remediate security findings"},
+        {"skill": "inspector", "skill_id": "inspector", "capability": "code_review", "purpose": "Verify security fixes"}
+      ]
+    },
+    "quick_fix": {
+      "description": "Rapid bug fix with verification",
+      "stages": [
+        {"skill": "worker", "skill_id": "worker", "capability": "bug_diagnosis", "purpose": "Diagnose and analyze bug"},
+        {"skill": "worker", "skill_id": "worker", "capability": "feature_implementation", "purpose": "Fix and implement solution"},
+        {"skill": "inspector", "skill_id": "inspector", "capability": "code_review", "purpose": "Review fix quality"}
+      ]
+    }
+  },
+  "skill_dependencies": {
+    "foreman": [],
+    "worker": ["foreman"],
+    "inspector": ["worker"]
+  },
+  "orchestration_features": {
+    "parallel_execution": true,
+    "self_correction": true,
+    "quality_gate": true,
+    "delegation": true
+  },
+  "version_matrix": {
+    "vetinari_core": {
+      "version": "2.0.0",
+      "compatibility": {
+        "foreman": {"min_version": "2.0.0", "max_version": "3.0.0"},
+        "worker": {"min_version": "2.0.0", "max_version": "3.0.0"},
+        "inspector": {"min_version": "2.0.0", "max_version": "3.0.0"}
+      }
+    }
+  }
+}

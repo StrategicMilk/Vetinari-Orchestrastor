@@ -1,0 +1,46 @@
+# =============================================================================
+# EXAMPLE SCAFFOLDING — review before use in production.
+#
+# - User/Group are set to "vetinari"; create this account or substitute your
+#   service account before enabling.
+# - WorkingDirectory assumes installation at /opt/vetinari; adjust if different.
+# - ReadWritePaths lists the directories Vetinari writes to at runtime.
+#   ProtectSystem=strict blocks all other writes.
+# =============================================================================
+
+[Unit]
+Description=Vetinari AI Orchestration System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Type=simple: Vetinari does not emit sd_notify readiness — Type=notify would
+# cause systemd to wait forever for a notification that never arrives.
+# This unit is process-liveness only. Release readiness gates must query
+# http://127.0.0.1:${VETINARI_WEB_PORT}/ready and fail on non-2xx/degraded JSON.
+Type=simple
+User=vetinari
+Group=vetinari
+WorkingDirectory=/opt/vetinari
+ExecStart=/opt/vetinari/.venv312/bin/python -m vetinari serve
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+# Allow writes to the directories Vetinari uses at runtime
+ReadWritePaths=/opt/vetinari/projects /opt/vetinari/outputs /opt/vetinari/.vetinari /opt/vetinari/logs
+
+# Resource limits
+MemoryMax=4G
+CPUQuota=200%
+
+# Canonical bind environment variables
+Environment=VETINARI_WEB_HOST=127.0.0.1
+Environment=VETINARI_WEB_PORT=8080
+
+[Install]
+WantedBy=multi-user.target

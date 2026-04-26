@@ -1,0 +1,13 @@
+{
+  "baseline_version": 0,
+  "recorded_at": null,
+  "machine_profile": null,
+  "workloads": {
+    "small_task_end_to_end": {},
+    "medium_task_end_to_end": {},
+    "complex_task_5_subtasks": {},
+    "long_running_project": {},
+    "startup_cost": {},
+    "idle_cost": {}
+  }
+}

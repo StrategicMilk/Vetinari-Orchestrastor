@@ -1,0 +1,54 @@
+# Network Isolation Policy for Vetinari
+#
+# DISPOSITION: Bounded scaffolding — this file defines the intended network
+# isolation model but is NOT currently enforced by the Vetinari runtime.
+# No Python module reads or applies these rules at runtime.
+# To activate: implement a NetworkPolicyEnforcer that reads this file and
+# gates outbound connections accordingly, then wire it into cli_startup.py.
+# Until then, treat this as authoritative design documentation only.
+#
+# Controls outbound network access.  Three modes:
+#   offline    — zero network access; all inference is local-only
+#   restricted — model downloads (HuggingFace) and PyPI only (default)
+#   open       — unrestricted outbound
+#
+# The active mode is selected by the VETINARI_NETWORK_MODE env var,
+# falling back to the 'default_mode' below.
+
+default_mode: restricted
+
+modes:
+  offline:
+    description: "No outbound network access — fully air-gapped operation"
+    allowed_hosts: []
+    # Local loopback is always permitted regardless of mode
+    allow_loopback: true
+
+  restricted:
+    description: "Model downloads and package installs only"
+    allowed_hosts:
+      - "huggingface.co"
+      - "*.huggingface.co"       # CDN subdomains for model downloads
+      - "pypi.org"
+      - "files.pythonhosted.org"  # PyPI package downloads
+      - "github.com"              # Git operations for project automation
+      - "api.github.com"          # GitHub API for PR creation
+    allow_loopback: true
+
+  open:
+    description: "Unrestricted outbound — use only in trusted environments"
+    allowed_hosts: ["*"]
+    allow_loopback: true
+
+# Ports: restrict to standard web ports in restricted mode
+restricted_ports:
+  - 80
+  - 443
+  - 8080  # Local model servers (llama-swap, etc.)
+
+# DNS resolution: blocked in offline mode
+dns_allowed: true  # Overridden to false in offline mode
+
+# Logging: log all blocked connection attempts
+log_blocked: true
+log_level: WARNING

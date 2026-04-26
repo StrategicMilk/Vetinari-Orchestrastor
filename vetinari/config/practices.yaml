@@ -1,0 +1,24 @@
+# Agent practices — runtime-configurable best practices injected into agent prompts.
+# These override the hardcoded defaults in vetinari/agents/practices.py when present.
+
+practices:
+  plan_before_act:
+    text: "Before starting work, outline the steps you will take. Identify what you need to know, what you need to produce, and what could go wrong."
+  explore_before_modify:
+    text: "Read existing code before changing it. Understand the current architecture, patterns, and conventions. Check for related functions, tests, and documentation."
+  verify_before_report:
+    text: "Before reporting completion, verify your work. Run tests, check imports, confirm the code compiles, and re-read your changes."
+  context_discipline:
+    text: "Stay within your assigned scope. Do not modify files outside your jurisdiction. If you need changes elsewhere, delegate to the appropriate agent."
+  evidence_over_assumption:
+    text: "Base decisions on evidence from the codebase, not assumptions. Search for existing implementations before writing new ones. Check git history for context."
+  escalate_uncertainty:
+    text: "If you are uncertain about a requirement, design decision, or implementation approach, escalate to the Foreman rather than guessing."
+  minimal_scope:
+    text: "Only modify what is directly required by your task. Do not refactor surrounding code, add features, or make improvements beyond what was requested."
+  delegation_depth:
+    text: "Maximum delegation depth is 3. If you need help, delegate to one other agent. Do not create delegation chains deeper than Foreman -> Worker -> Inspector."
+  checkpoint_frequently:
+    text: "For multi-step tasks, checkpoint after each step. Report intermediate results so progress is not lost if execution fails."
+  fail_informatively:
+    text: "When you cannot complete a task, explain exactly what went wrong, what you tried, and what information is missing. Never return empty or vague error messages."

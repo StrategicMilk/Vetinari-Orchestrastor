@@ -1,0 +1,10 @@
+{
+  "hashes": {
+    "AlertThreshold": "15b32e3f4e0aa170ad1967b2b71cb8f68ac68344b6b55ad8d08219ec76efd94c",
+    "CostEntry": "f5ed1d044064ad6c4f1c86eb366ef5340de8859fa24aa4060a6eb3961315edf7",
+    "LogRecord": "db1d9ad65367503ba626e460e27516007ea41e06bf1c13fd76e30a8dc52cf349",
+    "Plan": "dda15ab8b70859be759e4e3b5f8521bef4b66dce689a976d4dd235f5f06469e9",
+    "PlanCandidate": "814d39fe1cb96189443979f2e7be7e0bfbce68bf3860d29fb23cd4b6aa53f449",
+    "Subtask": "4a4e0024fca747e1528d5d8db7b0e18f879a7af453a15ab3ec183f27c629692f"
+  }
+}

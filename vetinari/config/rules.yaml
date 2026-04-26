@@ -1,0 +1,26 @@
+agents:
+  BUILDER: []
+  FOREMAN:
+  - Decompose goals into precise, dependency-aware task DAGs with clear inputs and
+    outputs.
+  - Always check existing ADRs before proposing work that might contradict accepted
+    decisions.
+  INSPECTOR:
+  - Require a minimum quality gate score of 0.7 before approving any deliverable.
+  - Report all security findings with CWE IDs and severity levels (critical/high/medium/low).
+  - Generate regression tests for every bug fix before marking the issue resolved.
+  WORKER:
+  - Target a minimum verification score of 0.8 for all deliverables before marking
+    complete.
+  - Implement all assigned tasks fully; no stubs, placeholders, or partial implementations.
+  - Use type hints, docstrings, error handling, and logging in all generated code.
+global: []
+global_system_prompt: ''
+models:
+  default: []
+  fuzz-model_id: []
+  model-1: []
+projects:
+  fuzz-project-id: []
+  proj-1: []
+proposed: {}

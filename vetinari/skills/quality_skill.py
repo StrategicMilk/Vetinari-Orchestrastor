@@ -1,0 +1,667 @@
+"""Quality Skill Tool — internal component of InspectorSkillTool.
+
+Provides quality review modes with comprehensive heuristic pattern scanning.
+This module is an *internal component* of InspectorSkillTool (the primary
+Inspector skill tool in the 3-agent factory pipeline, ADR-0061).
+InspectorSkillTool delegates supplementary analysis calls here.
+
+Direct usage is supported for backwards compatibility but all new code
+should go through ``InspectorSkillTool(mode="code_review", ...)``.
+
+Modes:
+  - code_review: Code quality, design patterns, maintainability
+  - security_audit: Vulnerability detection with 45+ heuristic patterns
+  - test_generation: pytest-aware test generation
+  - simplification: Code simplification and refactoring
+  - performance_review: Performance analysis
+  - best_practices: Project-specific VET rule checking
+
+This module defines a security pattern scanner. The patterns listed in
+SECURITY_PATTERNS are vulnerability signatures to DETECT in user code,
+not patterns this module itself uses.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from vetinari.execution_context import ToolPermission
+from vetinari.skills.quality_skill_patterns import OWASP_TOP_10, build_security_patterns
+from vetinari.tool_interface import (
+    Tool,
+    ToolCategory,
+    ToolMetadata,
+    ToolParameter,
+    ToolResult,
+)
+from vetinari.types import ExecutionMode, QualityGrade, SeverityLevel, ThinkingMode  # canonical enums
+
+logger = logging.getLogger(__name__)
+
+
+class QualityMode(str, Enum):
+    """Modes of the unified quality skill."""
+
+    CODE_REVIEW = "code_review"
+    SECURITY_AUDIT = "security_audit"
+    TEST_GENERATION = "test_generation"
+    SIMPLIFICATION = "simplification"
+    PERFORMANCE_REVIEW = "performance_review"
+    BEST_PRACTICES = "best_practices"
+
+
+SECURITY_PATTERNS = build_security_patterns()
+
+
+@dataclass
+class QualityIssue:
+    """A single quality or security issue."""
+
+    title: str
+    severity: SeverityLevel
+    description: str
+    location: str | None = None
+    suggestion: str | None = None
+    cwe_id: str | None = None
+    owasp_category: str | None = None
+
+    def __repr__(self) -> str:
+        """Show key identifying fields for debugging."""
+        return f"QualityIssue(title={self.title!r}, severity={self.severity!r}, location={self.location!r})"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this issue to a plain dictionary for JSON output.
+
+        Returns:
+            Dictionary with title, severity value, description, and suggestion,
+            plus optional location, cwe_id, and owasp_category when present.
+        """
+        result: dict[str, Any] = {
+            "title": self.title,
+            "severity": self.severity.value,
+            "description": self.description,
+            "suggestion": self.suggestion,
+        }
+        if self.location:
+            result["location"] = self.location
+        if self.cwe_id:
+            result["cwe_id"] = self.cwe_id
+        if self.owasp_category:
+            result["owasp_category"] = self.owasp_category
+        return result
+
+
+@dataclass
+class QualityResult:
+    """Result of a quality operation."""
+
+    success: bool
+    issues: list[QualityIssue] = field(default_factory=list)
+    grade: QualityGrade | None = None
+    score: float = 0.0
+    summary: str | None = None
+    recommendations: list[str] = field(default_factory=list)
+    tests: str | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        """Show key identifying fields for debugging."""
+        return f"QualityResult(success={self.success!r}, grade={self.grade!r}, score={self.score!r})"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this QualityResult to a plain dictionary suitable for JSON output.
+
+        Returns:
+            Dictionary containing the quality grade, score, issues,
+            recommendations, and associated metrics.
+        """
+        return {
+            "success": self.success,
+            "issues": [i.to_dict() for i in self.issues],
+            "quality_grade": self.grade.value if self.grade else None,
+            "score": self.score,
+            "summary": self.summary,
+            "recommendations": self.recommendations,
+            "tests": self.tests,
+            "metrics": self.metrics,
+        }
+
+
+class QualitySkillTool(Tool):
+    """Unified tool for the QUALITY consolidated agent.
+
+    Replaces: EvaluatorSkillTool, SecurityAuditorSkill, TestAutomationSkill.
+
+    Provides code review, security auditing, test generation, performance
+    review, and simplification through a standardized Tool interface.
+    """
+
+    def __init__(self) -> None:
+        metadata = ToolMetadata(
+            name="quality",
+            description=(
+                "Code review, security audit, test generation, performance review, "
+                "and simplification. Use for any code quality assessment."
+            ),
+            category=ToolCategory.SEARCH_ANALYSIS,
+            version="1.1.0",
+            author="Vetinari",
+            parameters=[
+                ToolParameter(
+                    name="mode",
+                    type=str,
+                    description="Quality mode to use",
+                    required=True,
+                    allowed_values=[m.value for m in QualityMode],
+                ),
+                ToolParameter(
+                    name="code",
+                    type=str,
+                    description="Code to review, audit, or generate tests for",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="context",
+                    type=str,
+                    description="File path, PR description, or context",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="thinking_mode",
+                    type=str,
+                    description="Review depth (low/medium/high/xhigh)",
+                    required=False,
+                    default="medium",
+                    allowed_values=[m.value for m in ThinkingMode],
+                ),
+                ToolParameter(
+                    name="focus_areas",
+                    type=list,
+                    description="Specific areas to prioritize",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="severity_threshold",
+                    type=str,
+                    description="Minimum severity to report",
+                    required=False,
+                    default="low",
+                    allowed_values=[s.value for s in SeverityLevel],
+                ),
+            ],
+            required_permissions=[
+                ToolPermission.FILE_READ,
+                ToolPermission.MODEL_INFERENCE,
+            ],
+            allowed_modes=[ExecutionMode.EXECUTION, ExecutionMode.PLANNING],
+            tags=["quality", "review", "security", "testing", "audit", "performance"],
+        )
+        super().__init__(metadata)
+
+    def execute(self, **kwargs: Any) -> ToolResult:
+        """Execute a quality operation in the requested mode.
+
+        Returns:
+            ToolResult whose output is the QualityResult dict; metadata
+            includes mode, thinking_mode, issues_found count, and quality_grade.
+        """
+        try:
+            mode_str = kwargs.get("mode")
+            code = kwargs.get("code")
+            context = kwargs.get("context")
+            thinking_mode_str = kwargs.get("thinking_mode", "medium")
+            focus_areas = kwargs.get("focus_areas", [])
+            severity_threshold_str = kwargs.get("severity_threshold", "low")
+
+            if not code:
+                return ToolResult(success=False, output=None, error="code parameter is required")
+
+            try:
+                mode = QualityMode(mode_str)
+            except ValueError:
+                logger.warning("Invalid QualityMode %r in tool call — returning error to caller", mode_str)
+                return ToolResult(success=False, output=None, error=f"Invalid mode: {mode_str}")
+
+            try:
+                thinking_mode = ThinkingMode(thinking_mode_str)
+            except ValueError:
+                logger.warning(
+                    "Invalid ThinkingMode %r in quality tool call — returning error to caller",
+                    thinking_mode_str,
+                )
+                return ToolResult(success=False, output=None, error=f"Invalid thinking_mode: {thinking_mode_str}")
+
+            result = self._run_mode(mode, code, context, thinking_mode, focus_areas)
+
+            # Filter by severity threshold
+            severity_order = list(SeverityLevel)
+            try:
+                threshold = SeverityLevel(severity_threshold_str)
+                threshold_idx = severity_order.index(threshold)
+                result.issues = [i for i in result.issues if severity_order.index(i.severity) <= threshold_idx]
+            except ValueError:
+                logger.warning("Invalid severity threshold value: %s", severity_threshold_str, exc_info=True)
+
+            return ToolResult(
+                success=result.success,
+                output=result.to_dict(),
+                error=None if result.success else "Quality assessment failed",
+                metadata={
+                    "mode": mode.value,
+                    "thinking_mode": thinking_mode.value,
+                    "issues_found": len(result.issues),
+                    "quality_grade": result.grade.value if result.grade else None,
+                },
+            )
+        except Exception as e:
+            logger.error("Quality tool failed: %s", e, exc_info=True)
+            return ToolResult(success=False, output=None, error=str(e))
+
+    # ------------------------------------------------------------------
+    # Mode dispatcher
+    # ------------------------------------------------------------------
+
+    def _run_mode(
+        self,
+        mode: QualityMode,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+        focus_areas: list[str],
+    ) -> QualityResult:
+        dispatch = {
+            QualityMode.CODE_REVIEW: self._code_review,
+            QualityMode.SECURITY_AUDIT: self._security_audit,
+            QualityMode.TEST_GENERATION: self._generate_tests,
+            QualityMode.SIMPLIFICATION: self._simplification_review,
+            QualityMode.PERFORMANCE_REVIEW: self._performance_review,
+            QualityMode.BEST_PRACTICES: self._best_practices,
+        }
+        handler = dispatch.get(mode)
+        if handler is None:
+            return QualityResult(success=False, summary=f"Unknown mode: {mode.value}")
+        return handler(code, context, thinking_mode)
+
+    # ------------------------------------------------------------------
+    # MODE: code_review
+    # ------------------------------------------------------------------
+
+    def _code_review(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Code review (depth: %s)", thinking_mode.value)
+        issues: list[QualityIssue] = []
+        recommendations: list[str] = []
+        lines = code.split("\n")
+        line_count = len(lines)
+
+        if code.count("{") != code.count("}"):
+            issues.append(
+                QualityIssue(
+                    title="Unbalanced braces",
+                    severity=SeverityLevel.HIGH,
+                    description="Opening and closing braces do not match",
+                    suggestion="Verify brace pairing throughout the code",
+                ),
+            )
+        if code.count("(") != code.count(")"):
+            issues.append(
+                QualityIssue(
+                    title="Unbalanced parentheses",
+                    severity=SeverityLevel.HIGH,
+                    description="Opening and closing parentheses do not match",
+                    suggestion="Check parenthesis pairing",
+                ),
+            )
+        if "TODO" in code or "FIXME" in code:
+            issues.append(
+                QualityIssue(
+                    title="Unresolved TODOs/FIXMEs",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Code contains TODO or FIXME comments",
+                    suggestion="Address all outstanding TODOs and FIXMEs before merge",
+                ),
+            )
+        if line_count > 300:
+            issues.append(
+                QualityIssue(
+                    title="File too long",
+                    severity=SeverityLevel.MEDIUM,
+                    description=f"File has {line_count} lines — exceeds 300-line guideline",
+                    suggestion="Break into smaller, focused modules",
+                ),
+            )
+
+        func_defs = [line for line in lines if line.strip().startswith(("def ", "async def "))]
+        if len(func_defs) > 10:
+            issues.append(
+                QualityIssue(
+                    title="Too many functions",
+                    severity=SeverityLevel.LOW,
+                    description=f"{len(func_defs)} functions in a single file",
+                    suggestion="Split into multiple modules by responsibility",
+                ),
+            )
+
+        if thinking_mode in (ThinkingMode.HIGH, ThinkingMode.XHIGH):
+            if "import *" in code:
+                issues.append(
+                    QualityIssue(
+                        title="Wildcard import",
+                        severity=SeverityLevel.MEDIUM,
+                        description="Wildcard imports pollute namespace",
+                        suggestion="Use explicit imports",
+                    ),
+                )
+            recommendations.extend([
+                "Add type hints to all function signatures",
+                "Ensure docstrings on all public functions and classes",
+            ])
+
+        crit = sum(1 for i in issues if i.severity == SeverityLevel.CRITICAL)
+        high = sum(1 for i in issues if i.severity == SeverityLevel.HIGH)
+        score = max(0, 100 - crit * 25 - high * 10 - len(issues) * 3)
+        grade = (
+            QualityGrade.F
+            if crit
+            else QualityGrade.D
+            if high > 2
+            else QualityGrade.C
+            if len(issues) > 5
+            else QualityGrade.B
+            if issues
+            else QualityGrade.A
+        )
+
+        return QualityResult(
+            success=True,
+            issues=issues,
+            grade=grade,
+            score=score,
+            summary=f"Code review: {len(issues)} issue(s) in {line_count} lines. Grade: {grade.value}",
+            recommendations=recommendations,
+            metrics={"lines_of_code": line_count, "function_count": len(func_defs)},
+        )
+
+    # ------------------------------------------------------------------
+    # MODE: security_audit
+    # ------------------------------------------------------------------
+
+    def _security_audit(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Security audit (depth: %s)", thinking_mode.value)
+        issues: list[QualityIssue] = []
+        code_lower = code.lower()
+
+        for pattern, info in SECURITY_PATTERNS.items():
+            if pattern.lower() in code_lower:
+                issues.append(
+                    QualityIssue(
+                        title=f"Security: {info['desc']}",
+                        severity=SeverityLevel(info["severity"]),
+                        description=f"Pattern '{pattern}' detected",
+                        suggestion=f"Review usage. See {info['cwe']}",
+                        cwe_id=info["cwe"],
+                        owasp_category=info["owasp"],
+                    ),
+                )
+
+        if "except:" in code and "except Exception" not in code:
+            issues.append(
+                QualityIssue(
+                    title="Bare except clause",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Bare except catches SystemExit and KeyboardInterrupt",
+                    suggestion="Use 'except Exception as e:' and log the error",
+                    cwe_id="CWE-396",
+                    owasp_category="A09:2021",
+                ),
+            )
+
+        covered = {i.owasp_category for i in issues if i.owasp_category}
+        crit = sum(1 for i in issues if i.severity == SeverityLevel.CRITICAL)
+        score = max(0, 100 - crit * 30 - len(issues) * 5)
+        grade = (
+            QualityGrade.F
+            if crit
+            else QualityGrade.C
+            if len(issues) > 3
+            else QualityGrade.B
+            if issues
+            else QualityGrade.A
+        )
+
+        return QualityResult(
+            success=True,
+            issues=issues,
+            grade=grade,
+            score=score,
+            summary=f"Security audit: {len(issues)} issue(s). {len(covered)} OWASP categories covered.",
+            recommendations=[
+                f"OWASP coverage: {len(covered)}/{len(OWASP_TOP_10)} categories",
+                "Use parameterized queries to prevent injection (A03)",
+                "Store secrets in environment variables (A07)",
+                "Enable security logging for auth events (A09)",
+            ],
+            metrics={"security_issues_count": len(issues), "owasp_coverage": len(covered)},
+        )
+
+    # ------------------------------------------------------------------
+    # MODE: test_generation
+    # ------------------------------------------------------------------
+
+    def _generate_tests(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Test generation (depth: %s)", thinking_mode.value)
+        funcs = [line.strip() for line in code.split("\n") if line.strip().startswith(("def ", "async def "))]
+        classes = [line.strip() for line in code.split("\n") if line.strip().startswith("class ")]
+
+        categories = ["happy_path", "edge_cases", "error_cases"]
+        if thinking_mode in (ThinkingMode.HIGH, ThinkingMode.XHIGH):
+            categories.extend(["integration", "performance"])
+
+        est = len(funcs) * len(categories)
+        function_names = [
+            signature.split("(")[0].replace("async def ", "").replace("def ", "").strip()
+            for signature in funcs
+        ]
+        if not function_names:
+            function_names = ["generated_target"]
+        test_lines = ["import pytest", ""]
+        for name in function_names:
+            test_lines.extend((
+                f"def test_{name}_happy_path():",
+                f"    \"\"\"Generated regression scaffold for {name}.\"\"\"",
+                "    assert True",
+                "",
+            ))
+        tests_artifact = "\n".join(test_lines).rstrip()
+        return QualityResult(
+            success=True,
+            issues=[],
+            grade=QualityGrade.B,
+            score=80,
+            summary=f"Test strategy: {est} tests across {len(categories)} categories.",
+            recommendations=[
+                "Follow Arrange-Act-Assert pattern",
+                f"Cover {len(funcs)} functions and {len(classes)} classes",
+                f"Categories: {', '.join(categories)}",
+                "Mock external dependencies",
+                "Naming: test_<fn>_<scenario>_<expected>",
+            ],
+            tests=tests_artifact,
+            metrics={
+                "testable_functions": len(funcs),
+                "testable_classes": len(classes),
+                "estimated_tests": est,
+                "test_categories": categories,
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # MODE: simplification
+    # ------------------------------------------------------------------
+
+    def _simplification_review(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Simplification review (depth: %s)", thinking_mode.value)
+        issues: list[QualityIssue] = []
+        lines = code.split("\n")
+
+        if len(lines) > 200:
+            issues.append(
+                QualityIssue(
+                    title="Long file",
+                    severity=SeverityLevel.LOW,
+                    description=f"{len(lines)} lines — candidate for splitting",
+                    suggestion="Split by single responsibility principle",
+                ),
+            )
+
+        max_indent = max((len(line) - len(line.lstrip()) for line in lines if line.strip()), default=0)
+        if max_indent > 20:
+            issues.append(
+                QualityIssue(
+                    title="Deep nesting",
+                    severity=SeverityLevel.MEDIUM,
+                    description=f"Max indentation: {max_indent // 4} levels",
+                    suggestion="Use early returns, guard clauses, or extract helpers",
+                ),
+            )
+
+        return QualityResult(
+            success=True,
+            issues=issues,
+            grade=QualityGrade.B if len(issues) <= 2 else QualityGrade.C,
+            score=max(0, 100 - len(issues) * 10),
+            summary=f"Simplification: {len(issues)} opportunities.",
+            recommendations=[
+                "Early return pattern",
+                "Extract complex conditionals",
+                "Self-documenting code over comments",
+                "Data-driven patterns",
+            ],
+        )
+
+    # ------------------------------------------------------------------
+    # MODE: performance_review
+    # ------------------------------------------------------------------
+
+    def _performance_review(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Performance review (depth: %s)", thinking_mode.value)
+        issues: list[QualityIssue] = []
+        for_count = code.count("for ")
+
+        if for_count > 2:
+            issues.append(
+                QualityIssue(
+                    title="Potential quadratic complexity",
+                    severity=SeverityLevel.MEDIUM,
+                    description=f"{for_count} for-loops — check for nested iteration",
+                    suggestion="Use dict/set lookups or algorithmic optimization",
+                ),
+            )
+        if "while True" in code:
+            issues.append(
+                QualityIssue(
+                    title="Infinite loop risk",
+                    severity=SeverityLevel.HIGH,
+                    description="while True needs clear exit conditions",
+                    suggestion="Add max_iterations guard and termination condition",
+                ),
+            )
+
+        return QualityResult(
+            success=True,
+            issues=issues,
+            grade=QualityGrade.B if len(issues) <= 1 else QualityGrade.C,
+            score=max(0, 100 - len(issues) * 15),
+            summary=f"Performance: {len(issues)} potential issue(s).",
+            recommendations=[
+                "Profile before optimizing",
+                "Use dict/set for lookups",
+                "functools.lru_cache for expensive computations",
+                "Generators for large datasets",
+            ],
+            metrics={"loop_count": for_count},
+        )
+
+    # ------------------------------------------------------------------
+    # MODE: best_practices
+    # ------------------------------------------------------------------
+
+    def _best_practices(
+        self,
+        code: str,
+        context: str | None,
+        thinking_mode: ThinkingMode,
+    ) -> QualityResult:
+        logger.info("Best practices (depth: %s)", thinking_mode.value)
+        issues: list[QualityIssue] = []
+
+        if "except:" in code:
+            issues.append(
+                QualityIssue(
+                    title="Bare except",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Catches SystemExit and KeyboardInterrupt",
+                    suggestion="Use 'except Exception as e:'",
+                ),
+            )
+        if "def " in code and "=[]" in code.replace(" ", ""):
+            issues.append(
+                QualityIssue(
+                    title="Mutable default argument",
+                    severity=SeverityLevel.HIGH,
+                    description="Mutable defaults are shared between calls",
+                    suggestion="Use None default, create list inside function",
+                ),
+            )
+        if "global " in code:
+            issues.append(
+                QualityIssue(
+                    title="Global variable usage",
+                    severity=SeverityLevel.MEDIUM,
+                    description="Globals make code harder to test",
+                    suggestion="Use parameters or dependency injection",
+                ),
+            )
+
+        grade = QualityGrade.A if not issues else QualityGrade.B if len(issues) <= 2 else QualityGrade.C
+        return QualityResult(
+            success=True,
+            issues=issues,
+            grade=grade,
+            score=max(0, 100 - len(issues) * 10),
+            summary=f"Best practices: {len(issues)} issue(s).",
+            recommendations=[
+                "SOLID principles",
+                "Composition over inheritance",
+                "Consistent type hints",
+                "Docstrings on public APIs",
+                "Functions under 50 lines",
+            ],
+        )

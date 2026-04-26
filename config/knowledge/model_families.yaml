@@ -1,0 +1,930 @@
+# model_families.yaml
+#
+# Vetinari Model Family Knowledge Base
+#
+# This file provides granular, curated knowledge about LLM model families for use
+# by Vetinari's domain expertise layer. It drives intelligent routing, capability
+# matching, and agent role assignment. Capability ratings are on a 0.0-1.0 scale
+# relative to the best available open-weight models at time of authoring (2026-04).
+#
+# Maintainers: update `superseded_by` and `available_sizes` as new generations ship.
+# Do NOT remove families — set superseded_by instead.
+
+model_families:
+
+  llama:
+    name: Llama (3.x series)
+    vendor: Meta
+    architecture_type: dense
+    available_sizes: [1, 3, 8, 70, 405]
+    context_lengths:
+      1: 8192
+      3: 128000
+      8: 128000
+      70: 128000
+      405: 128000
+    chat_format: llama-3
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - multilingual
+    strengths:
+      - Well-rounded generalist — competitive across nearly every task category
+      - Largest open-weight fine-tune ecosystem (LoRA, GGUF, merges)
+      - Strong general reasoning at 70B+ that approaches proprietary models
+      - Good multilingual coverage across European and Asian languages
+      - Consistent instruction following across size tiers
+    weaknesses:
+      - Jack-of-all-trades — rarely best-in-class at any single task
+      - 70B and 405B require substantial VRAM (40GB+ for full precision)
+      - 1B and 3B sizes show noticeably weaker multi-step reasoning
+      - No native vision in text-only variants
+      - Slightly behind Qwen/DeepSeek on competitive coding benchmarks
+    capabilities:
+      coding:
+        python: 0.82
+        javascript: 0.80
+        rust: 0.65
+        sql: 0.78
+        code_generation: 0.82
+        debugging: 0.72
+        refactoring: 0.68
+        code_review: 0.70
+      writing:
+        technical_docs: 0.78
+        creative_fiction: 0.70
+        marketing_copy: 0.65
+        academic: 0.72
+      reasoning:
+        mathematical: 0.75
+        logical: 0.80
+        causal: 0.72
+        spatial: 0.45
+      analysis:
+        data_analysis: 0.75
+        code_analysis: 0.78
+        text_analysis: 0.80
+        security_analysis: 0.65
+      math:
+        arithmetic: 0.82
+        algebra: 0.78
+        calculus: 0.65
+        statistics: 0.72
+        proofs: 0.55
+      classification:
+        sentiment: 0.82
+        intent: 0.80
+        topic: 0.83
+        entity_recognition: 0.78
+      instruction_following: 0.84
+      long_context_quality: 0.76
+    recommended_roles:
+      - Worker
+      - Foreman
+    superseded_by: null
+    notes: >
+      Llama 3.3 70B offers near-405B quality at a fraction of the VRAM cost and is
+      the recommended default for Foreman duties when DeepSeek R1 is unavailable.
+      The 1B/3B Llama 3.2 variants are best treated as routing/classification models
+      rather than reasoning agents.
+
+  qwen2:
+    name: Qwen 2.5 / Qwen 3
+    vendor: Alibaba (Qwen Team)
+    architecture_type: dense
+    available_sizes: [0.5, 1.5, 3, 7, 14, 32, 72]
+    context_lengths:
+      0.5: 32768
+      1.5: 32768
+      3: 32768
+      7: 128000
+      14: 128000
+      32: 128000
+      72: 128000
+    chat_format: chatml
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - code_infill
+      - multilingual
+      - math_reasoning
+    strengths:
+      - Exceptional Python coding — top open-weight performer on HumanEval and SWE-Bench
+      - Best-in-class math reasoning across size tiers (rivals GPT-4 at 72B)
+      - Excellent structured output and function calling reliability
+      - Very strong SQL — suitable for database agent tasks without prompting tricks
+      - Small sizes (0.5B–3B) punch far above weight on classification and extraction
+    weaknesses:
+      - Creative writing feels mechanical; lacks narrative voice
+      - English prose occasionally shows non-native phrasing artifacts
+      - Repetition loops appear in some 7B/14B long-form tasks
+      - Fewer third-party instruction fine-tunes than Llama
+      - Qwen3 MoE variants need careful VRAM planning (total vs active params)
+    capabilities:
+      coding:
+        python: 0.92
+        javascript: 0.85
+        rust: 0.70
+        sql: 0.88
+        code_generation: 0.91
+        debugging: 0.82
+        refactoring: 0.78
+        code_review: 0.82
+      writing:
+        technical_docs: 0.82
+        creative_fiction: 0.45
+        marketing_copy: 0.40
+        academic: 0.72
+      reasoning:
+        mathematical: 0.90
+        logical: 0.85
+        causal: 0.75
+        spatial: 0.40
+      analysis:
+        data_analysis: 0.85
+        code_analysis: 0.90
+        text_analysis: 0.78
+        security_analysis: 0.72
+      math:
+        arithmetic: 0.93
+        algebra: 0.90
+        calculus: 0.80
+        statistics: 0.82
+        proofs: 0.68
+      classification:
+        sentiment: 0.82
+        intent: 0.85
+        topic: 0.87
+        entity_recognition: 0.80
+      instruction_following: 0.90
+      long_context_quality: 0.80
+    recommended_roles:
+      - Worker
+      - Inspector
+    superseded_by: null
+    notes: >
+      Qwen 2.5 Coder 7B/14B/32B are the primary recommended coding Workers in
+      Vetinari. The 72B instruction variant is competitive with Llama 3.3 70B for
+      Foreman tasks while maintaining a coding edge. Qwen3 (0.6B, 1.7B, 4B, 8B,
+      14B, 32B) is the successor generation — prefer Qwen3 when GGUF builds are
+      available; available_sizes above reflects Qwen 2.5 as the production-stable
+      generation.
+
+  deepseek:
+    name: DeepSeek (Coder V2 / V3 / R1)
+    vendor: DeepSeek AI
+    architecture_type: moe
+    available_sizes: [1.5, 7, 16, 21, 236, 671]
+    context_lengths:
+      1.5: 32768
+      7: 32768
+      16: 65536
+      21: 65536
+      236: 131072
+      671: 131072
+    chat_format: deepseek
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - chain_of_thought
+      - math_reasoning
+      - multilingual
+    strengths:
+      - Dominant competitive/algorithmic coding (Codeforces-level problems)
+      - Best open-weight math and formal reasoning via R1 chain-of-thought
+      - Extremely efficient MoE architecture — 16B active params from 236B total
+      - R1 distills show strong reasoning transfer to smaller dense models (1.5B–14B)
+      - Very strong on multi-step logical deduction and proof-style tasks
+    weaknesses:
+      - Creative and narrative writing significantly below average
+      - Full MoE models (V2/V3) require complex KV-cache and VRAM management
+      - Base models have some content restrictions (Chinese regulatory context)
+      - R1 chain-of-thought incurs latency overhead even for simple tasks
+      - Web front-end and CSS tasks notably weaker than backend coding
+    capabilities:
+      coding:
+        python: 0.90
+        javascript: 0.78
+        rust: 0.72
+        sql: 0.85
+        code_generation: 0.92
+        debugging: 0.80
+        refactoring: 0.75
+        code_review: 0.80
+      writing:
+        technical_docs: 0.70
+        creative_fiction: 0.30
+        marketing_copy: 0.28
+        academic: 0.72
+      reasoning:
+        mathematical: 0.95
+        logical: 0.92
+        causal: 0.80
+        spatial: 0.45
+      analysis:
+        data_analysis: 0.85
+        code_analysis: 0.90
+        text_analysis: 0.72
+        security_analysis: 0.78
+      math:
+        arithmetic: 0.95
+        algebra: 0.93
+        calculus: 0.88
+        statistics: 0.85
+        proofs: 0.85
+      classification:
+        sentiment: 0.70
+        intent: 0.75
+        topic: 0.78
+        entity_recognition: 0.72
+      instruction_following: 0.82
+      long_context_quality: 0.82
+    recommended_roles:
+      - Worker
+      - Inspector
+    superseded_by: null
+    notes: >
+      DeepSeek R1 and its distilled variants (1.5B, 7B, 14B, 32B, 70B) are the
+      recommended models for math, formal verification, and complex multi-step
+      reasoning tasks. R1-Distill-Qwen-14B is a strong Inspector candidate that
+      fits on a single consumer GPU. MoE total-param counts (236B for V2, 671B for
+      V3) are misleading — active params during inference are 21B and 37B
+      respectively.
+
+  mistral:
+    name: Mistral / Mixtral
+    vendor: Mistral AI
+    architecture_type: hybrid
+    available_sizes: [7, 12, 24, 56, 176]
+    context_lengths:
+      7: 32768
+      12: 128000
+      24: 128000
+      56: 65536
+      176: 65536
+    chat_format: mistral-instruct
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - multilingual
+    strengths:
+      - Reliable instruction following with low hallucination rate
+      - Sliding-window attention enables very efficient long-context handling
+      - Strong multilingual coverage (French, Spanish, Italian, German, Portuguese)
+      - Function calling is production-reliable across versions
+      - Mixtral MoE offers strong capability with reduced active-param inference cost
+    weaknesses:
+      - Coding competent but not exceptional — lags Qwen and DeepSeek
+      - Math reasoning moderate — not suitable for proof or olympiad tasks
+      - Creative writing serviceable but lacks distinctive voice
+      - Smaller community fine-tune ecosystem compared to Llama
+      - Nemo 12B trades some reasoning quality for license permissiveness
+    capabilities:
+      coding:
+        python: 0.78
+        javascript: 0.77
+        rust: 0.60
+        sql: 0.75
+        code_generation: 0.78
+        debugging: 0.68
+        refactoring: 0.65
+        code_review: 0.68
+      writing:
+        technical_docs: 0.78
+        creative_fiction: 0.62
+        marketing_copy: 0.60
+        academic: 0.72
+      reasoning:
+        mathematical: 0.68
+        logical: 0.75
+        causal: 0.68
+        spatial: 0.42
+      analysis:
+        data_analysis: 0.72
+        code_analysis: 0.75
+        text_analysis: 0.78
+        security_analysis: 0.62
+      math:
+        arithmetic: 0.80
+        algebra: 0.72
+        calculus: 0.60
+        statistics: 0.68
+        proofs: 0.45
+      classification:
+        sentiment: 0.80
+        intent: 0.80
+        topic: 0.82
+        entity_recognition: 0.75
+      instruction_following: 0.86
+      long_context_quality: 0.82
+    recommended_roles:
+      - Worker
+      - Foreman
+    superseded_by: null
+    notes: >
+      Mistral Small 24B (2025) is the recommended general-purpose Worker when
+      Qwen or DeepSeek are not suitable. Mistral Nemo 12B (Apache 2.0 license) is
+      preferred for deployments with strict licensing requirements. Mixtral 8x7B and
+      8x22B sizes are listed as 56B and 176B total params respectively; active params
+      during inference are ~12B and ~39B.
+
+  gemma:
+    name: Gemma 2 / Gemma 3
+    vendor: Google DeepMind
+    architecture_type: dense
+    available_sizes: [1, 2, 4, 7, 9, 12, 27]
+    context_lengths:
+      1: 32768
+      2: 8192
+      4: 131072
+      7: 8192
+      9: 8192
+      12: 131072
+      27: 8192
+    chat_format: gemma
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - vision
+      - multilingual
+    strengths:
+      - Best-in-class performance per parameter at 2B–9B size range
+      - Excellent safety tuning — low toxic output without excessive refusals
+      - Gemma 3 multimodal variants add vision at no reasoning cost
+      - Strong tool/function calling for structured agent tasks
+      - Good for on-device and edge deployment scenarios
+    weaknesses:
+      - Smaller sizes (1B–4B) limited on complex multi-step reasoning chains
+      - Creative writing weaker than similarly-sized Llama models
+      - Gemma 2 has short context window (8192 tokens) — not suitable for long docs
+      - Fewer community fine-tunes than Llama or Qwen
+      - 27B is competitive but not dominant against Qwen 32B or DeepSeek 16B
+    capabilities:
+      coding:
+        python: 0.75
+        javascript: 0.72
+        rust: 0.55
+        sql: 0.70
+        code_generation: 0.75
+        debugging: 0.65
+        refactoring: 0.60
+        code_review: 0.62
+      writing:
+        technical_docs: 0.72
+        creative_fiction: 0.55
+        marketing_copy: 0.50
+        academic: 0.68
+      reasoning:
+        mathematical: 0.68
+        logical: 0.72
+        causal: 0.65
+        spatial: 0.45
+      analysis:
+        data_analysis: 0.70
+        code_analysis: 0.72
+        text_analysis: 0.75
+        security_analysis: 0.58
+      math:
+        arithmetic: 0.78
+        algebra: 0.72
+        calculus: 0.60
+        statistics: 0.68
+        proofs: 0.48
+      classification:
+        sentiment: 0.82
+        intent: 0.80
+        topic: 0.83
+        entity_recognition: 0.78
+      instruction_following: 0.85
+      long_context_quality: 0.70
+    recommended_roles:
+      - Worker
+      - Router
+    superseded_by: null
+    notes: >
+      Gemma 3 4B and 12B are recommended for routing and fast classification tasks
+      where VRAM is constrained. The 27B variant is suitable as a Worker for
+      moderate-complexity tasks. Gemma 2 context limitation (8192) makes it
+      unsuitable for long-document analysis — prefer Gemma 3 for any new deployment.
+      Vision capabilities are available in Gemma 3 multimodal variants.
+
+  phi:
+    name: Phi (Microsoft Research)
+    vendor: Microsoft
+    architecture_type: dense
+    available_sizes: [1.3, 2.7, 3.8, 4.0, 7.0, 14.0]
+    context_lengths:
+      1.3: 2048
+      2.7: 2048
+      3.8: 128000
+      4.0: 128000
+      7.0: 128000
+      14.0: 128000
+    chat_format: chatml
+    native_capabilities:
+      - function_calling
+      - code_generation
+      - math_reasoning
+    strengths:
+      - Exceptional reasoning quality relative to parameter count
+      - Strong Python and algorithmic coding for a sub-4B model
+      - Phi-4 Mini shows GPT-3.5-class reasoning at 4B params
+      - Very low VRAM footprint — runs on consumer hardware with headroom
+      - Good for fast draft generation and first-pass classification
+    weaknesses:
+      - Phi-1.5 and Phi-2 have very limited context (2048 tokens) — nearly unusable for agentic tasks
+      - Creative and open-ended writing constrained by synthetic training data patterns
+      - Can be verbose and over-explanatory in responses
+      - Training data biases toward textbook-style problems; struggles with ambiguity
+      - Smaller active community than Llama — fewer instruction fine-tunes
+    capabilities:
+      coding:
+        python: 0.80
+        javascript: 0.72
+        rust: 0.55
+        sql: 0.70
+        code_generation: 0.80
+        debugging: 0.68
+        refactoring: 0.62
+        code_review: 0.65
+      writing:
+        technical_docs: 0.68
+        creative_fiction: 0.42
+        marketing_copy: 0.38
+        academic: 0.65
+      reasoning:
+        mathematical: 0.78
+        logical: 0.78
+        causal: 0.65
+        spatial: 0.40
+      analysis:
+        data_analysis: 0.68
+        code_analysis: 0.75
+        text_analysis: 0.68
+        security_analysis: 0.58
+      math:
+        arithmetic: 0.85
+        algebra: 0.80
+        calculus: 0.68
+        statistics: 0.72
+        proofs: 0.58
+      classification:
+        sentiment: 0.78
+        intent: 0.78
+        topic: 0.80
+        entity_recognition: 0.72
+      instruction_following: 0.80
+      long_context_quality: 0.65
+    recommended_roles:
+      - Helper
+      - Router
+    superseded_by: null
+    notes: >
+      Phi-4 Mini (4B) is the recommended variant for routing, fast classification,
+      and draft generation. Phi-3.8 Mini with 128K context is viable for moderate
+      agent tasks. Phi-1.5 and Phi-2 should not be used in new deployments due to
+      their 2048-token context ceiling. Phi models are best treated as Helper or
+      Router agents rather than primary reasoning Workers.
+
+  starcoder:
+    name: StarCoder 2
+    vendor: BigCode / ServiceNow
+    architecture_type: dense
+    available_sizes: [1, 3, 7, 15]
+    context_lengths:
+      1: 16384
+      3: 16384
+      7: 16384
+      15: 16384
+    chat_format: starcoder
+    native_capabilities:
+      - code_generation
+      - code_infill
+      - multi_language_code
+    strengths:
+      - Trained exclusively on The Stack — covers 80+ programming languages
+      - Best-in-class fill-in-the-middle (FIM) for code completion workflows
+      - Very strong at multi-language code generation without cross-language confusion
+      - 15B model competitive with much larger general models on pure code tasks
+      - Apache 2.0 license — suitable for commercial deployment
+    weaknesses:
+      - Not a general-purpose model — performs poorly on non-code tasks
+      - Reasoning about code (understanding intent, architecture) weaker than writing it
+      - Base models lack chat/instruction alignment — requires fine-tune for agent use
+      - No function calling support in base variants
+      - Debugging and code review significantly weaker than Qwen Coder or DeepSeek Coder
+    capabilities:
+      coding:
+        python: 0.82
+        javascript: 0.80
+        rust: 0.72
+        sql: 0.70
+        code_generation: 0.85
+        debugging: 0.50
+        refactoring: 0.55
+        code_review: 0.48
+      writing:
+        technical_docs: 0.35
+        creative_fiction: 0.10
+        marketing_copy: 0.10
+        academic: 0.30
+      reasoning:
+        mathematical: 0.45
+        logical: 0.50
+        causal: 0.38
+        spatial: 0.25
+      analysis:
+        data_analysis: 0.52
+        code_analysis: 0.62
+        text_analysis: 0.35
+        security_analysis: 0.50
+      math:
+        arithmetic: 0.60
+        algebra: 0.52
+        calculus: 0.38
+        statistics: 0.45
+        proofs: 0.28
+      classification:
+        sentiment: 0.30
+        intent: 0.40
+        topic: 0.45
+        entity_recognition: 0.38
+      instruction_following: 0.55
+      long_context_quality: 0.65
+    recommended_roles:
+      - Worker
+    superseded_by: null
+    notes: >
+      StarCoder 2 is appropriate ONLY as a code generation specialist Worker.
+      Do not route non-code tasks to this family. The base models require an
+      instruction fine-tune (e.g., WizardCoder-StarCoder or Octocoder) before
+      use in agent pipelines. For most Vetinari deployments, Qwen 2.5 Coder
+      provides better overall coding capability with general-task fallback.
+
+  codellama:
+    name: Code Llama
+    vendor: Meta
+    architecture_type: dense
+    available_sizes: [7, 13, 34, 70]
+    context_lengths:
+      7: 100000
+      13: 100000
+      34: 100000
+      70: 100000
+    chat_format: llama-2
+    native_capabilities:
+      - code_generation
+      - code_infill
+    strengths:
+      - Llama 2 base with code-specialized training — familiar architecture
+      - Supports fill-in-the-middle for code completion
+      - Very long context (100K) relative to its generation
+      - Python instruct variant well-suited to Python-only workflows
+      - Established community with many fine-tunes
+    weaknesses:
+      - Substantially outperformed by Qwen 2.5 Coder and DeepSeek Coder V2 on all benchmarks
+      - Based on Llama 2 — older architecture without GQA efficiency at larger sizes
+      - Not chat-focused in base form — instruct variants required for agent use
+      - Math and reasoning weaker than modern alternatives at same size
+      - No function calling support
+    capabilities:
+      coding:
+        python: 0.75
+        javascript: 0.70
+        rust: 0.55
+        sql: 0.68
+        code_generation: 0.78
+        debugging: 0.60
+        refactoring: 0.58
+        code_review: 0.55
+      writing:
+        technical_docs: 0.55
+        creative_fiction: 0.35
+        marketing_copy: 0.30
+        academic: 0.50
+      reasoning:
+        mathematical: 0.55
+        logical: 0.62
+        causal: 0.50
+        spatial: 0.32
+      analysis:
+        data_analysis: 0.58
+        code_analysis: 0.68
+        text_analysis: 0.52
+        security_analysis: 0.52
+      math:
+        arithmetic: 0.68
+        algebra: 0.60
+        calculus: 0.48
+        statistics: 0.55
+        proofs: 0.38
+      classification:
+        sentiment: 0.60
+        intent: 0.62
+        topic: 0.65
+        entity_recognition: 0.58
+      instruction_following: 0.68
+      long_context_quality: 0.70
+    recommended_roles:
+      - Worker
+    superseded_by: qwen2
+    notes: >
+      Code Llama is superseded by Qwen 2.5 Coder across all size tiers. New
+      Vetinari deployments should not select Code Llama as the primary coding
+      Worker. It is listed here for legacy compatibility with existing model
+      registrations. If a user has Code Llama loaded, route to it only when
+      no Qwen Coder or DeepSeek Coder variant is available.
+
+  yi:
+    name: Yi (01.AI)
+    vendor: 01.AI
+    architecture_type: dense
+    available_sizes: [6, 9, 34]
+    context_lengths:
+      6: 200000
+      9: 4096
+      34: 200000
+    chat_format: chatml
+    native_capabilities:
+      - multilingual
+      - long_context
+    strengths:
+      - Very long context window (200K) at 6B and 34B sizes
+      - Competitive bilingual capability (English and Mandarin Chinese)
+      - Decent general reasoning — competitive with same-era Llama at similar size
+      - Yi-34B competitive with much larger models on bilingual benchmarks
+      - Good for long-document tasks requiring bilingual understanding
+    weaknesses:
+      - Smaller Western open-source ecosystem — fewer fine-tunes and tooling
+      - Less distinctive strengths now that Qwen and Llama have matured
+      - Yi-9B has very short context (4096) — largely superseded by 6B/34B variants
+      - Coding performance moderate — not recommended for code-heavy pipelines
+      - Community support less active than Llama or Qwen
+    capabilities:
+      coding:
+        python: 0.68
+        javascript: 0.65
+        rust: 0.48
+        sql: 0.62
+        code_generation: 0.68
+        debugging: 0.58
+        refactoring: 0.52
+        code_review: 0.52
+      writing:
+        technical_docs: 0.70
+        creative_fiction: 0.62
+        marketing_copy: 0.55
+        academic: 0.68
+      reasoning:
+        mathematical: 0.65
+        logical: 0.70
+        causal: 0.62
+        spatial: 0.38
+      analysis:
+        data_analysis: 0.65
+        code_analysis: 0.65
+        text_analysis: 0.72
+        security_analysis: 0.55
+      math:
+        arithmetic: 0.72
+        algebra: 0.65
+        calculus: 0.55
+        statistics: 0.62
+        proofs: 0.45
+      classification:
+        sentiment: 0.75
+        intent: 0.72
+        topic: 0.75
+        entity_recognition: 0.70
+      instruction_following: 0.78
+      long_context_quality: 0.72
+    recommended_roles:
+      - Worker
+    superseded_by: null
+    notes: >
+      Yi is best deployed for bilingual (English/Chinese) long-document tasks
+      where its 200K context window is an asset. For pure English tasks, Llama
+      or Qwen will generally outperform Yi at the same size. Yi-9B should be
+      avoided due to its 4096 token context ceiling.
+
+  command_r:
+    name: Command R / Command R+
+    vendor: Cohere
+    architecture_type: dense
+    available_sizes: [35, 104]
+    context_lengths:
+      35: 128000
+      104: 128000
+    chat_format: command-r
+    native_capabilities:
+      - function_calling
+      - rag_grounding
+      - multilingual
+      - citation_generation
+    strengths:
+      - Purpose-built for RAG — citation and grounded generation is best-in-class
+      - Native tool use with reliable structured output for agentic pipelines
+      - Strong multilingual support across 10+ languages including Arabic and CJK
+      - Citation generation built into the architecture — no prompt hacking needed
+      - Consistent and predictable output format for production systems
+    weaknesses:
+      - 35B and 104B sizes require significant VRAM (24GB+ and 80GB+ respectively)
+      - Pure coding performance below Qwen or DeepSeek at equivalent parameter count
+      - Inference speed slower than MoE alternatives at similar quality levels
+      - Less competitive at open-ended reasoning without grounding context
+      - Limited community fine-tune support relative to Llama
+    capabilities:
+      coding:
+        python: 0.72
+        javascript: 0.68
+        rust: 0.50
+        sql: 0.75
+        code_generation: 0.72
+        debugging: 0.62
+        refactoring: 0.58
+        code_review: 0.60
+      writing:
+        technical_docs: 0.82
+        creative_fiction: 0.55
+        marketing_copy: 0.65
+        academic: 0.78
+      reasoning:
+        mathematical: 0.62
+        logical: 0.72
+        causal: 0.70
+        spatial: 0.38
+      analysis:
+        data_analysis: 0.78
+        code_analysis: 0.68
+        text_analysis: 0.85
+        security_analysis: 0.58
+      math:
+        arithmetic: 0.72
+        algebra: 0.65
+        calculus: 0.52
+        statistics: 0.70
+        proofs: 0.42
+      classification:
+        sentiment: 0.82
+        intent: 0.85
+        topic: 0.88
+        entity_recognition: 0.82
+      instruction_following: 0.88
+      long_context_quality: 0.85
+    recommended_roles:
+      - Worker
+    superseded_by: null
+    notes: >
+      Command R (35B) and Command R+ (104B) are the recommended models for
+      research, document analysis, and RAG pipelines where grounded citations
+      are required. Not recommended as primary coding Workers. The native RAG
+      mode significantly outperforms prompt-engineering approaches on the same
+      base model.
+
+  internlm:
+    name: InternLM 2.5 / 3
+    vendor: Shanghai AI Lab (SHAI)
+    architecture_type: dense
+    available_sizes: [1.8, 7, 20]
+    context_lengths:
+      1.8: 32768
+      7: 1000000
+      20: 1000000
+    chat_format: internlm
+    native_capabilities:
+      - function_calling
+      - math_reasoning
+      - multilingual
+      - long_context
+      - tool_use
+    strengths:
+      - Very strong math and formal reasoning — competitive with DeepSeek R1 distills
+      - InternLM 2.5 7B supports 1M token context — exceptional for long documents
+      - Good tool use and structured output for agentic tasks
+      - Competitive Chinese language capability alongside strong English
+      - Strong performance on MATH and MMLU benchmarks relative to size
+    weaknesses:
+      - English fluency occasionally less natural than Llama or Qwen
+      - Smaller Western open-source ecosystem and community
+      - Creative writing and open-ended generation below average
+      - 1.8B size shows significant capability drop — better to use 7B minimum
+      - Less tooling integration (LM Studio, Ollama) than Llama/Qwen
+    capabilities:
+      coding:
+        python: 0.78
+        javascript: 0.72
+        rust: 0.58
+        sql: 0.75
+        code_generation: 0.78
+        debugging: 0.68
+        refactoring: 0.62
+        code_review: 0.65
+      writing:
+        technical_docs: 0.70
+        creative_fiction: 0.48
+        marketing_copy: 0.42
+        academic: 0.72
+      reasoning:
+        mathematical: 0.88
+        logical: 0.82
+        causal: 0.72
+        spatial: 0.42
+      analysis:
+        data_analysis: 0.78
+        code_analysis: 0.75
+        text_analysis: 0.72
+        security_analysis: 0.65
+      math:
+        arithmetic: 0.90
+        algebra: 0.85
+        calculus: 0.78
+        statistics: 0.80
+        proofs: 0.72
+      classification:
+        sentiment: 0.75
+        intent: 0.78
+        topic: 0.80
+        entity_recognition: 0.75
+      instruction_following: 0.82
+      long_context_quality: 0.80
+    recommended_roles:
+      - Worker
+    superseded_by: null
+    notes: >
+      InternLM 2.5 7B with 1M context is a strong candidate for long-document
+      analysis tasks where DeepSeek is not available. The math reasoning capability
+      is competitive and makes it a viable alternative Worker for math tasks.
+      Prefer InternLM 7B+ — the 1.8B variant has notable capability gaps.
+
+  glm:
+    name: GLM-4 (ChatGLM)
+    vendor: Zhipu AI / THUDM
+    architecture_type: dense
+    available_sizes: [6, 9]
+    context_lengths:
+      6: 128000
+      9: 128000
+    chat_format: glm4
+    native_capabilities:
+      - function_calling
+      - vision
+      - multilingual
+      - code_generation
+    strengths:
+      - Strong bilingual (English/Mandarin) capability at 6B–9B sizes
+      - Vision variants (GLM-4V) competitive for multimodal tasks at this size
+      - Function calling and tool use well-integrated
+      - Good general versatility — reasonable across multiple task types
+      - 128K context window suitable for document-level tasks
+    weaknesses:
+      - Not top-tier at any specific task category — lacks a dominant strength
+      - Smaller Western ecosystem with fewer community fine-tunes
+      - Coding performance moderate — below Qwen Coder at similar size
+      - Math reasoning competitive but below InternLM or DeepSeek at same size
+      - Less community tooling support (Ollama, LM Studio) than Llama/Qwen
+    capabilities:
+      coding:
+        python: 0.72
+        javascript: 0.68
+        rust: 0.50
+        sql: 0.68
+        code_generation: 0.72
+        debugging: 0.60
+        refactoring: 0.55
+        code_review: 0.58
+      writing:
+        technical_docs: 0.70
+        creative_fiction: 0.58
+        marketing_copy: 0.52
+        academic: 0.68
+      reasoning:
+        mathematical: 0.68
+        logical: 0.70
+        causal: 0.62
+        spatial: 0.40
+      analysis:
+        data_analysis: 0.68
+        code_analysis: 0.68
+        text_analysis: 0.72
+        security_analysis: 0.55
+      math:
+        arithmetic: 0.75
+        algebra: 0.68
+        calculus: 0.55
+        statistics: 0.65
+        proofs: 0.45
+      classification:
+        sentiment: 0.78
+        intent: 0.75
+        topic: 0.78
+        entity_recognition: 0.72
+      instruction_following: 0.80
+      long_context_quality: 0.75
+    recommended_roles:
+      - Worker
+    superseded_by: null
+    notes: >
+      GLM-4 is a reasonable general Worker for bilingual or multimodal tasks
+      where vision capability is needed at the 6B–9B size range. GLM-4V-9B
+      is the recommended variant for vision tasks. For pure text tasks at this
+      size, Qwen 2.5 7B or Gemma 3 will generally outperform GLM-4.

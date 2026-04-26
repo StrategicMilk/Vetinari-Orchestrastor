@@ -1,0 +1,46 @@
+# =============================================================================
+# DEVELOPMENT / LOCAL-ONLY SCAFFOLDING
+#
+# This file provides a working SearXNG configuration for local development.
+# Before deploying to a shared or public environment:
+#
+#   1. Generate a strong random secret_key:
+#        python -c "import secrets; print(secrets.token_hex(32))"
+#      and set it via the SEARXNG_SECRET_KEY environment variable or replace
+#      the placeholder below.
+#
+#   2. Review the engine list and disable any you do not need.
+#   3. Consider whether image_proxy should be enabled for your threat model.
+# =============================================================================
+
+use_default_settings: true
+
+server:
+  # REQUIRED: replace with a strong random value before any shared deployment.
+  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+  secret_key: "CHANGE-ME-generate-with-secrets.token_hex(32)"
+  limiter: true   # rate-limiting enabled — prevents abuse in shared environments
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false

@@ -1,0 +1,25 @@
+# Output Rails — Colang flow definitions for output validation
+#
+# WARNING: The execute check_sensitive_data and execute check_toxic actions
+# below are NOT currently registered in vetinari/safety/nemo_provider.py.
+# These flows will raise a NeMo runtime error if the rails section in
+# config.yml references this file.
+#
+# See rails/input.co for the same issue and the remediation path.
+
+define flow check sensitive data leakage
+  """Detect API keys, credentials, PII in output."""
+  $has_sensitive = execute check_sensitive_data(text=$bot_message)
+  if $has_sensitive
+    bot apologize and redact
+    stop
+
+define flow check toxic language
+  """Detect harmful content in bot output."""
+  $is_toxic = execute check_toxic(text=$bot_message)
+  if $is_toxic
+    bot apologize and redact
+    stop
+
+define bot apologize and redact
+  "I've detected potentially sensitive content in my response. The output has been filtered for safety."

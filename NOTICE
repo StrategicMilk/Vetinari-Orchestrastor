@@ -1,0 +1,17 @@
+Vetinari
+Copyright (c) 2026 Vetinari contributors
+
+Vetinari is licensed under the MIT License. See LICENSE for the full license
+text.
+
+This product depends on third-party software, browser assets, model artifacts,
+datasets, container images, external services, and optional tool execution
+paths that carry their own licenses or terms. The current attribution and
+release-disposition ledger is THIRD-PARTY-LICENSES.md.
+
+Release note: Session 34H created this NOTICE file because root attribution
+artifacts were missing while pyproject.toml declared MIT package metadata.
+The file is not sufficient release signoff by itself. Any dependency, model,
+dataset, generated bundle, or data-flow surface marked release-blocking in
+docs/audit/licensing-compliance/ must be resolved before public release proof
+can cite the package as license/privacy complete.

@@ -1,0 +1,41 @@
+# NeMo Guardrails top-level configuration for Vetinari.
+#
+# nemo_provider.py loads this file via RailsConfig.from_path().
+# The model block uses Vetinari's local inference adapter — NeMo's LLM
+# integration is bypassed; actual inference runs through vetinari's adapter
+# layer.  The engine/model values are placeholders required by the NeMo
+# RailsConfig schema but are not used for real inference.
+#
+# The Colang files in this directory define:
+#   jailbreak.co      — prompt injection / jailbreak detection flows
+#   output_safety.co  — output content safety flows
+#   rails/input.co    — input rail flows using execute check_* actions
+#   rails/output.co   — output rail flows using execute check_* actions
+#
+# Note on rails/input.co and rails/output.co: the execute check_jailbreak,
+# execute check_toxic, execute check_prompt_injection, and
+# execute check_sensitive_data actions must be registered in
+# vetinari/safety/nemo_provider.py before these flows will run.
+
+models:
+  - type: main
+    engine: openai
+    parameters:
+      # api_base points to the local adapter — not an OpenAI endpoint.
+      # NeMo requires this field; Vetinari overrides inference at the adapter level.
+      api_base: "local"
+      model_name: "${GUARDRAIL_MODEL:-default}"
+
+# Colang version — use 1.0 for broad compatibility
+colang_version: "1.0"
+
+# Rail categories enabled for this deployment
+rails:
+  input:
+    flows:
+      - check jailbreak
+      - check prompt injection
+  output:
+    flows:
+      - check output safety
+      - check harmful content

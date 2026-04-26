@@ -1,0 +1,148 @@
+# Architecture knowledge base for Vetinari domain expertise.
+# Enables reasoning about model architecture implications for task routing and resource planning.
+
+architecture_types:
+  dense:
+    description: "All parameters activated for every token. Traditional transformer architecture."
+    vram_usage: "Proportional to total parameter count"
+    inference_speed: "Proportional to parameter count"
+    quality_scaling: "Generally linear with parameters"
+    strengths:
+      - "Predictable VRAM requirements"
+      - "Simpler deployment"
+      - "Better for small models (<7B)"
+      - "More fine-tune friendly"
+    weaknesses:
+      - "All params active = higher compute per token"
+      - "VRAM scales linearly with model size"
+    examples:
+      - "llama"
+      - "qwen2"
+      - "gemma"
+      - "phi"
+      - "mistral-7b"
+    vram_formula: "params_billions * bytes_per_param + kv_cache"
+
+  moe:
+    description: "Mixture of Experts — only activates a subset of parameters per token via a router."
+    vram_usage: "Must load ALL experts into memory even though only some activate"
+    inference_speed: "Faster than equivalently-capable dense model (fewer active params)"
+    quality_scaling: "Can match much larger dense models at lower compute cost"
+    strengths:
+      - "Higher quality per compute FLOP"
+      - "Faster inference for given quality level"
+      - "Better scaling to very large models"
+    weaknesses:
+      - "VRAM must hold ALL experts (total params, not active)"
+      - "Router can misroute tokens (quality variance)"
+      - "Harder to quantize evenly (experts have different importance)"
+      - "More complex fine-tuning"
+    examples:
+      - "mixtral-8x7b"
+      - "deepseek-v2"
+      - "deepseek-v3"
+      - "qwen3-moe"
+    vram_formula: "total_params_billions * bytes_per_param + kv_cache (NOT active_params)"
+    active_param_note: "A 47B MoE with 8B active params uses 47B VRAM but computes like 8B"
+
+attention_mechanisms:
+  full_attention:
+    description: "Standard self-attention over entire context window"
+    context_handling: "Quality uniform across context, but O(n²) memory and compute"
+    vram_impact: "KV cache grows linearly with context length"
+    best_for:
+      - "short to medium context (<8K)"
+      - "tasks requiring full context awareness"
+
+  sliding_window:
+    description: "Attention limited to a fixed window (e.g., 4096 tokens), with information propagating through layers"
+    context_handling: "Recent tokens attended directly, older tokens attended indirectly through layer propagation"
+    vram_impact: "KV cache capped at window_size regardless of total context"
+    best_for:
+      - "long context tasks"
+      - "memory-constrained environments"
+    tradeoffs: "Information from early context may degrade in later layers — NOT equivalent to full attention for needle-in-haystack tasks"
+    examples:
+      - "mistral-7b (4096 window)"
+      - "mixtral"
+
+  grouped_query_attention:
+    description: "GQA — shares key-value heads across groups of query heads, reducing KV cache size"
+    context_handling: "Quality similar to MHA with much less memory"
+    vram_impact: "KV cache reduced by group_factor (e.g., 8 query heads sharing 1 KV head = 8x reduction)"
+    best_for:
+      - "all modern models"
+      - "long context with limited VRAM"
+    notes: "Standard in Llama 3, Qwen 2.5, Mistral. Minimal quality loss."
+    examples:
+      - "llama-3 (8 groups)"
+      - "qwen2.5"
+      - "gemma-2"
+
+  multi_query_attention:
+    description: "MQA — extreme version of GQA where ALL query heads share one KV head"
+    vram_impact: "Maximum KV cache reduction"
+    tradeoffs: "Slight quality loss compared to GQA, but fastest inference"
+    examples:
+      - "falcon"
+      - "phi-2"
+
+optimization_features:
+  flash_attention:
+    description: "IO-aware exact attention algorithm that reduces memory and speeds up attention computation"
+    speedup: "2-4x for long sequences"
+    vram_savings: "Does not materialize full attention matrix — O(N) instead of O(N²) memory"
+    compatibility: "Requires GPU with compute capability >= 8.0 (Ampere+). Not available on CPU."
+    llama_cpp_flag: "flash_attn=True in model constructor"
+    recommendation: "ALWAYS enable when GPU supports it"
+
+  kv_cache_quantization:
+    description: "Quantize the KV cache to reduce memory during inference"
+    options:
+      f16: "Default. Full quality KV cache."
+      q8_0: "Minimal quality loss. 50% KV cache memory savings."
+      q4_0: "Noticeable quality loss for reasoning tasks. 75% savings."
+    llama_cpp_flags: "type_k and type_v in model constructor"
+    recommendation: "Use q8_0 for most tasks. Only use q4_0 for simple generation/classification."
+
+  continuous_batching:
+    description: "Process multiple requests simultaneously, inserting new requests as old ones complete"
+    benefit: "Higher throughput for concurrent requests"
+    requirement: "Server mode (llama.cpp server, vLLM)"
+
+  speculative_decoding:
+    description: "Use a small draft model to predict tokens, verified by the large model"
+    speedup: "1.5-3x depending on draft model quality and acceptance rate"
+    requirement: "Two models: large (target) + small (draft) from same family"
+    tradeoff: "Extra VRAM for draft model, same output quality as target model"
+
+  native_function_calling:
+    description: "Model trained specifically on function/tool calling format"
+    benefit: "Reduces JSON parsing errors, fewer retries, structured tool use"
+    models_with_support:
+      - "qwen2.5"
+      - "llama-3.1+"
+      - "mistral"
+      - "gemma-3"
+      - "command-r"
+      - "glm-4"
+    without_support: "Must prompt-engineer JSON output — higher retry rate, more tokens"
+    vetinari_impact: "Models with native function calling should be preferred for Inspector (structured output) and tool-using Worker tasks"
+
+  rope_scaling:
+    description: "Rotary Position Embedding extensions for longer context than training length"
+    methods:
+      linear: "Simple interpolation. Quality degrades proportionally beyond training length."
+      ntk_aware: "Better quality preservation. Most modern models use this."
+      yarn: "Yet Another RoPE extensioN — best quality for extended context."
+      dynamic_ntk: "Adjusts scaling factor based on sequence length at inference time."
+    note: "A model trained at 8K context extended to 32K via RoPE may have degraded quality at 16K+ — benchmark before relying on it."
+
+  context_length_implications:
+    note: "Longer context != better performance. Models typically perform best within their training context length."
+    guidelines:
+      - "2K-4K: Fast, efficient. Good for classification, simple QA, short code."
+      - "4K-8K: Standard. Covers most single-file tasks."
+      - "8K-32K: Long context. Multi-file analysis, long documents, RAG."
+      - "32K-128K: Extended. Full codebase analysis, book summarization. Quality may degrade."
+      - "128K+: Experimental. Available in few models. Use with caution."

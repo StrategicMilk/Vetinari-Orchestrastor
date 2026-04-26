@@ -1,0 +1,74 @@
+# vetinari.yaml (MVP manifest)
+project_name: Vetinari
+description: Local-LM orchestration for task workflows using llama-cpp-python
+created_at: 2026-03-01T12:00:00Z
+
+high_level_goal: "Create a Python CLI tool with a REST API that can be run locally"
+
+auto_discover: true
+discovery_source: "Local filesystem scan for .gguf files in VETINARI_MODELS_DIR"
+discover_interval_minutes: 1440
+
+models:
+  - id: qwen25-05b
+    name: qwen2.5-0.5b-instruct
+    capabilities: ["code_gen", "docs", "chat"]
+    context_len: 2048
+    memory_gb: 1
+    version: "2.5"
+  - id: llama1b
+    name: llama-3.2-1b-instruct
+    capabilities: ["code_gen", "docs", "chat"]
+    context_len: 4096
+    memory_gb: 2
+    version: "3.2"
+  - id: qwen3coder
+    name: qwen3-coder-next
+    capabilities: ["code_gen"]
+    context_len: 6400
+    memory_gb: 16
+    version: "next"
+
+tasks:
+  - id: t1
+    description: "Plan project scaffold (CLI skeleton with basic API)"
+    inputs: ["high_level_goal"]
+    outputs: ["CLI_skeleton", "API_routes"]
+    dependencies: []
+    # Use an auto-discovered model or any id from the models list above.
+    # assigned_model_id must match an id in the models list or a discovered model.
+    assigned_model_id: qwen25-05b
+    # Prompts are loaded from prompts_dir (see below). Inline prompt blobs
+    # are not supported by the runtime — use the prompts/ directory instead.
+    prompts_ref:
+      init: "t1_init.txt"
+      run: "t1_run.txt"
+      post: "t1_post.txt"
+  - id: t2
+    description: "Implement core CLI and REST API scaffold"
+    inputs: ["CLI_skeleton", "API_routes"]
+    outputs: ["compiled_tool", "docs"]
+    dependencies: ["t1"]
+    assigned_model_id: qwen25-05b
+    prompts_ref:
+      init: "t2_init.txt"
+      run: "t2_run.txt"
+      post: "t2_post.txt"
+
+artifacts_dir: "outputs"
+prompts_dir: "prompts"
+logging:
+  level: INFO
+  log_dir: "logs"
+upgrade_policy:
+  auto_upgrade: true
+  require_approval: true
+  benchmarks_source: ["local_latency", "online_benchmarks"]
+  post_upgrade_validation: true
+output_strategy:
+  multi_language_support: true
+discovery_filters:
+  allow_unverified_models: false
+  max_context_len: 32768
+  min_capabilities: ["code_gen"]
+  max_model_memory_gb: 96

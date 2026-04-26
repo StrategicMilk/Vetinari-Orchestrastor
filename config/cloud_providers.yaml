@@ -1,0 +1,49 @@
+# Cloud model providers available to Vetinari.
+# Each entry provides endpoint, authentication token env vars, and capability tags.
+# free_tier: false means all usage is billed; check the provider's pricing page before use.
+providers:
+  huggingface_inference:
+    name: "HuggingFace Inference API"
+    endpoint: "https://api-inference.huggingface.co/models"
+    free_tier: false
+    context_len: 8192
+    memory_gb: 0
+    tags: ["cloud", "inference"]
+    env_token: "HF_HUB_TOKEN"
+
+  replicate:
+    name: "Replicate"
+    endpoint: "https://api.replicate.com/v1"
+    free_tier: false
+    context_len: 8192
+    memory_gb: 0
+    tags: ["cloud", "replicate"]
+    env_token: "REPLICATE_API_TOKEN"
+
+  claude:
+    name: "Claude (Anthropic)"
+    endpoint: "https://api.anthropic.com/v1"
+    free_tier: false
+    context_len: 200000
+    memory_gb: 0
+    tags: ["cloud", "reasoning", "claude"]
+    env_token: "ANTHROPIC_API_KEY"
+    env_token_fallback: "CLAUDE_API_KEY"
+
+  gemini:
+    name: "Gemini (Google)"
+    endpoint: "https://generativelanguage.googleapis.com/v1"
+    free_tier: false
+    context_len: 32768
+    memory_gb: 0
+    tags: ["cloud", "gemini", "google"]
+    env_token: "GEMINI_API_KEY"
+
+  openai:
+    name: "OpenAI"
+    endpoint: "https://api.openai.com/v1"
+    free_tier: false
+    context_len: 128000
+    memory_gb: 0
+    tags: ["cloud", "openai", "reasoning", "vision"]
+    env_token: "OPENAI_API_KEY"

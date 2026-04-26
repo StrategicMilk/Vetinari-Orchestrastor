@@ -1,0 +1,34 @@
+# MCP server configuration for Vetinari.
+#
+# Each entry defines an external MCP server that Vetinari can connect to.
+# Tools discovered from these servers are registered under the namespace
+# mcp__{name}__{tool_name} (e.g. mcp__filesystem__read_file).
+#
+# Fields:
+#   name    — logical identifier used as the tool namespace prefix
+#   command — executable to launch the server subprocess
+#   args    — arguments passed to the subprocess command
+#   env     — explicit extra environment variables for the subprocess
+#             (empty = only Vetinari's MCP allowlist, not parent inheritance)
+#   enabled — set to false to skip this server without removing its config
+# Disabled examples are advisory templates. Before enabling, replace package
+# specs with pinned versions or digests; moving @latest/npx -y execution is
+# rejected by the MCP config loader.
+
+mcp_servers:
+  - name: filesystem
+    command: npx
+    # args[2] is the root directory the server exposes. This MUST be configured
+    # before enabling. Do NOT use /tmp on Windows — it is not a valid path.
+    # Linux/macOS example:  "/home/<user>/vetinari-workspace"
+    # Windows example:      "C:\\Users\\<user>\\Documents\\vetinari-workspace"
+    # Replace the placeholder below with an absolute path on your system.
+    args: ["@modelcontextprotocol/server-filesystem@<PIN_VERSION>", "<SET_WORKSPACE_PATH>"]
+    env: {}
+    enabled: false  # Disabled by default — configure args[2] path before enabling
+
+  - name: memory
+    command: npx
+    args: ["@modelcontextprotocol/server-memory@<PIN_VERSION>"]
+    env: {}
+    enabled: false  # Disabled by default — enable when npx/node is available

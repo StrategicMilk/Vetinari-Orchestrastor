@@ -1,0 +1,66 @@
+# Autonomy policies — per-action-type levels controlling human involvement.
+#
+# Levels:
+#   L0 = Manual (human triggers every action)
+#   L1 = Suggest (system suggests, human approves via approval queue)
+#   L2 = Act & Report (system acts then reports to human)
+#   L3 = Act & Log (system acts and logs silently)
+#   L4 = Full Auto (fully autonomous, no notification unless failure)
+#
+# Conservative defaults: new deployments start cautious, trust engine promotes.
+
+# Global autonomy dial — controls confidence-based routing defaults.
+# Values: conservative, balanced, aggressive
+global_autonomy_mode: balanced
+
+# Per-domain care levels — override global mode for specific domains.
+# "auto" = follow normal confidence-based routing
+# "review" = always require human approval regardless of global mode
+domain_care_levels:
+  code-generation: review
+  testing: auto
+  documentation: auto
+  deployment: review
+  config-changes: review
+
+defaults:
+  level: L1  # Default for unrecognized action types
+
+actions:
+  parameter_tuning:
+    level: L3
+    max_change_pct: 20  # Cap parameter changes to 20% of current value
+
+  prompt_optimization:
+    level: L2
+    rollback_on_regression: true  # Auto-rollback if quality score drops
+
+  model_substitution:
+    level: L1  # Human approval required — model changes affect all outputs
+
+  training_cycle:
+    level: L3  # Fine-tuning runs are low-risk, high-frequency
+
+  dependency_update:
+    level: L2  # Act then report — updates may break builds
+
+  code_modification:
+    level: L1  # Human must approve code changes
+
+  pipeline_restructure:
+    level: L1  # Structural changes need human sign-off
+
+  cost_threshold_breach:
+    level: L1  # Budget overruns always need human awareness
+
+  quality_gate_adjustment:
+    level: L2  # Threshold tuning is relatively safe
+
+  cache_invalidation:
+    level: L3  # Cache is transient — safe to clear automatically
+
+  log_rotation:
+    level: L4  # Fully automated housekeeping
+
+  health_check:
+    level: L4  # Monitoring actions are always safe

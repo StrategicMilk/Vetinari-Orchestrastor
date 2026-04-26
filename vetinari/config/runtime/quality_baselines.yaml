@@ -1,0 +1,44 @@
+# Quality Score Baselines — per-task-type dimension defaults
+# ============================================================
+# These replace the flat 0.65 default that made all quality scores identical.
+# Each task type has researched baseline expectations for its dimensions.
+# A baseline represents "adequate but unremarkable" performance (0.4-0.6 range).
+#
+# Baselines are NOT targets — they're the expected score when output is mediocre.
+# Good output should score well above baseline; bad output well below.
+
+coding:
+  correctness: 0.45    # Mediocre code often has logic errors
+  completeness: 0.50   # Partial implementations are common
+  efficiency: 0.55     # Most code is "good enough" efficiency
+  style: 0.50          # Style compliance varies widely
+  test_coverage: 0.30  # Most generated code lacks tests
+
+research:
+  accuracy: 0.45       # Unverified claims are common
+  completeness: 0.50   # Partial coverage of topic
+  source_quality: 0.35 # Sources often missing or weak
+  actionability: 0.40  # Conclusions often vague
+
+analysis:
+  depth: 0.40          # Surface-level analysis is default
+  accuracy: 0.50       # Moderate accuracy expected
+  actionability: 0.40  # Actionable insights are rare by default
+  clarity: 0.55        # Usually readable but not clear
+
+documentation:
+  clarity: 0.55        # Docs are usually readable
+  completeness: 0.45   # Often missing sections
+  accuracy: 0.50       # Generally accurate
+  examples: 0.30       # Examples frequently omitted
+
+testing:
+  coverage: 0.35       # Default test coverage is low
+  correctness: 0.50    # Tests often test happy path only
+  clarity: 0.50        # Test readability varies
+  edge_cases: 0.25     # Edge cases rarely covered by default
+
+default:
+  correctness: 0.45    # Conservative default
+  completeness: 0.45   # Conservative default
+  quality: 0.45        # Conservative default
