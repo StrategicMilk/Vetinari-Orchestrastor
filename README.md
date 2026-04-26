@@ -254,11 +254,6 @@ primary Windows path yet. The checked-in helper scripts target a Windows host
 that points at a WSL-hosted native backend endpoint, and they do not maintain
 the Ubuntu distro, CUDA packages, drivers, or model downloads for you.
 
-Workspace cleanup note:
-
-- Temporary pytest/pip/probe directories created during local debugging are now ignored by Git.
-- If you want to delete them from disk later, the safe targets are patterns such as `.pytest-tmp-root*`, `.pytest-temp*`, `.pip-temp/`, `.pip-work/`, `.pip-cache/`, `.probe-tmp/`, `.tmp-perm-check*`, `probe700/`, `probe755/`, and `unsloth_compiled_cache/`.
-
 ### Run
 
 ```bash
